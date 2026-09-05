@@ -271,7 +271,11 @@ fn time_duration(secs: u64) -> time::Duration {
 }
 
 /// Remove the session server-side and expire the cookie.
-pub async fn logout(state: &AuthState, headers: &HeaderMap) -> Result<Cookie<'static>, Error> {
+pub async fn logout(
+    state: &AuthState,
+    headers: &HeaderMap,
+    https: bool,
+) -> Result<Cookie<'static>, Error> {
     let jar = CookieJar::from_headers(headers);
     if let Some(cookie) = jar.get(&state.cookie_name()) {
         let removed = state.sessions.state.write().await.remove(cookie.value());
@@ -282,6 +286,10 @@ pub async fn logout(state: &AuthState, headers: &HeaderMap) -> Result<Cookie<'st
     let mut gone = Cookie::new(state.cookie_name(), "");
     gone.set_path("/");
     gone.set_http_only(true);
+    // S8: same attributes as the session cookie, so the browser matches
+    // and clears exactly that cookie.
+    gone.set_same_site(SameSite::Lax);
+    gone.set_secure(https);
     gone.set_max_age(time_duration(0));
     Ok(gone)
 }
@@ -303,8 +311,13 @@ pub async fn login_handler(
     }
 }
 
-pub async fn logout_handler(State(state): State<AuthState>, headers: HeaderMap) -> Response {
-    match logout(&state, &headers).await {
+pub async fn logout_handler(
+    State(state): State<AuthState>,
+    axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<std::net::SocketAddr>,
+    headers: HeaderMap,
+) -> Response {
+    let https = crate::shell::guards::is_https(peer, &headers, &state.guards.trusted_proxies);
+    match logout(&state, &headers, https).await {
         Ok(cookie) => (CookieJar::new().add(cookie), Redirect::to("/login")).into_response(),
         Err(e) => e.into_response(),
     }

@@ -76,6 +76,29 @@ pub fn with_kit_layers(
         .layer(PropagateRequestIdLayer::new(X_REQUEST_ID.clone()))
         .layer(SetRequestIdLayer::new(X_REQUEST_ID.clone(), MakeUuid))
         .layer(middleware::from_fn(sanitize_request_id))
+        .layer(middleware::from_fn(security_headers))
+}
+
+/// S8: defence-in-depth headers on every response. The dashboard loads
+/// scripts, styles and fonts only from itself (fonts are vendored), so the
+/// policy can be strict; `'unsafe-inline'` for styles covers the templates'
+/// small `style=""` attributes and nothing else.
+pub async fn security_headers(req: Request, next: Next) -> Response {
+    let mut res = next.run(req).await;
+    let h = res.headers_mut();
+    let put = |h: &mut axum::http::HeaderMap, k: &'static str, v: &'static str| {
+        h.entry(k)
+            .or_insert(axum::http::HeaderValue::from_static(v));
+    };
+    put(
+        h,
+        "content-security-policy",
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    );
+    put(h, "x-content-type-options", "nosniff");
+    put(h, "x-frame-options", "DENY");
+    put(h, "referrer-policy", "no-referrer");
+    res
 }
 
 /// AR4, one error shape: the body-limit layer answers a declared oversize

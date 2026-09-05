@@ -46,6 +46,44 @@ fn a_new_project_compiles_and_answers_version() {
         "tells how to create the remote later"
     );
 
+    // H10: the generated project passes ITS OWN gates (fmt, clippy -D
+    // warnings, tests, clean tree) — what its first real commit will face.
+    let gates = project.join(".claude/hooks/gates.sh");
+    assert!(gates.exists(), "gates.sh is part of the scaffold");
+    let out = Command::new("bash")
+        .arg(&gates)
+        .current_dir(&project)
+        .env("CARGO_TARGET_DIR", &workspace_target)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "the generated project's gates failed:\n{}\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    // H10: the rendered systemd units parse (systemd-analyze, when present).
+    if let Ok(analyze) = Command::new("systemd-analyze")
+        .args([
+            "verify",
+            project.join("deploy/demo-svc.service").to_str().unwrap(),
+        ])
+        .output()
+    {
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&analyze.stdout),
+            String::from_utf8_lossy(&analyze.stderr)
+        );
+        for line in text.lines().filter(|l| !l.trim().is_empty()) {
+            assert!(
+                line.contains("is not executable") || line.contains("No such file"),
+                "systemd-analyze verify complains about the unit itself: {line}"
+            );
+        }
+    }
+
     // The scaffold's own sync sees no drift.
     let out = chassis()
         .args(["sync", "--dir", project.to_str().unwrap()])

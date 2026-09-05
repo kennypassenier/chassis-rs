@@ -295,6 +295,10 @@ fn cmd_new(
     latch: bool,
 ) -> Result<(), Error> {
     validate_name(&name)?;
+    validate_description(&description)?;
+    if let Some(r) = &repo {
+        validate_repo(r)?;
+    }
     let dir = dir.unwrap_or_else(|| PathBuf::from(&name));
     if dir.exists()
         && std::fs::read_dir(&dir)
@@ -348,10 +352,20 @@ fn cmd_new(
         &["config", "core.hooksPath", ".githooks"],
         false,
     )?;
+    // H10: resolve the lockfile now so it is part of the first commit;
+    // otherwise the first real commit's gate sees `cargo test` create it
+    // and refuses (the tree changed while the checks ran). Best effort:
+    // offline without a registry cache it cannot resolve, and says so.
+    if let Err(e) = run(&dir, "cargo", &["generate-lockfile", "-q"], false) {
+        println!(
+            "note: Cargo.lock not generated ({}); run `cargo generate-lockfile` and commit it before the first real commit",
+            e.message.lines().next().unwrap_or("")
+        );
+    }
     run(&dir, "git", &["add", "-A"], false)?;
-    // The first commit bypasses the gates on purpose: a project without a
-    // Cargo.lock cannot pass `cargo test` before it has ever been built,
-    // and the gates hold from the second commit on.
+    // The first commit bypasses the gates on purpose: a project has not
+    // been built yet, so its own tests cannot have run; the gates hold
+    // from the second commit on.
     let mut commit_args: Vec<&str> = Vec::new();
     // A machine without a git identity (a CI runner) still gets its first
     // commit; a configured identity is left alone.
@@ -418,6 +432,43 @@ fn cmd_new(
         rec.name
     );
     Ok(())
+}
+
+/// S8: `repo` and `description` are rendered into TOML, bash, a systemd
+/// unit and a Rust doc comment with autoescape off, so they are checked
+/// for the shapes those contexts can take, not trusted.
+fn validate_repo(repo: &str) -> Result<(), Error> {
+    let ok = repo.split_once('/').is_some_and(|(o, n)| {
+        !o.is_empty()
+            && !n.is_empty()
+            && [o, n].iter().all(|p| {
+                p.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
+            })
+    });
+    if ok {
+        Ok(())
+    } else {
+        Err(Error::invalid(
+            format!("`{repo}` is not a GitHub owner/name"),
+            "use letters, digits, `_`, `.` and `-` on both sides of one slash, e.g. kennypassenier/inbox",
+        ))
+    }
+}
+
+fn validate_description(description: &str) -> Result<(), Error> {
+    let ok = (1..=120).contains(&description.chars().count())
+        && !description
+            .chars()
+            .any(|c| c.is_control() || matches!(c, '"' | '\\' | '`' | '$' | '{' | '}'));
+    if ok {
+        Ok(())
+    } else {
+        Err(Error::invalid(
+            "the description must be one plain line",
+            "1-120 characters, no newline, quote, backslash, backtick, `$` or braces (it lands in Cargo.toml, the unit and a doc comment)",
+        ))
+    }
 }
 
 fn validate_name(name: &str) -> Result<(), Error> {
@@ -933,6 +984,42 @@ mod tests {
             state_dir: "/var/lib/demo-svc".into(),
             latch: false,
         }
+    }
+
+    /// M2 / critic #4: the latch variant of the unit lets the child's READY
+    /// through and runs --check under latch's secrets, and the binary lives
+    /// in its own directory (S2).
+    #[test]
+    fn latch_unit_has_notify_access_all_and_checks_under_latch() {
+        let mut r = rec();
+        r.latch = true;
+        let files = render_all(&r).unwrap();
+        let unit = files
+            .iter()
+            .find(|(p, ..)| p == "deploy/demo-svc-latch.service")
+            .map(|(_, b, ..)| b.clone())
+            .expect("latch unit rendered");
+        assert!(unit.contains("NotifyAccess=all"), "{unit}");
+        assert!(
+            unit.contains("ExecStartPre=/usr/local/bin/latch run --env prod -- /opt/demo-svc/bin/demo-svc --check"),
+            "{unit}"
+        );
+        assert!(
+            unit.contains(
+                "ReadWritePaths=/var/lib/demo-svc /var/lib/demo-svc-pre-update /opt/demo-svc/bin"
+            ),
+            "{unit}"
+        );
+        assert!(
+            !unit.contains("/usr/local/bin/demo-svc"),
+            "the service never lives in the shared bin dir (S2)"
+        );
+        assert!(validate_repo("kennypassenier/inbox").is_ok());
+        assert!(validate_repo("no-slash").is_err());
+        assert!(validate_repo("a/b; rm -rf").is_err());
+        assert!(validate_description("A service built on chassis").is_ok());
+        assert!(validate_description("two\nlines").is_err());
+        assert!(validate_description("has \"quotes\"").is_err());
     }
 
     #[test]

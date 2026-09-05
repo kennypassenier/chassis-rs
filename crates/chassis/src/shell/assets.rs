@@ -1,5 +1,6 @@
-//! Static assets (K15): the vendored @kp-soft/themes files and the kit's
-//! own CSS/JS, embedded with `include_str!` and served under a
+//! Static assets (K15): the vendored @kp-soft/themes files, the kit's own
+//! CSS/JS and the fonts (vendored from fonts.bunny.net, S8: nothing loads
+//! from a third party), embedded with `include_bytes!` and served under a
 //! content-hash query so browsers may cache them for a year.
 //!
 //! The vendored files are byte-for-byte copies of the kp-themes release
@@ -17,61 +18,156 @@ pub const KP_THEMES_VERSION: &str = "3.1.0";
 
 /// name → (content type, bytes). Explicit list, no path joining (kyu's
 /// traversal-proof shape).
-pub const ASSETS: &[(&str, &str, &str)] = &[
+pub const ASSETS: &[(&str, &str, &[u8])] = &[
     (
         "themes.css",
         "text/css; charset=utf-8",
-        include_str!("../../static/kp/themes.css"),
+        include_bytes!("../../static/kp/themes.css"),
     ),
     (
         "components.css",
         "text/css; charset=utf-8",
-        include_str!("../../static/kp/components.css"),
+        include_bytes!("../../static/kp/components.css"),
     ),
     (
         "theme-core.js",
         "text/javascript; charset=utf-8",
-        include_str!("../../static/kp/theme-core.js"),
+        include_bytes!("../../static/kp/theme-core.js"),
     ),
     (
         "theme-picker.js",
         "text/javascript; charset=utf-8",
-        include_str!("../../static/kp/theme-picker.js"),
+        include_bytes!("../../static/kp/theme-picker.js"),
     ),
     (
         "theme-registry.js",
         "text/javascript; charset=utf-8",
-        include_str!("../../static/kp/theme-registry.js"),
+        include_bytes!("../../static/kp/theme-registry.js"),
     ),
     (
         "no-flash.js",
         "text/javascript; charset=utf-8",
-        include_str!("../../static/kp/no-flash.js"),
+        include_bytes!("../../static/kp/no-flash.js"),
     ),
     (
         "components.js",
         "text/javascript; charset=utf-8",
-        include_str!("../../static/kp/components.js"),
+        include_bytes!("../../static/kp/components.js"),
     ),
     (
         "strings.js",
         "text/javascript; charset=utf-8",
-        include_str!("../../static/kp/strings.js"),
+        include_bytes!("../../static/kp/strings.js"),
     ),
     (
         "chassis.css",
         "text/css; charset=utf-8",
-        include_str!("../../static/chassis.css"),
+        include_bytes!("../../static/chassis.css"),
     ),
     (
         "chassis.js",
         "text/javascript; charset=utf-8",
-        include_str!("../../static/chassis.js"),
+        include_bytes!("../../static/chassis.js"),
     ),
     (
         "passkeys.js",
         "text/javascript; charset=utf-8",
-        include_str!("../../static/passkeys.js"),
+        include_bytes!("../../static/passkeys.js"),
+    ),
+    (
+        "theme-boot.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/theme-boot.js"),
+    ),
+    (
+        "fonts.css",
+        "text/css; charset=utf-8",
+        include_bytes!("../../static/fonts.css"),
+    ),
+    (
+        "fonts/chakra-petch-latin-500-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/chakra-petch-latin-500-normal.woff2"),
+    ),
+    (
+        "fonts/chakra-petch-latin-600-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/chakra-petch-latin-600-normal.woff2"),
+    ),
+    (
+        "fonts/chakra-petch-latin-700-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/chakra-petch-latin-700-normal.woff2"),
+    ),
+    (
+        "fonts/chakra-petch-latin-ext-500-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/chakra-petch-latin-ext-500-normal.woff2"),
+    ),
+    (
+        "fonts/chakra-petch-latin-ext-600-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/chakra-petch-latin-ext-600-normal.woff2"),
+    ),
+    (
+        "fonts/chakra-petch-latin-ext-700-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/chakra-petch-latin-ext-700-normal.woff2"),
+    ),
+    (
+        "fonts/fraunces-latin-600-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/fraunces-latin-600-normal.woff2"),
+    ),
+    (
+        "fonts/fraunces-latin-700-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/fraunces-latin-700-normal.woff2"),
+    ),
+    (
+        "fonts/fraunces-latin-ext-600-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/fraunces-latin-ext-600-normal.woff2"),
+    ),
+    (
+        "fonts/fraunces-latin-ext-700-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/fraunces-latin-ext-700-normal.woff2"),
+    ),
+    (
+        "fonts/instrument-sans-latin-400-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/instrument-sans-latin-400-normal.woff2"),
+    ),
+    (
+        "fonts/instrument-sans-latin-500-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/instrument-sans-latin-500-normal.woff2"),
+    ),
+    (
+        "fonts/instrument-sans-latin-600-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/instrument-sans-latin-600-normal.woff2"),
+    ),
+    (
+        "fonts/instrument-sans-latin-ext-400-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/instrument-sans-latin-ext-400-normal.woff2"),
+    ),
+    (
+        "fonts/instrument-sans-latin-ext-500-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/instrument-sans-latin-ext-500-normal.woff2"),
+    ),
+    (
+        "fonts/instrument-sans-latin-ext-600-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/instrument-sans-latin-ext-600-normal.woff2"),
+    ),
+    (
+        "fonts/share-tech-mono-latin-400-normal.woff2",
+        "font/woff2",
+        include_bytes!("../../static/fonts/share-tech-mono-latin-400-normal.woff2"),
     ),
 ];
 
@@ -84,13 +180,7 @@ pub const KP_THEMES_MANIFEST: &str = include_str!("../../static/kp/KP_THEMES.sha
 /// `immutable` cache safe.
 pub fn asset_version() -> &'static str {
     static VERSION: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    VERSION.get_or_init(|| {
-        fnv_version(
-            ASSETS
-                .iter()
-                .map(|(name, _, body)| (*name, body.as_bytes())),
-        )
-    })
+    VERSION.get_or_init(|| fnv_version(ASSETS.iter().map(|(name, _, body)| (*name, *body))))
 }
 
 /// FNV-1a over `(name, body)` pairs, 16 hex chars.
@@ -138,7 +228,7 @@ mod tests {
                 .iter()
                 .find(|(n, _, _)| *n == name)
                 .unwrap_or_else(|| panic!("manifest names {name}, which is not embedded"));
-            let actual = hex::encode(Sha256::digest(body.as_bytes()));
+            let actual = hex::encode(Sha256::digest(body));
             assert_eq!(
                 actual, hash,
                 "{name} differs from kp-themes v{KP_THEMES_VERSION}"

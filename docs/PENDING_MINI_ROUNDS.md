@@ -63,6 +63,25 @@ Phase 8).
 - Kenny's remark: standing rule 7a (a session touches only its own project)
   is suspended until he returns; "big, tangible progress by tonight".
 
+## Phase 7 build status (2026-09-05, AFK run 2)
+
+Done in code and tests: H2, H3, H4, H5, H6, H8, H9, H10, H11, H12, H13,
+H15, H17, S1, S3, S4, S5, S7, S8, S2 (templates; CT 118 redeploy pending),
+H14 (loop test; the two update_cmd drills pending), K16 project pages.
+Pending live work (drill key, A1): H1 + H14 drills on CT 118 with
+`/opt/inbox/bin` and the hardened unit; A3 adopt if it does not stall.
+Later/accepted: H7, S6 (retro), S9. H16 waits for Kenny's tag/go per item.
+
+**Announcements for the Homelab Rust session (rule 7a, when it next runs):**
+the scaffold's install path moved from `/usr/local/bin/<name>` to
+`/opt/<name>/bin/<name>` (S2) — `service.yml`'s `binary:` and `update_cmd`
+follow; the unit now carries the hardening set (`UMask=0077`,
+`CapabilityBoundingSet=`, `SystemCallFilter=@system-service`,
+`MemoryDenyWriteExecute=yes`, `ProtectProc=invisible`, …) and
+`Environment=<P>_TIMEOUT_STOP_SECS` mirroring `TimeoutStopSec`; the kit's
+`--check` refuses a missing or unwritable state dir (provision it before
+`ExecStartPre`).
+
 ## Open with the Homelab Rust session (announce, do not fix here — rule 7a)
 
 - ~~Critic #18~~ **resolved by the Homelab Rust session the same day**

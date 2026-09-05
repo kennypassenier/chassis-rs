@@ -246,18 +246,29 @@ impl Dashboard {
         })
     }
 
-    /// Render a template the project registered itself, inside the kit's
-    /// layout: the project passes its own template source and context.
-    pub fn render_project(
+    /// Render a project's own page inside the kit's layout (K16): the
+    /// template `{% extends "layout.html" %}` and fills `content`; the
+    /// project passes any serialisable context (a `serde_json::json!`
+    /// object is fine). `active_nav` is the href of its nav entry, so the
+    /// menu highlights it. Handlers get the `Dashboard` as an axum
+    /// `Extension` on every route registered with `dashboard_routes`.
+    pub fn render_project<C: serde::Serialize>(
         &self,
+        active_nav: &str,
         source: &str,
-        ctx: minijinja::Value,
+        ctx: C,
     ) -> Result<Html<String>, Error> {
         let mut env = (*self.env).clone();
         env.add_template("__project.html", source)
             .map_err(template_error)?;
         let tmpl = env.get_template("__project.html").map_err(template_error)?;
-        Ok(Html(tmpl.render(ctx).map_err(template_error)?))
+        let own = minijinja::Value::from_serialize(&ctx);
+        let full = context! {
+            logged_in => true,
+            active_nav => active_nav,
+            ..own
+        };
+        Ok(Html(tmpl.render(full).map_err(template_error)?))
     }
 
     fn render(&self, name: &str, ctx: minijinja::Value) -> Result<Html<String>, Error> {
@@ -443,14 +454,25 @@ mod tests {
         }
     }
 
-    // The inlined no-flash snippet must match the vendored module's
-    // behaviour: same storage key, same attribute.
+    // The no-flash snippet (now `static/theme-boot.js`, S8: no inline
+    // script) must match the vendored module's behaviour: same storage
+    // key, same attribute — and the layout must load it as a plain script.
     #[test]
     fn no_flash_snippet_matches_the_vendored_contract() {
         let layout = include_str!("../../templates/layout.html");
+        let boot = include_str!("../../static/theme-boot.js");
         let registry = include_str!("../../static/kp/theme-registry.js");
-        assert!(layout.contains("localStorage.getItem(\"theme\")"));
+        assert!(boot.contains("localStorage.getItem(\"theme\")"));
         assert!(registry.contains("STORAGE_KEY = 'theme'"));
-        assert!(layout.contains("setAttribute(\"data-theme\""));
+        assert!(boot.contains("setAttribute(\"data-theme\""));
+        assert!(
+            layout.contains("/static/theme-boot.js?v="),
+            "the layout loads the snippet as a file"
+        );
+        assert!(
+            !layout.contains("<script>\n"),
+            "no inline script in the layout (CSP script-src 'self')"
+        );
+        assert!(!layout.contains("bunny.net"), "fonts are vendored (S8)");
     }
 }

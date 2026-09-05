@@ -11,8 +11,8 @@
 use std::sync::{Arc, Mutex};
 
 use axum::extract::State;
-use axum::routing::post;
-use axum::{Json, Router};
+use axum::routing::{get, post};
+use axum::{Extension, Json, Router};
 use chassis::shell::clients_api::ClientView;
 use chassis::shell::dashboard::{ClientColumn, Section, StatusSection};
 use chassis::shell::notify::Notifier;
@@ -94,6 +94,32 @@ async fn receive(
     )
 }
 
+/// The example's own dashboard page (K16): the kit supplies the layout,
+/// login and nav; inbox supplies the template and the data.
+async fn messages_page(
+    Extension(dash): Extension<chassis::Dashboard>,
+    State(messages): State<Messages>,
+) -> Result<axum::response::Html<String>, chassis::Error> {
+    let all = messages.lock().expect("messages lock");
+    let rows: Vec<serde_json::Value> = all
+        .iter()
+        .enumerate()
+        .rev()
+        .map(|(i, m)| {
+            serde_json::json!({
+                "n": i + 1,
+                "from": m["from"].as_str().unwrap_or("?"),
+                "body": m["body"].to_string(),
+            })
+        })
+        .collect();
+    dash.render_project(
+        "/messages",
+        include_str!("../templates/messages.html"),
+        serde_json::json!({ "messages": rows, "count": all.len() }),
+    )
+}
+
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
     let spec = AppSpec {
@@ -130,6 +156,13 @@ async fn main() -> std::process::ExitCode {
     );
     app.status_section(MessagesSection(messages.clone()));
     app.client_column(MessagesColumn(messages.clone()));
+    // K16: an own page behind the admin login, inside the kit's layout.
+    app.nav_entry("Messages", "/messages");
+    app.dashboard_routes(
+        Router::new()
+            .route("/messages", get(messages_page))
+            .with_state(messages.clone()),
+    );
     // K21: before a binary swap, the kit asks for a consistent copy of the state.
     app.state_copy(move |dest| {
         let snapshot = serde_json::to_vec_pretty(&*messages.lock().expect("messages lock"))

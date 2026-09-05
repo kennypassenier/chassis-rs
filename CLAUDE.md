@@ -15,7 +15,7 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | 7 · Hardening — building the 23 Dichten items (H1–H6, H8–H17, S1–S5, S7, S8) + drills with the drill key; then TEST_PLAN, Phase 8 docs, Phase 9 tag v1.0.0, then migration branches in kyu-runner, http-switchboard, kyu, almanac |
+| Current phase | 7 · Hardening — code and tests done (93+7+1+21 green); TEST_PLAN.md written; next: CT 118 redeploy on /opt/inbox/bin + live update drills with the drill key, then Phase 8 docs, Phase 9 tag v1.0.0, then migration branches |
 | Last completed gate | Combined ratification R1–R5 + L0–L8 (2026-09-05, all Akkoord); DD-1 D1–D3 Klopt; CF-2 answered (measurement pending) |
 | Next gate | Phase 7 close-out report (R7), Phase 8 docs (R8), Phase 9 release (R9) — all as ratification rounds on Kenny's return |
 | AFK mode | **on** again since 2026-09-05 afternoon (AFK round 2: A1 drill key, A2 kit + four migration branches, A3 adopt CT 118 only if it does not stall, A4 passkeys later, A5 tag v1.0.0 after green Phase 7+8 and drills, A6 gates → R7–R9). Rule 7a (one session, one project) suspended by Kenny until his return. |

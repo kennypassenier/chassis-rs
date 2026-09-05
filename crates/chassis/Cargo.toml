@@ -57,7 +57,7 @@ minijinja = { version = "2", features = ["json"] }
 # K9: passkeys (WebAuthn server side); pulls OpenSSL, hence its own feature (T8).
 # `danger-allow-state-serialisation` lets the ceremony state live in the
 # kit's own bounded map with a TTL instead of an opaque in-memory type.
-webauthn-rs = { version = "0.5", optional = true, features = ["danger-allow-state-serialisation"] }
+webauthn-rs = { version = "0.5", optional = true }
 
 # L5: signed self-update (K18–K21) and the notifier (K22)
 minisign-verify = { version = "0.2", optional = true }

@@ -37,6 +37,11 @@ async fn main() -> std::process::ExitCode {
         }
     };
     app.api_routes(Router::new().route("/v1/example", post(receive)));
-    app.test_route("POST", "/v1/example", "application/json", r#"{"hello":"world"}"#);
+    app.test_route(
+        "POST",
+        "/v1/example",
+        "application/json",
+        r#"{"hello":"world"}"#,
+    );
     app.run().await
 }

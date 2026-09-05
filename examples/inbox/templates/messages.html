@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+{% block title %}Messages · {{ app_name }}{% endblock %}
+{% block content %}
+<h1>Messages</h1>
+<p class="explain">Everything clients posted to <code>/v1/messages</code> since the service started, newest first; {{ count }} so far. This page is the example's own, rendered inside the kit's layout (K16).</p>
+{% if messages|length == 0 %}
+<p class="text-secondary">No messages yet. Send one with the test button on the Clients page.</p>
+{% else %}
+<table class="kp-table">
+  <thead><tr><th>#</th><th>From</th><th>Body</th></tr></thead>
+  <tbody>
+  {% for m in messages %}
+    <tr><td class="mono">{{ m.n }}</td><td>{{ m.from }}</td><td class="mono">{{ m.body }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

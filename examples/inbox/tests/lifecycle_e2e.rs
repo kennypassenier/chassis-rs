@@ -1539,3 +1539,116 @@ fn help_lists_knobs_but_never_the_secret_flags() {
     }
     assert!(text.contains("rekey"), "the rekey subcommand is listed");
 }
+
+// K11: tests bind port 0 and read the real port back; a literal port is a
+// collision waiting for a colleague. Allowed: :0 (kernel picks), :1 and :9
+// (deliberately closed ports for connection-refused paths).
+#[test]
+fn no_test_names_a_literal_port() {
+    fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for e in std::fs::read_dir(dir).unwrap().flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                if p.file_name().is_some_and(|n| n == "target" || n == ".git") {
+                    continue;
+                }
+                walk(&p, out);
+            } else if p.extension().is_some_and(|x| x == "rs") {
+                out.push(p);
+            }
+        }
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut files = Vec::new();
+    for sub in ["crates", "examples"] {
+        walk(&root.join(sub), &mut files);
+    }
+    assert!(files.len() > 20, "scan found {} files", files.len());
+    let mut offenders = Vec::new();
+    for f in files {
+        let text = std::fs::read_to_string(&f).unwrap();
+        for (i, line) in text.lines().enumerate() {
+            // Doc comments and comments explain; they do not bind.
+            if line.trim_start().starts_with("//") {
+                continue;
+            }
+            let mut rest = line;
+            while let Some(idx) = rest.find("127.0.0.1:") {
+                let after = &rest[idx + "127.0.0.1:".len()..];
+                let port: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
+                if !matches!(port.as_str(), "" | "0" | "1" | "9") {
+                    offenders.push(format!("{}:{}: {}", f.display(), i + 1, line.trim()));
+                }
+                rest = after;
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "literal ports in tests:\n{}",
+        offenders.join("\n")
+    );
+}
+
+// K16: a project's own page (inbox's /messages) renders inside the kit's
+// layout, behind the admin login, with its nav entry active; S8: every
+// response carries the security headers and the page loads no third party.
+#[test]
+fn project_page_renders_inside_the_layout_with_security_headers() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut child, addr, _) = start_capturing(dir.path(), &[], &[]);
+    let anon = reqwest::blocking::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let res = anon.get(format!("http://{addr}/messages")).send().unwrap();
+    assert_eq!(
+        res.status().as_u16(),
+        303,
+        "a project page needs the admin login"
+    );
+    let admin = login_jar(&addr);
+    let (_id, token) = issue_client(&admin, &addr, "pager");
+    reqwest::blocking::Client::new()
+        .post(format!("http://{addr}/v1/messages"))
+        .bearer_auth(&token)
+        .json(&serde_json::json!({"hello": "page"}))
+        .send()
+        .unwrap();
+    let res = admin.get(format!("http://{addr}/messages")).send().unwrap();
+    assert_eq!(res.status().as_u16(), 200);
+    let csp = res.headers()["content-security-policy"]
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert!(csp.contains("script-src 'self'"), "{csp}");
+    assert_eq!(res.headers()["x-content-type-options"], "nosniff");
+    assert_eq!(res.headers()["x-frame-options"], "DENY");
+    let html = res.text().unwrap();
+    assert!(html.contains("kp-nav"), "inside the kit's layout");
+    assert!(
+        html.contains("aria-current=\"page\""),
+        "the Messages nav entry is active"
+    );
+    assert!(
+        html.contains("<h1>Messages</h1>") && html.contains("pager") && html.contains("hello"),
+        "{html}"
+    );
+    assert!(
+        html.contains("class=\"explain\""),
+        "every page explains itself (K16)"
+    );
+    assert!(
+        !html.contains("bunny.net") && !html.contains("<script>"),
+        "no third party, no inline script: {html}"
+    );
+    for asset in [
+        "/static/fonts.css",
+        "/static/theme-boot.js",
+        "/static/fonts/instrument-sans-latin-400-normal.woff2",
+    ] {
+        let res = anon.get(format!("http://{addr}{asset}")).send().unwrap();
+        assert_eq!(res.status().as_u16(), 200, "{asset}");
+    }
+    stop(&mut child);
+}

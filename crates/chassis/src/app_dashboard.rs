@@ -171,7 +171,8 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
 
     let pages_public = Router::new()
         .route("/login", get(dashboard::login_get))
-        .route("/static/{name}", get(assets::serve))
+        // `{*name}`: the vendored fonts live under `static/fonts/…` (S8).
+        .route("/static/{*name}", get(assets::serve))
         .with_state(dash.clone());
     let login = Router::new()
         .route("/login", post(dashboard::login_post))
@@ -249,7 +250,11 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
         public.merge(admin_api).merge(page)
     };
 
-    let project_pages = dashboard_router.layer(from_fn_with_state(auth.clone(), require_admin));
+    // K16: a project's page handlers render inside the layout through the
+    // `Dashboard` extension; admin login is required as for the kit's pages.
+    let project_pages = dashboard_router
+        .layer(axum::Extension(dash.clone()))
+        .layer(from_fn_with_state(auth.clone(), require_admin));
 
     // Outermost first: identify the caller, then throttle it per token (K10,
     // H3), then capture the request for its row.

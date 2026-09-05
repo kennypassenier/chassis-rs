@@ -317,6 +317,30 @@ mod tests {
         );
     }
 
+    /// W2: the backoff ladder stays inside [base, 2×cap] over a thousand
+    /// samples — jitter adds at most one more delay, never a runaway.
+    #[test]
+    fn backoff_delays_stay_within_base_and_twice_the_cap() {
+        use backon::BackoffBuilder;
+        let base = Duration::from_millis(50);
+        let cap = Duration::from_millis(800);
+        let mut n = 0;
+        for _ in 0..200 {
+            let ladder = backon::ExponentialBuilder::default()
+                .with_min_delay(base)
+                .with_max_delay(cap)
+                .with_max_times(5)
+                .with_jitter()
+                .build();
+            for d in ladder {
+                n += 1;
+                assert!(d >= base, "{d:?} below the base");
+                assert!(d <= cap * 2, "{d:?} above twice the cap");
+            }
+        }
+        assert_eq!(n, 1000, "5 delays per ladder × 200");
+    }
+
     /// S5: the log never carries a webhook's path (that is where Home
     /// Assistant keeps the webhook id), nor userinfo.
     #[test]

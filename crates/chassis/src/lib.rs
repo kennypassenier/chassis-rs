@@ -25,6 +25,8 @@ pub use app::{App, AppSpec, Control, Running};
 pub use core::error::{Error, IntoKitError, Kind};
 #[cfg(feature = "dashboard")]
 pub use shell::auth::Caller;
+#[cfg(feature = "dashboard")]
+pub use shell::dashboard::{ClientColumn, Dashboard, NavEntry, Problem, Section, StatusSection};
 pub use shell::health::{Subsystem, SubsystemStatus};
 pub use shell::metrics::ScrapeSource;
 

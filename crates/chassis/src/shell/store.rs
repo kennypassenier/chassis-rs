@@ -209,6 +209,20 @@ fn write_atomic_inner(path: &Path, bytes: &[u8], what: &str) -> Result<(), Error
             "check free space and the state directory's permissions",
         )
     };
+    // S8: 0600 regardless of the umask — the content is sealed, but a
+    // plaintext neighbour (update-state.json) goes through here too.
+    #[cfg(unix)]
+    let mut f = {
+        use std::os::unix::fs::OpenOptionsExt;
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&tmp)
+            .map_err(io)?
+    };
+    #[cfg(not(unix))]
     let mut f = std::fs::File::create(&tmp).map_err(io)?;
     f.write_all(bytes).map_err(io)?;
     f.sync_all().map_err(io)?;
