@@ -5,19 +5,34 @@ ratification form on his return (PROCEDURE.md, AFK ratification pattern).
 Rows are appended while the AFK run progresses; nothing is removed until
 Kenny has answered it.
 
-AFK mode: **on** since 2026-09-05 (AFK start round, Q1 = "Ja, zo
-doorwerken"). Phase gates 1–5 become ratification rounds R1–R5 below;
-Phase 6 milestone reports accumulate into one combined report.
+AFK mode: **off** since 2026-09-05 (Kenny returned and answered the
+combined ratification form). It was on from the AFK start round (Q1 =
+"Ja, zo doorwerken") until then: phase gates 1–5 became ratification
+rounds R1–R5 below; Phase 6 milestone reports accumulated into one
+combined report.
+
+## Combined ratification form — answered 2026-09-05
+
+R1–R5 all **Akkoord**; milestone reports L0–L8 all **Akkoord**.
+Deviations: D4 (testing module → 1.x), D5 (first scaffold commit skips
+the gates), D6 (pre-update copies beside the state root), D7 (kp-themes
+`strings.js` vendored from the tag; relayed to the kp-themes project),
+D8 (commit messages from a file, rule in the central memory) and N1 (the
+waits-for-Kenny list) all **Klopt**. D1 (`/` = status page), D2
+(request-id in the header only) and D3 (knob flags global) were answered
+"meer info aub" → deep-dive round DD-1 (§3 of the form protocol), open.
+Kenny also flagged an ambiguous "ik" in the D7 consequence line →
+correction form CF-2, open (see below).
 
 ## Ratification rounds (gates crossed during AFK)
 
 | Round | Gate | Status | Document | What Kenny ratifies |
 |---|---|---|---|---|
-| R1 | Phase 1 · build-vs-buy | drafted 2026-09-05 | docs/SCOPE.md §Build vs buy | per concern: use crate / build own / hybrid (17 rows; five "build our own") |
-| R2 | Phase 2 · features + freeze | drafted 2026-09-05 | docs/FEATURES.md | IDs, ratings, test expectations, mandatory items 1–4. **Note for Kenny:** W2's clap half moved into K2 (a parser is needed for `--version`/`--check` anyway); only the backoff helper stays Desired. New W9 proposed: systemd `Type=notify` readiness (AR15), rated Essential by Claude because the homelab's update check is `systemctl is-active`. |
-| R3 | Phase 3 · tech choice | drafted 2026-09-05 | docs/ARCHITECTURE_DECISIONS.md T1–T8 | libraries, license, MSRV, platforms, environment differences; release target glibc/trixie because webauthn-rs needs OpenSSL |
-| R4 | Phase 4 · architecture + freeze | drafted 2026-09-05, critic pass done | docs/ARCHITECTURE_DECISIONS.md AR1–AR20 + §Critic pass | AR decisions; 6 blocking + 13 should-fix objections, all adopted with a resolution (table at the end of the document); the added knobs |
-| R5 | Phase 5 · realization plan + hooks | drafted 2026-09-05, hooks live | docs/REALIZATION_PLAN.md | milestones L0–L8, standing rules, hook config (Q9); hooks proven by firing (rule 7d) in the L0 commit |
+| R1 | Phase 1 · build-vs-buy | **ratified 2026-09-05 (Akkoord)** | docs/SCOPE.md §Build vs buy | per concern: use crate / build own / hybrid (17 rows; five "build our own") |
+| R2 | Phase 2 · features + freeze | **ratified 2026-09-05 (Akkoord)** | docs/FEATURES.md | IDs, ratings, test expectations, mandatory items 1–4. **Note for Kenny:** W2's clap half moved into K2 (a parser is needed for `--version`/`--check` anyway); only the backoff helper stays Desired. New W9 proposed: systemd `Type=notify` readiness (AR15), rated Essential by Claude because the homelab's update check is `systemctl is-active`. |
+| R3 | Phase 3 · tech choice | **ratified 2026-09-05 (Akkoord)** | docs/ARCHITECTURE_DECISIONS.md T1–T8 | libraries, license, MSRV, platforms, environment differences; release target glibc/trixie because webauthn-rs needs OpenSSL |
+| R4 | Phase 4 · architecture + freeze | **ratified 2026-09-05 (Akkoord)** | docs/ARCHITECTURE_DECISIONS.md AR1–AR20 + §Critic pass | AR decisions; 6 blocking + 13 should-fix objections, all adopted with a resolution (table at the end of the document); the added knobs |
+| R5 | Phase 5 · realization plan + hooks | **ratified 2026-09-05 (Akkoord)** | docs/REALIZATION_PLAN.md | milestones L0–L8, standing rules, hook config (Q9); hooks proven by firing (rule 7d) in the L0 commit |
 
 ## Open with the Homelab Rust session (announce, do not fix here — rule 7a)
 
@@ -33,9 +48,11 @@ Phase 6 milestone reports accumulate into one combined report.
 - Alloy JSON stage for structured logs (K4) — once the kit ships JSON.
 - Quiesce call in the nightly backup (W4) — once the kit ships it.
 
-## Mini-rounds (deviations from a frozen decision)
+## Mini-rounds and deep-dives (deviations from a frozen decision)
 
-_None yet._
+| ID | Item | Status |
+|---|---|---|
+| DD-1 | Deep-dive on D1 (`/` = kit status page), D2 (request-id header vs body, AR4 wording), D3 (knob flags global after a subcommand) | form open 2026-09-05 |
 
 ## Open measurements (correction forms, rule 29) and drills that must happen
 
@@ -44,6 +61,7 @@ _None yet._
 | CF-1 | No Dutch coinage for a technical concept in user-facing text (list + rule in the central memory) | The Phase 4 architecture form of this project — which the AFK run turned into R4 of the combined ratification form: zero such words, counted before sending | measured at the combined form (see its leeswijzer) |
 | M3 | Restore from the backup regime restores the full state | Before the 1.0 release, on CT 118 with the real binary | **done 2026-09-05** — state root tarred, destroyed, restored; existing client token and session valid afterwards (REALIZATION_PLAN L8) |
 | C2 | Broken-release drill in both modes | Before the 1.0 release, on CT 118 | waits for a release signed with the ecosystem key (Kenny) |
+| CF-2 | No bare "ik"/"jij" in text read on its own (consequence lines, pill labels, card subtitles) — the actor is named | The next form of this project: zero bare pronouns in consequence lines and labels, counted before sending | correction form open 2026-09-05 |
 
 ## The visible surface (PROCEDURE Phase 6: published as soon as there is something to see)
 
