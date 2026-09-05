@@ -15,9 +15,9 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | 1 · Inventory & exploration |
+| Current phase | 2 · Features (drafted, R2 queued); Phase 1 build-vs-buy record pending the crate survey (R1) |
 | Last completed gate | Phase 0 approval form (2026-09-05, 17/17 Klopt) |
-| Next gate | R1 (Phase 1 build-vs-buy) — queued in docs/PENDING_MINI_ROUNDS.md |
+| Next gate | R1 + R2 — queued in docs/PENDING_MINI_ROUNDS.md, ratified on Kenny's return |
 | AFK mode | **on** since 2026-09-05 — gates 1–5 become R1–R5, Phase 6 reports accumulate |
 | Scratch resource | CT 118 `118-app-chassis` on 10.10.5.250, ip 10.10.10.18 (disposable) |
 
