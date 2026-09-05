@@ -102,7 +102,15 @@ Herschrijven) with the three strongest claims each, on Kenny's return.
 
 Version 1.0.0 (kit + CLI), CHANGELOG [1.0.0] with the Migration notes for
 services built against the 0.1.x tree, tag `v1.0.0` on main after green CI,
-GitHub release created with `gh` (A5 was the go). Consumers pin
+GitHub release created with `gh` (A5 was the go). **Followed the same
+afternoon by 1.1.0** (`on_start`, `knob_keys`, public `spec` — found by the
+kyu-runner migration) **and 1.2.0** (`help_extra`, `needs_project_config`,
+`update_gate`, `--help` exit 0, the `assets` feature — found by the
+http-switchboard, kyu and Almanac migrations); each release: bump + CHANGELOG
++ green CI on a release branch + fast-forward of the protected `main` + tag +
+GitHub release. The four migration branches pin `tag = "v1.1.0"` (kyu-runner,
+http-switchboard) and `tag = "v1.2.0"` (kyu, Almanac); the two 1.1.0 pins can
+move to 1.2.0 whenever those branches are touched next. Consumers pin
 `tag = "v1.0.0"`; `chassis new` defaults to it. Not part of this release:
 a signed service binary (the kit is a library; services sign their own
 releases with Kenny's key), the passkey live test (A4), the homelab's
@@ -162,6 +170,78 @@ Live-found faults while migrating:
 
 Kenny-only afterwards: first signed 2.0.0 release, homelab `service.yml`
 update + Uptime Kuma probe address, deploy (port 8083 on CT 109).
+
+### kyu → `chassis-migration` (3.0.0, commit 1ca1e08, pushed 2026-09-05)
+
+**Scope decision taken AFK (A3: adopt only what does not stall the AFK
+run):** kyu runs on the kit's **core + self-update + assets**; its own
+door policy (W2 unprotected/token + sealed app tokens in SQLite), sessions
+and minijinja dashboard stay kyu's. The kit's FEATURES W6 note ("kyu loses
+unprotected mode when it migrates") assumed kyu would take the kit's
+dashboard too — that is a second step with real consequences (apps →
+clients, every app token re-issued, `/apps` → `/clients`, unprotected mode
+gone, kyu's SQLite `apps` table vs `clients.json.enc`) and is an item for
+the form, not an AFK call.
+
+What changed (CHANGELOG 3.0.0 → Migration): `KYU_DATA_DIR` → `KYU_STATE_DIR`
+(alias with warning until 4.0); `/healthz` kit shape with `store` and
+`sweeper` subsystems (503 semantics kept, flat fields gone); refusals exit 1
+(was 2), `--help` exits 0 and lists kyu's own env via `help_extra`; `--check`
+opens the store and prints the door mode; long polls under `/t/` exempt from
+the request timeout; the no-flash snippet is the kit's `theme-boot.js` and the
+fonts come from the kit's vendored set (CSP-clean, offline); `Type=notify`
+unit at `/opt/kyu/bin` on the CT 109 layout (`/appdata/kyu/kyu-config`);
+`deploy/service.yml` with `update_cmd`; glibc trixie image, same `/data`
+volume and uid 65532; the kit's release workflow replaces `release-image.yml`
+(image still pushed); AR6 and AR10 amended.
+
+Kit gaps this migration found and closed in **1.2.0**: `help_extra`,
+`needs_project_config()`, the `assets` feature, `--help` exit 0
+(`Control::Help`); `update_gate` was added for Almanac in the same release.
+
+Kenny-only afterwards: first signed 3.0.0 release; homelab
+`stacks/kyu/service.yml` (binary path, `update_cmd`, `KYU_STATE_DIR` in the
+env file); Uptime Kuma probe unchanged (`/healthz` still 503 when degraded);
+the docker `HEALTHCHECK` now counts 503 as alive (kit decision) — a degraded
+hub is visible in Uptime Kuma, not in `docker ps`.
+
+### Almanac → `chassis-migration` (3.0.0, commit 6e36b7f, pushed 2026-09-05)
+
+**Scope decision taken AFK (A3):** Almanac runs on the kit's **core +
+self-update + assets**; its own dashboard (Bootstrap + string-built HTML),
+auth (bootstrap token + session cookie in the encrypted store), per-source
+ingest tokens and Home Assistant notifier stay Almanac's. Almanac's own
+updater (1 900 lines, the ancestor of the kit's) is deleted; the kit's
+replaces it with the version-bound signature, the skip-after-rollback and —
+new in kit 1.2.0 for exactly this — the **update gate** that keeps AR25
+("never restart while captures are retained").
+
+What changed (CHANGELOG 3.0.0 → Migration): `ALMANAC_BIND` → `ALMANAC_LISTEN`,
+`ALMANAC_SELF_UPDATE` → `ALMANAC_UPDATE_MODE` (unset = off now), the
+`/releases` URL shape completed to `/latest/download`, `RUST_LOG` →
+`ALMANAC_LOG` — all four as aliases with a warning; `ALMANAC_STATE_DIR` must
+exist (probe); `/healthz` = kit shape with one `journal` subsystem (still
+Google-blind, 503 only on an unreadable journal); `almanac_build_info` is the
+kit's series; startup binds first and authenticates against Google after
+(the unit no longer waits minutes for READY on a cold network); the
+dashboard's inline scripts became files (`/static/almanac-*.js`, kit's
+`theme-boot.js`, fonts from the kit's vendored set) because of the kit's
+CSP; `Type=notify` latch unit at `/opt/almanac/bin` with state root
+`/opt/almanac` (nothing moves); `deploy/service.yml` with `update_cmd`
+through latch; the kit's release workflow + signing script.
+
+**Regressions to decide on (form):** the `almanac-update` / `-reverted` /
+`-unverified` Home Assistant notifications are not sent by the kit (core has
+a logging-only notifier; the `notify` feature needs `[[notify.webhook]]` in
+a config file Almanac does not have); `VERIFY_FAILURES_BEFORE_NOTIFYING=3`
+(AR24) has no kit equivalent yet; the `ExecStartPre --check` under latch
+needs `--env prod` to match how CT 112 runs latch — verify at deploy.
+
+**Hard blocker for self-update, Kenny-only:** every existing Almanac release
+(≤ 2.4.0) is signed with minisign's default trusted comment; the kit refuses
+them. The first 3.x release must be signed with `scripts/sign-release.sh`
+(`-t "kennypassenier/almanac v3.0.0"`) and installed once by hand or via
+`homelab install-native`; from then on `almanac update` works.
 
 ## Open with the Homelab Rust session (announce, do not fix here — rule 7a)
 

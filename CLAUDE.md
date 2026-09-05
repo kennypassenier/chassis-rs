@@ -15,9 +15,9 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | 9 · Release — 1.0.0 bumped and tagged from main (A5 go); R7 (hardening close-out), R8 (docs) and R9 (release) queued as ratification rounds; next: migration branches in kyu-runner, http-switchboard, kyu, almanac (A2) |
+| Current phase | 9 · Release — 1.0.0, 1.1.0 and 1.2.0 tagged and released (A5 go); the four `chassis-migration` branches (kyu-runner 0.2.0, http-switchboard 2.0.0, kyu 3.0.0, Almanac 3.0.0) are pushed, gates green, no release, no deploy (A2). Everything now waits for the combined ratification on Kenny's return. |
 | Last completed gate | Combined ratification R1–R5 + L0–L8 (2026-09-05, all Akkoord); DD-1 D1–D3 Klopt; CF-2 answered (measurement pending) |
-| Next gate | Combined ratification R7–R9 + CF-3 + migration reports on Kenny's return (docs/PENDING_MINI_ROUNDS.md) |
+| Next gate | Combined ratification R7 (hardening close-out) + CF-3 + R8 (six docs) + R9 (1.0.0–1.2.0) + H16 + the four migration reports + homelab announcements, on Kenny's return (docs/PENDING_MINI_ROUNDS.md) |
 | AFK mode | **on** again since 2026-09-05 afternoon (AFK round 2: A1 drill key, A2 kit + four migration branches, A3 adopt CT 118 only if it does not stall, A4 passkeys later, A5 tag v1.0.0 after green Phase 7+8 and drills, A6 gates → R7–R9). Rule 7a (one session, one project) suspended by Kenny until his return. |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 
