@@ -37,11 +37,13 @@ Phase 6 milestone reports accumulate into one combined report.
 
 _None yet._
 
-## Open measurements (correction forms, rule 29)
+## Open measurements (correction forms, rule 29) and drills that must happen
 
 | ID | Measure | Measured at | Status |
 |---|---|---|---|
-| CF-1 | No Dutch coinage for a technical concept in user-facing text (list + rule in the central memory) | The Phase 4 architecture form of this project: zero such words, counted before sending | open |
+| CF-1 | No Dutch coinage for a technical concept in user-facing text (list + rule in the central memory) | The Phase 4 architecture form of this project — which the AFK run turned into R4 of the combined ratification form: zero such words, counted before sending | measured at the combined form (see its leeswijzer) |
+| M3 | Restore from the backup regime restores the full state | Before the 1.0 release, on CT 118 with the real binary | **done 2026-09-05** — state root tarred, destroyed, restored; existing client token and session valid afterwards (REALIZATION_PLAN L8) |
+| C2 | Broken-release drill in both modes | Before the 1.0 release, on CT 118 | waits for a release signed with the ecosystem key (Kenny) |
 
 ## The visible surface (PROCEDURE Phase 6: published as soon as there is something to see)
 
