@@ -12,7 +12,7 @@ publish = false
 [dependencies]
 # The version beside the path is what cargo-deny's wildcard ban asks for
 # (L0 CI run 33949831302 failed without it).
-chassis = { path = "../../crates/chassis", version = "1.1.0", features = ["dashboard", "passkeys", "self-update", "notify"] }
+chassis = { path = "../../crates/chassis", version = "1.2.0", features = ["dashboard", "passkeys", "self-update", "notify"] }
 tokio = { workspace = true }
 axum = { workspace = true }
 serde_json = { workspace = true }

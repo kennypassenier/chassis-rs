@@ -1,6 +1,6 @@
 [package]
 name = "chassis"
-version = "1.1.0"
+version = "1.2.0"
 description = "Shared foundation for Kenny's Rust web services: configuration, logging, health, metrics, shutdown, dashboard, self-update and notifications behind feature flags"
 edition.workspace = true
 rust-version.workspace = true

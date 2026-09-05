@@ -53,9 +53,14 @@ pub struct Event {
 pub type EventSink = Arc<dyn Fn(Event) + Send + Sync>;
 pub type StateCopy = Arc<dyn Fn(&Path) -> Result<(), Error> + Send + Sync>;
 
+/// "Not now" for the autonomous loop (1.2.0): `Some(reason)` defers a check.
+pub type UpdateGate = Arc<dyn Fn() -> Option<String> + Send + Sync>;
+
 /// Everything the updater is configured with (AR3 knobs).
 #[derive(Clone)]
 pub struct UpdateConfig {
+    /// The project's veto on an autonomous check, if it registered one.
+    pub gate: Option<UpdateGate>,
     pub mode: Mode,
     /// Base URL holding `VERSION`, `SHA256SUMS`, `SHA256SUMS.minisig` and the binary.
     pub url: String,
@@ -611,6 +616,11 @@ impl Updater {
     pub async fn run_autonomous(self: Arc<Self>) {
         tokio::time::sleep(self.cfg.startup_delay).await;
         loop {
+            if let Some(reason) = self.cfg.gate.as_ref().and_then(|gate| gate()) {
+                tracing::info!(%reason, "update check deferred to the next interval");
+                tokio::time::sleep(self.cfg.interval).await;
+                continue;
+            }
             match self.check_once().await {
                 Ok(Outcome::Installed { from, to }) => {
                     tracing::info!(%from, %to, "update installed; exiting 0 so the supervisor restarts the new binary");
@@ -863,6 +873,7 @@ mod tests {
             allow_insecure: true,
             max_download_bytes: 64 * 1024 * 1024,
             copies_dir,
+            gate: None,
         }
     }
 
@@ -1356,6 +1367,62 @@ mod tests {
     /// K18 / Almanac's lesson: the loop's FIRST tick comes after the startup
     /// delay, not after startup delay + interval; later ticks follow the
     /// interval. Paused clock: hours pass in milliseconds.
+    /// 1.2.0: a project's gate defers a check to the next interval instead of
+    /// restarting under an investigation (Almanac's captures, AR25).
+    #[tokio::test(start_paused = true)]
+    async fn the_update_gate_defers_a_check_until_it_opens() {
+        let release = fake_release("1.0.0", GOOD_BINARY, "svc").await;
+        let dir = tempfile::tempdir().unwrap();
+        let bin = installed(dir.path(), GOOD_BINARY);
+        let mut c = cfg(&release, Mode::Autonomous, dir.path().join("c"));
+        c.startup_delay = Duration::from_secs(0);
+        c.interval = Duration::from_secs(3600);
+        let open = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let gate_open = open.clone();
+        c.gate = Some(Arc::new(move || {
+            (!gate_open.load(Ordering::SeqCst)).then(|| "2 captures retained".to_string())
+        }));
+        let up = Arc::new(
+            Updater::new(
+                c,
+                bin,
+                dir.path().join("s"),
+                Version::parse("1.0.0").unwrap(),
+                Arc::new(|_| {}),
+                None,
+            )
+            .unwrap(),
+        );
+        let hits = release.version_hits.clone();
+        let _handle = tokio::spawn(up.clone().run_autonomous());
+        for _ in 0..20 {
+            tokio::task::yield_now().await;
+        }
+        tokio::time::advance(Duration::from_secs(3599)).await;
+        for _ in 0..20 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(
+            hits.load(Ordering::SeqCst),
+            0,
+            "closed gate: no check at all"
+        );
+        open.store(true, Ordering::SeqCst);
+        tokio::time::advance(Duration::from_secs(2)).await;
+        for _ in 0..50 {
+            if hits.load(Ordering::SeqCst) >= 1 {
+                break;
+            }
+            tokio::task::yield_now().await;
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(
+            hits.load(Ordering::SeqCst),
+            1,
+            "open gate: the next tick checks"
+        );
+    }
+
     #[tokio::test(start_paused = true)]
     async fn autonomous_loop_ticks_after_the_startup_delay_then_every_interval() {
         let release = fake_release("1.0.0", GOOD_BINARY, "svc").await;

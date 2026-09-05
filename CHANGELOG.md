@@ -9,6 +9,33 @@ scaffold writes. A breaking change in either is a major and carries a
 
 _Nothing yet._
 
+## [1.2.0] - 2026-09-05
+
+Found while migrating kyu-runner, http-switchboard and kyu (AFK round 2, A2).
+
+### Added
+- `AppSpec.help_extra`: text appended to `--help` for the project's own
+  environment variables and subcommands (kyu's `KYU_TOKEN`, Almanac's
+  `ALMANAC_BOOTSTRAP_TOKEN` — the kit cannot know them).
+- `App::needs_project_config()`: true only for a real start and `--check`.
+  `--version`, `--help`, `gen-secret`, `--healthcheck`, `--print-config`,
+  `update` and `rekey` are the kit's alone and must work without the
+  project's configuration; two projects broke their `--healthcheck` on a
+  box without a config file by reading it first.
+- `App::update_gate(|| Option<String>)`: the project's veto on an
+  autonomous update check — `Some(reason)` defers it to the next interval
+  (Almanac's "never restart while captures are retained", AR25).
+  Supervised updates are not gated.
+- `chassis::shell::assets::ASSETS` is documented as the place a project with
+  its own dashboard fetches the vendored fonts (`fonts.css`, `fonts/*.woff2`)
+  and kp-themes files from, so the kit's CSP (`font-src 'self'`) holds
+  without a CDN.
+
+### Fixed
+- `--help` printed on stderr with exit 1, as if it were a refusal. It is an
+  answer now: stdout, exit 0 (`Control::Help`). The unknown-flag refusal
+  still points at `--help`.
+
 ## [1.1.0] - 2026-09-05
 
 ### Added

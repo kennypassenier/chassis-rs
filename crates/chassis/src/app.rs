@@ -64,6 +64,9 @@ pub struct AppSpec {
     /// `owner/repo` on GitHub; the default release host for self-update is
     /// `https://github.com/<repository>/releases/latest/download` (K18).
     pub repository: Option<&'static str>,
+    /// Text appended to `--help` (1.2.0): the project's own environment
+    /// variables and subcommands, which the kit cannot know about.
+    pub help_extra: Option<&'static str>,
 }
 
 impl Default for AppSpec {
@@ -74,6 +77,7 @@ impl Default for AppSpec {
             default_state_dir: None,
             default_listen: "0.0.0.0:8080",
             repository: None,
+            help_extra: None,
         }
     }
 }
@@ -179,6 +183,8 @@ impl AppSpec {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Control {
     Version,
+    /// `--help`: the rendered help text (1.2.0), printed on stdout, exit 0.
+    Help(String),
     Check,
     PrintConfig,
     /// Probe a running instance's `/healthz` (K7). `None` = derive the URL
@@ -284,6 +290,8 @@ pub struct App {
     pub(crate) dash: DashboardRegistry,
     #[cfg(feature = "self-update")]
     state_copy: Option<crate::shell::update::StateCopy>,
+    #[cfg(feature = "self-update")]
+    update_gate: Option<crate::shell::update::UpdateGate>,
     #[cfg(feature = "notify")]
     notifier: crate::shell::notify::Notifier,
     #[cfg(feature = "notify")]
@@ -391,6 +399,8 @@ impl App {
             dash: DashboardRegistry::default(),
             #[cfg(feature = "self-update")]
             state_copy: None,
+            #[cfg(feature = "self-update")]
+            update_gate: None,
             #[cfg(feature = "notify")]
             notifier: crate::shell::notify::Notifier::logging_only(spec_name),
             #[cfg(feature = "notify")]
@@ -422,6 +432,7 @@ impl App {
         let mut cmd = Command::new(spec.name.to_string())
             .version(spec.version)
             .disable_version_flag(true)
+            .after_help(spec.help_extra.unwrap_or_default())
             .subcommand(
                 Command::new("gen-secret")
                     .about("Print a fresh login token and secret key for the environment file (terminal only)"),
@@ -489,12 +500,20 @@ impl App {
                     }),
             );
         }
-        let matches = cmd.try_get_matches_from(args).map_err(|e| {
-            Error::invalid(
-                e.to_string().trim_end().to_string(),
-                "run with --help for the flags this service accepts",
-            )
-        })?;
+        let matches = match cmd.try_get_matches_from(args) {
+            Ok(matches) => matches,
+            // 1.2.0: `--help` is an answer on stdout with exit 0, not a
+            // refusal — scripts and humans tell the two apart by exit code.
+            Err(e) if e.kind() == clap::error::ErrorKind::DisplayHelp => {
+                return Ok(App::bare(spec, router, Control::Help(e.to_string())));
+            }
+            Err(e) => {
+                return Err(Error::invalid(
+                    e.to_string().trim_end().to_string(),
+                    "run with --help for the flags this service accepts",
+                ));
+            }
+        };
 
         if matches.get_flag("version") {
             return Ok(App::bare(spec, router, Control::Version));
@@ -725,6 +744,8 @@ impl App {
             dash: DashboardRegistry::default(),
             #[cfg(feature = "self-update")]
             state_copy: None,
+            #[cfg(feature = "self-update")]
+            update_gate: None,
             #[cfg(feature = "notify")]
             notifier,
             #[cfg(feature = "notify")]
@@ -742,6 +763,21 @@ impl App {
     /// How the project produces a consistent copy of its state into `dest`
     /// before a binary swap (K21; kyu's `VACUUM INTO`).
     #[cfg(feature = "self-update")]
+    /// Say "not now" to the autonomous update loop (1.2.0). The closure
+    /// runs before every check; `Some(reason)` defers that check to the
+    /// next interval and logs the reason. For a service that must not
+    /// restart while an investigation is in progress (Almanac's captures,
+    /// a long-running import). Supervised updates (`<name> update`) are
+    /// the operator's decision and are not gated.
+    #[cfg(feature = "self-update")]
+    pub fn update_gate(
+        &mut self,
+        f: impl Fn() -> Option<String> + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.update_gate = Some(Arc::new(f));
+        self
+    }
+
     pub fn state_copy(
         &mut self,
         f: impl Fn(&std::path::Path) -> Result<(), Error> + Send + Sync + 'static,
@@ -822,6 +858,7 @@ impl App {
                 allow_insecure: k.allow_insecure,
                 max_download_bytes: k.max_download_bytes,
                 copies_dir,
+                gate: self.update_gate.clone(),
             },
             binary,
             loaded.state_dir.clone(),
@@ -917,6 +954,16 @@ impl App {
     pub fn clients_label(&mut self, label: &str) -> &mut Self {
         self.dash.clients_label = Some(label.to_string());
         self
+    }
+
+    /// Whether this invocation is going to read the project's own
+    /// configuration (1.2.0): a real start or `--check`. `--version`,
+    /// `--help`, `gen-secret`, `--healthcheck`, `--print-config`, `update`
+    /// and `rekey` are the kit's alone and must work without it — two
+    /// projects got this wrong the same afternoon and broke their
+    /// `--healthcheck` on a box without a config file.
+    pub fn needs_project_config(&self) -> bool {
+        self.loaded.is_some() && matches!(self.control, None | Some(Control::Check))
     }
 
     /// A project check that `--check` (and the self-update's staged probe)
@@ -1015,6 +1062,10 @@ impl App {
             None => Ok(None),
             Some(Control::Version) => {
                 println!("{} {}", self.spec.name, self.spec.version);
+                Ok(Some(ExitCode::SUCCESS))
+            }
+            Some(Control::Help(text)) => {
+                print!("{text}");
                 Ok(Some(ExitCode::SUCCESS))
             }
             Some(Control::Rekey) => {
@@ -1785,6 +1836,69 @@ mod tests {
 
     fn from_args_secret(spec: AppSpec, args: Vec<String>, router: Router) -> Result<App, Error> {
         App::from_args_with_env(spec, args, secret_map(), router)
+    }
+
+    /// 1.2.0: `--help` is an answer (stdout, exit 0), it carries the
+    /// project's own text, and the unknown-flag refusal still points at it.
+    #[test]
+    fn help_is_an_answer_that_carries_the_project_text() {
+        let with_extra = AppSpec {
+            help_extra: Some("Project environment:\n  T_APP_HUB_TOKEN  the hub's app token"),
+            ..spec()
+        };
+        let app = App::from_args_with_env(
+            with_extra,
+            argv(&["--help"]),
+            BTreeMap::new(),
+            Router::new(),
+        )
+        .unwrap();
+        let Some(Control::Help(text)) = app.control else {
+            panic!("--help must yield Control::Help, got {:?}", app.control);
+        };
+        assert!(
+            text.contains("--listen"),
+            "the kit's knobs are listed:\n{text}"
+        );
+        assert!(
+            text.contains("T_APP_HUB_TOKEN"),
+            "and the project's text:\n{text}"
+        );
+        assert!(app.loaded.is_none(), "help reads no configuration");
+        let err = App::from_args_with_env(
+            spec(),
+            argv(&["--frobnicate"]),
+            BTreeMap::new(),
+            Router::new(),
+        )
+        .err()
+        .expect("an unknown flag is refused");
+        assert!(err.remedy.contains("--help"));
+    }
+
+    /// 1.2.0: which invocations read the project's own configuration.
+    #[test]
+    fn needs_project_config_is_true_only_for_a_start_and_a_check() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = base_args(dir.path());
+        let with = |extra: &[&str]| {
+            let mut args = base.clone();
+            args.extend_from_slice(extra);
+            App::from_args_with_env(spec(), argv(&args), BTreeMap::new(), Router::new()).unwrap()
+        };
+        assert!(with(&[]).needs_project_config(), "a real start");
+        assert!(with(&["--check"]).needs_project_config(), "--check");
+        for control in [
+            vec!["--version"],
+            vec!["--help"],
+            vec!["--print-config"],
+            vec!["--healthcheck", "http://127.0.0.1:1/healthz"],
+        ] {
+            assert!(
+                !with(&control).needs_project_config(),
+                "{control:?} is the kit's alone"
+            );
+        }
     }
 
     /// 1.1.0: `on_start` runs once, after the bind, on the serving path

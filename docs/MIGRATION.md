@@ -214,3 +214,47 @@ deserialises the shared file with `deny_unknown_fields`:
 ```rust
 let config = Config::from_table(&app.loaded.as_ref().unwrap().file_table, &app.spec.knob_keys())?;
 ```
+
+## 1.2.0 additions
+
+- **`help_extra`.** Put the project's environment variables and
+  subcommands in `AppSpec { help_extra: Some("…"), .. }`; `--help` prints
+  the kit's knobs first, then this text. Keep it to what the kit cannot
+  know — the knobs are already listed.
+- **`needs_project_config()`.** Read the project's own configuration only
+  when `app.needs_project_config()` is true:
+
+  ```rust
+  let mut app = App::from_env_and_args(spec, Router::new())?;
+  if !app.needs_project_config() {
+      return app.run().await; // --version, --help, --healthcheck, update, …
+  }
+  let loaded = app.loaded.as_ref().expect("a start or --check loads");
+  ```
+
+  Before 1.2.0 the idiom was `let Some(loaded) = app.loaded.as_ref()`,
+  which also caught `--healthcheck`, `--print-config`, `update` and `rekey`
+  — and made `--healthcheck` fail on a box without the config file.
+- **`update_gate`.** `app.update_gate(move || captures.retained().then(|n|
+  format!("{n} captures retained")))` defers an autonomous check while the
+  closure returns `Some(reason)`; the reason is logged once per deferred
+  tick. Only the autonomous loop asks; `<name> update` is the operator's
+  decision.
+- **Own dashboard under the kit's CSP.** A project that keeps its own
+  templates (kyu, Almanac) runs under `script-src 'self'; font-src 'self'`
+  from the moment it merges its router into the kit. Inline `<script>`
+  blocks stop running and CDN fonts stop loading. Move the no-flash snippet
+  to a file the project serves itself, and serve the fonts from the kit's
+  vendored set:
+
+  ```rust
+  // in the project's /static/{name} handler
+  if let Some((_, content_type, bytes)) =
+      chassis::shell::assets::ASSETS.iter().find(|(n, _, _)| *n == name)
+  {
+      return ([(CONTENT_TYPE, *content_type)], *bytes).into_response();
+  }
+  ```
+
+  `fonts.css` declares the same faces the kp-themes package expects
+  (Instrument Sans, Fraunces, Share Tech Mono, Chakra Petch).

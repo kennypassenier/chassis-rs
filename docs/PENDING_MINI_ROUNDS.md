@@ -108,6 +108,61 @@ a signed service binary (the kit is a library; services sign their own
 releases with Kenny's key), the passkey live test (A4), the homelab's
 broken-after-ready re-run (their binary).
 
+## Migration branches (A2) — reports for Kenny, one per project
+
+### kyu-runner · branch `chassis-migration` (0.2.0, unreleased, undeployed)
+
+On chassis v1.1.0 with `core` + `self-update`. Pump unchanged; kit owns
+CLI, config layers, logging, `/healthz`, `/metrics`, shutdown, self-update.
+Decisions Kenny ratifies in the kyu-runner session: hub token env renamed to
+`KYU_RUNNER_HUB_TOKEN`; the socket always listens (default `127.0.0.1:8082`);
+`/healthz` in the kit's shape with 503 on `hub-down`/`auth-denied`/
+`circuit-open`; `--check` (exit 1 on refusal) replaces `--check-config`; a
+state dir is required; second SIGTERM ignored; `/opt/kyu-runner/bin` +
+hardened unit; glibc release + signing; musl script retired. Suite: 69
+green. Found on the way and fixed in the kit: no post-start hook for pumps
+(→ `on_start`, chassis 1.1.0) and no way to strip kit keys before a
+`deny_unknown_fields` parse (→ `knob_keys()`). Deploy follows only after
+Kenny's go: homelab `stacks/kyu/kyu-runner/service.yml` (binary path, env
+file, `update_cmd`), a signed 0.2.0 release, Uptime Kuma's probe address.
+
+### http-switchboard → `chassis-migration` (2.0.0, commit ddbe11e, pushed 2026-09-05)
+
+**Built, tests green under the project's own gate (with the kyu image), no
+release, no deploy (A2).** `cargo test --all` with `KYU_IMAGE` set: every
+suite green, incl. the docker E2E and the hard-kill test.
+
+What changed for the operator (CHANGELOG 2.0.0 → Migration):
+- CLI: positional `<config.toml>` → `--config`; `--check-config` → `--check
+  --config`; `--healthcheck` kept (503 = alive now); `test …` dry-run kept
+  (dispatched before the kit's parser). Unknown flag exits 1.
+- A state dir is required (`/var/lib/http-switchboard`); it holds only the
+  self-update state.
+- `/healthz` = kit shape with one subsystem per profile; **503 whenever a
+  profile is failing/denied/hub-down** — the old `?strict=1` behaviour is
+  the only one (Uptime Kuma already probes with `?strict=1`).
+- Inbound webhooks stay PUBLIC routes with the per-path `inbound_token`
+  door; each inbound path is exempt from the kit's request timeout (a
+  delivery may take retries × timeout + settle).
+- Self-update ON (A7); FEATURES M1 amended; `deploy/homelab-preset/` retired
+  in favour of the scaffold's unit + `deploy/service.yml` (vmid 109).
+- Switchboard's own JSON event lines still go to stdout; the kit's lines go
+  to stderr — folding them is a follow-up decision (item for the form).
+
+Live-found faults while migrating:
+- **`--healthcheck` read the project's config before probing** (both in
+  http-switchboard and kyu-runner): a box without the file failed the probe
+  with a config error. Fixed in both (`Control` match: only a real start and
+  `--check` read the project's part); kyu-runner commit e674eb1. Kit-side
+  question for the form: should `App` expose "does this control need
+  project configuration?" so each project cannot get this wrong?
+- The l7 hard-kill E2E only runs with `KYU_IMAGE` (the gate sets it, a bare
+  `cargo test` does not) — it still used the old argv and was caught by the
+  gate at commit time, not by my runs. Nothing to change in the kit.
+
+Kenny-only afterwards: first signed 2.0.0 release, homelab `service.yml`
+update + Uptime Kuma probe address, deploy (port 8083 on CT 109).
+
 ## Open with the Homelab Rust session (announce, do not fix here — rule 7a)
 
 - **Broken-after-ready drill ran on 2026-09-05 14:24 UTC against CT 118
