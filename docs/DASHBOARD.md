@@ -249,12 +249,13 @@ needs: axum's `form` feature (for `Form`) and `serde` with `derive`.
   fixed list), so a project page's interactivity is plain forms plus the
   `data-*` behaviours chassis.js provides.
 
-  Caution, found while writing this: `templates/clients.html` itself
-  contains an inline `<script type="module">` for the Issue form, and
-  `data-kp-busy` on two kit buttons has no reader in the vendored
-  `components.js`. Under the CSP above a browser is expected to block
-  that inline script; this was not exercised in the suite (the E2E runs
-  without a browser) and is reported to Kenny as an open item.
+  Found while writing this, fixed the same afternoon: `clients.html`
+  carried an inline `<script type="module">` for the Issue form (the CSP
+  above would have blocked it in a browser) and two kit buttons used a
+  `data-kp-busy` attribute nothing read. The form is now wired from
+  `chassis.js` (`form#issue`), both buttons use `data-busy-label`, and the
+  E2E `project_page_renders_inside_the_layout_with_security_headers`
+  asserts that no kit page carries a script without `src`.
 
 ## The Clients page controls
 

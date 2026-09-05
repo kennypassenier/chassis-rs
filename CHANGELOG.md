@@ -7,6 +7,17 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.0.0] - 2026-09-05
+
+First release: the library (features `core`, `dashboard`, `passkeys`,
+`self-update`, `notify`), the `chassis` command (`new`, `sync`, `release`)
+and the `inbox` example. Consumers pin `tag = "v1.0.0"`. What is proven
+where, and what is deliberately not, is `docs/TEST_PLAN.md`; the
+Migration notes below apply to services built against the unreleased
+0.1.x tree during development.
+
 ### Migration
 - Release signatures must carry the trusted comment `<repo> v<version>`
   (`scaffold/scripts/sign-release.sh` and `chassis release` do this); a

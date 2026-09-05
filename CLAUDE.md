@@ -15,9 +15,9 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | 7 · Hardening — DONE in code/tests/drills (93+7+1+21 green; supervised swap, autonomous rollback + CF-3 fix, broken-after-ready kit-side all live on CT 118); Phase 8 docs being written by the doc-writer; then Phase 9 tag v1.0.0 (A5), then migration branches (A2) |
+| Current phase | 9 · Release — 1.0.0 bumped and tagged from main (A5 go); R7 (hardening close-out), R8 (docs) and R9 (release) queued as ratification rounds; next: migration branches in kyu-runner, http-switchboard, kyu, almanac (A2) |
 | Last completed gate | Combined ratification R1–R5 + L0–L8 (2026-09-05, all Akkoord); DD-1 D1–D3 Klopt; CF-2 answered (measurement pending) |
-| Next gate | Phase 7 close-out report (R7), Phase 8 docs (R8), Phase 9 release (R9) — all as ratification rounds on Kenny's return |
+| Next gate | Combined ratification R7–R9 + CF-3 + migration reports on Kenny's return (docs/PENDING_MINI_ROUNDS.md) |
 | AFK mode | **on** again since 2026-09-05 afternoon (AFK round 2: A1 drill key, A2 kit + four migration branches, A3 adopt CT 118 only if it does not stall, A4 passkeys later, A5 tag v1.0.0 after green Phase 7+8 and drills, A6 gates → R7–R9). Rule 7a (one session, one project) suspended by Kenny until his return. |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 

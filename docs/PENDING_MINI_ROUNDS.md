@@ -98,6 +98,16 @@ chassis.js); (3) `--help` claimed a config-file key for `state_dir`/`config`
 code. R8 = one approval item per document (Goedkeuren · Aanpassen ·
 Herschrijven) with the three strongest claims each, on Kenny's return.
 
+## Phase 9 (release) — crossed AFK 2026-09-05, awaiting R9
+
+Version 1.0.0 (kit + CLI), CHANGELOG [1.0.0] with the Migration notes for
+services built against the 0.1.x tree, tag `v1.0.0` on main after green CI,
+GitHub release created with `gh` (A5 was the go). Consumers pin
+`tag = "v1.0.0"`; `chassis new` defaults to it. Not part of this release:
+a signed service binary (the kit is a library; services sign their own
+releases with Kenny's key), the passkey live test (A4), the homelab's
+broken-after-ready re-run (their binary).
+
 ## Open with the Homelab Rust session (announce, do not fix here — rule 7a)
 
 - **Broken-after-ready drill ran on 2026-09-05 14:24 UTC against CT 118
