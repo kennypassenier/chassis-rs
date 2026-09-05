@@ -1,0 +1,70 @@
+name: CI
+
+# Runs on every branch (standing rule 6a): branch protection waits for
+# these checks, and a branch push that produced no checks could never be
+# merged without a pull request. Written by `chassis new`; `chassis sync`
+# shows the diff when the kit's version of this file changes.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  gates:
+    name: fmt · clippy · tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "{{ toolchain }}"
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format check
+        run: cargo fmt --all -- --check
+      - name: Clippy (warnings are errors)
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test
+      - name: The binary answers --version without configuration (AR20)
+        run: cargo run -q -- --version
+
+  deny:
+    name: cargo-deny (advisories · licenses · bans)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check all
+
+  image:
+    name: container build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build image
+        run: docker build -t {{ name }}:ci .
+      - name: The image answers --version and --healthcheck refuses a closed port
+        run: |
+          docker run --rm {{ name }}:ci --version
+          if docker run --rm {{ name }}:ci --healthcheck http://127.0.0.1:1/healthz; then echo "healthcheck must fail against a closed port"; exit 1; fi
+
+  coverage:
+    name: coverage (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "{{ toolchain }}"
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Measure coverage
+        run: cargo llvm-cov --summary-only

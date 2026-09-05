@@ -1,0 +1,55 @@
+# {{ name }}
+
+{{ description }}
+
+Built on [chassis](https://github.com/kennypassenier/chassis-rs): the
+service gets configuration, logging, `/healthz`, `/metrics`, a graceful
+stop, a dashboard with per-client tokens, signed self-update and webhooks
+from the kit, and adds only what it does itself (`src/main.rs`).
+
+## Run it
+
+```bash
+cargo run -- --help                 # every knob, three names each
+{{ name }} gen-secret               # on a terminal: the two lines the env file needs
+{{ prefix }}_TOKEN=… {{ prefix }}_SECRET_KEY=… cargo run -- --listen 127.0.0.1:8080
+```
+
+Open http://127.0.0.1:8080, log in with the token, add a client on the
+Clients page, copy its token, and call the API with
+`Authorization: Bearer <token>`.
+
+## Configuration
+
+Precedence: flag > environment variable > `{{ state_dir }}/config.toml` >
+default. `{{ name }} --print-config` shows every effective value and where
+it came from; `{{ name }} --check` validates without opening a socket.
+Secrets (`{{ prefix }}_TOKEN`, `{{ prefix }}_SECRET_KEY`) come from the
+environment only, never from the file.
+
+## Deploy
+
+`deploy/{{ name }}.service` is the systemd unit (`Type=notify`, hardened);
+`deploy/service.yml` is the homelab's stack file for `homelab adopt`;
+`Dockerfile` builds the container image CI pushes to GHCR.
+
+## Release
+
+```bash
+chassis release 0.2.0
+```
+
+bumps the version, tags, waits for CI to build and publish, signs the
+manifest with your minisign key and uploads `SHA256SUMS.minisig` and
+`VERSION` — the four assets the self-updater needs.
+
+## Development
+
+Gates are git-native. After a fresh clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Every commit then runs fmt, clippy (warnings are errors) and the tests,
+and must carry feature IDs in brackets (`[K3]`, `[meta]`).

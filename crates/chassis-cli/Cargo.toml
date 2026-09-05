@@ -14,6 +14,18 @@ name = "chassis"
 path = "src/main.rs"
 
 [dependencies]
+# The kit's error type (remedy mandatory) and its constants; core only.
+chassis = { path = "../chassis", version = "0.1.0", default-features = false, features = ["core"] }
+clap = { workspace = true }
+minijinja = { version = "2", features = ["json"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+# Unified diffs for `sync`.
+similar = "2"
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [lints.rust]
 unsafe_code = "forbid"

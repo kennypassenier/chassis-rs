@@ -1,0 +1,47 @@
+# {{ name }} — the golden unit (AR17), as the homelab's answers shaped it.
+#
+# StartLimitIntervalSec/Burst belong in [Unit]: in [Service] systemd
+# ignores them silently ("Unknown key") and a crash loop stops after five
+# tries. Wants= not Requires= for the network, so a slow link after a
+# power cut does not park the unit. Type=notify: the unit is active only
+# once the service sent READY=1 after binding (W9). ReadWritePaths covers
+# the binary's directory too, or self-update verifies, downloads and then
+# fails at the swap.
+#
+# Install: copy to /etc/systemd/system/{{ name }}.service, create the user
+# ({{ name }}), the state dir ({{ state_dir }}) and the env file
+# (/etc/{{ name }}/{{ name }}.env, 0640 root:{{ name }}), then
+# systemctl enable --now {{ name }}.
+
+[Unit]
+Description={{ name }} — {{ description }}
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+StartLimitBurst=0
+
+[Service]
+Type=notify
+User={{ name }}
+Group={{ name }}
+EnvironmentFile=/etc/{{ name }}/{{ name }}.env
+WorkingDirectory={{ state_dir }}
+ExecStartPre=/usr/local/bin/{{ name }} --check
+ExecStart=/usr/local/bin/{{ name }}
+Restart=always
+RestartSec=5s
+KillSignal=SIGTERM
+# Above the service's shutdown_timeout_ms (default 10 s), so N1's bound
+# is the one that decides, not systemd's.
+TimeoutStopSec=60
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+ReadWritePaths={{ state_dir }} {{ state_dir }}-pre-update /usr/local/bin
+
+[Install]
+WantedBy=multi-user.target

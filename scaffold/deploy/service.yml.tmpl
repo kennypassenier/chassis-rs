@@ -1,0 +1,21 @@
+# The homelab's stack file for a native service (AR18; `homelab adopt`).
+# vmid and hostname are filled in at adoption: the hostname MUST be
+# <vmid>-app-<stack>, the homelab validates it. update_cmd reproduces the
+# unit line for line — same user, working directory and EnvironmentFile —
+# and waits for the result (critic #7), so "already current" is exit 0
+# without a restart and a failure carries its stderr.
+stack_name: {{ stack }}
+vmid: {{ vmid }}
+hostname: {{ vmid }}-app-{{ stack }}
+unit: {{ name }}
+binary: /usr/local/bin/{{ name }}
+env_file: /etc/{{ name }}/{{ name }}.env
+data_dirs:
+  - {{ state_dir }}
+update_cmd: >-
+  systemd-run --wait --pipe --collect --uid={{ name }} --gid={{ name }}
+  --property=EnvironmentFile=/etc/{{ name }}/{{ name }}.env
+  --property=WorkingDirectory={{ state_dir }}
+  /usr/local/bin/{{ name }} update
+release_repo: {{ repo }}
+release_asset: {{ name }}

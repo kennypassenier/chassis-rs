@@ -1,0 +1,38 @@
+# {{ name }} — the golden unit, latch variant (AR17, critic #4).
+#
+# `latch run` spawns the service and waits (it does not exec), so latch is
+# the main PID and the service's READY=1 comes from a child: NotifyAccess=all
+# lets systemd accept it. ExecStartPre needs the secrets too, so it also
+# runs under latch. Everything else is the plain unit.
+
+[Unit]
+Description={{ name }} — {{ description }}
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+StartLimitBurst=0
+
+[Service]
+Type=notify
+NotifyAccess=all
+User={{ name }}
+Group={{ name }}
+EnvironmentFile=/etc/{{ name }}/{{ name }}.env
+WorkingDirectory={{ state_dir }}
+ExecStartPre=/usr/local/bin/latch run --env prod -- /usr/local/bin/{{ name }} --check
+ExecStart=/usr/local/bin/latch run --env prod -- /usr/local/bin/{{ name }}
+Restart=always
+RestartSec=5s
+KillSignal=SIGTERM
+TimeoutStopSec=60
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+ReadWritePaths={{ state_dir }} {{ state_dir }}-pre-update /usr/local/bin
+
+[Install]
+WantedBy=multi-user.target
