@@ -1,0 +1,1014 @@
+//! Self-update, the half that touches the world (K18–K21, AR8, AR9).
+//!
+//! The pipeline, in both active modes: fetch `VERSION` → compare → fetch
+//! `SHA256SUMS` and `SHA256SUMS.minisig` → **verify the signature with the
+//! compiled-in key before reading a single hash** → fetch the binary to
+//! `<bin>.staging` (same filesystem as the binary) → SHA-256 must match the
+//! manifest → run `<staging> --check` → let the project copy its state →
+//! `link(bin, bin.prev)` then ONE `rename(staging, bin)` (critic #1: a
+//! binary exists at every instant) → fsync the directory.
+//!
+//! - **supervised** (`<name> update`): stops there and exits 0 — also when
+//!   already current, without touching anything. Never restarts, never
+//!   writes state: the supervisor preserved its own copy and rolls back
+//!   from outside (the homelab's contract).
+//! - **autonomous**: writes `update-state.json` first, then exits 0 so
+//!   `Restart=always` starts the new binary. On start,
+//!   `handle_pending_update` runs BEFORE the stores open (critic #2); the
+//!   second start of an unproven version restores `bin.prev`. Health for
+//!   this decision is liveness only (critic #3): bound, READY sent,
+//!   `healthy_after` elapsed.
+//!
+//! Ported from Almanac's `shell/update.rs`, which drilled this on CT 112.
+
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use serde::Serialize;
+use sha2::{Digest, Sha256};
+
+use crate::core::error::Error;
+use crate::core::update::{
+    ContainerEvidence, DrillMarker, Effective, Hold, Mode, StartAction, UpdateState, Version,
+    decide_at_startup, drill_applies, effective_mode, hash_for, hash_matches, should_update,
+};
+use crate::shell::store::write_atomic;
+use crate::shell::time::now_rfc3339;
+
+/// The ecosystem's minisign public key (Almanac's `RELEASE_PUBKEY`, also
+/// one of latch's). Contract value: the only trust anchor the updater
+/// uses (AR8, rule 27 exception). Rotating it is a new kit major.
+pub const RELEASE_PUBKEY: &str = "RWQWCzzUBquIHGkS3YERMkuqEm4C3vBArnlb9rySbr8z5ytgVYuji3bS";
+
+/// An operational event the updater reports (K22 carries it).
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Event {
+    /// `update.installed`, `update.ok`, `update.failed`, `update.rolled_back`, `update.held`.
+    pub kind: &'static str,
+    pub version: String,
+    pub detail: String,
+}
+
+pub type EventSink = Arc<dyn Fn(Event) + Send + Sync>;
+pub type StateCopy = Arc<dyn Fn(&Path) -> Result<(), Error> + Send + Sync>;
+
+/// Everything the updater is configured with (AR3 knobs).
+#[derive(Clone)]
+pub struct UpdateConfig {
+    pub mode: Mode,
+    /// Base URL holding `VERSION`, `SHA256SUMS`, `SHA256SUMS.minisig` and the binary.
+    pub url: String,
+    pub asset_name: String,
+    pub interval: Duration,
+    pub startup_delay: Duration,
+    pub healthy_after: Duration,
+    pub max_start_attempts: u32,
+    pub hold: Hold,
+    pub drill: Option<String>,
+    pub keep_copies: usize,
+    pub probe_timeout: Duration,
+    pub download_timeout: Duration,
+    /// Base64 minisign public key; `RELEASE_PUBKEY` in production, a test
+    /// key in tests. Not a knob.
+    pub pubkey: String,
+    /// Where pre-update state copies go (K21); outside the state root.
+    pub copies_dir: PathBuf,
+}
+
+/// What one check decided.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Outcome {
+    /// Nothing newer than what runs.
+    Current { latest: Version },
+    /// Newer exists but the hold refuses it.
+    Held { latest: Version },
+    /// A pending, unproven update blocks a new one (critic #1).
+    Blocked { pending: String },
+    /// Installed; in autonomous mode the caller restarts.
+    Installed { from: Version, to: Version },
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LastCheck {
+    pub at: Option<String>,
+    pub latest: Option<String>,
+    pub outcome: Option<String>,
+    pub error: Option<String>,
+}
+
+pub struct Updater {
+    pub cfg: UpdateConfig,
+    pub effective: Effective,
+    http: reqwest::Client,
+    binary: PathBuf,
+    state_dir: PathBuf,
+    running: Version,
+    notify: EventSink,
+    state_copy: Option<StateCopy>,
+    last: Arc<Mutex<LastCheck>>,
+}
+
+/// What the shell can see of a container, read once at startup.
+pub fn container_evidence() -> ContainerEvidence {
+    ContainerEvidence {
+        dockerenv: Path::new("/.dockerenv").exists(),
+        containerenv: Path::new("/run/.containerenv").exists(),
+        pid1_cgroup: std::fs::read_to_string("/proc/1/cgroup").unwrap_or_default(),
+    }
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    hex::encode(Sha256::digest(bytes))
+}
+
+fn fsync_dir(path: &Path) {
+    if let Some(dir) = path.parent()
+        && let Ok(d) = std::fs::File::open(dir)
+    {
+        let _ = d.sync_all();
+    }
+}
+
+impl Updater {
+    pub fn new(
+        cfg: UpdateConfig,
+        binary: PathBuf,
+        state_dir: PathBuf,
+        running: Version,
+        notify: EventSink,
+        state_copy: Option<StateCopy>,
+    ) -> Result<Self, Error> {
+        let effective = effective_mode(cfg.mode, &container_evidence());
+        let http = reqwest::Client::builder()
+            .timeout(cfg.download_timeout)
+            .build()
+            .map_err(|e| Error::internal(format!("http client: {e}"), "report this"))?;
+        Ok(Self {
+            cfg,
+            effective,
+            http,
+            binary,
+            state_dir,
+            running,
+            notify,
+            state_copy,
+            last: Arc::new(Mutex::new(LastCheck::default())),
+        })
+    }
+
+    pub fn state_path(&self) -> PathBuf {
+        self.state_dir.join("update-state.json")
+    }
+
+    fn prev_path(&self) -> PathBuf {
+        with_suffix(&self.binary, ".prev")
+    }
+
+    fn staging_path(&self) -> PathBuf {
+        with_suffix(&self.binary, ".staging")
+    }
+
+    fn drill_path(&self) -> PathBuf {
+        with_suffix(&self.binary, ".drill")
+    }
+
+    /// What the status card shows (K17).
+    pub fn last_check(&self) -> LastCheck {
+        self.last.lock().expect("last lock").clone()
+    }
+
+    async fn get(&self, name: &str) -> Result<Vec<u8>, Error> {
+        let url = format!("{}/{}", self.cfg.url.trim_end_matches('/'), name);
+        let res = self.http.get(&url).send().await.map_err(|e| {
+            Error::dependency(
+                format!("GET {url} failed: {e}"),
+                "is the release host reachable from here? check update_url and DNS",
+            )
+        })?;
+        if !res.status().is_success() {
+            return Err(Error::dependency(
+                format!("GET {url} answered {}", res.status()),
+                "the release may be incomplete (assets are uploaded one by one); the next check retries",
+            ));
+        }
+        res.bytes()
+            .await
+            .map(|b| b.to_vec())
+            .map_err(|e| Error::dependency(format!("reading {url}: {e}"), "the next check retries"))
+    }
+
+    /// `VERSION` on the release host.
+    pub async fn latest(&self) -> Result<Version, Error> {
+        let text = String::from_utf8(self.get("VERSION").await?).map_err(|_| {
+            Error::dependency(
+                "VERSION is not text",
+                "the release host is serving something else",
+            )
+        })?;
+        Version::parse(&text)
+    }
+
+    /// Verify the manifest's signature with the compiled-in key BEFORE any
+    /// hash is trusted (AR8).
+    pub fn verify_manifest(&self, manifest: &[u8], signature: &str) -> Result<(), Error> {
+        let key = minisign_verify::PublicKey::from_base64(
+            self.cfg.pubkey.lines().last().unwrap_or_default().trim(),
+        )
+        .map_err(|e| {
+            Error::config(
+                format!("the compiled-in release public key is not a minisign key: {e}"),
+                "this is a build mistake: RELEASE_PUBKEY must be the base64 line of minisign.pub",
+            )
+        })?;
+        let sig = minisign_verify::Signature::decode(signature).map_err(|e| {
+            Error::config(
+                format!("the release signature is malformed: {e}"),
+                "the release host is serving something that is not a minisign signature; nothing was installed",
+            )
+        })?;
+        key.verify(manifest, &sig, false).map_err(|e| {
+            Error::config(
+                format!("the release signature does not verify: {e}"),
+                "either the release host is compromised or the signing key changed; nothing was installed, and nothing should be installed by hand until you know which",
+            )
+        })
+    }
+
+    /// One check: compare, hold, install. Never restarts; the caller
+    /// decides what an `Installed` means in its mode.
+    pub async fn check_once(&self) -> Result<Outcome, Error> {
+        let result = self.check_inner().await;
+        let mut last = self.last.lock().expect("last lock");
+        last.at = Some(now_rfc3339());
+        match &result {
+            Ok(o) => {
+                last.error = None;
+                last.outcome = Some(format!("{o:?}"));
+                last.latest = match o {
+                    Outcome::Current { latest } | Outcome::Held { latest } => {
+                        Some(latest.to_string())
+                    }
+                    Outcome::Installed { to, .. } => Some(to.to_string()),
+                    Outcome::Blocked { .. } => last.latest.clone(),
+                };
+            }
+            Err(e) => last.error = Some(e.to_string()),
+        }
+        result
+    }
+
+    async fn check_inner(&self) -> Result<Outcome, Error> {
+        if let Some(state) = read_state(&self.state_path()) {
+            return Ok(Outcome::Blocked {
+                pending: state.to_version,
+            });
+        }
+        if self.drill_path().exists() {
+            return Ok(Outcome::Blocked {
+                pending: "drill marker present".to_string(),
+            });
+        }
+        let latest = self.latest().await?;
+        if !should_update(self.running, latest) {
+            return Ok(Outcome::Current { latest });
+        }
+        if !self.cfg.hold.allows(self.running, latest) {
+            (self.notify)(Event {
+                kind: "update.held",
+                version: latest.to_string(),
+                detail: format!("{:?} holds it", self.cfg.hold),
+            });
+            return Ok(Outcome::Held { latest });
+        }
+        self.install(latest).await?;
+        Ok(Outcome::Installed {
+            from: self.running,
+            to: latest,
+        })
+    }
+
+    async fn install(&self, version: Version) -> Result<(), Error> {
+        let manifest = self.get("SHA256SUMS").await?;
+        let signature = String::from_utf8(self.get("SHA256SUMS.minisig").await?).map_err(|_| {
+            Error::dependency(
+                "SHA256SUMS.minisig is not text",
+                "the release host is serving something else",
+            )
+        })?;
+        self.verify_manifest(&manifest, &signature)?;
+        let manifest_text = String::from_utf8_lossy(&manifest).into_owned();
+        let expected = hash_for(&manifest_text, &self.cfg.asset_name)?;
+
+        let binary = self.get(&self.cfg.asset_name).await?;
+        let actual = sha256_hex(&binary);
+        if !hash_matches(&expected, &actual) {
+            return Err(Error::config(
+                format!(
+                    "the downloaded binary's SHA-256 ({actual}) does not match the signed manifest ({expected})"
+                ),
+                "nothing was installed; the release host is serving a different file than it signed",
+            ));
+        }
+
+        let staging = self.staging_path();
+        write_executable(&staging, &binary)?;
+        if let Err(e) = probe(&staging, self.cfg.probe_timeout).await {
+            let _ = std::fs::remove_file(&staging);
+            return Err(e);
+        }
+
+        if let Some(copy) = &self.state_copy {
+            let dest = self.cfg.copies_dir.join(version.to_string());
+            std::fs::create_dir_all(&dest).map_err(|e| {
+                Error::config(
+                    format!(
+                        "cannot create the pre-update copy dir {}: {e}",
+                        dest.display()
+                    ),
+                    "make update_copies_dir writable for the service user, or point it elsewhere",
+                )
+            })?;
+            copy(&dest)?;
+            prune_copies(&self.cfg.copies_dir, self.cfg.keep_copies);
+        }
+
+        // Critic #1: hard-link the old binary aside, then one rename. A
+        // `bin` exists at every instant; `bin.prev` is always the old one.
+        let prev = self.prev_path();
+        let _ = std::fs::remove_file(&prev);
+        std::fs::hard_link(&self.binary, &prev).map_err(|e| {
+            Error::config(
+                format!("cannot keep the previous binary at {}: {e}", prev.display()),
+                "the service user needs write access to the directory holding the binary (ReadWritePaths in the unit), not only to the binary",
+            )
+        })?;
+        std::fs::rename(&staging, &self.binary).map_err(|e| {
+            let _ = std::fs::remove_file(&prev);
+            Error::config(
+                format!("cannot install the new binary: {e}"),
+                "nothing changed; check the directory's permissions",
+            )
+        })?;
+        fsync_dir(&self.binary);
+
+        if let Some(kind) = &self.cfg.drill {
+            let marker = DrillMarker {
+                version: version.to_string(),
+                kind: kind.clone(),
+            };
+            let bytes = serde_json::to_vec(&marker).expect("marker serialises");
+            write_atomic(&self.drill_path(), &bytes, "drill marker")?;
+            tracing::warn!(kind = %kind, %version, "DRILL: the installed version will fail on purpose");
+        }
+
+        if self.effective.mode == Mode::Autonomous {
+            let state = UpdateState {
+                from_version: self.running.to_string(),
+                to_version: version.to_string(),
+                previous_binary: prev.display().to_string(),
+                attempts: 0,
+            };
+            write_state(&self.state_path(), &state)?;
+        }
+        (self.notify)(Event {
+            kind: "update.installed",
+            version: version.to_string(),
+            detail: format!(
+                "{} → {} ({})",
+                self.running,
+                version,
+                self.effective.mode.label()
+            ),
+        });
+        tracing::info!(from = %self.running, to = %version, mode = self.effective.mode.label(), "update installed");
+        Ok(())
+    }
+
+    /// At startup, before the stores open (AR15): count the attempt and
+    /// revert if the previous start never became healthy. Returns whether
+    /// the process should exit (after a revert) so the supervisor starts
+    /// the restored binary.
+    pub fn handle_pending_update(&self) -> Result<bool, Error> {
+        let state = read_state(&self.state_path());
+        match decide_at_startup(
+            state,
+            &self.running.to_string(),
+            self.cfg.max_start_attempts,
+        ) {
+            StartAction::Normal => Ok(false),
+            StartAction::Stale(s) => {
+                tracing::warn!(pending = %s.to_version, running = %self.running, "update state names another version; clearing it");
+                clear_state(&self.state_path());
+                Ok(false)
+            }
+            StartAction::Probation(s) => {
+                tracing::info!(to = %s.to_version, attempt = s.attempts, "new version on probation");
+                write_state(&self.state_path(), &s)?;
+                Ok(false)
+            }
+            StartAction::Revert(s) => {
+                let prev = PathBuf::from(&s.previous_binary);
+                let restored = std::fs::rename(&prev, &self.binary);
+                clear_state(&self.state_path());
+                match restored {
+                    Ok(()) => {
+                        fsync_dir(&self.binary);
+                        tracing::error!(failed = %s.to_version, restored = %s.from_version, "update reverted: the new version never became healthy");
+                        (self.notify)(Event {
+                            kind: "update.rolled_back",
+                            version: s.to_version.clone(),
+                            detail: format!(
+                                "{} did not come up; reverted to {}",
+                                s.to_version, s.from_version
+                            ),
+                        });
+                        Ok(true)
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "revert wanted but the previous binary is gone; running on");
+                        (self.notify)(Event {
+                            kind: "update.failed",
+                            version: s.to_version.clone(),
+                            detail: format!("revert impossible: {e}"),
+                        });
+                        Ok(false)
+                    }
+                }
+            }
+        }
+    }
+
+    /// The drill (K20, critic #6): only the version the marker names
+    /// breaks, and the marker is consumed so the restored version runs.
+    pub fn drill_kind(&self) -> Option<String> {
+        let path = self.drill_path();
+        let marker: Option<DrillMarker> = std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok());
+        let kind = drill_applies(marker.as_ref(), &self.running.to_string()).map(|k| k.to_string());
+        if kind.is_some() {
+            let _ = std::fs::remove_file(&path);
+        }
+        kind
+    }
+
+    /// Called once the service is bound and has served for `healthy_after`
+    /// (liveness only, critic #3): the probation is over.
+    pub fn confirm_healthy(&self) {
+        if read_state(&self.state_path()).is_some() {
+            clear_state(&self.state_path());
+            tracing::info!(version = %self.running, "update confirmed healthy");
+            (self.notify)(Event {
+                kind: "update.ok",
+                version: self.running.to_string(),
+                detail: "new version served past the healthy-after window".to_string(),
+            });
+        }
+    }
+
+    /// The autonomous loop (AR8): first tick after `startup_delay`, then
+    /// every `interval`; one info line per tick (rule 23). Returns when an
+    /// update was installed, so the caller can exit for the restart.
+    pub async fn run_autonomous(self: Arc<Self>) {
+        tokio::time::sleep(self.cfg.startup_delay).await;
+        loop {
+            match self.check_once().await {
+                Ok(Outcome::Installed { from, to }) => {
+                    tracing::info!(%from, %to, "update installed; exiting 0 so the supervisor restarts the new binary");
+                    return;
+                }
+                Ok(o) => tracing::info!(outcome = ?o, "update check"),
+                Err(e) => tracing::warn!(error = %e, "update check failed; retrying next interval"),
+            }
+            tokio::time::sleep(self.cfg.interval).await;
+        }
+    }
+}
+
+fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "binary".to_string());
+    name.push_str(suffix);
+    path.with_file_name(name)
+}
+
+fn write_executable(path: &Path, bytes: &[u8]) -> Result<(), Error> {
+    write_atomic(path, bytes, "staged binary")?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).map_err(|e| {
+            Error::config(
+                format!("cannot mark {} executable: {e}", path.display()),
+                "check the directory's permissions",
+            )
+        })?;
+    }
+    Ok(())
+}
+
+/// `<staging> --check`, bounded. A binary that hangs is killed.
+async fn probe(binary: &Path, timeout: Duration) -> Result<(), Error> {
+    let child = tokio::process::Command::new(binary)
+        .arg("--check")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|e| {
+            Error::config(
+                format!("cannot run the staged binary: {e}"),
+                "nothing was installed",
+            )
+        })?;
+    match tokio::time::timeout(timeout, child.wait_with_output()).await {
+        Ok(Ok(out)) if out.status.success() => Ok(()),
+        Ok(Ok(out)) => Err(Error::config(
+            format!(
+                "the new version refuses its own --check: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            ),
+            "nothing was installed; the release cannot run with this configuration",
+        )),
+        Ok(Err(e)) => Err(Error::config(
+            format!("probing the staged binary failed: {e}"),
+            "nothing was installed",
+        )),
+        Err(_) => Err(Error::config(
+            format!(
+                "the staged binary's --check did not finish within {} s",
+                timeout.as_secs()
+            ),
+            "nothing was installed; the release hangs on start",
+        )),
+    }
+}
+
+pub fn write_state(path: &Path, state: &UpdateState) -> Result<(), Error> {
+    let bytes = serde_json::to_vec_pretty(state).expect("state serialises");
+    write_atomic(path, &bytes, "update state")
+}
+
+/// A corrupt state file reads as "no pending update" with a loud line
+/// rather than refusing to start (Almanac's rule).
+pub fn read_state(path: &Path) -> Option<UpdateState> {
+    let bytes = std::fs::read(path).ok()?;
+    match serde_json::from_slice(&bytes) {
+        Ok(s) => Some(s),
+        Err(e) => {
+            tracing::error!(error = %e, path = %path.display(), "update state is corrupt; treating as no pending update");
+            None
+        }
+    }
+}
+
+pub fn clear_state(path: &Path) {
+    let _ = std::fs::remove_file(path);
+}
+
+fn prune_copies(dir: &Path, keep: usize) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut dirs: Vec<(std::time::SystemTime, PathBuf)> = entries
+        .flatten()
+        .filter_map(|e| {
+            let md = e.metadata().ok()?;
+            if !md.is_dir() {
+                return None;
+            }
+            Some((md.modified().ok()?, e.path()))
+        })
+        .collect();
+    dirs.sort();
+    while dirs.len() > keep.max(1) {
+        let (_, old) = dirs.remove(0);
+        let _ = std::fs::remove_dir_all(old);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::Router;
+    use axum::routing::get;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// A signed fake release, served in-process.
+    struct FakeRelease {
+        pub url: String,
+        pub pubkey: String,
+        pub version_dir: tempfile::TempDir,
+        _task: tokio::task::JoinHandle<()>,
+    }
+
+    async fn fake_release(version: &str, binary: &[u8], asset: &str) -> FakeRelease {
+        let dir = tempfile::tempdir().unwrap();
+        let kp = minisign::KeyPair::generate_unencrypted_keypair().unwrap();
+        let manifest = format!("{}  {}\n", sha256_hex(binary), asset);
+        let sig = minisign::sign(Some(&kp.pk), &kp.sk, manifest.as_bytes(), None, None).unwrap();
+        std::fs::write(dir.path().join("VERSION"), version).unwrap();
+        std::fs::write(dir.path().join("SHA256SUMS"), &manifest).unwrap();
+        std::fs::write(dir.path().join("SHA256SUMS.minisig"), sig.into_string()).unwrap();
+        std::fs::write(dir.path().join(asset), binary).unwrap();
+        let root = dir.path().to_path_buf();
+        let app = Router::new().route(
+            "/{name}",
+            get(
+                move |axum::extract::Path(name): axum::extract::Path<String>| {
+                    let root = root.clone();
+                    async move {
+                        match std::fs::read(root.join(&name)) {
+                            Ok(b) => (axum::http::StatusCode::OK, b),
+                            Err(_) => (axum::http::StatusCode::NOT_FOUND, Vec::new()),
+                        }
+                    }
+                },
+            ),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let task = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        FakeRelease {
+            url: format!("http://{addr}"),
+            pubkey: kp.pk.to_base64(),
+            version_dir: dir,
+            _task: task,
+        }
+    }
+
+    /// A "binary" that passes --check: a shell script exiting 0.
+    const GOOD_BINARY: &[u8] = b"#!/bin/sh\nexit 0\n";
+    const BAD_BINARY: &[u8] = b"#!/bin/sh\necho 'config broken. What now: fix it' >&2\nexit 1\n";
+
+    fn cfg(release: &FakeRelease, mode: Mode, copies_dir: PathBuf) -> UpdateConfig {
+        UpdateConfig {
+            mode,
+            url: release.url.clone(),
+            asset_name: "svc".into(),
+            interval: Duration::from_secs(3600),
+            startup_delay: Duration::from_millis(1),
+            healthy_after: Duration::from_millis(1),
+            max_start_attempts: 2,
+            hold: Hold::None,
+            drill: None,
+            keep_copies: 2,
+            probe_timeout: Duration::from_secs(5),
+            download_timeout: Duration::from_secs(5),
+            pubkey: release.pubkey.clone(),
+            copies_dir,
+        }
+    }
+
+    fn sink() -> (EventSink, Arc<Mutex<Vec<Event>>>) {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let s2 = seen.clone();
+        (Arc::new(move |e| s2.lock().unwrap().push(e)), seen)
+    }
+
+    fn installed(dir: &Path, bytes: &[u8]) -> PathBuf {
+        let bin = dir.join("bin").join("svc");
+        std::fs::create_dir_all(bin.parent().unwrap()).unwrap();
+        write_executable(&bin, bytes).unwrap();
+        bin
+    }
+
+    #[tokio::test]
+    async fn supervised_update_swaps_and_a_second_run_touches_nothing() {
+        let release = fake_release("1.1.0", GOOD_BINARY, "svc").await;
+        let dir = tempfile::tempdir().unwrap();
+        let bin = installed(dir.path(), b"#!/bin/sh\nexit 0\n# old\n");
+        let (sink, events) = sink();
+        let copies = Arc::new(AtomicUsize::new(0));
+        let c2 = copies.clone();
+        let copy: StateCopy = Arc::new(move |dest: &Path| {
+            std::fs::write(dest.join("copy.txt"), "state").unwrap();
+            c2.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        });
+        let up = Updater::new(
+            cfg(&release, Mode::Supervised, dir.path().join("copies")),
+            bin.clone(),
+            dir.path().join("state"),
+            Version::parse("1.0.0").unwrap(),
+            sink,
+            Some(copy),
+        )
+        .unwrap();
+        let out = up.check_once().await.unwrap();
+        assert_eq!(
+            out,
+            Outcome::Installed {
+                from: Version::parse("1.0.0").unwrap(),
+                to: Version::parse("1.1.0").unwrap()
+            }
+        );
+        assert_eq!(
+            std::fs::read(&bin).unwrap(),
+            GOOD_BINARY,
+            "the new binary is in place"
+        );
+        assert!(
+            std::fs::read(with_suffix(&bin, ".prev"))
+                .unwrap()
+                .ends_with(b"# old\n"),
+            "bin.prev is the old one"
+        );
+        assert!(!with_suffix(&bin, ".staging").exists());
+        assert!(!up.state_path().exists(), "supervised writes no state");
+        assert_eq!(
+            copies.load(Ordering::SeqCst),
+            1,
+            "state copy taken before the swap (K21)"
+        );
+        assert!(
+            dir.path()
+                .join("copies")
+                .join("1.1.0")
+                .join("copy.txt")
+                .exists()
+        );
+        assert_eq!(events.lock().unwrap()[0].kind, "update.installed");
+
+        // Already current: nothing touched, exit-0 semantics (Outcome::Current).
+        let up2 = Updater::new(
+            cfg(&release, Mode::Supervised, dir.path().join("copies")),
+            bin.clone(),
+            dir.path().join("state"),
+            Version::parse("1.1.0").unwrap(),
+            Arc::new(|_| {}),
+            None,
+        )
+        .unwrap();
+        let before = std::fs::metadata(&bin).unwrap().modified().unwrap();
+        assert_eq!(
+            up2.check_once().await.unwrap(),
+            Outcome::Current {
+                latest: Version::parse("1.1.0").unwrap()
+            }
+        );
+        assert_eq!(std::fs::metadata(&bin).unwrap().modified().unwrap(), before);
+        assert_eq!(up2.last_check().latest.as_deref(), Some("1.1.0"));
+        drop(release.version_dir);
+    }
+
+    #[tokio::test]
+    async fn a_release_that_fails_its_own_check_is_never_installed() {
+        let release = fake_release("1.1.0", BAD_BINARY, "svc").await;
+        let dir = tempfile::tempdir().unwrap();
+        let bin = installed(dir.path(), GOOD_BINARY);
+        let up = Updater::new(
+            cfg(&release, Mode::Supervised, dir.path().join("c")),
+            bin.clone(),
+            dir.path().join("s"),
+            Version::parse("1.0.0").unwrap(),
+            Arc::new(|_| {}),
+            None,
+        )
+        .unwrap();
+        let err = up.check_once().await.unwrap_err();
+        assert!(
+            err.message.contains("refuses its own --check"),
+            "{}",
+            err.message
+        );
+        assert!(
+            err.message.contains("config broken"),
+            "the staged binary's stderr is quoted"
+        );
+        assert_eq!(std::fs::read(&bin).unwrap(), GOOD_BINARY, "untouched");
+        assert!(
+            !with_suffix(&bin, ".staging").exists(),
+            "staging cleaned up"
+        );
+        assert!(up.last_check().error.is_some());
+    }
+
+    #[tokio::test]
+    async fn a_bad_signature_is_refused_before_any_hash_and_a_bad_hash_after() {
+        let release = fake_release("1.1.0", GOOD_BINARY, "svc").await;
+        let dir = tempfile::tempdir().unwrap();
+        let bin = installed(dir.path(), GOOD_BINARY);
+        // Tamper with the manifest: the signature no longer verifies.
+        let manifest_path = release.version_dir.path().join("SHA256SUMS");
+        let mut m = std::fs::read_to_string(&manifest_path).unwrap();
+        m.push_str("deadbeef  extra\n");
+        std::fs::write(&manifest_path, m).unwrap();
+        let up = Updater::new(
+            cfg(&release, Mode::Supervised, dir.path().join("c")),
+            bin.clone(),
+            dir.path().join("s"),
+            Version::parse("1.0.0").unwrap(),
+            Arc::new(|_| {}),
+            None,
+        )
+        .unwrap();
+        let err = up.check_once().await.unwrap_err();
+        assert!(
+            err.message.contains("signature does not verify"),
+            "{}",
+            err.message
+        );
+
+        // Fresh release, but the served binary differs from the signed one.
+        let release = fake_release("1.1.0", GOOD_BINARY, "svc").await;
+        std::fs::write(
+            release.version_dir.path().join("svc"),
+            b"#!/bin/sh\nexit 0\n#tampered\n",
+        )
+        .unwrap();
+        let up = Updater::new(
+            cfg(&release, Mode::Supervised, dir.path().join("c")),
+            bin.clone(),
+            dir.path().join("s"),
+            Version::parse("1.0.0").unwrap(),
+            Arc::new(|_| {}),
+            None,
+        )
+        .unwrap();
+        let err = up.check_once().await.unwrap_err();
+        assert!(err.message.contains("SHA-256"), "{}", err.message);
+        assert_eq!(std::fs::read(&bin).unwrap(), GOOD_BINARY);
+    }
+
+    #[tokio::test]
+    async fn hold_and_pending_state_block_an_install() {
+        let release = fake_release("1.1.0", GOOD_BINARY, "svc").await;
+        let dir = tempfile::tempdir().unwrap();
+        let bin = installed(dir.path(), GOOD_BINARY);
+        let mut c = cfg(&release, Mode::Autonomous, dir.path().join("c"));
+        c.hold = Hold::Skip(Version::parse("1.1.0").unwrap());
+        let (sink, events) = sink();
+        let up = Updater::new(
+            c,
+            bin.clone(),
+            dir.path().join("s"),
+            Version::parse("1.0.0").unwrap(),
+            sink,
+            None,
+        )
+        .unwrap();
+        assert!(matches!(
+            up.check_once().await.unwrap(),
+            Outcome::Held { .. }
+        ));
+        assert_eq!(events.lock().unwrap()[0].kind, "update.held");
+
+        // A pending, unproven update blocks the next one (critic #1).
+        let up = Updater::new(
+            cfg(&release, Mode::Autonomous, dir.path().join("c")),
+            bin.clone(),
+            dir.path().join("s"),
+            Version::parse("1.0.0").unwrap(),
+            Arc::new(|_| {}),
+            None,
+        )
+        .unwrap();
+        std::fs::create_dir_all(dir.path().join("s")).unwrap();
+        write_state(
+            &up.state_path(),
+            &UpdateState {
+                from_version: "0.9.0".into(),
+                to_version: "1.0.0".into(),
+                previous_binary: "x".into(),
+                attempts: 1,
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            up.check_once().await.unwrap(),
+            Outcome::Blocked { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn autonomous_writes_state_and_startup_reverts_after_the_attempts() {
+        let release = fake_release("1.1.0", GOOD_BINARY, "svc").await;
+        let dir = tempfile::tempdir().unwrap();
+        let old = b"#!/bin/sh\nexit 0\n# old\n";
+        let bin = installed(dir.path(), old);
+        let (sink, events) = sink();
+        let up = Updater::new(
+            cfg(&release, Mode::Autonomous, dir.path().join("c")),
+            bin.clone(),
+            dir.path().join("s"),
+            Version::parse("1.0.0").unwrap(),
+            sink.clone(),
+            None,
+        )
+        .unwrap();
+        assert!(matches!(
+            up.check_once().await.unwrap(),
+            Outcome::Installed { .. }
+        ));
+        let state =
+            read_state(&up.state_path()).expect("autonomous writes state before the restart");
+        assert_eq!(state.to_version, "1.1.0");
+        assert_eq!(state.attempts, 0);
+
+        // The NEW binary starts: attempt 1 → probation, keeps serving.
+        let new = Updater::new(
+            cfg(&release, Mode::Autonomous, dir.path().join("c")),
+            bin.clone(),
+            dir.path().join("s"),
+            Version::parse("1.1.0").unwrap(),
+            sink.clone(),
+            None,
+        )
+        .unwrap();
+        assert!(!new.handle_pending_update().unwrap(), "first start serves");
+        assert_eq!(read_state(&new.state_path()).unwrap().attempts, 1);
+        // It crashes before confirming; the next start reverts.
+        assert!(
+            new.handle_pending_update().unwrap(),
+            "second start reverts and asks to exit"
+        );
+        assert!(read_state(&new.state_path()).is_none());
+        assert_eq!(
+            std::fs::read(&bin).unwrap(),
+            old,
+            "the previous binary is back"
+        );
+        assert!(
+            events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|e| e.kind == "update.rolled_back")
+        );
+
+        // The restored old version starts: nothing pending.
+        let restored = Updater::new(
+            cfg(&release, Mode::Autonomous, dir.path().join("c")),
+            bin.clone(),
+            dir.path().join("s"),
+            Version::parse("1.0.0").unwrap(),
+            sink,
+            None,
+        )
+        .unwrap();
+        assert!(!restored.handle_pending_update().unwrap());
+    }
+
+    #[tokio::test]
+    async fn confirm_healthy_clears_probation_and_drill_marker_binds_to_the_version() {
+        let release = fake_release("1.1.0", GOOD_BINARY, "svc").await;
+        let dir = tempfile::tempdir().unwrap();
+        let bin = installed(dir.path(), GOOD_BINARY);
+        let mut c = cfg(&release, Mode::Autonomous, dir.path().join("c"));
+        c.drill = Some("broken".into());
+        let (sink, events) = sink();
+        let up = Updater::new(
+            c,
+            bin.clone(),
+            dir.path().join("s"),
+            Version::parse("1.0.0").unwrap(),
+            sink.clone(),
+            None,
+        )
+        .unwrap();
+        up.check_once().await.unwrap();
+        // The old version does not see the drill; the new one does, once.
+        assert_eq!(up.drill_kind(), None);
+        let new = Updater::new(
+            cfg(&release, Mode::Autonomous, dir.path().join("c")),
+            bin.clone(),
+            dir.path().join("s"),
+            Version::parse("1.1.0").unwrap(),
+            sink,
+            None,
+        )
+        .unwrap();
+        assert_eq!(new.drill_kind().as_deref(), Some("broken"));
+        assert_eq!(new.drill_kind(), None, "consumed");
+        // Probation → healthy clears the state and reports.
+        new.handle_pending_update().unwrap();
+        new.confirm_healthy();
+        assert!(read_state(&new.state_path()).is_none());
+        assert!(events.lock().unwrap().iter().any(|e| e.kind == "update.ok"));
+        // With nothing pending, confirm_healthy stays silent.
+        let before = events.lock().unwrap().len();
+        new.confirm_healthy();
+        assert_eq!(events.lock().unwrap().len(), before);
+    }
+
+    #[test]
+    fn corrupt_state_reads_as_none_and_copies_are_pruned() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("update-state.json");
+        std::fs::write(&p, b"{not json").unwrap();
+        assert!(read_state(&p).is_none());
+        for v in ["1.0.0", "1.1.0", "1.2.0"] {
+            std::fs::create_dir_all(dir.path().join("copies").join(v)).unwrap();
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        prune_copies(&dir.path().join("copies"), 2);
+        assert!(!dir.path().join("copies/1.0.0").exists());
+        assert!(dir.path().join("copies/1.2.0").exists());
+    }
+}

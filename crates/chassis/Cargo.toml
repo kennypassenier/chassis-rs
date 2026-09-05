@@ -17,8 +17,8 @@ default = ["core"]
 core = []
 dashboard = ["core"]
 passkeys = ["dashboard", "dep:webauthn-rs"]
-self-update = ["core"]
-notify = ["core"]
+self-update = ["core", "dep:minisign-verify", "dep:backon"]
+notify = ["core", "dep:backon"]
 
 [dependencies]
 axum = { workspace = true }
@@ -59,8 +59,14 @@ minijinja = { version = "2", features = ["json"] }
 # kit's own bounded map with a TTL instead of an opaque in-memory type.
 webauthn-rs = { version = "0.5", optional = true, features = ["danger-allow-state-serialisation"] }
 
+# L5: signed self-update (K18–K21) and the notifier (K22)
+minisign-verify = { version = "0.2", optional = true }
+backon = { version = "1", optional = true }
+
 [dev-dependencies]
 tempfile = { workspace = true }
+# Tests sign their own fake releases; production only ever verifies.
+minisign = "0.9"
 
 [lints.rust]
 unsafe_code = "forbid"

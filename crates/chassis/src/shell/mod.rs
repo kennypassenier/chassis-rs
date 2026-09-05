@@ -18,7 +18,11 @@ pub mod http;
 pub mod lifecycle;
 pub mod logging;
 pub mod metrics;
+#[cfg(feature = "notify")]
+pub mod notify;
 #[cfg(feature = "passkeys")]
 pub mod passkeys;
 pub mod store;
 pub mod time;
+#[cfg(feature = "self-update")]
+pub mod update;

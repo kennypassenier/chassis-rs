@@ -71,6 +71,13 @@ this is what every service on chassis-rs will look like.
    Everything up to the browser ceremony is covered by tests.
 4. **Anything that would change a frozen decision of 2026-09-05** —
    becomes a mini-round above instead of being built.
+5. **The live update drills on CT 118 (L8, C2)** — the kit trusts only
+   the ecosystem minisign key, so a drill release must be signed by Kenny.
+   Ready when he is: `chassis` will ship `scripts/drill-release.sh` that
+   builds the trixie `inbox`, writes `VERSION`/`SHA256SUMS`, and stops at
+   `minisign -S -m SHA256SUMS` for him; the PC then serves that directory
+   over HTTP and CT 118 runs `inbox update` (supervised) and the
+   autonomous rollback with `update_drill=broken`.
 
 ## Decisions taken in the AFK start round (2026-09-05)
 

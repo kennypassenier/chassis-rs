@@ -10,4 +10,7 @@ pub mod clients;
 pub mod config;
 pub mod crypto;
 pub mod error;
+#[cfg(feature = "notify")]
+pub mod notify;
 pub mod session;
+pub mod update;

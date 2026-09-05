@@ -61,6 +61,9 @@ pub struct AppSpec {
     pub default_state_dir: Option<PathBuf>,
     /// Where to listen when nobody says otherwise (K11).
     pub default_listen: &'static str,
+    /// `owner/repo` on GitHub; the default release host for self-update is
+    /// `https://github.com/<repository>/releases/latest/download` (K18).
+    pub repository: Option<&'static str>,
 }
 
 impl Default for AppSpec {
@@ -70,6 +73,7 @@ impl Default for AppSpec {
             version: "0.0.0",
             default_state_dir: None,
             default_listen: "0.0.0.0:8080",
+            repository: None,
         }
     }
 }
@@ -136,6 +140,27 @@ impl AppSpec {
             k("reveal_seconds", Some("10")),
             // K9 — the https origin the dashboard is reached at (passkeys)
             k("public_url", None),
+            // L5 — self-update (K18–K21)
+            k("update_mode", Some("off")),
+            k("update_url", None),
+            k("update_asset", None),
+            k("update_interval_secs", Some("21600")),
+            k("update_startup_delay_secs", Some("300")),
+            k("update_healthy_after_secs", Some("60")),
+            k("update_max_start_attempts", Some("2")),
+            k("update_hold", Some("")),
+            k("update_drill", Some("")),
+            k("update_keep_copies", Some("3")),
+            k("update_probe_timeout_secs", Some("30")),
+            k("update_download_timeout_secs", Some("300")),
+            k("update_copies_dir", None),
+            // L5 — notifications (K22)
+            k("notify_timeout_secs", Some("10")),
+            k("notify_retries", Some("3")),
+            k("notify_backoff_base_ms", Some("500")),
+            k("notify_backoff_cap_ms", Some("30000")),
+            k("notify_queue_size", Some("1024")),
+            k("health_sample_secs", Some("30")),
         ]
     }
 }
@@ -151,6 +176,8 @@ pub enum Control {
     Healthcheck(Option<String>),
     /// Print a fresh login token and secret key (K8, critic #12).
     GenSecret,
+    /// `<name> update`: one supervised update attempt, exit 0/1 (K18).
+    Update,
 }
 
 type Hook = Box<dyn FnOnce() -> Result<(), Error> + Send>;
@@ -177,6 +204,37 @@ pub struct Limits {
     pub capture_redact: Vec<String>,
     pub clients_persist: Duration,
     pub public_url: Option<String>,
+    pub update: UpdateKnobs,
+    pub notify: NotifyKnobs,
+}
+
+/// The self-update knobs as parsed (AR3); used only with `self-update`.
+#[derive(Debug, Clone)]
+pub struct UpdateKnobs {
+    pub mode: String,
+    pub url: Option<String>,
+    pub asset: Option<String>,
+    pub interval: Duration,
+    pub startup_delay: Duration,
+    pub healthy_after: Duration,
+    pub max_start_attempts: u32,
+    pub hold: String,
+    pub drill: String,
+    pub keep_copies: usize,
+    pub probe_timeout: Duration,
+    pub download_timeout: Duration,
+    pub copies_dir: Option<PathBuf>,
+}
+
+/// The notifier knobs as parsed (AR3); used only with `notify`.
+#[derive(Debug, Clone)]
+pub struct NotifyKnobs {
+    pub timeout: Duration,
+    pub retries: u32,
+    pub backoff_base: Duration,
+    pub backoff_cap: Duration,
+    pub queue_size: usize,
+    pub health_sample: Duration,
 }
 
 /// A configured, not yet started service.
@@ -202,6 +260,12 @@ pub struct App {
     client_store: Option<Arc<dyn ClientStore>>,
     #[cfg(feature = "dashboard")]
     pub(crate) dash: DashboardRegistry,
+    #[cfg(feature = "self-update")]
+    state_copy: Option<crate::shell::update::StateCopy>,
+    #[cfg(feature = "notify")]
+    notifier: crate::shell::notify::Notifier,
+    #[cfg(feature = "notify")]
+    notify_drain: Option<crate::shell::notify::Drain>,
 }
 
 /// What a project registers for the dashboard (K16, K17); read once at start.
@@ -260,6 +324,8 @@ impl App {
     }
 
     fn bare(spec: AppSpec, router: Router, control: Control) -> App {
+        #[allow(unused_variables)]
+        let spec_name = spec.name;
         App {
             spec,
             loaded: None,
@@ -281,6 +347,12 @@ impl App {
             client_store: None,
             #[cfg(feature = "dashboard")]
             dash: DashboardRegistry::default(),
+            #[cfg(feature = "self-update")]
+            state_copy: None,
+            #[cfg(feature = "notify")]
+            notifier: crate::shell::notify::Notifier::logging_only(spec_name),
+            #[cfg(feature = "notify")]
+            notify_drain: None,
         }
     }
 
@@ -294,6 +366,10 @@ impl App {
             .subcommand(
                 Command::new("gen-secret")
                     .about("Print a fresh login token and secret key for the environment file (terminal only)"),
+            )
+            .subcommand(
+                Command::new("update")
+                    .about("One supervised update attempt: verify, install, exit 0 (also when already current); never restarts"),
             )
             .arg(
                 Arg::new("version")
@@ -328,6 +404,10 @@ impl App {
                     .long(k.flag_name().trim_start_matches("--").to_string())
                     .value_name("VALUE")
                     .action(ArgAction::Set)
+                    // Knobs are accepted before or after a subcommand, so
+                    // `<name> update --update-url ...` works as the homelab's
+                    // update_cmd would write it.
+                    .global(true)
                     .help(format!(
                         "Overrides {} and the `{}` key in the config file",
                         k.env_name(&spec.prefix()),
@@ -361,6 +441,8 @@ impl App {
             Some(Control::PrintConfig)
         } else if matches.get_flag("check") {
             Some(Control::Check)
+        } else if matches.subcommand_matches("update").is_some() {
+            Some(Control::Update)
         } else {
             matches
                 .get_one::<String>("healthcheck")
@@ -417,6 +499,92 @@ impl App {
                 .collect(),
             clients_persist: Duration::from_secs(parse_u64(&loaded, "clients_persist_secs", 1)?),
             public_url: loaded.get("public_url").map(|s| s.to_string()),
+            update: UpdateKnobs {
+                mode: loaded.get("update_mode").unwrap_or("off").to_string(),
+                url: loaded.get("update_url").map(|s| s.to_string()),
+                asset: loaded.get("update_asset").map(|s| s.to_string()),
+                interval: Duration::from_secs(parse_u64(&loaded, "update_interval_secs", 60)?),
+                startup_delay: Duration::from_secs(parse_u64(
+                    &loaded,
+                    "update_startup_delay_secs",
+                    0,
+                )?),
+                healthy_after: Duration::from_secs(parse_u64(
+                    &loaded,
+                    "update_healthy_after_secs",
+                    1,
+                )?),
+                max_start_attempts: parse_u64(&loaded, "update_max_start_attempts", 1)? as u32,
+                hold: loaded.get("update_hold").unwrap_or("").to_string(),
+                drill: loaded.get("update_drill").unwrap_or("").to_string(),
+                keep_copies: parse_u64(&loaded, "update_keep_copies", 1)? as usize,
+                probe_timeout: Duration::from_secs(parse_u64(
+                    &loaded,
+                    "update_probe_timeout_secs",
+                    1,
+                )?),
+                download_timeout: Duration::from_secs(parse_u64(
+                    &loaded,
+                    "update_download_timeout_secs",
+                    1,
+                )?),
+                copies_dir: loaded.get("update_copies_dir").map(PathBuf::from),
+            },
+            notify: NotifyKnobs {
+                timeout: Duration::from_secs(parse_u64(&loaded, "notify_timeout_secs", 1)?),
+                retries: parse_u64(&loaded, "notify_retries", 0)? as u32,
+                backoff_base: Duration::from_millis(parse_u64(
+                    &loaded,
+                    "notify_backoff_base_ms",
+                    1,
+                )?),
+                backoff_cap: Duration::from_millis(parse_u64(&loaded, "notify_backoff_cap_ms", 1)?),
+                queue_size: parse_u64(&loaded, "notify_queue_size", 1)? as usize,
+                health_sample: Duration::from_secs(parse_u64(&loaded, "health_sample_secs", 1)?),
+            },
+        };
+        // The update knobs are validated at parse time so --check refuses them.
+        #[cfg(feature = "self-update")]
+        {
+            crate::core::update::Mode::parse(&limits.update.mode)?;
+            crate::core::update::Hold::parse(&limits.update.hold)?;
+            if !matches!(
+                limits.update.drill.as_str(),
+                "" | "broken" | "broken-after-ready"
+            ) {
+                return Err(Error::config(
+                    format!(
+                        "update_drill `{}` is not one of broken, broken-after-ready",
+                        limits.update.drill
+                    ),
+                    "leave it empty unless you are running the broken-release drill",
+                ));
+            }
+            if limits.update.mode != "off"
+                && limits.update.url.is_none()
+                && spec.repository.is_none()
+            {
+                return Err(Error::config(
+                    "update_mode is on but neither update_url nor AppSpec.repository says where releases live",
+                    "set update_url to the directory holding VERSION, SHA256SUMS, SHA256SUMS.minisig and the binary, or set AppSpec.repository",
+                ));
+            }
+        }
+        #[cfg(feature = "notify")]
+        let (notifier, notify_drain) = {
+            let env = crate::shell::config_load::env_snapshot();
+            let hooks = crate::core::notify::webhooks_from_table(&loaded.file_table, &env)?;
+            crate::shell::notify::Notifier::prepare(
+                spec.name,
+                hooks,
+                crate::shell::notify::NotifyConfig {
+                    timeout: limits.notify.timeout,
+                    retries: limits.notify.retries,
+                    backoff_base: limits.notify.backoff_base,
+                    backoff_cap: limits.notify.backoff_cap,
+                    queue_size: limits.notify.queue_size,
+                },
+            )
         };
         // A malformed PUBLIC_URL is refused at parse time; its ABSENCE is
         // refused by --check and start (after the secrets check), so the
@@ -456,7 +624,106 @@ impl App {
             client_store: None,
             #[cfg(feature = "dashboard")]
             dash: DashboardRegistry::default(),
+            #[cfg(feature = "self-update")]
+            state_copy: None,
+            #[cfg(feature = "notify")]
+            notifier,
+            #[cfg(feature = "notify")]
+            notify_drain,
         })
+    }
+
+    /// The handle to send the project's own events through (K22). Valid
+    /// right after `from_args`; delivery starts with `start`.
+    #[cfg(feature = "notify")]
+    pub fn notifier(&self) -> crate::shell::notify::Notifier {
+        self.notifier.clone()
+    }
+
+    /// How the project produces a consistent copy of its state into `dest`
+    /// before a binary swap (K21; kyu's `VACUUM INTO`).
+    #[cfg(feature = "self-update")]
+    pub fn state_copy(
+        &mut self,
+        f: impl Fn(&std::path::Path) -> Result<(), Error> + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.state_copy = Some(Arc::new(f));
+        self
+    }
+
+    /// Build the updater from the knobs (K18). `force_supervised` is what
+    /// the `update` subcommand does regardless of the configured mode.
+    #[cfg(feature = "self-update")]
+    fn build_updater(
+        &self,
+        force_supervised: bool,
+    ) -> Result<Arc<crate::shell::update::Updater>, Error> {
+        use crate::core::update::{Hold, Mode, Version};
+        use crate::shell::update::{UpdateConfig, Updater};
+        let loaded = self.loaded.as_ref().expect("loaded");
+        let k = &self.limits.update;
+        let mode = if force_supervised {
+            Mode::Supervised
+        } else {
+            Mode::parse(&k.mode)?
+        };
+        let url = match (&k.url, self.spec.repository) {
+            (Some(u), _) => u.clone(),
+            (None, Some(repo)) => format!("https://github.com/{repo}/releases/latest/download"),
+            (None, None) => String::new(),
+        };
+        let binary = std::env::current_exe().map_err(|e| {
+            Error::internal(format!("cannot find my own binary: {e}"), "report this")
+        })?;
+        let copies_dir = k.copies_dir.clone().unwrap_or_else(|| {
+            let mut p = loaded.state_dir.clone();
+            let name = p
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            p.set_file_name(format!("{name}-pre-update"));
+            p
+        });
+        #[cfg(feature = "notify")]
+        let sink: crate::shell::update::EventSink = {
+            let n = self.notifier.clone();
+            Arc::new(move |e: crate::shell::update::Event| n.emit(e.kind, &e.version, e.detail))
+        };
+        #[cfg(not(feature = "notify"))]
+        let sink: crate::shell::update::EventSink = Arc::new(
+            |e: crate::shell::update::Event| tracing::info!(event = e.kind, version = %e.version, detail = %e.detail, "event"),
+        );
+        let updater = Updater::new(
+            UpdateConfig {
+                mode,
+                url,
+                asset_name: k
+                    .asset
+                    .clone()
+                    .unwrap_or_else(|| self.spec.name.to_string()),
+                interval: k.interval,
+                startup_delay: k.startup_delay,
+                healthy_after: k.healthy_after,
+                max_start_attempts: k.max_start_attempts,
+                hold: Hold::parse(&k.hold)?,
+                drill: if k.drill.is_empty() {
+                    None
+                } else {
+                    Some(k.drill.clone())
+                },
+                keep_copies: k.keep_copies,
+                probe_timeout: k.probe_timeout,
+                download_timeout: k.download_timeout,
+                pubkey: crate::shell::update::RELEASE_PUBKEY.to_string(),
+                copies_dir,
+            },
+            binary,
+            loaded.state_dir.clone(),
+            Version::parse(self.spec.version)?,
+            sink,
+            self.state_copy.clone(),
+        )?;
+        Ok(Arc::new(updater))
     }
 
     /// Routes that need `Authorization: Bearer <client token>` (or the
@@ -664,6 +931,37 @@ impl App {
                 println!("{}: configuration ok", self.spec.name);
                 Ok(Some(ExitCode::SUCCESS))
             }
+            Some(Control::Update) => {
+                #[cfg(feature = "self-update")]
+                {
+                    use crate::shell::update::Outcome;
+                    let updater = self.build_updater(true)?;
+                    match updater.check_once().await? {
+                        Outcome::Current { latest } => println!(
+                            "{}: already current ({latest}); nothing touched",
+                            self.spec.name
+                        ),
+                        Outcome::Held { latest } => println!(
+                            "{}: {latest} is available but held; nothing touched",
+                            self.spec.name
+                        ),
+                        Outcome::Blocked { pending } => println!(
+                            "{}: an update to {pending} is still on probation; nothing touched",
+                            self.spec.name
+                        ),
+                        Outcome::Installed { from, to } => println!(
+                            "{}: installed {to} over {from}; restart to run it",
+                            self.spec.name
+                        ),
+                    }
+                    Ok(Some(ExitCode::SUCCESS))
+                }
+                #[cfg(not(feature = "self-update"))]
+                Err(Error::invalid(
+                    "this service was built without the self-update feature",
+                    "updates arrive as a new binary or image; enable the `self-update` feature to change that",
+                ))
+            }
             Some(Control::Healthcheck(url)) => {
                 let url = url.unwrap_or_else(|| self.healthcheck_url());
                 let probe = health::probe(&url, self.limits.healthcheck_timeout).await?;
@@ -691,8 +989,87 @@ impl App {
                 return ExitCode::FAILURE;
             }
         }
+        // AR15: the pending-update decision runs before anything opens a
+        // store (critic #2), and the drill marker breaks only the version
+        // it names (critic #6).
+        #[cfg(feature = "self-update")]
+        let (updater, drill) = {
+            let updater = match self.build_updater(false) {
+                Ok(u) => u,
+                Err(e) => {
+                    eprintln!("{e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            match updater.handle_pending_update() {
+                Ok(true) => {
+                    eprintln!(
+                        "update reverted; exiting so the supervisor starts the restored binary"
+                    );
+                    return ExitCode::SUCCESS;
+                }
+                Ok(false) => {}
+                Err(e) => {
+                    eprintln!("{e}");
+                    return ExitCode::FAILURE;
+                }
+            }
+            let drill = updater.drill_kind();
+            if drill.as_deref() == Some("broken") {
+                eprintln!(
+                    "DRILL: this version exits before READY on purpose (update_drill=broken)"
+                );
+                return ExitCode::FAILURE;
+            }
+            (updater, drill)
+        };
         match self.start().await {
             Ok(running) => {
+                // A future that resolves when the autonomous updater installed
+                // a release and wants the restart; pending forever otherwise
+                // (a dropped sender would resolve at once and stop the service
+                // right after it started — the L5 E2E run caught that).
+                #[cfg(feature = "self-update")]
+                let restart: std::pin::Pin<
+                    Box<dyn std::future::Future<Output = ()> + Send>,
+                > = {
+                    use crate::core::update::Mode;
+                    if drill.as_deref() == Some("broken-after-ready") {
+                        tracing::warn!(
+                            "DRILL: exiting 1 five seconds after READY (update_drill=broken-after-ready)"
+                        );
+                        tokio::spawn(async {
+                            tokio::time::sleep(Duration::from_secs(5)).await;
+                            std::process::exit(1);
+                        });
+                    }
+                    if updater.effective.mode == Mode::Autonomous {
+                        let (tx, rx) = oneshot::channel::<()>();
+                        let u = updater.clone();
+                        tokio::spawn(async move {
+                            tokio::time::sleep(u.cfg.healthy_after).await;
+                            u.confirm_healthy();
+                        });
+                        let u = updater.clone();
+                        tokio::spawn(async move {
+                            u.run_autonomous().await;
+                            let _ = tx.send(());
+                        });
+                        Box::pin(async move {
+                            let _ = rx.await;
+                        })
+                    } else {
+                        Box::pin(std::future::pending())
+                    }
+                };
+                #[cfg(feature = "self-update")]
+                tokio::select! {
+                    _ = lifecycle::wait_for_stop_signal() => {}
+                    _ = restart => {
+                        tracing::info!("stopping for the update restart");
+                    }
+                }
+                #[cfg(not(feature = "self-update"))]
                 lifecycle::wait_for_stop_signal().await;
                 running.stop().await;
                 ExitCode::SUCCESS
@@ -705,7 +1082,8 @@ impl App {
     }
 
     /// Install logging and metrics, bind, announce readiness, serve.
-    pub async fn start(self) -> Result<Running, Error> {
+    #[cfg_attr(not(feature = "notify"), allow(unused_mut))]
+    pub async fn start(mut self) -> Result<Running, Error> {
         let loaded = self.loaded.as_ref().ok_or_else(|| {
             Error::internal(
                 "start() called on a control-command app",
@@ -715,6 +1093,26 @@ impl App {
         let filter = loaded.get("log").unwrap_or("info").to_string();
         let format = LogFormat::parse(loaded.get("log_format").unwrap_or("text"))?;
         logging::init(&filter, format)?;
+        #[cfg(feature = "notify")]
+        if let Some(drain) = self.notify_drain.take() {
+            tokio::spawn(drain);
+        }
+        #[cfg(all(feature = "self-update", feature = "dashboard"))]
+        if self.dash.update.is_none() {
+            // The status card (K17) reads the updater's view.
+            let updater = self.build_updater(false)?;
+            let mode = updater.effective.mode.label().to_string();
+            let reason = updater.effective.reason.to_string();
+            self.dash.update = Some(Arc::new(move || {
+                let last = updater.last_check();
+                crate::shell::dashboard::UpdateView {
+                    mode: mode.clone(),
+                    latest: last.latest.unwrap_or_else(|| "not checked yet".to_string()),
+                    last_check: last.at.unwrap_or_else(|| "never".to_string()),
+                    note: last.error.or_else(|| Some(reason.clone())),
+                }
+            }));
+        }
 
         let metrics = Metrics::install(
             &self.spec.metric_prefix(),
@@ -803,6 +1201,40 @@ impl App {
             }
         });
         lifecycle::notify_ready();
+        #[cfg(feature = "notify")]
+        {
+            self.notifier.emit(
+                "service.started",
+                self.spec.version,
+                format!("listening on {addr}"),
+            );
+            // health.degraded / health.recovered, once per transition (debounced by construction).
+            let n = self.notifier.clone();
+            let h = health.clone();
+            let every = self.limits.notify.health_sample;
+            let version = self.spec.version;
+            tokio::spawn(async move {
+                let mut degraded = false;
+                loop {
+                    tokio::time::sleep(every).await;
+                    let report = h.report().await;
+                    let now_degraded = report.status != "ok";
+                    if now_degraded != degraded {
+                        degraded = now_degraded;
+                        let detail = serde_json::to_string(&report.subsystems).unwrap_or_default();
+                        n.emit(
+                            if degraded {
+                                "health.degraded"
+                            } else {
+                                "health.recovered"
+                            },
+                            version,
+                            detail,
+                        );
+                    }
+                }
+            });
+        }
         Ok(Running {
             addr,
             stop: stop_tx,
@@ -836,6 +1268,29 @@ impl Limits {
             capture_redact: Vec::new(),
             clients_persist: Duration::from_secs(1),
             public_url: None,
+            update: UpdateKnobs {
+                mode: "off".into(),
+                url: None,
+                asset: None,
+                interval: Duration::from_secs(60),
+                startup_delay: Duration::from_secs(0),
+                healthy_after: Duration::from_secs(1),
+                max_start_attempts: 2,
+                hold: String::new(),
+                drill: String::new(),
+                keep_copies: 1,
+                probe_timeout: Duration::from_secs(1),
+                download_timeout: Duration::from_secs(1),
+                copies_dir: None,
+            },
+            notify: NotifyKnobs {
+                timeout: Duration::from_secs(1),
+                retries: 0,
+                backoff_base: Duration::from_millis(1),
+                backoff_cap: Duration::from_millis(1),
+                queue_size: 1,
+                health_sample: Duration::from_secs(1),
+            },
         }
     }
 }
