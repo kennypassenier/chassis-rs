@@ -175,7 +175,12 @@ and appears in `--print-config`.
 `chassis::Error { kind: Kind, message: String, remedy: String }` built
 only through constructors that take the remedy (compile-time mandatory);
 `kind` maps to an HTTP status. API responses render
-`{"error": "<message>", "remedy": "<remedy>", "request_id": "<id>"}`.
+`{"error": "<message>", "remedy": "<remedy>"}`; the request id travels in
+the `x-request-id` response header, set by a layer on every response.
+*Amendment 2026-09-05 (DD-1/D2, Kenny: Klopt): the body no longer carries
+`request_id` — the handler that builds an error does not hold the id, the
+header layer always does, and neither kyu nor Almanac put it in a body
+today.*
 Project errors implement `chassis::IntoApiError` (one method returning
 the kit's error). Startup errors print message + remedy and exit 1;
 `--check` exits 1 on the first configuration error. **Code-enforced**
@@ -288,6 +293,12 @@ columns (`fn cell(&self, client) -> Cell`) and client actions. The
 explain block is mandatory: a template lint test fails on a page without
 one (K16). Static assets served at `/static/<file>?v=<fnv-hash>` with
 `Cache-Control: public, max-age=31536000, immutable`. **Code-enforced.**
+
+*Note 2026-09-05 (DD-1/D1, Kenny: Klopt): with the `dashboard` feature on,
+`/` is the kit's status page. A service puts its API under `/v1/…` and its
+own pages behind a nav entry; axum refuses two handlers on one path, so the
+kit owns the root instead of guessing. kyu and Almanac already serve their
+dashboard index on `/` today, so their habit survives the migration.*
 
 ### AR12 · Metrics and health
 `metrics` facade with the Prometheus exporter mounted at `/metrics` (open,

@@ -42,6 +42,22 @@ chassis release 0.2.0                                           # bump, tag, wai
 objections and their resolutions), `docs/REALIZATION_PLAN.md` (milestones
 and evidence), `docs/PENDING_MINI_ROUNDS.md` (what waits for Kenny).
 
+## Conventions worth knowing
+
+Three small decisions that surprise people once, ratified 2026-09-05
+(deep-dive DD-1 in `docs/PENDING_MINI_ROUNDS.md`):
+
+- **`/` belongs to the kit.** With the `dashboard` feature on, the root
+  is the status page; a service puts its API under `/v1/…` and its own
+  pages behind a nav entry. axum refuses two handlers on one path, so
+  the kit does not guess who wants the root.
+- **The request id travels in the `x-request-id` response header**, not
+  in JSON error bodies. Every log line carries the same id; `curl -i`
+  shows it.
+- **Knob flags are global**: `inbox update --update-url http://pc:9000/`
+  works, and so does the flag before the subcommand. Environment
+  variables stay the primary way to configure a service.
+
 ## Ejecting a module
 
 Every module under `crates/chassis/src/core` is pure and every one under

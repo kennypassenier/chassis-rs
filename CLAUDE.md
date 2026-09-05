@@ -15,9 +15,9 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | 6 · Development loop — L0–L8 done and ratified; deep-dive DD-1 (D1–D3) + correction form CF-2 open, then Phase 7 |
-| Last completed gate | Combined ratification R1–R5 + milestone reports L0–L8 (2026-09-05, all Akkoord) |
-| Next gate | Deep-dive DD-1 (D1–D3) + correction form CF-2, then Phase 7 hardening form |
+| Current phase | 7 · Hardening — test-gap audit + security review running; hardening form next (CF-2 measurement moment) |
+| Last completed gate | Combined ratification R1–R5 + L0–L8 (2026-09-05, all Akkoord); DD-1 D1–D3 Klopt; CF-2 answered (measurement pending) |
+| Next gate | Phase 7 hardening form (Dichten · Accepteren als bekende beperking · Later per gap) |
 | AFK mode | off (Kenny returned 2026-09-05) |
 | Scratch resource | CT 118 `118-app-chassis` on 10.10.5.250, ip 10.10.10.18 (disposable) |
 

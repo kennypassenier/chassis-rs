@@ -52,7 +52,7 @@ correction form CF-2, open (see below).
 
 | ID | Item | Status |
 |---|---|---|
-| DD-1 | Deep-dive on D1 (`/` = kit status page), D2 (request-id header vs body, AR4 wording), D3 (knob flags global after a subcommand) | form open 2026-09-05 |
+| DD-1 | Deep-dive on D1 (`/` = kit status page), D2 (request-id header vs body, AR4 wording), D3 (knob flags global after a subcommand) | **answered 2026-09-05: all three Klopt** — README "Conventions worth knowing", AR4 amended, dated note on the dashboard AR |
 
 ## Open measurements (correction forms, rule 29) and drills that must happen
 
@@ -61,7 +61,41 @@ correction form CF-2, open (see below).
 | CF-1 | No Dutch coinage for a technical concept in user-facing text (list + rule in the central memory) | The Phase 4 architecture form of this project — which the AFK run turned into R4 of the combined ratification form: zero such words, counted before sending | measured at the combined form (see its leeswijzer) |
 | M3 | Restore from the backup regime restores the full state | Before the 1.0 release, on CT 118 with the real binary | **done 2026-09-05** — state root tarred, destroyed, restored; existing client token and session valid afterwards (REALIZATION_PLAN L8) |
 | C2 | Broken-release drill in both modes | Before the 1.0 release, on CT 118 | waits for a release signed with the ecosystem key (Kenny) |
-| CF-2 | No bare "ik"/"jij" in text read on its own (consequence lines, pill labels, card subtitles) — the actor is named | The next form of this project: zero bare pronouns in consequence lines and labels, counted before sending | correction form open 2026-09-05 |
+| CF-2 | Text read on its own (consequence lines, pill labels, card subtitles) describes actions as "Claude doet…" / "Kenny doet…" — never a bare ik/jij | The Phase 7 hardening form of this project: Claude counts bare pronouns in those surfaces AFTER writing it by habit and BEFORE sending, reports the raw count, then fixes; Kenny finds none | answered 2026-09-05, measurement pending |
+
+### CF-2 · correction form, answered 2026-09-05
+
+1. **What went wrong** — ratification form, D7 consequence line "Klopt — zo
+   blijft het; ik meld het aan de kp-themes-sessie": "ik" ambiguous next to
+   a button Kenny clicks. Measured over the session: 7 forms, 91 consequence
+   boxes, 128 bare ik/jij/jouw/je (140 hits minus 12× the fixed option name
+   "Toon mij dit"), 0 in pill labels. *(Klopt)*
+2. **Gate that let it through** — the mandatory FORM_PROTOCOL re-read: the
+   rule (§7, 2026-09-03) was read but the pre-send check counted only Dutch
+   coinages (CF-1); a rule that is only read is discipline. *(Klopt)*
+3. **Where else** — every form of this session; other projects' forms since
+   2026-09-03 not measured (their own transcripts). The fault is the
+   property "text read on its own with an unnamed actor", not the D7 line.
+   *(Klopt)*
+4. **Measure** — Kenny's own words (Eigen antwoord): describe actions as
+   "Kenny doet…" / "Claude doet…" instead of ik/jij. A template, not a ban;
+   saved as a central memory (`feedback_name_actor_claude_kenny.md`) and as
+   one sentence in FORM_PROTOCOL §7. No script. The lint Claude proposed is
+   demoted to the fallback (field 8).
+5. **Cost** — none in tooling (Kenny: "zie mijn opmerking"); the cost is
+   the risk that habit fails again, which field 7 measures and field 8
+   catches.
+6. **Enforcement** — discipline-enforced (standing rule 24), visible to
+   Kenny in every form he reads. *(Klopt, adjusted from "script" to match
+   field 4)*
+7. **Measurement** — the Phase 7 hardening form: Claude writes it by habit,
+   counts bare pronouns in consequence lines/labels/subtitles before
+   sending and reports the raw count; Kenny finds none. Loop stays open
+   here until then. *(Klopt)*
+8. **Fallback** — if the count is not zero or Kenny flags one: consequence
+   lines go on the fixed template (start with Claude/Kenny/an article) AND
+   the form-lint script becomes mandatory before every form. *(Klopt)*
+9. **Review** — at the chassis-rs Phase 10 retrospective. *(Klopt)*
 
 ## The visible surface (PROCEDURE Phase 6: published as soon as there is something to see)
 
