@@ -1,0 +1,102 @@
+{% extends "layout.html" %}
+{% block title %}{{ app_name }} — clients{% endblock %}
+{% block content %}
+<h1>{{ clients_label }}</h1>
+<p class="explain">
+  Every program that calls this service gets its own token here. Give each
+  one its own so you can switch a single caller off without touching the
+  others, see which one sent what, and debug a new connection from its row
+  — without ever handing out the service's own login token.
+</p>
+
+<div class="kp-card" style="margin-bottom: 1.5rem">
+  <h2 class="kp-card__title" style="margin-top: 0; font-size: 1rem">Add a client</h2>
+  <p class="explain" style="margin: 0 0 0.75rem">
+    Pick a name you will recognise in the logs (<code>home-assistant</code>,
+    <code>kyu-runner</code>). The token appears on the row; reveal or copy
+    it there, paste it into the caller, done.
+  </p>
+  <form id="issue" style="display: flex; align-items: flex-end; gap: 0.75rem; flex-wrap: wrap">
+    <div class="kp-field">
+      <label class="kp-field__label" for="name">Name</label>
+      <input class="kp-field__input" type="text" id="name" name="name" placeholder="home-assistant" required pattern="[A-Za-z0-9._-]{1,64}">
+    </div>
+    <button type="submit" class="kp-button kp-button--primary" data-kp-busy="Issuing…">Issue token</button>
+    <p class="kp-field__help" style="flex-basis: 100%; margin: 0">Letters, digits, dots, underscores and hyphens; 1–64 characters.</p>
+  </form>
+  <script type="module">
+    document.getElementById('issue').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const button = e.target.querySelector('button');
+      button.disabled = true;
+      const res = await fetch('/api/clients', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ name: e.target.name.value }) });
+      if (res.ok) { window.location.reload(); return; }
+      const body = await res.json().catch(() => ({}));
+      button.disabled = false;
+      alert(body.remedy ? `${body.error}. ${body.remedy}` : `HTTP ${res.status}`);
+    });
+  </script>
+</div>
+
+<h2>Registered</h2>
+<p class="explain">
+  <strong>Reveal</strong> shows the token for {{ reveal_seconds }} seconds.
+  <strong>Copy token</strong> puts only the token on the clipboard;
+  <strong>Copy command</strong> a complete <code>curl</code> line.
+  <strong>Last requests</strong> shows what this client actually sent (secrets
+  masked, bodies cut at {{ capture_body_bytes }} bytes, kept {{ capture_ttl_minutes }} minutes).
+  {% if has_test_route %}<strong>Send test</strong> sends one request with this client's token to
+  this service's own test route, so you can see the round trip before the real caller is wired.{% endif %}
+</p>
+{% if clients %}
+<div class="kp-table-wrap">
+<table class="kp-table">
+  <thead>
+    <tr>
+      <th>Name</th><th>Token</th><th>Issued</th><th>Last used</th><th>State</th>
+      {% for col in extra_columns %}<th>{{ col.title }}</th>{% endfor %}
+      <th class="text-end"></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for c in clients %}
+  <tr id="client-{{ c.id }}">
+    <td style="font-weight: 500">{{ c.name }}</td>
+    <td>
+      {% if c.active %}
+      <div class="token-cell">
+        <span class="secret" id="token-{{ c.id }}" data-masked="••••••••••••" data-revealed="false">••••••••••••</span>
+        <button type="button" class="kp-button" data-reveal="{{ c.id }}" data-reveal-seconds="{{ reveal_seconds }}">Reveal</button>
+        <button type="button" class="kp-button" data-copy-token="{{ c.id }}">Copy token</button>
+        <button type="button" class="kp-button" data-copy-command="{{ c.id }}">Copy command</button>
+      </div>
+      {% else %}<span class="text-secondary">—</span>{% endif %}
+    </td>
+    <td><span class="mono">{{ c.issued_at }}</span></td>
+    <td>{% if c.last_used_at %}<span class="mono">{{ c.last_used_at }}</span> <span class="text-secondary">({{ c.uses }}×)</span>{% else %}<span class="text-secondary">never</span>{% endif %}</td>
+    <td>{% if c.active %}<span class="kp-badge kp-badge--success">active</span>{% else %}<span class="kp-badge">revoked {{ c.revoked_at }}</span>{% endif %}</td>
+    {% for cell in c.extra %}<td>{{ cell|safe }}</td>{% endfor %}
+    <td class="text-end">
+      <div class="actions">
+        {% if c.active %}
+        <button type="button" class="kp-button" data-requests="{{ c.id }}">Last requests</button>
+        {% if has_test_route %}<button type="button" class="kp-button" data-test="{{ c.id }}" data-busy-label="Sending…">Send test</button>{% endif %}
+        <button type="button" class="kp-button" data-post="/api/clients/{{ c.id }}/reissue" data-kp-destructive data-kp-confirm="Re-issue? The current token stops working at once.">Re-issue</button>
+        <button type="button" class="kp-button kp-button--destructive" data-post="/api/clients/{{ c.id }}/revoke" data-kp-destructive data-kp-confirm="Revoke this token? The caller is locked out immediately.">Revoke</button>
+        {% endif %}
+        <button type="button" class="kp-button kp-button--destructive" data-post="/api/clients/{{ c.id }}" data-method="DELETE" data-kp-destructive data-kp-confirm="Delete this client and its history?">Delete</button>
+      </div>
+    </td>
+  </tr>
+  {% if c.active %}
+  <tr><td colspan="{{ 6 + extra_columns|length }}" style="padding: 0 1rem"><div class="requests" id="requests-{{ c.id }}" hidden></div></td></tr>
+  {% endif %}
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="text-secondary">No clients yet. Add one above.</p>
+{% endif %}
+{% endblock %}

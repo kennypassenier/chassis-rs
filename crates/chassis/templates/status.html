@@ -1,0 +1,81 @@
+{% extends "layout.html" %}
+{% block title %}{{ app_name }} — status{% endblock %}
+{% block content %}
+<h1>Status</h1>
+<p class="explain">
+  What this service is, what version is running, and whether each part of
+  it is doing its job right now. The same facts feed <code>/healthz</code>,
+  which monitoring reads; this page is the human view of them.
+</p>
+
+<div class="cards">
+  <div class="kp-card">
+    <h2 class="kp-card__title" style="margin-top: 0; font-size: 1rem">Service</h2>
+    <dl>
+      <dt>Name</dt><dd>{{ app_name }}</dd>
+      <dt>Version</dt><dd><span class="mono">{{ version }}</span></dd>
+      <dt>Built on</dt><dd>chassis {{ chassis_version }}, kp-themes {{ kp_themes_version }}</dd>
+      <dt>Up since</dt><dd>{{ started_at }}</dd>
+      <dt>Listening</dt><dd><span class="mono">{{ listen }}</span></dd>
+    </dl>
+  </div>
+
+  <div class="kp-card">
+    <h2 class="kp-card__title" style="margin-top: 0; font-size: 1rem">Health</h2>
+    <p class="explain" style="margin: 0 0 0.5rem">
+      Each part reports whether it can do its work. One failing part turns
+      the whole answer to <em>degraded</em> and <code>/healthz</code> to 503.
+    </p>
+    <dl>
+      <dt>Overall</dt>
+      <dd>{% if health.status == "ok" %}<span class="kp-badge kp-badge--success">ok</span>{% else %}<span class="kp-badge kp-badge--destructive">degraded</span>{% endif %}</dd>
+      {% for name, sub in health.subsystems|items %}
+      <dt>{{ name }}</dt>
+      <dd>{% if sub.ok %}<span class="kp-badge kp-badge--success">ok</span>{% else %}<span class="kp-badge kp-badge--destructive">failing</span>{% endif %} <span class="text-secondary">{{ sub.detail }}</span></dd>
+      {% endfor %}
+    </dl>
+    {% if health.subsystems|length == 0 %}<p class="text-secondary" style="margin: 0">This service registers no subsystems; liveness is the only signal.</p>{% endif %}
+  </div>
+
+  <div class="kp-card">
+    <h2 class="kp-card__title" style="margin-top: 0; font-size: 1rem">Updates</h2>
+    <p class="explain" style="margin: 0 0 0.5rem">
+      How this service gets new versions, and where it stands.
+    </p>
+    <dl>
+      <dt>Mode</dt><dd>{{ update.mode }}</dd>
+      <dt>Running</dt><dd><span class="mono">{{ version }}</span></dd>
+      <dt>Latest release</dt><dd>{{ update.latest }}</dd>
+      <dt>Last check</dt><dd>{{ update.last_check }}</dd>
+      {% if update.note %}<dt>Note</dt><dd>{{ update.note }}</dd>{% endif %}
+    </dl>
+  </div>
+</div>
+
+{% if problems %}
+<h2>Problems</h2>
+<p class="explain">Configuration this service could see but not use. Each line says why, and what to do.</p>
+<div class="kp-alert kp-alert--warning" role="alert">
+  <ul style="margin: 0; padding-left: 1.25rem">
+    {% for p in problems %}<li><strong>{{ p.what }}</strong> — {{ p.why }} <em>What now: {{ p.remedy }}</em></li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% for section in sections %}
+<h2>{{ section.title }}</h2>
+<p class="explain">{{ section.explain }}</p>
+{% if section.rows %}
+<div class="kp-table-wrap">
+<table class="kp-table">
+  <tbody>
+  {% for row in section.rows %}
+  <tr><th style="text-align: left; white-space: nowrap">{{ row[0] }}</th><td>{{ row[1] }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% if section.html %}{{ section.html|safe }}{% endif %}
+{% endfor %}
+{% endblock %}

@@ -52,6 +52,8 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 axum-extra = { version = "0.12", features = ["cookie"] }
 # cookie lifetimes are `time::Duration` in the cookie crate
 time = "0.3"
+# L4: server-rendered dashboard (K15, K16, K17)
+minijinja = { version = "2", features = ["json"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }

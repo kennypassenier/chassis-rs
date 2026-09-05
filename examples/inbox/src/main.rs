@@ -9,7 +9,7 @@
 use std::sync::{Arc, Mutex};
 
 use axum::extract::State;
-use axum::routing::{get, post};
+use axum::routing::post;
 use axum::{Json, Router};
 use chassis::{App, AppSpec, Caller};
 
@@ -43,11 +43,8 @@ async fn main() -> std::process::ExitCode {
         ..Default::default()
     };
     let messages: Messages = Arc::new(Mutex::new(Vec::new()));
-    let public = Router::new().route(
-        "/",
-        get(|| async { "inbox: post JSON to /v1/messages with a client token" }),
-    );
-    let mut app = match App::from_env_and_args(spec, public) {
+    // No public routes: `/` is the kit's status page, `/v1/messages` needs a token.
+    let mut app = match App::from_env_and_args(spec, Router::new()) {
         Ok(app) => app,
         Err(e) => {
             eprintln!("{e}");

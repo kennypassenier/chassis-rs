@@ -133,6 +133,7 @@ impl AppSpec {
             k("capture_ttl_secs", Some("3600")),
             k("capture_redact", Some("")),
             k("clients_persist_secs", Some("30")),
+            k("reveal_seconds", Some("10")),
         ]
     }
 }
@@ -196,6 +197,20 @@ pub struct App {
     test_route: Option<crate::shell::clients_api::TestRoute>,
     #[cfg(feature = "dashboard")]
     client_store: Option<Arc<dyn ClientStore>>,
+    #[cfg(feature = "dashboard")]
+    pub(crate) dash: DashboardRegistry,
+}
+
+/// What a project registers for the dashboard (K16, K17); read once at start.
+#[cfg(feature = "dashboard")]
+#[derive(Default)]
+pub struct DashboardRegistry {
+    pub nav: Vec<crate::shell::dashboard::NavEntry>,
+    pub sections: Vec<Arc<dyn crate::shell::dashboard::StatusSection>>,
+    pub columns: Vec<Arc<dyn crate::shell::dashboard::ClientColumn>>,
+    pub problems: Option<Arc<dyn Fn() -> Vec<crate::shell::dashboard::Problem> + Send + Sync>>,
+    pub update: Option<Arc<dyn Fn() -> crate::shell::dashboard::UpdateView + Send + Sync>>,
+    pub clients_label: Option<String>,
 }
 
 /// A started service: its address and the handle to stop it.
@@ -261,6 +276,8 @@ impl App {
             test_route: None,
             #[cfg(feature = "dashboard")]
             client_store: None,
+            #[cfg(feature = "dashboard")]
+            dash: DashboardRegistry::default(),
         }
     }
 
@@ -426,6 +443,8 @@ impl App {
             test_route: None,
             #[cfg(feature = "dashboard")]
             client_store: None,
+            #[cfg(feature = "dashboard")]
+            dash: DashboardRegistry::default(),
         })
     }
 
@@ -465,6 +484,54 @@ impl App {
     #[cfg(feature = "dashboard")]
     pub fn client_store(&mut self, store: Arc<dyn ClientStore>) -> &mut Self {
         self.client_store = Some(store);
+        self
+    }
+
+    /// A link in the dashboard's top navigation (K16).
+    #[cfg(feature = "dashboard")]
+    pub fn nav_entry(&mut self, label: &str, href: &str) -> &mut Self {
+        self.dash.nav.push(crate::shell::dashboard::NavEntry {
+            label: label.to_string(),
+            href: href.to_string(),
+        });
+        self
+    }
+
+    /// A section on the status page (K17).
+    #[cfg(feature = "dashboard")]
+    pub fn status_section(
+        &mut self,
+        s: impl crate::shell::dashboard::StatusSection + 'static,
+    ) -> &mut Self {
+        self.dash.sections.push(Arc::new(s));
+        self
+    }
+
+    /// An extra column on the clients table (K16).
+    #[cfg(feature = "dashboard")]
+    pub fn client_column(
+        &mut self,
+        c: impl crate::shell::dashboard::ClientColumn + 'static,
+    ) -> &mut Self {
+        self.dash.columns.push(Arc::new(c));
+        self
+    }
+
+    /// The problems card's source (K17): configuration seen but not usable.
+    #[cfg(feature = "dashboard")]
+    pub fn problems(
+        &mut self,
+        f: impl Fn() -> Vec<crate::shell::dashboard::Problem> + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.dash.problems = Some(Arc::new(f));
+        self
+    }
+
+    /// What the clients page is called in this service ("Sources" for
+    /// Almanac); code and URL stay `clients` (E1).
+    #[cfg(feature = "dashboard")]
+    pub fn clients_label(&mut self, label: &str) -> &mut Self {
+        self.dash.clients_label = Some(label.to_string());
         self
     }
 
@@ -667,7 +734,7 @@ impl App {
 
         let mut flushes: Vec<Box<dyn FnOnce() + Send>> = Vec::new();
         let kit_routes = Router::new()
-            .route("/healthz", get(health::healthz).with_state(health))
+            .route("/healthz", get(health::healthz).with_state(health.clone()))
             .route("/metrics", get(metrics_handler).with_state(metrics));
 
         #[allow(unused_mut)]
@@ -675,18 +742,21 @@ impl App {
 
         #[cfg(feature = "dashboard")]
         {
-            let (protected, flush) = crate::app_dashboard::mount(
-                &self.spec,
-                loaded,
-                &self.limits,
-                guards.clone(),
-                addr,
-                self.api_router,
-                self.dashboard_router,
-                self.test_route.clone(),
-                self.client_store.clone(),
-            )
-            .await?;
+            let (protected, flush) =
+                crate::app_dashboard::mount(crate::app_dashboard::MountInput {
+                    spec: &self.spec,
+                    loaded,
+                    limits: &self.limits,
+                    guards: guards.clone(),
+                    addr,
+                    api_router: self.api_router,
+                    dashboard_router: self.dashboard_router,
+                    test_route: self.test_route.clone(),
+                    client_store: self.client_store.clone(),
+                    registry: self.dash,
+                    health: health.clone(),
+                })
+                .await?;
             router = router.merge(protected);
             flushes.push(flush);
         }
@@ -936,7 +1006,8 @@ mod tests {
         let mut app = App::from_args(
             spec(),
             argv(&secrets_env(dir.path())),
-            Router::new().route("/", get(|| async { "hi" })),
+            // `/` belongs to the kit's status page when the dashboard is compiled in.
+            Router::new().route("/hello", get(|| async { "hi" })),
         )
         .unwrap();
         assert!(app.control.is_none());
@@ -948,7 +1019,7 @@ mod tests {
         assert_ne!(running.addr.port(), 0);
         let base = format!("http://{}", running.addr);
 
-        let body = reqwest::get(format!("{base}/"))
+        let body = reqwest::get(format!("{base}/hello"))
             .await
             .unwrap()
             .text()

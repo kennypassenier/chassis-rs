@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en" data-theme="formal">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ app_name }}{% endblock %}</title>
+<!-- The no-flash snippet: without it the page renders in `formal` and then
+     jumps to the visitor's theme. Inlined, because a module arrives too late
+     to prevent the flash it exists to prevent. -->
+<script>
+(function () {
+    try {
+        var t = localStorage.getItem("theme");
+        if (t) document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+})();
+</script>
+<link rel="preconnect" href="https://fonts.bunny.net">
+<link rel="stylesheet"
+      href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600|fraunces:600,700|share-tech-mono:400|chakra-petch:500,600,700">
+<link rel="stylesheet" href="/static/themes.css?v={{ assets }}">
+<link rel="stylesheet" href="/static/components.css?v={{ assets }}">
+<link rel="stylesheet" href="/static/chassis.css?v={{ assets }}">
+<script type="module" src="/static/chassis.js?v={{ assets }}"></script>
+{% block head %}{% endblock %}
+</head>
+<body>
+<a class="kp-skip-link" href="#main">Skip to content</a>
+<nav class="kp-nav">
+  <a class="kp-nav__brand" href="/">{{ app_name }}</a>
+  <ul class="kp-nav__links">
+    {% for item in nav %}
+    <li><a class="kp-nav__link" href="{{ item.href }}"{% if item.href == active_nav %} aria-current="page"{% endif %}>{{ item.label }}</a></li>
+    {% endfor %}
+    {% block nav_extra %}{% endblock %}
+  </ul>
+  <!-- The shape @kp-soft/themes calls a theme menu: an icon button and a
+       popover list; data-kp-theme-picker, data-kp-theme, kp-swatch and
+       data-kp-theme-status are that package's contract values. Rendered
+       server-side because a menu built by JavaScript is an empty box on
+       first paint. The swatch wears the theme it previews. -->
+  <span class="kp-theme-menu">
+    <button type="button" class="kp-icon-button" popovertarget="kp-theme-menu"
+            aria-label="Choose a theme" style="anchor-name: --kp-theme-menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/>
+        <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/>
+        <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>
+        <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/>
+        <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16c3.3 0 6-2.7 6-6 0-4.9-4.5-8.6-10-8.6z"/>
+      </svg>
+    </button>
+    <div popover="auto" id="kp-theme-menu" class="kp-popover" style="position-anchor: --kp-theme-menu">
+      <ul class="kp-menu" data-kp-theme-picker aria-label="Choose a theme">
+        {% for theme in themes %}
+        <li><button type="button" data-kp-theme="{{ theme.name }}"><span class="kp-swatch" data-theme="{{ theme.name }}"></span>{{ theme.label }}</button></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </span>
+  <p style="margin: 0" data-kp-theme-status hidden></p>
+  {% if logged_in %}
+  <form method="post" action="/logout" style="margin: 0">
+    <button type="submit" class="kp-button">Log out</button>
+  </form>
+  {% endif %}
+</nav>
+
+<main id="main">
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

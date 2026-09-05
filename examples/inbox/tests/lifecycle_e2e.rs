@@ -195,11 +195,11 @@ fn without_secrets_the_service_refuses_with_gen_secret_remedy() {
 fn sigterm_exits_zero_and_second_signal_is_harmless() {
     let dir = tempfile::tempdir().unwrap();
     let (mut child, addr) = start(dir.path());
-    let body = reqwest::blocking::get(format!("http://{addr}/"))
+    let body = reqwest::blocking::get(format!("http://{addr}/healthz"))
         .unwrap()
         .text()
         .unwrap();
-    assert!(body.contains("inbox"));
+    assert!(body.contains("\"version\""), "{body}");
 
     let pid = child.0.id().to_string();
     assert!(
@@ -444,5 +444,101 @@ async fn in_flight_request_completes_during_drain() {
     assert!(
         started.elapsed() >= Duration::from_millis(250),
         "stop waited for the drain"
+    );
+}
+
+// K15 + K16 + K17 over the wire: the HTML pages render inside the shared
+// layout with an explain block, the theme picker and the vendored assets.
+#[test]
+fn dashboard_pages_render_with_layout_and_assets() {
+    let dir = tempfile::tempdir().unwrap();
+    let (_child, addr) = start(dir.path());
+    let base = format!("http://{addr}");
+    let http = reqwest::blocking::Client::builder()
+        .cookie_store(true)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+
+    // Login page: public, explain block, theme picker, assets with a hash.
+    let res = http.get(format!("{base}/login")).send().unwrap();
+    assert_eq!(res.status(), 200);
+    let html = res.text().unwrap();
+    assert!(html.contains("class=\"explain\""), "explain block (K16)");
+    assert!(html.contains("data-kp-theme-picker"), "theme picker (K15)");
+    assert!(
+        html.contains("data-kp-theme=\"cyberpunk\""),
+        "themes from the registry"
+    );
+    let asset_url = html
+        .split('"')
+        .find(|s| s.starts_with("/static/themes.css?v="))
+        .expect("versioned asset link")
+        .to_string();
+    let res = http.get(format!("{base}{asset_url}")).send().unwrap();
+    assert_eq!(res.status(), 200);
+    assert_eq!(
+        res.headers()["cache-control"],
+        "public, max-age=31536000, immutable"
+    );
+    assert!(
+        res.text().unwrap().contains("--background"),
+        "the vendored stylesheet"
+    );
+
+    // Wrong token re-renders the login page (200) with the message inside the layout.
+    let res = http
+        .post(format!("{base}/login"))
+        .form(&[("token", "nope")])
+        .send()
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let html = res.text().unwrap();
+    assert!(
+        html.contains("not right") && html.contains("kp-alert"),
+        "{html}"
+    );
+
+    // Status page after login: version, health, update card, nav.
+    http.post(format!("{base}/login"))
+        .form(&[("token", TOKEN)])
+        .send()
+        .unwrap();
+    let res = http.get(format!("{base}/")).send().unwrap();
+    assert_eq!(res.status(), 200);
+    let html = res.text().unwrap();
+    assert!(
+        html.contains("inbox 0.") || html.contains("0.1.0"),
+        "version on the status page"
+    );
+    assert!(
+        html.contains("Health") && html.contains("Updates"),
+        "the kit cards"
+    );
+    assert!(html.contains("aria-current=\"page\""), "active nav entry");
+    assert!(html.contains("Log out"));
+
+    // Clients page: issue one via the API, then the row carries the buttons.
+    http.post(format!("{base}/api/clients"))
+        .json(&serde_json::json!({ "name": "page-test" }))
+        .send()
+        .unwrap();
+    let res = http.get(format!("{base}/clients")).send().unwrap();
+    assert_eq!(res.status(), 200);
+    let html = res.text().unwrap();
+    assert!(html.contains("page-test"));
+    for needle in [
+        "data-reveal=",
+        "data-copy-token=",
+        "data-copy-command=",
+        "data-requests=",
+        "data-test=",
+        "data-kp-confirm=",
+    ] {
+        assert!(html.contains(needle), "clients page lacks {needle}");
+    }
+    assert!(
+        !html.contains("Bearer "),
+        "no token or command in the page HTML (K12)"
     );
 }

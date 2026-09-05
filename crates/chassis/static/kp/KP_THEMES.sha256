@@ -1,0 +1,14 @@
+# @kp-soft/themes v3.1.0 — the release's own SHA256SUMS (gh release download v3.1.0
+# --repo kennypassenier/kp-themes -p SHA256SUMS), mapped onto the kit's flat static/kp/
+# paths, plus strings.js from the v3.1.0 tag (theme-picker.js imports it; the
+# release manifest does not list it). Checked by a unit test, so the gate holds
+# offline: these hashes say "our eight copies are unmodified AND are the tag we
+# claim". Bumping kp-themes means re-copying the files AND refreshing this file.
+ced13c9ae2431cb096b34a02d2db461de24ba9990c6cfc59c3da236276884581  themes.css
+d5a5a29a915b5333a9317c2d31147dcfb07a0c1a6a4b20d240d0b6824f4e7797  components.css
+11a890a91cc6c797987608a525af40cbd2328357f76491c8dfd1616d152fdd21  theme-core.js
+1cdd3d6a63df88ed644731351551022538e96adabecc5cd177c3e498daf51836  theme-picker.js
+2014b66daecf80b7783d0a599eb5e19fbaff33934a0166bfb32794d09c58ba24  theme-registry.js
+eb2cb80ca4df55981af43a2e0df1f03874f4a187ff960480f1a391caa645b7cc  no-flash.js
+a7781359cd3ddc0d1d26c90bd7ae551527625cb21655a4968254d153566ca7b1  components.js
+813fcb1627bdf6d89a812aba1f7525654a8377ee166fb1019be021785465deb9  strings.js

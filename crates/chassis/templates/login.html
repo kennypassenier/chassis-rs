@@ -1,0 +1,26 @@
+{% extends "layout.html" %}
+{% block title %}{{ app_name }} — log in{% endblock %}
+{% block content %}
+<h1>Log in</h1>
+<p class="explain">
+  This dashboard is protected by the service's login token — the value of
+  <code>{{ prefix }}_TOKEN</code> in its environment file. Paste it here once;
+  the browser then keeps a session cookie. Programs that call the API do not
+  log in: each gets its own client token on the Clients page.
+</p>
+{% if error %}
+<div class="kp-alert kp-alert--destructive" role="alert">{{ error }}</div>
+{% endif %}
+<div class="kp-card" style="max-width: 28rem">
+  <form method="post" action="/login">
+    <div class="kp-field">
+      <label class="kp-field__label" for="token">Login token</label>
+      <input class="kp-field__input" type="password" id="token" name="token" required autocomplete="current-password" autofocus>
+    </div>
+    <label class="kp-checkbox" style="display: flex; gap: 0.5rem; align-items: center; margin: 0.75rem 0">
+      <input type="checkbox" name="remember" value="1"> Keep me logged in on this browser for {{ remember_me_days }} days
+    </label>
+    <button type="submit" class="kp-button kp-button--primary" data-kp-busy="Logging in…">Log in</button>
+  </form>
+</div>
+{% endblock %}

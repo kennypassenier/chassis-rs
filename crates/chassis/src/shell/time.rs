@@ -20,6 +20,15 @@ pub fn random_hex(n: usize) -> Result<String, crate::core::error::Error> {
     Ok(hex::encode(buf))
 }
 
+/// The reveal window (K12), read from the resolved knobs; the default is
+/// validated with the rest, so a bad value never reaches here.
+pub fn reveal_seconds(loaded: &crate::shell::config_load::Loaded) -> u64 {
+    loaded
+        .get("reveal_seconds")
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(10)
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

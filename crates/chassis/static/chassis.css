@@ -1,0 +1,71 @@
+/* The kit's own stylesheet: layout glue and the few utilities
+   @kp-soft/themes deliberately does not ship. themes.css and
+   components.css are vendored verbatim; everything chassis-specific lives
+   here, so re-copying upstream never overwrites it (kyu's split). */
+
+body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--theme-font-body, ui-sans-serif, system-ui, sans-serif);
+    margin: 0;
+    padding-bottom: 4rem;
+}
+
+main {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 1.5rem clamp(0.75rem, 3vw, 1.5rem);
+}
+
+h1 { font-size: 1.75rem; margin: 0 0 0.5rem; }
+h2 { font-size: 1.25rem; margin: 2rem 0 0.75rem; }
+
+/* .kp-nav is a flex row; this pushes the theme picker and the logout form
+   to the far end. */
+.kp-nav__links { flex: 1; }
+
+/* K16: every section opens with a short explanation in plain language.
+   The lint test looks for this class. */
+.explain {
+    color: var(--muted-foreground);
+    max-width: 48rem;
+    margin: 0 0 1rem;
+    line-height: 1.5;
+}
+
+.text-secondary { color: var(--muted-foreground); }
+.text-end { text-align: end; }
+.mono { font-family: var(--theme-font-mono, ui-monospace, monospace); font-size: 0.85rem; }
+
+code, pre { font-size: 0.85rem; }
+pre.snippet {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius, 0.5rem);
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* The status page's card grid (K17). */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 1rem;
+}
+.cards .kp-card dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 1rem; }
+.cards .kp-card dt { color: var(--muted-foreground); }
+.cards .kp-card dd { margin: 0; }
+
+/* Client rows (K12/K13): the token cell and the expandable requests. */
+.token-cell { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.secret { font-family: var(--theme-font-mono, ui-monospace, monospace); font-size: 0.85rem; }
+.requests[hidden] { display: none; }
+.requests table { font-size: 0.85rem; }
+.requests pre { margin: 0; max-height: 12rem; overflow: auto; }
+.actions { display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap; }
+.actions form { margin: 0; }
+
+/* rule 31: a button that started something slow says so. */
+button[aria-busy="true"] { opacity: 0.7; cursor: progress; }

@@ -2,12 +2,16 @@
 //! (AR1). Thin by design; the decisions live in `crate::core`.
 
 #[cfg(feature = "dashboard")]
+pub mod assets;
+#[cfg(feature = "dashboard")]
 pub mod auth;
 #[cfg(feature = "dashboard")]
 pub mod captures;
 #[cfg(feature = "dashboard")]
 pub mod clients_api;
 pub mod config_load;
+#[cfg(feature = "dashboard")]
+pub mod dashboard;
 pub mod guards;
 pub mod health;
 pub mod http;
