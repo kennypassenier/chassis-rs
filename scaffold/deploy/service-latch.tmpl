@@ -19,12 +19,14 @@ User={{ name }}
 Group={{ name }}
 EnvironmentFile=/etc/{{ name }}/{{ name }}.env
 WorkingDirectory={{ state_dir }}
-ExecStartPre=/usr/local/bin/latch run --env prod -- /usr/local/bin/{{ name }} --check
-ExecStart=/usr/local/bin/latch run --env prod -- /usr/local/bin/{{ name }}
+ExecStartPre=/usr/local/bin/latch run --env prod -- /opt/{{ name }}/bin/{{ name }} --check
+ExecStart=/usr/local/bin/latch run --env prod -- /opt/{{ name }}/bin/{{ name }}
 Restart=always
 RestartSec=5s
 KillSignal=SIGTERM
 TimeoutStopSec=60
+# Mirrored so `--check` can warn when the shutdown timeout would outlive it (critic #20).
+Environment={{ prefix }}_TIMEOUT_STOP_SECS=60
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
@@ -32,7 +34,24 @@ ProtectHome=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
 RestrictSUIDSGID=yes
-ReadWritePaths={{ state_dir }} {{ state_dir }}-pre-update /usr/local/bin
+ReadWritePaths={{ state_dir }} {{ state_dir }}-pre-update /opt/{{ name }}/bin
+# S2: the swap needs write access to the binary's OWN directory only; a
+# code-execution bug can then replace this service's binary, not latch or
+# its neighbours. The rest is systemd's free hardening for a network daemon.
+UMask=0077
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+PrivateDevices=yes
+ProtectProc=invisible
 
 [Install]
 WantedBy=multi-user.target

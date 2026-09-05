@@ -34,6 +34,35 @@ correction form CF-2, open (see below).
 | R4 | Phase 4 · architecture + freeze | **ratified 2026-09-05 (Akkoord)** | docs/ARCHITECTURE_DECISIONS.md AR1–AR20 + §Critic pass | AR decisions; 6 blocking + 13 should-fix objections, all adopted with a resolution (table at the end of the document); the added knobs |
 | R5 | Phase 5 · realization plan + hooks | **ratified 2026-09-05 (Akkoord)** | docs/REALIZATION_PLAN.md | milestones L0–L8, standing rules, hook config (Q9); hooks proven by firing (rule 7d) in the L0 commit |
 
+## Phase 7 hardening form — answered 2026-09-05
+
+23× Dichten (H1–H6, H8–H17, S1–S5, S7, S8), H7 Later, S6 accepted for now
+(re-raise at the Phase 10 retro), S9 accepted as known limitation. Kenny's
+additions: H4 → log rotation must be available where the service runs (LXC
+journald, docker); H16 → Kenny provides the first kit tag, the signed drill
+release, the go for the remote `chassis new` and a hostname for the Traefik
+passkey test. Open remark: explain the minijinja dashboard model with
+Almanac examples (answered in the session, to land in docs/DASHBOARD.md in
+Phase 8).
+
+## AFK round 2 — answered 2026-09-05 (Kenny AFK until the evening)
+
+- A1 **Drill key**: Claude generates a separate password-less minisign key for
+  drills; the kit gets `<P>_UPDATE_PUBKEY` (logged at start, shown on the
+  update card as an overridden trust root); the live update drills on CT 118
+  run with it. Production releases still need Kenny's signature.
+- A2 **Kit plus four branches**: finish chassis-rs through the v1.0.0 tag,
+  then a `chassis-migration` branch per repo for kyu-runner,
+  http-switchboard, kyu and almanac (gates green, no release, no deploy).
+  A7: kyu-runner and http-switchboard switch self-update ON in their branch.
+- A3 **Adopt CT 118 only if it does not stall the AFK run**.
+- A4 Passkeys behind Traefik: Later (Kenny).
+- A5 **Tag v1.0.0** after green Phase 7 + 8 and the live drills (this answer
+  is the rule-13 go).
+- A6 AFK mode on: Phase 7 close-out, Phase 8 and Phase 9 gates become R7–R9.
+- Kenny's remark: standing rule 7a (a session touches only its own project)
+  is suspended until he returns; "big, tangible progress by tonight".
+
 ## Open with the Homelab Rust session (announce, do not fix here — rule 7a)
 
 - ~~Critic #18~~ **resolved by the Homelab Rust session the same day**

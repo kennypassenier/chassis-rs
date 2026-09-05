@@ -20,7 +20,7 @@ use crate::shell::auth::{
 use crate::shell::captures::{CaptureConfig, Captures, capture_requests};
 use crate::shell::clients_api::{self, ClientsApi, TestRoute};
 use crate::shell::config_load::Loaded;
-use crate::shell::dashboard::{self, Dashboard, UpdateView};
+use crate::shell::dashboard::{self, Dashboard, Problem, UpdateView};
 use crate::shell::guards::{Guards, ip_rate_limit};
 use crate::shell::health::Health;
 use crate::shell::store::{ClientStore, EncryptedFile, FileClientStore, SessionStore};
@@ -108,6 +108,9 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
         test_route: test_route.map(Arc::new),
         self_base_url,
     };
+    let kit_guards = guards.clone();
+    let token_limit =
+        crate::shell::auth::token_limit(guards.clone(), limits.token_per_sec, limits.token_burst)?;
     let login_limit = login_limit(guards, limits.login_per_min, limits.login_burst)?;
 
     // Client usage (K13) is kept in memory and persisted debounced (#13).
@@ -130,7 +133,16 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
         }
     });
 
-    let problems = registry.problems.unwrap_or_else(|| Arc::new(Vec::new));
+    let project_problems = registry.problems.unwrap_or_else(|| Arc::new(Vec::new));
+    let problems: Arc<dyn Fn() -> Vec<Problem> + Send + Sync> = Arc::new(move || {
+        let mut v = project_problems();
+        v.extend(kit_guards.problems().into_iter().map(|p| Problem {
+            what: p.what,
+            why: p.why,
+            remedy: p.remedy,
+        }));
+        v
+    });
     let update = registry
         .update
         .unwrap_or_else(|| Arc::new(UpdateView::default));
@@ -239,8 +251,14 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
 
     let project_pages = dashboard_router.layer(from_fn_with_state(auth.clone(), require_admin));
 
+    // Outermost first: identify the caller, then throttle it per token (K10,
+    // H3), then capture the request for its row.
     let api_routes = api_router
         .layer(from_fn_with_state(captures, capture_requests))
+        .layer(from_fn_with_state(
+            token_limit,
+            crate::shell::auth::token_rate_limit,
+        ))
         .layer(from_fn_with_state(auth, require_caller));
 
     #[allow(unused_mut)]

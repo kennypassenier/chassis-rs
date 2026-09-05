@@ -6,7 +6,8 @@
 use std::collections::HashSet;
 use std::net::{IpAddr, SocketAddr};
 use std::num::NonZeroU32;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use axum::body::Body;
@@ -21,6 +22,15 @@ use tokio::sync::Semaphore;
 
 use crate::core::error::{Error, Kind};
 
+/// A problem the kit itself noticed at runtime (critic #10): shown on the
+/// status page's problems card next to the project's own entries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KitProblem {
+    pub what: String,
+    pub why: String,
+    pub remedy: String,
+}
+
 /// Everything the guard middlewares read; built once by `App`.
 #[derive(Clone)]
 pub struct Guards {
@@ -31,6 +41,67 @@ pub struct Guards {
     pub timeout_exempt: Arc<HashSet<String>>,
     /// Peers whose `X-Forwarded-*` headers are believed (AR6).
     pub trusted_proxies: Arc<Vec<IpAddr>>,
+    /// Problems the guards found while serving (each recorded once).
+    pub kit_problems: Arc<Mutex<Vec<KitProblem>>>,
+    /// `X-Forwarded-*` seen from an untrusted peer: warned already?
+    pub untrusted_proxy_warned: Arc<AtomicBool>,
+}
+
+impl Guards {
+    pub fn problems(&self) -> Vec<KitProblem> {
+        self.kit_problems.lock().expect("kit problems lock").clone()
+    }
+
+    fn note_problem(&self, p: KitProblem) {
+        let mut v = self.kit_problems.lock().expect("kit problems lock");
+        if !v.contains(&p) {
+            v.push(p);
+        }
+    }
+}
+
+/// Critic #10: a proxy header from a peer that is not in `trusted_proxies`
+/// is ignored (AR6) — and said out loud, once, with the knob that fixes
+/// it. Behind Traefik with an empty knob this is the difference between
+/// "passkeys silently 404" and a line on the problems card.
+pub async fn untrusted_proxy_guard(
+    State(g): State<Guards>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    req: Request<Body>,
+    next: Next,
+) -> Response {
+    let forwarded = req.headers().contains_key("x-forwarded-for")
+        || req.headers().contains_key("x-forwarded-proto");
+    if forwarded
+        && !g.trusted_proxies.contains(&peer.ip())
+        && !g.untrusted_proxy_warned.swap(true, Ordering::SeqCst)
+    {
+        tracing::warn!(
+            peer = %peer.ip(),
+            "X-Forwarded-* headers arrive from a peer that is not in trusted_proxies; they are ignored (client IP = proxy IP, no https, no passkeys)"
+        );
+        g.note_problem(KitProblem {
+            what: format!("proxy headers from untrusted peer {}", peer.ip()),
+            why: "X-Forwarded-For/Proto are ignored unless the peer is listed in trusted_proxies, so every client shares one rate-limit key, cookies are not Secure and passkeys are off".to_string(),
+            remedy: "set <PREFIX>_TRUSTED_PROXIES to the proxy's IP (e.g. Traefik's) and restart".to_string(),
+        });
+    }
+    next.run(req).await
+}
+
+/// S8: a keyed limiter grows one entry per distinct key and never forgets
+/// on its own; prune stale keys every `every`.
+pub fn spawn_limiter_pruner<K: std::hash::Hash + Eq + Clone + Send + Sync + 'static>(
+    limiter: Arc<KeyedLimiter<K>>,
+    every: Duration,
+) {
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(every);
+        loop {
+            tick.tick().await;
+            limiter.retain_recent();
+        }
+    });
 }
 
 /// Parse `<P>_TRUSTED_PROXIES`: comma-separated IPs, empty allowed.
@@ -216,6 +287,49 @@ mod tests {
     use axum::routing::{get, post};
     use tower::ServiceExt;
 
+    /// Critic #10: X-Forwarded-* from an untrusted peer is ignored, warned
+    /// about once, and shows up on the problems card exactly once.
+    #[tokio::test]
+    async fn untrusted_proxy_headers_are_noted_once() {
+        use axum::Router;
+        use axum::routing::get;
+        use tower::ServiceExt;
+        let g = guards(4, 1000);
+        let app = Router::new().route("/", get(|| async { "ok" })).layer(
+            axum::middleware::from_fn_with_state(g.clone(), untrusted_proxy_guard),
+        );
+        let peer: SocketAddr = "192.168.1.9:5555".parse().unwrap();
+        for _ in 0..3 {
+            let req = Request::builder()
+                .uri("/")
+                .header("x-forwarded-proto", "https")
+                .extension(ConnectInfo(peer))
+                .body(Body::empty())
+                .unwrap();
+            let res = app.clone().oneshot(req).await.unwrap();
+            assert_eq!(res.status(), StatusCode::OK, "the request itself is served");
+        }
+        let problems = g.problems();
+        assert_eq!(
+            problems.len(),
+            1,
+            "recorded once, not per request: {problems:?}"
+        );
+        assert!(problems[0].remedy.contains("TRUSTED_PROXIES"));
+        // Plain requests without proxy headers record nothing.
+        let quiet = guards(4, 1000);
+        let app = Router::new().route("/", get(|| async { "ok" })).layer(
+            axum::middleware::from_fn_with_state(quiet.clone(), untrusted_proxy_guard),
+        );
+        let req = Request::builder()
+            .uri("/")
+            .extension(ConnectInfo(peer))
+            .body(Body::empty())
+            .unwrap();
+        app.oneshot(req).await.unwrap();
+        assert!(quiet.problems().is_empty());
+    }
+
     fn guards(max_in_flight: usize, timeout_ms: u64) -> Guards {
         Guards {
             max_in_flight: Arc::new(Semaphore::new(max_in_flight)),
@@ -223,6 +337,8 @@ mod tests {
             request_timeout: Duration::from_millis(timeout_ms),
             timeout_exempt: Arc::new(HashSet::from(["/long".to_string()])),
             trusted_proxies: Arc::new(vec!["10.10.10.1".parse().unwrap()]),
+            kit_problems: Arc::new(std::sync::Mutex::new(Vec::new())),
+            untrusted_proxy_warned: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 

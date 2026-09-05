@@ -25,7 +25,7 @@ jobs:
     name: build · checksum · image · release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Version from the tag must match Cargo.toml
         run: |
           tag="${GITHUB_REF_NAME#v}"
@@ -36,18 +36,18 @@ jobs:
       - name: Build the release binary for Debian trixie (glibc)
         run: |
           docker run --rm -v "$PWD":/w -w /w -e CARGO_TARGET_DIR=/w/target-trixie -e CARGO_HOME=/w/target-trixie/cargo-home rust:{{ toolchain }}-slim-trixie \
-            sh -c 'apt-get update -qq >/dev/null && apt-get install -y -qq pkg-config libssl-dev >/dev/null && cargo build --release'
+            sh -c 'apt-get update -qq >/dev/null && apt-get install -y -qq pkg-config libssl-dev >/dev/null && cargo build --release --locked'
           mkdir -p dist
           cp target-trixie/release/{{ name }} dist/{{ name }}
           (cd dist && sha256sum {{ name }} > SHA256SUMS && cat SHA256SUMS)
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ '{{' }} github.actor {{ '}}' }}
           password: ${{ '{{' }} secrets.GITHUB_TOKEN {{ '}}' }}
       - name: Build and push the image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           push: true
@@ -55,7 +55,7 @@ jobs:
             ghcr.io/{{ repo }}:${{ '{{' }} github.ref_name {{ '}}' }}
             ghcr.io/{{ repo }}:latest
       - name: Create the GitHub release with binary + SHA256SUMS
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             dist/{{ name }}

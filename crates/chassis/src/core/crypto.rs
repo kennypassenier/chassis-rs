@@ -108,7 +108,7 @@ pub fn open(key: &Key, sealed: &Sealed, what: &str) -> Result<Vec<u8>, Error> {
     cipher.decrypt(XNonce::from_slice(&nonce), ct.as_ref()).map_err(|_| {
         Error::config(
             format!("{what} cannot be decrypted with the current secret key"),
-            "either the SECRET_KEY changed (rotating it makes every stored token unreadable: use `rekey`) or the file was tampered with; restore it from backup",
+            "either the SECRET_KEY changed (rotate with `<binary> rekey`: export the previous key as <PREFIX>_OLD_SECRET_KEY and the new one as <PREFIX>_SECRET_KEY) or the file was tampered with; restore it from backup",
         )
     })
 }

@@ -85,15 +85,24 @@ pub const KP_THEMES_MANIFEST: &str = include_str!("../../static/kp/KP_THEMES.sha
 pub fn asset_version() -> &'static str {
     static VERSION: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     VERSION.get_or_init(|| {
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        for (name, _, body) in ASSETS {
-            for b in name.bytes().chain(body.bytes()) {
-                h ^= b as u64;
-                h = h.wrapping_mul(0x0000_0100_0000_01b3);
-            }
-        }
-        format!("{h:016x}")
+        fnv_version(
+            ASSETS
+                .iter()
+                .map(|(name, _, body)| (*name, body.as_bytes())),
+        )
     })
+}
+
+/// FNV-1a over `(name, body)` pairs, 16 hex chars.
+pub fn fnv_version<'a>(parts: impl Iterator<Item = (&'a str, &'a [u8])>) -> String {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for (name, body) in parts {
+        for b in name.bytes().chain(body.iter().copied()) {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    format!("{h:016x}")
 }
 
 /// `GET /static/{name}`.
@@ -144,6 +153,15 @@ mod tests {
     fn version_hash_is_stable_and_changes_with_content() {
         assert_eq!(asset_version().len(), 16);
         assert_eq!(asset_version(), asset_version());
+        let a = fnv_version([("chassis.css", b"body{}" as &[u8])].into_iter());
+        let b = fnv_version([("chassis.css", b"body{ }" as &[u8])].into_iter());
+        let c = fnv_version([("other.css", b"body{}" as &[u8])].into_iter());
+        assert_ne!(a, b, "one byte in a body changes every URL");
+        assert_ne!(a, c, "a renamed asset changes every URL");
+        assert_eq!(
+            a,
+            fnv_version([("chassis.css", b"body{}" as &[u8])].into_iter())
+        );
     }
 
     #[tokio::test]

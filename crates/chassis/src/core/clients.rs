@@ -264,8 +264,20 @@ mod tests {
     #[test]
     fn format_check_accepts_current_and_previous_only() {
         let mut f = ClientsFile::default();
-        assert!(f.check_format().is_ok());
+        assert!(f.check_format().is_ok(), "current format");
+        f.v = CLIENTS_FORMAT - 1;
+        assert!(
+            f.check_format().is_ok(),
+            "K21: build N reads a store written by N-1"
+        );
         f.v = CLIENTS_FORMAT + 1;
+        let err = f.check_format().unwrap_err();
+        assert!(
+            err.remedy.contains("pre-update copy"),
+            "a newer store is refused with the copy as remedy: {}",
+            err.remedy
+        );
+        f.v = CLIENTS_FORMAT + 7;
         assert!(f.check_format().is_err());
     }
 }

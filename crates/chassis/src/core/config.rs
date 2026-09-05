@@ -82,6 +82,8 @@ pub struct Resolved {
     pub value: String,
     pub source: Source,
     pub secret: bool,
+    /// The raw value contained `${VAR}`; shown masked by `--print-config`.
+    pub expanded: bool,
 }
 
 /// Resolve every knob against the layers, strongest layer wins.
@@ -138,6 +140,9 @@ pub fn resolve(
                 value,
                 source,
                 secret: knob.secret,
+                // Critic #20: a value pulled in through `${VAR}` may be a
+                // secret the file never held; --print-config masks it too.
+                expanded: raw.contains("${"),
             });
         }
     }
@@ -178,7 +183,13 @@ pub fn render_table(resolved: &[Resolved]) -> String {
     let width = resolved.iter().map(|r| r.key.len()).max().unwrap_or(0);
     let mut s = String::new();
     for r in resolved {
-        let shown = if r.secret { "***" } else { r.value.as_str() };
+        let shown = if r.secret {
+            "***"
+        } else if r.expanded {
+            "*** (expanded from ${…})"
+        } else {
+            r.value.as_str()
+        };
         s.push_str(&format!(
             "{:<width$} = {}  ({})\n",
             r.key,
@@ -211,7 +222,55 @@ mod tests {
                 default: Some("10000"),
                 secret: false,
             },
+            Knob {
+                key: "log",
+                default: Some("info"),
+                secret: false,
+            },
         ]
+    }
+
+    /// K2 test bar, the whole table in ONE resolve: four knobs, each set in
+    /// a different subset of layers, every winner and every source checked
+    /// at once (the single-knob walk below shows each step on its own).
+    #[test]
+    fn precedence_table_all_layers_at_once() {
+        let env = BTreeMap::new();
+        let layers = Layers {
+            flags: map(&[("listen", "flag:1")]),
+            env: map(&[("listen", "env:1"), ("shutdown_timeout_ms", "env:2")]),
+            file: map(&[
+                ("listen", "file:1"),
+                ("shutdown_timeout_ms", "file:2"),
+                ("log", "file:3"),
+            ]),
+        };
+        let r = resolve("X", &knobs(), &layers, &env).unwrap();
+        let by_key = |k: &str| {
+            r.iter()
+                .find(|v| v.key == k)
+                .map(|v| (v.value.clone(), v.source))
+                .unwrap_or_else(|| panic!("{k} missing"))
+        };
+        assert_eq!(
+            by_key("listen"),
+            ("flag:1".to_string(), Source::Flag),
+            "flag beats env and file"
+        );
+        assert_eq!(
+            by_key("shutdown_timeout_ms"),
+            ("env:2".to_string(), Source::Env),
+            "env beats file"
+        );
+        assert_eq!(
+            by_key("log"),
+            ("file:3".to_string(), Source::File),
+            "file beats the default"
+        );
+        assert!(
+            r.iter().all(|v| v.key != "token"),
+            "a knob set nowhere and without a default is absent"
+        );
     }
 
     fn map(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
@@ -286,6 +345,26 @@ mod tests {
         let err = resolve("X", &knobs(), &layers, &BTreeMap::new()).unwrap_err();
         assert!(err.message.contains("from file"), "{}", err.message);
         assert!(err.message.contains("${HOST}"), "{}", err.message);
+    }
+
+    /// Critic #20: a non-secret knob whose value came in through `${VAR}`
+    /// is masked too — the variable may hold a secret the file never did.
+    #[test]
+    fn render_masks_values_expanded_from_the_environment() {
+        let env = map(&[("HIDDEN", "s3cret-from-env")]);
+        let layers = Layers {
+            flags: BTreeMap::new(),
+            env: BTreeMap::new(),
+            file: map(&[("listen", "${HIDDEN}"), ("log", "debug")]),
+        };
+        let r = resolve("X", &knobs(), &layers, &env).unwrap();
+        let table = render_table(&r);
+        assert!(!table.contains("s3cret-from-env"), "{table}");
+        assert!(table.contains("expanded from"), "{table}");
+        assert!(
+            table.contains("debug"),
+            "plain file values still show: {table}"
+        );
     }
 
     #[test]

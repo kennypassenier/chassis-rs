@@ -64,4 +64,7 @@ that would change a frozen decision.
 
 | Gate | Date | Decision | Where it landed |
 |---|---|---|---|
-| — | — | — | — |
+| Combined ratification R1–R5 + milestone reports L0–L8 (AFK run) | 2026-09-05 | All Akkoord; D4–D8 + N1 Klopt; D1–D3 → deep-dive; a bare "ik" in D7's consequence line → CF-2 | docs/PENDING_MINI_ROUNDS.md (outcome section, R-rows), CLAUDE.md status |
+| Deep-dive DD-1 (D1 `/` = status page, D2 request-id in header, D3 global knob flags) | 2026-09-05 | Klopt ×3 | README "Conventions worth knowing"; AR4 amendment; AR11 note |
+| Correction form CF-2 (bare pronouns in text read on its own) | 2026-09-05 | C1–C3, C6–C9 Klopt; C4/C5 replaced by Kenny's template "Claude doet… / Kenny doet…", no script; lint = fallback; measured at the Phase 7 form: raw count 1 → fallback active | docs/PENDING_MINI_ROUNDS.md §CF-2; FORM_PROTOCOL §7 (dev-procedure dd4f66b); central memory |
+| Phase 7 hardening form (H1–H17 test gaps + drills, S1–S9 security) | 2026-09-05 | Dichten: H1–H6, H8–H17, S1–S5, S7, S8 (H4 with Kenny's addition: log rotation must exist where the service runs; H16 = Kenny gives tag/key/go now; H17 = SHA pins). Later: H7 (passkey success path — live Bitwarden test first). Accepted as known limitation: S6 (passkey ceremony table, re-raise at the retro), S9 (by-design notes). Remark: explain the minijinja dashboard model with Almanac examples | docs/TEST_PLAN.md (Phase 7 output), this table, the code commits tagged [H…]/[S…] |

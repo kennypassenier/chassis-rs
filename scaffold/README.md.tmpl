@@ -32,6 +32,13 @@ environment only, never from the file.
 `deploy/{{ name }}.service` is the systemd unit (`Type=notify`, hardened);
 `deploy/service.yml` is the homelab's stack file for `homelab adopt`;
 `Dockerfile` builds the container image CI pushes to GHCR.
+The image runs as its own user and owns `/var/lib/{{ name }}`; a **named
+volume** inherits that owner, a **bind mount** does not — `chown` the host
+directory to the container's uid first, or the first login fails with a
+503 ("cannot write sessions store"). Log rotation is the runtime's job:
+under systemd journald rotates (the `deploy/journald.conf` drop-in caps the
+LXC's journal), under docker set `logging: options: max-size` in the
+compose file.
 
 ## Release
 

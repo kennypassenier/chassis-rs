@@ -8,7 +8,7 @@ stack_name: {{ stack }}
 vmid: {{ vmid }}
 hostname: {{ vmid }}-app-{{ stack }}
 unit: {{ name }}
-binary: /usr/local/bin/{{ name }}
+binary: /opt/{{ name }}/bin/{{ name }}
 env_file: /etc/{{ name }}/{{ name }}.env
 data_dirs:
   - {{ state_dir }}
@@ -16,6 +16,6 @@ update_cmd: >-
   systemd-run --wait --pipe --collect --uid={{ name }} --gid={{ name }}
   --property=EnvironmentFile=/etc/{{ name }}/{{ name }}.env
   --property=WorkingDirectory={{ state_dir }}
-  /usr/local/bin/{{ name }} update
+  /opt/{{ name }}/bin/{{ name }} update
 release_repo: {{ repo }}
 release_asset: {{ name }}

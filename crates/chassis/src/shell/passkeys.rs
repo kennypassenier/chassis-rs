@@ -447,6 +447,8 @@ mod tests {
                 request_timeout: Duration::from_secs(1),
                 timeout_exempt: Arc::new(Default::default()),
                 trusted_proxies: Arc::new(vec![]),
+                kit_problems: Arc::new(std::sync::Mutex::new(Vec::new())),
+                untrusted_proxy_warned: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             },
         };
         let state = PasskeyState::open(webauthn, auth, file).unwrap();
@@ -478,8 +480,8 @@ mod tests {
             .expect("no passkeys yet is an error");
         assert!(err.remedy.contains("register one"));
         assert!(
-            dir.path().join("passkeys.json.enc").exists() || true,
-            "store is created on first save"
+            !dir.path().join("passkeys.json.enc").exists(),
+            "no passkey was saved, so no store file may exist yet"
         );
     }
 }

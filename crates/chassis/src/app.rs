@@ -39,7 +39,7 @@ use tokio::sync::{Semaphore, oneshot};
 
 use crate::core::config::{Knob, render_table};
 use crate::core::error::Error;
-use crate::shell::config_load::{Loaded, load};
+use crate::shell::config_load::Loaded;
 use crate::shell::guards::{Guards, parse_trusted_proxies};
 use crate::shell::health::{self, Health, Subsystem};
 use crate::shell::http::{AccessState, with_kit_layers};
@@ -154,6 +154,10 @@ impl AppSpec {
             k("update_probe_timeout_secs", Some("30")),
             k("update_download_timeout_secs", Some("300")),
             k("update_copies_dir", None),
+            k("update_pubkey", None),
+            k("update_allow_insecure", Some("false")),
+            k("update_max_download_bytes", Some("268435456")),
+            k("timeout_stop_secs", None),
             // L5 — notifications (K22)
             k("notify_timeout_secs", Some("10")),
             k("notify_retries", Some("3")),
@@ -178,6 +182,9 @@ pub enum Control {
     GenSecret,
     /// `<name> update`: one supervised update attempt, exit 0/1 (K18).
     Update,
+    /// `<name> rekey`: re-encrypt the stores from `<P>_OLD_SECRET_KEY` to
+    /// `<P>_SECRET_KEY` (K8, critic #11).
+    Rekey,
 }
 
 type Hook = Box<dyn FnOnce() -> Result<(), Error> + Send>;
@@ -224,6 +231,10 @@ pub struct UpdateKnobs {
     pub probe_timeout: Duration,
     pub download_timeout: Duration,
     pub copies_dir: Option<PathBuf>,
+    /// A minisign public key replacing the compiled-in one (drills, staging).
+    pub pubkey: Option<String>,
+    pub allow_insecure: bool,
+    pub max_download_bytes: u64,
 }
 
 /// The notifier knobs as parsed (AR3); used only with `notify`.
@@ -287,6 +298,25 @@ pub struct Running {
     task: tokio::task::JoinHandle<()>,
     shutdown_timeout: Duration,
     flushes: Vec<Box<dyn FnOnce() + Send>>,
+}
+
+/// `true`/`false` (also `1`/`0`, `yes`/`no`); anything else is a config
+/// error naming the knob, so `--check` catches a typo.
+fn parse_bool(loaded: &Loaded, key: &str) -> Result<bool, Error> {
+    match loaded
+        .get(key)
+        .unwrap_or("false")
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "true" | "1" | "yes" | "on" => Ok(true),
+        "false" | "0" | "no" | "off" | "" => Ok(false),
+        other => Err(Error::config(
+            format!("{key} must be true or false, not `{other}`"),
+            "set it to true or false",
+        )),
+    }
 }
 
 fn parse_u64(loaded: &Loaded, key: &str, min: u64) -> Result<u64, Error> {
@@ -359,6 +389,23 @@ impl App {
     /// Parse `args` (argv[0] included) and load configuration. Nothing
     /// here opens a socket or touches the state directory.
     pub fn from_args(spec: AppSpec, args: Vec<String>, router: Router) -> Result<App, Error> {
+        Self::from_args_with_env(
+            spec,
+            args,
+            crate::shell::config_load::env_snapshot(),
+            router,
+        )
+    }
+
+    /// `from_args` with an explicit environment map instead of the
+    /// process's. Secrets travel only through the environment (S8), so
+    /// tests and embedders use this to supply them without `set_var`.
+    pub fn from_args_with_env(
+        spec: AppSpec,
+        args: Vec<String>,
+        env: BTreeMap<String, String>,
+        router: Router,
+    ) -> Result<App, Error> {
         let knobs = spec.knobs();
         let mut cmd = Command::new(spec.name.to_string())
             .version(spec.version)
@@ -370,6 +417,10 @@ impl App {
             .subcommand(
                 Command::new("update")
                     .about("One supervised update attempt: verify, install, exit 0 (also when already current); never restarts"),
+            )
+            .subcommand(
+                Command::new("rekey")
+                    .about("Re-encrypt every store under a new secret key: set <PREFIX>_OLD_SECRET_KEY to the previous key and <PREFIX>_SECRET_KEY to the new one, then run this once (service stopped)"),
             )
             .arg(
                 Arg::new("version")
@@ -399,6 +450,11 @@ impl App {
                     .help("Probe /healthz of the running instance (URL optional; derived from listen) and exit 0 when it answers"),
             );
         for k in &knobs {
+            // S8: secrets never travel on argv (/proc/*/cmdline is world-
+            // readable); they come from the environment only.
+            if k.secret {
+                continue;
+            }
             cmd = cmd.arg(
                 Arg::new(k.key)
                     .long(k.flag_name().trim_start_matches("--").to_string())
@@ -431,11 +487,20 @@ impl App {
 
         let mut flags = BTreeMap::new();
         for k in &knobs {
+            if k.secret {
+                continue;
+            }
             if let Some(v) = matches.get_one::<String>(k.key) {
                 flags.insert(k.key.to_string(), v.clone());
             }
         }
-        let loaded = load(&spec.prefix(), &knobs, flags, &spec.state_dir_default())?;
+        let loaded = crate::shell::config_load::load_with_env(
+            &spec.prefix(),
+            &knobs,
+            flags,
+            &spec.state_dir_default(),
+            env.clone(),
+        )?;
 
         let control = if matches.get_flag("print-config") {
             Some(Control::PrintConfig)
@@ -443,6 +508,8 @@ impl App {
             Some(Control::Check)
         } else if matches.subcommand_matches("update").is_some() {
             Some(Control::Update)
+        } else if matches.subcommand_matches("rekey").is_some() {
+            Some(Control::Rekey)
         } else {
             matches
                 .get_one::<String>("healthcheck")
@@ -529,6 +596,12 @@ impl App {
                     1,
                 )?),
                 copies_dir: loaded.get("update_copies_dir").map(PathBuf::from),
+                pubkey: loaded
+                    .get("update_pubkey")
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty()),
+                allow_insecure: parse_bool(&loaded, "update_allow_insecure")?,
+                max_download_bytes: parse_u64(&loaded, "update_max_download_bytes", 1)?,
             },
             notify: NotifyKnobs {
                 timeout: Duration::from_secs(parse_u64(&loaded, "notify_timeout_secs", 1)?),
@@ -560,6 +633,14 @@ impl App {
                     "leave it empty unless you are running the broken-release drill",
                 ));
             }
+            if let Some(key) = &limits.update.pubkey {
+                minisign_verify::PublicKey::from_base64(key).map_err(|e| {
+                    Error::config(
+                        format!("update_pubkey is not a minisign public key: {e}"),
+                        "paste the base64 line of the drill key's minisign.pub, or unset it to trust the ecosystem key",
+                    )
+                })?;
+            }
             if limits.update.mode != "off"
                 && limits.update.url.is_none()
                 && spec.repository.is_none()
@@ -572,7 +653,6 @@ impl App {
         }
         #[cfg(feature = "notify")]
         let (notifier, notify_drain) = {
-            let env = crate::shell::config_load::env_snapshot();
             let hooks = crate::core::notify::webhooks_from_table(&loaded.file_table, &env)?;
             crate::shell::notify::Notifier::prepare(
                 spec.name,
@@ -714,7 +794,14 @@ impl App {
                 keep_copies: k.keep_copies,
                 probe_timeout: k.probe_timeout,
                 download_timeout: k.download_timeout,
-                pubkey: crate::shell::update::RELEASE_PUBKEY.to_string(),
+                pubkey: k
+                    .pubkey
+                    .clone()
+                    .unwrap_or_else(|| crate::shell::update::RELEASE_PUBKEY.to_string()),
+                pubkey_overridden: k.pubkey.is_some(),
+                repo: self.spec.repository.map(|r| r.to_string()),
+                allow_insecure: k.allow_insecure,
+                max_download_bytes: k.max_download_bytes,
                 copies_dir,
             },
             binary,
@@ -902,6 +989,59 @@ impl App {
                 println!("{} {}", self.spec.name, self.spec.version);
                 Ok(Some(ExitCode::SUCCESS))
             }
+            Some(Control::Rekey) => {
+                let loaded = self.loaded.as_ref().expect("loaded");
+                let prefix = self.spec.prefix();
+                #[cfg(feature = "dashboard")]
+                let new_key = {
+                    let secrets = crate::shell::auth::Secrets::parse(
+                        &prefix,
+                        loaded.get("token"),
+                        loaded.get("secret_key"),
+                    )?
+                    .ok_or_else(|| {
+                        Error::config(
+                            format!("rekey needs the NEW key in {prefix}_SECRET_KEY (with {prefix}_TOKEN)"),
+                            "export the new pair, the previous key as {prefix}_OLD_SECRET_KEY, then run rekey again",
+                        )
+                    })?;
+                    secrets.key.clone()
+                };
+                #[cfg(not(feature = "dashboard"))]
+                let new_key = {
+                    let mut candidate = [0u8; 32];
+                    getrandom::fill(&mut candidate)
+                        .map_err(|e| Error::internal(format!("random: {e}"), "report this"))?;
+                    let env = format!("{prefix}_SECRET_KEY");
+                    let raw = loaded.get("secret_key").ok_or_else(|| {
+                        Error::config(format!("{env} is not set"), "export the new key first")
+                    })?;
+                    crate::core::crypto::Key::parse_hex(&env, raw, &hex::encode(candidate))?
+                };
+                let old_env = format!("{prefix}_OLD_SECRET_KEY");
+                let old_raw = std::env::var(&old_env).map_err(|_| {
+                    Error::config(
+                        format!("{old_env} is not set"),
+                        format!("export the previous secret key as {old_env} and the new one as {prefix}_SECRET_KEY, stop the service, then run rekey"),
+                    )
+                })?;
+                let mut candidate = [0u8; 32];
+                getrandom::fill(&mut candidate)
+                    .map_err(|e| Error::internal(format!("random: {e}"), "report this"))?;
+                let old_key = crate::core::crypto::Key::parse_hex(
+                    &old_env,
+                    &old_raw,
+                    &hex::encode(candidate),
+                )?;
+                let done = crate::shell::store::rekey_dir(&loaded.state_dir, &old_key, &new_key)?;
+                println!(
+                    "{}: {} store file(s) in {} now sealed under {prefix}_SECRET_KEY; unset {old_env} and start the service",
+                    self.spec.name,
+                    done,
+                    loaded.state_dir.display()
+                );
+                Ok(Some(ExitCode::SUCCESS))
+            }
             Some(Control::GenSecret) => {
                 if !std::io::IsTerminal::is_terminal(&std::io::stdout()) {
                     return Err(Error::invalid(
@@ -925,6 +1065,14 @@ impl App {
             Some(Control::Check) => {
                 #[cfg(feature = "dashboard")]
                 self.require_dashboard_secrets()?;
+                // H11 (rule 12, fail-closed): the state directory must exist
+                // and take a write NOW, not at the first login. The only
+                // thing --check touches is a zero-byte probe, removed at once.
+                let loaded = self.loaded.as_ref().expect("loaded");
+                crate::shell::store::probe_state_dir(&loaded.state_dir, false)?;
+                for warning in self.startup_warnings() {
+                    eprintln!("warning: {warning}");
+                }
                 for check in self.checks.drain(..) {
                     check()?;
                 }
@@ -1023,6 +1171,9 @@ impl App {
             }
             (updater, drill)
         };
+        // Registered before the bind so no SIGTERM can slip in unhandled
+        // between "listening" and the first poll of the listener (rule 8a).
+        let stop = lifecycle::stop_signals();
         match self.start().await {
             Ok(running) => {
                 // A future that resolves when the autonomous updater installed
@@ -1064,13 +1215,13 @@ impl App {
                 };
                 #[cfg(feature = "self-update")]
                 tokio::select! {
-                    _ = lifecycle::wait_for_stop_signal() => {}
+                    _ = stop.wait() => {}
                     _ = restart => {
                         tracing::info!("stopping for the update restart");
                     }
                 }
                 #[cfg(not(feature = "self-update"))]
-                lifecycle::wait_for_stop_signal().await;
+                stop.wait().await;
                 running.stop().await;
                 ExitCode::SUCCESS
             }
@@ -1079,6 +1230,30 @@ impl App {
                 ExitCode::FAILURE
             }
         }
+    }
+
+    /// Configuration that loads but will hurt (S4, critic #20): said at
+    /// `--check` (stderr) and at start (log), never silently.
+    fn startup_warnings(&self) -> Vec<String> {
+        let mut w = Vec::new();
+        let loaded = self.loaded.as_ref().expect("loaded");
+        let prefix = self.spec.prefix();
+        if self.limits.trusted_proxies.is_empty() && !self.listen.ip().is_loopback() {
+            w.push(format!(
+                "trusted_proxies is empty while listening on {}: behind a reverse proxy every client shares the proxy's IP (one attacker's failed logins lock everyone out), cookies are never Secure and passkeys stay off. What now: set {prefix}_TRUSTED_PROXIES to the proxy's IP, or bind to 127.0.0.1 if no proxy is involved",
+                self.listen
+            ));
+        }
+        if let Some(raw) = loaded.get("timeout_stop_secs")
+            && let Ok(stop) = raw.trim().parse::<u64>()
+            && Duration::from_secs(stop) < self.shutdown_timeout
+        {
+            w.push(format!(
+                "the unit's TimeoutStopSec ({stop} s) is shorter than shutdown_timeout_ms ({} ms): systemd would SIGKILL a drain that is still running. What now: raise TimeoutStopSec in the unit (and {prefix}_TIMEOUT_STOP_SECS with it) or lower {prefix}_SHUTDOWN_TIMEOUT_MS",
+                self.shutdown_timeout.as_millis()
+            ));
+        }
+        w
     }
 
     /// Install logging and metrics, bind, announce readiness, serve.
@@ -1093,25 +1268,72 @@ impl App {
         let filter = loaded.get("log").unwrap_or("info").to_string();
         let format = LogFormat::parse(loaded.get("log_format").unwrap_or("text"))?;
         logging::init(&filter, format)?;
+        // H11: the state root is created and proven writable before anything
+        // else, so a wrong ReadWritePaths or bind-mount owner fails here
+        // with the chown remedy instead of as a 503 at the first login.
+        crate::shell::store::probe_state_dir(&loaded.state_dir, true)?;
+        for warning in self.startup_warnings() {
+            tracing::warn!("{warning}");
+        }
+        self.subsystems
+            .push(Arc::new(crate::shell::store::StoreSubsystem));
         #[cfg(feature = "notify")]
         if let Some(drain) = self.notify_drain.take() {
             tokio::spawn(drain);
         }
-        #[cfg(all(feature = "self-update", feature = "dashboard"))]
-        if self.dash.update.is_none() {
-            // The status card (K17) reads the updater's view.
+        #[cfg(feature = "self-update")]
+        {
+            // Rule 23 / rule 12: the mode decision is said out loud once,
+            // with its reason and the trust root in force.
             let updater = self.build_updater(false)?;
-            let mode = updater.effective.mode.label().to_string();
-            let reason = updater.effective.reason.to_string();
-            self.dash.update = Some(Arc::new(move || {
-                let last = updater.last_check();
-                crate::shell::dashboard::UpdateView {
-                    mode: mode.clone(),
-                    latest: last.latest.unwrap_or_else(|| "not checked yet".to_string()),
-                    last_check: last.at.unwrap_or_else(|| "never".to_string()),
-                    note: last.error.or_else(|| Some(reason.clone())),
-                }
-            }));
+            let trust_root = if updater.cfg.pubkey_overridden {
+                "update_pubkey (OVERRIDDEN)"
+            } else {
+                "compiled-in ecosystem key"
+            };
+            tracing::info!(
+                configured = %self.limits.update.mode,
+                effective = updater.effective.mode.label(),
+                reason = updater.effective.reason,
+                trust_root,
+                url = %updater.cfg.url,
+                "self-update"
+            );
+            // K20: off and supervised still learn about newer releases,
+            // read-only, so the status card is never decoration.
+            if updater.effective.mode != crate::core::update::Mode::Autonomous
+                && !updater.cfg.url.is_empty()
+            {
+                tokio::spawn(updater.clone().run_watch());
+            }
+            #[cfg(feature = "dashboard")]
+            if self.dash.update.is_none() {
+                let mode = updater.effective.mode.label().to_string();
+                let reason = updater.effective.reason.to_string();
+                let overridden = updater.cfg.pubkey_overridden;
+                let no_url = updater.cfg.url.is_empty();
+                self.dash.update = Some(Arc::new(move || {
+                    let last = updater.last_check();
+                    let mut note = last
+                        .error
+                        .or_else(|| last.outcome.clone())
+                        .unwrap_or_else(|| reason.clone());
+                    if no_url {
+                        note = format!(
+                            "{note}; no release host configured (update_url / AppSpec.repository), so no version check"
+                        );
+                    }
+                    if overridden {
+                        note = format!("{note}; TRUST ROOT OVERRIDDEN by update_pubkey");
+                    }
+                    crate::shell::dashboard::UpdateView {
+                        mode: mode.clone(),
+                        latest: last.latest.unwrap_or_else(|| "not checked yet".to_string()),
+                        last_check: last.at.unwrap_or_else(|| "never".to_string()),
+                        note: Some(note),
+                    }
+                }));
+            }
         }
 
         let metrics = Metrics::install(
@@ -1130,6 +1352,8 @@ impl App {
             request_timeout: self.limits.request_timeout,
             timeout_exempt: Arc::new(self.timeout_exempt.clone()),
             trusted_proxies: Arc::new(self.limits.trusted_proxies.clone()),
+            kit_problems: Arc::new(std::sync::Mutex::new(Vec::new())),
+            untrusted_proxy_warned: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         };
         let access = AccessState {
             requests_total: metrics.requests_total(),
@@ -1272,6 +1496,9 @@ impl Limits {
                 mode: "off".into(),
                 url: None,
                 asset: None,
+                pubkey: None,
+                allow_insecure: false,
+                max_download_bytes: 268_435_456,
                 interval: Duration::from_secs(60),
                 startup_delay: Duration::from_secs(0),
                 healthy_after: Duration::from_secs(1),
@@ -1418,7 +1645,7 @@ mod tests {
         // With the dashboard compiled in, --check needs the secrets first (W6).
         let mut args = secrets_env(dir.path());
         args.push("--check");
-        let mut app = App::from_args(spec(), argv(&args), Router::new()).unwrap();
+        let mut app = from_args_secret(spec(), argv(&args), Router::new()).unwrap();
         app.on_check(|| {
             Err(Error::config(
                 "store is from the future",
@@ -1465,23 +1692,74 @@ mod tests {
         }
     }
 
+    /// H2: every `<binary> <command>` a remedy tells the operator to run is a
+    /// real subcommand — a remedy naming a command that does not exist is a
+    /// lie the tests used to check for by word, not by existence.
+    #[test]
+    fn every_command_named_in_a_remedy_exists() {
+        let sources = [
+            include_str!("app.rs"),
+            include_str!("core/crypto.rs"),
+            include_str!("core/error.rs"),
+            include_str!("shell/auth.rs"),
+            include_str!("shell/store.rs"),
+            include_str!("shell/update.rs"),
+            include_str!("shell/config_load.rs"),
+        ];
+        let mut named = std::collections::BTreeSet::new();
+        for src in sources {
+            for (i, _) in src.match_indices("<binary> ") {
+                let rest = &src[i + "<binary> ".len()..];
+                let word: String = rest
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
+                    .collect();
+                if !word.is_empty() && !word.starts_with("--") {
+                    named.insert(word);
+                }
+            }
+        }
+        assert!(named.contains("rekey"), "{named:?}");
+        for word in named {
+            let parsed = App::from_args(spec(), argv(&[&word]), Router::new());
+            assert!(
+                parsed.is_ok(),
+                "remedies name `<binary> {word}` but it does not parse as a command: {:?}",
+                parsed.err().map(|e| e.message)
+            );
+        }
+    }
+
     /// The dashboard needs both secrets to start; the core-only tests set
     /// them so `start()` is reachable whatever features are compiled.
     fn secrets_env(dir: &std::path::Path) -> Vec<&'static str> {
-        let mut v = base_args(dir);
-        v.extend([
-            "--token",
-            "a-login-token-that-is-long-enough",
-            "--secret-key",
-            Box::leak("ab".repeat(32).into_boxed_str()),
-        ]);
-        v
+        base_args(dir)
+    }
+
+    /// The two dashboard secrets, as the environment carries them (S8:
+    /// never as flags).
+    fn secret_map() -> BTreeMap<String, String> {
+        BTreeMap::from([
+            (
+                "T_APP_TOKEN".to_string(),
+                "a-login-token-that-is-long-enough".to_string(),
+            ),
+            ("T_APP_SECRET_KEY".to_string(), "ab".repeat(32)),
+            (
+                "T_APP_PUBLIC_URL".to_string(),
+                "https://t.example".to_string(),
+            ),
+        ])
+    }
+
+    fn from_args_secret(spec: AppSpec, args: Vec<String>, router: Router) -> Result<App, Error> {
+        App::from_args_with_env(spec, args, secret_map(), router)
     }
 
     #[tokio::test]
     async fn start_serves_kit_routes_and_stops_cleanly() {
         let dir = tempfile::tempdir().unwrap();
-        let mut app = App::from_args(
+        let mut app = from_args_secret(
             spec(),
             argv(&secrets_env(dir.path())),
             // `/` belongs to the kit's status page when the dashboard is compiled in.
@@ -1547,7 +1825,7 @@ mod tests {
     async fn degraded_subsystem_gives_503_but_probe_still_says_alive() {
         let dir = tempfile::tempdir().unwrap();
         let mut app =
-            App::from_args(spec(), argv(&secrets_env(dir.path())), Router::new()).unwrap();
+            from_args_secret(spec(), argv(&secrets_env(dir.path())), Router::new()).unwrap();
         app.subsystem(Store(false));
         let running = app.start().await.unwrap();
         let url = format!("http://{}/healthz", running.addr);
@@ -1565,7 +1843,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut args = secrets_env(dir.path());
         args.extend(["--max-body-bytes", "16"]);
-        let app = App::from_args(
+        let app = from_args_secret(
             spec(),
             argv(&args),
             Router::new().route(

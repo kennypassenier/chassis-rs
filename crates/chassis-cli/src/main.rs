@@ -938,7 +938,15 @@ mod tests {
     #[test]
     fn every_template_renders_and_substitutes() {
         let files = render_all(&rec()).unwrap();
-        assert!(files.len() >= 15);
+        let expected = templates::ENTRIES
+            .iter()
+            .filter(|e| !e.path.contains("latch"))
+            .count();
+        assert_eq!(
+            files.len(),
+            expected,
+            "every non-latch entry renders exactly once"
+        );
         let get = |p: &str| {
             files
                 .iter()
@@ -949,7 +957,8 @@ mod tests {
         assert!(get("Cargo.toml").contains("name = \"demo-svc\""));
         assert!(get("Cargo.toml").contains("tag = \"v0.1.0\""));
         assert!(
-            get("deploy/demo-svc.service").contains("ExecStartPre=/usr/local/bin/demo-svc --check")
+            get("deploy/demo-svc.service")
+                .contains("ExecStartPre=/opt/demo-svc/bin/demo-svc --check")
         );
         assert!(
             get("deploy/demo-svc.service").contains("StartLimitIntervalSec=0"),

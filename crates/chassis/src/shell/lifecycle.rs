@@ -33,17 +33,42 @@ pub fn notify_ready() {
 /// shutdown signal. Further signals are ignored on purpose (N1: a second
 /// SIGTERM changes nothing).
 pub async fn wait_for_stop_signal() {
-    let mut term = match signal(SignalKind::terminate()) {
-        Ok(s) => s,
+    stop_signals().wait().await
+}
+
+/// The SIGTERM listener, registered the moment this is called — BEFORE the
+/// socket binds and "listening" is logged. A SIGTERM that arrives between
+/// "listening" and the first poll of an async listener would otherwise hit
+/// the default action and kill the process (exit by signal, not 0); the
+/// E2E suite caught that race once under load (rule 8a).
+pub struct StopSignals {
+    term: Option<tokio::signal::unix::Signal>,
+}
+
+pub fn stop_signals() -> StopSignals {
+    let term = match signal(SignalKind::terminate()) {
+        Ok(s) => Some(s),
         Err(e) => {
             tracing::error!(error = %e, "cannot listen for SIGTERM; only Ctrl-C will stop the service");
-            let _ = tokio::signal::ctrl_c().await;
-            return;
+            None
         }
     };
-    tokio::select! {
-        _ = term.recv() => tracing::info!("SIGTERM received; finishing in-flight requests"),
-        _ = tokio::signal::ctrl_c() => tracing::info!("Ctrl-C received; finishing in-flight requests"),
+    StopSignals { term }
+}
+
+impl StopSignals {
+    pub async fn wait(mut self) {
+        match self.term.as_mut() {
+            Some(term) => {
+                tokio::select! {
+                    _ = term.recv() => tracing::info!("SIGTERM received; finishing in-flight requests"),
+                    _ = tokio::signal::ctrl_c() => tracing::info!("Ctrl-C received; finishing in-flight requests"),
+                }
+            }
+            None => {
+                let _ = tokio::signal::ctrl_c().await;
+            }
+        }
     }
 }
 

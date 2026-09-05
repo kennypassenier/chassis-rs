@@ -14,7 +14,7 @@ use std::time::Duration;
 use axum::body::{Body, Bytes};
 use axum::extract::{Request, State};
 use axum::middleware::Next;
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use serde::Serialize;
 
 use crate::shell::auth::Caller;
@@ -159,9 +159,19 @@ pub async fn capture_requests(
         return next.run(req).await;
     };
     let (parts, body) = req.into_parts();
+    // S3: the body limit layer surfaces as an error here, not in a handler;
+    // swallowing it would hand the handler an EMPTY body with a 2xx.
     let bytes: Bytes = match axum::body::to_bytes(body, usize::MAX).await {
         Ok(b) => b,
-        Err(_) => Bytes::new(),
+        Err(e) => {
+            let mut res = crate::core::error::Error::invalid(
+                format!("the request body could not be read in full: {e}"),
+                "send a body within max_body_bytes (the 413 says the limit is what stopped it)",
+            )
+            .into_response();
+            *res.status_mut() = axum::http::StatusCode::PAYLOAD_TOO_LARGE;
+            return res;
+        }
     };
     let method = parts.method.to_string();
     let path = parts.uri.path().to_string();

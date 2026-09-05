@@ -118,7 +118,18 @@ pub fn load(
     flags: BTreeMap<String, String>,
     default_state_dir: &Path,
 ) -> Result<Loaded, Error> {
-    let env = env_snapshot();
+    load_with_env(prefix, knobs, flags, default_state_dir, env_snapshot())
+}
+
+/// `load` with an explicit environment instead of the process's: tests
+/// hand secrets in this way (S8 took them off argv), embedders may too.
+pub fn load_with_env(
+    prefix: &str,
+    knobs: &[Knob],
+    flags: BTreeMap<String, String>,
+    default_state_dir: &Path,
+    env: BTreeMap<String, String>,
+) -> Result<Loaded, Error> {
     let env_layer = env_layer(prefix, knobs, &env);
 
     let state_dir = flags

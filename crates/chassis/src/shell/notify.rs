@@ -108,11 +108,25 @@ impl Notifier {
     }
 }
 
+/// S5: what the log may say about a webhook — scheme and host only. The
+/// path is where Home Assistant puts the webhook id, i.e. the secret.
+pub fn redacted_url(url: &str) -> String {
+    match url.split_once("://") {
+        Some((scheme, rest)) => {
+            let host = rest.split(['/', '?', '#']).next().unwrap_or("");
+            // Strip userinfo too: `user:pass@host` never reaches the log.
+            let host = host.rsplit('@').next().unwrap_or(host);
+            format!("{scheme}://{host}/…")
+        }
+        None => "<unparseable url>".to_string(),
+    }
+}
+
 async fn deliver(client: &reqwest::Client, hook: &Webhook, event: &Event, cfg: &NotifyConfig) {
     let body = match hook.render_body(event) {
         Ok(b) => b,
         Err(e) => {
-            tracing::warn!(error = %e, url = %hook.url, "webhook body template failed; event not sent");
+            tracing::warn!(error = %e, url = %redacted_url(&hook.url), "webhook body template failed; event not sent");
             return;
         }
     };
@@ -122,12 +136,12 @@ async fn deliver(client: &reqwest::Client, hook: &Webhook, event: &Event, cfg: &
     for (i, url) in targets.iter().enumerate() {
         if send_with_retries(client, hook, url, &body, cfg).await {
             if i > 0 {
-                tracing::warn!(url, "delivered via the fallback webhook");
+                tracing::warn!(url = %redacted_url(url), "delivered via the fallback webhook");
             }
             return;
         }
     }
-    tracing::warn!(event = %event.kind, url = %hook.url, "notification not delivered after retries and fallback");
+    tracing::warn!(event = %event.kind, url = %redacted_url(&hook.url), "notification not delivered after retries and fallback");
 }
 
 /// `retries` attempts with exponential backoff and jitter (backon).
@@ -168,7 +182,7 @@ async fn send_with_retries(
     match attempt.retry(backoff).await {
         Ok(()) => true,
         Err(e) => {
-            tracing::warn!(url, error = %e, "webhook failed after retries");
+            tracing::warn!(url = %redacted_url(url), error = %e, "webhook failed after retries");
             false
         }
     }
@@ -291,6 +305,29 @@ mod tests {
     #[test]
     fn logging_only_never_blocks() {
         let n = Notifier::logging_only("inbox");
-        n.emit("service.started", "0.1.0", "no webhooks configured");
+        assert!(n.tx.is_none(), "no queue, so nothing to fill");
+        let started = std::time::Instant::now();
+        for i in 0..1000 {
+            n.emit("service.started", "0.1.0", format!("event {i}"));
+        }
+        assert!(
+            started.elapsed() < Duration::from_millis(500),
+            "1000 emits took {:?}: emit must not block",
+            started.elapsed()
+        );
+    }
+
+    /// S5: the log never carries a webhook's path (that is where Home
+    /// Assistant keeps the webhook id), nor userinfo.
+    #[test]
+    fn logged_webhook_urls_keep_only_scheme_and_host() {
+        let r = redacted_url("https://ha.lan:8123/api/webhook/SECRET-HOOK-ID?x=1");
+        assert_eq!(r, "https://ha.lan:8123/…");
+        assert!(!r.contains("SECRET"));
+        assert_eq!(
+            redacted_url("http://user:pw@hub.lan/topics"),
+            "http://hub.lan/…"
+        );
+        assert_eq!(redacted_url("garbage"), "<unparseable url>");
     }
 }

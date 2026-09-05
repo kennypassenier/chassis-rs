@@ -107,6 +107,20 @@ pub const ENTRIES: &[Entry] = &[
         false,
     ),
     verbatim(
+        ".dockerignore",
+        include_str!("../../../scaffold/.dockerignore"),
+        false,
+    ),
+    verbatim(
+        "deploy/journald.conf",
+        include_str!("../../../scaffold/deploy/journald.conf"),
+        false,
+    ),
+    rendered(
+        "deploy/compose.example.yml",
+        include_str!("../../../scaffold/deploy/compose.example.yml"),
+    ),
+    verbatim(
         ".githooks/pre-commit",
         include_str!("../../../scaffold/.githooks/pre-commit"),
         true,

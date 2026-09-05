@@ -408,10 +408,10 @@ mod tests {
     #[test]
     fn theme_list_comes_from_the_vendored_registry() {
         let t = themes();
-        assert!(
-            t.len() >= 11,
-            "kp-themes 3.1.0 ships 24 themes; parsed {}",
-            t.len()
+        assert_eq!(
+            t.len(),
+            24,
+            "kp-themes 3.1.0 ships exactly 24 themes; the vendored registry is pinned"
         );
         assert_eq!(t[0].name, "formal");
         assert_eq!(t[0].label, "Formal");

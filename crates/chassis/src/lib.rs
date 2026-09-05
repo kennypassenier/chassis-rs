@@ -55,38 +55,28 @@ mod tests {
     /// before any code, so rustdoc reads as prose first.
     #[test]
     fn every_module_opens_with_a_doc_comment() {
-        let modules: &[(&str, &str)] = &[
-            ("app.rs", include_str!("app.rs")),
-            ("app_dashboard.rs", include_str!("app_dashboard.rs")),
-            ("core/mod.rs", include_str!("core/mod.rs")),
-            ("core/config.rs", include_str!("core/config.rs")),
-            ("core/error.rs", include_str!("core/error.rs")),
-            ("core/crypto.rs", include_str!("core/crypto.rs")),
-            ("core/clients.rs", include_str!("core/clients.rs")),
-            ("core/session.rs", include_str!("core/session.rs")),
-            ("core/update.rs", include_str!("core/update.rs")),
-            ("core/notify.rs", include_str!("core/notify.rs")),
-            ("shell/mod.rs", include_str!("shell/mod.rs")),
-            ("shell/config_load.rs", include_str!("shell/config_load.rs")),
-            ("shell/logging.rs", include_str!("shell/logging.rs")),
-            ("shell/lifecycle.rs", include_str!("shell/lifecycle.rs")),
-            ("shell/http.rs", include_str!("shell/http.rs")),
-            ("shell/health.rs", include_str!("shell/health.rs")),
-            ("shell/metrics.rs", include_str!("shell/metrics.rs")),
-            ("shell/guards.rs", include_str!("shell/guards.rs")),
-            ("shell/store.rs", include_str!("shell/store.rs")),
-            ("shell/time.rs", include_str!("shell/time.rs")),
-            ("shell/auth.rs", include_str!("shell/auth.rs")),
-            ("shell/captures.rs", include_str!("shell/captures.rs")),
-            ("shell/clients_api.rs", include_str!("shell/clients_api.rs")),
-            ("shell/assets.rs", include_str!("shell/assets.rs")),
-            ("shell/dashboard.rs", include_str!("shell/dashboard.rs")),
-            ("shell/passkeys.rs", include_str!("shell/passkeys.rs")),
-            ("shell/update.rs", include_str!("shell/update.rs")),
-            ("shell/notify.rs", include_str!("shell/notify.rs")),
-        ];
-        for (name, src) in modules {
-            let first = src.lines().next().unwrap_or("");
+        fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(dir).expect("readable src dir").flatten() {
+                let p = entry.path();
+                if p.is_dir() {
+                    walk(&p, out);
+                } else if p.extension().is_some_and(|e| e == "rs") {
+                    out.push(p);
+                }
+            }
+        }
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = Vec::new();
+        walk(&src, &mut files);
+        assert!(
+            files.len() >= 25,
+            "the walk found only {} modules",
+            files.len()
+        );
+        for path in files {
+            let text = std::fs::read_to_string(&path).unwrap();
+            let name = path.strip_prefix(&src).unwrap().display().to_string();
+            let first = text.lines().next().unwrap_or("");
             assert!(
                 first.starts_with("//! "),
                 "{name} does not open with a `//!` doc comment"

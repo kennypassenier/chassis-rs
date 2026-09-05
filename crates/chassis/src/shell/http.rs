@@ -61,11 +61,66 @@ pub fn with_kit_layers(
             timeout_guard,
         ))
         .layer(middleware::from_fn(csrf_guard))
-        .layer(middleware::from_fn_with_state(guards, in_flight_guard))
+        .layer(middleware::from_fn_with_state(
+            guards.clone(),
+            in_flight_guard,
+        ))
+        .layer(middleware::from_fn_with_state(
+            guards,
+            crate::shell::guards::untrusted_proxy_guard,
+        ))
         .layer(RequestBodyLimitLayer::new(max_body_bytes))
+        // Outside the limit layer, so its bare 413 passes through here.
+        .layer(middleware::from_fn(json_413))
         .layer(middleware::from_fn_with_state(access, access_log))
         .layer(PropagateRequestIdLayer::new(X_REQUEST_ID.clone()))
         .layer(SetRequestIdLayer::new(X_REQUEST_ID.clone(), MakeUuid))
+        .layer(middleware::from_fn(sanitize_request_id))
+}
+
+/// AR4, one error shape: the body-limit layer answers a declared oversize
+/// with a bare 413; this turns that into the kit's JSON error with a
+/// remedy, like every other refusal.
+pub async fn json_413(req: Request, next: Next) -> Response {
+    let res = next.run(req).await;
+    if res.status() != axum::http::StatusCode::PAYLOAD_TOO_LARGE {
+        return res;
+    }
+    let is_json = res
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|ct| ct.starts_with("application/json"));
+    if is_json {
+        return res;
+    }
+    let mut out = Error::invalid(
+        "the request body is larger than this service accepts",
+        "send a body within max_body_bytes (the knob <PREFIX>_MAX_BODY_BYTES sets it)",
+    )
+    .into_response();
+    *out.status_mut() = axum::http::StatusCode::PAYLOAD_TOO_LARGE;
+    out
+}
+
+/// S8: a caller-supplied `x-request-id` is echoed into every log line, so
+/// it is accepted only when it looks like an id (`[A-Za-z0-9._-]{1,64}`);
+/// anything else is dropped and a fresh one is generated downstream.
+pub async fn sanitize_request_id(mut req: Request, next: Next) -> Response {
+    let ok = req
+        .headers()
+        .get(&X_REQUEST_ID)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|s| {
+            !s.is_empty()
+                && s.len() <= 64
+                && s.bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+        });
+    if !ok {
+        req.headers_mut().remove(&X_REQUEST_ID);
+    }
+    next.run(req).await
 }
 
 /// The bare layers for tests that need no guards.
