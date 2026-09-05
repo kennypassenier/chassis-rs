@@ -15,7 +15,10 @@ publish = false
 # and it is separate because it pulls OpenSSL through webauthn-rs (T8).
 default = ["core"]
 core = []
-dashboard = ["core"]
+# The vendored kp-themes files and fonts, for a project that keeps its own
+# dashboard under the kit's CSP (kyu, Almanac); `dashboard` implies it.
+assets = ["core"]
+dashboard = ["core", "assets"]
 passkeys = ["dashboard", "dep:webauthn-rs"]
 self-update = ["core", "dep:minisign-verify", "dep:backon"]
 notify = ["core", "dep:backon"]

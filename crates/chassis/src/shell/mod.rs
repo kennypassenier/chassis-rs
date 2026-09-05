@@ -1,7 +1,7 @@
 //! Everything that touches the world: files, sockets, signals, the clock
 //! (AR1). Thin by design; the decisions live in `crate::core`.
 
-#[cfg(feature = "dashboard")]
+#[cfg(feature = "assets")]
 pub mod assets;
 #[cfg(feature = "dashboard")]
 pub mod auth;

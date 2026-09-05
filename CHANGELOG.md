@@ -26,10 +26,10 @@ Found while migrating kyu-runner, http-switchboard and kyu (AFK round 2, A2).
   autonomous update check — `Some(reason)` defers it to the next interval
   (Almanac's "never restart while captures are retained", AR25).
   Supervised updates are not gated.
-- `chassis::shell::assets::ASSETS` is documented as the place a project with
-  its own dashboard fetches the vendored fonts (`fonts.css`, `fonts/*.woff2`)
-  and kp-themes files from, so the kit's CSP (`font-src 'self'`) holds
-  without a CDN.
+- Feature `assets` (implied by `dashboard`): `chassis::shell::assets::ASSETS`
+  for a project with its own dashboard, so it serves the vendored fonts
+  (`fonts.css`, `fonts/*.woff2`) and kp-themes files itself and the kit's
+  CSP (`font-src 'self'`) holds without a CDN.
 
 ### Fixed
 - `--help` printed on stderr with exit 1, as if it were a refusal. It is an

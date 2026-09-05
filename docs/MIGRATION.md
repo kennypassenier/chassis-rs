@@ -258,3 +258,5 @@ let config = Config::from_table(&app.loaded.as_ref().unwrap().file_table, &app.s
 
   `fonts.css` declares the same faces the kp-themes package expects
   (Instrument Sans, Fraunces, Share Tech Mono, Chakra Petch).
+  Enable the `assets` feature for this (`dashboard` implies it):
+  `features = ["core", "self-update", "assets"]`.

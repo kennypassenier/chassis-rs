@@ -778,6 +778,7 @@ impl App {
         self
     }
 
+    #[cfg(feature = "self-update")]
     pub fn state_copy(
         &mut self,
         f: impl Fn(&std::path::Path) -> Result<(), Error> + Send + Sync + 'static,
