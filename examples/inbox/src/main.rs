@@ -13,6 +13,8 @@ use std::sync::{Arc, Mutex};
 use axum::extract::State;
 use axum::routing::post;
 use axum::{Json, Router};
+use chassis::shell::clients_api::ClientView;
+use chassis::shell::dashboard::{ClientColumn, Section, StatusSection};
 use chassis::shell::notify::Notifier;
 use chassis::{App, AppSpec, Caller};
 
@@ -24,6 +26,47 @@ type Messages = Arc<Mutex<Vec<serde_json::Value>>>;
 struct Inbox {
     messages: Messages,
     notifier: Notifier,
+}
+
+/// The status page shows how many messages arrived and the last five (K17).
+struct MessagesSection(Messages);
+
+impl StatusSection for MessagesSection {
+    fn render(&self) -> Section {
+        let all = self.0.lock().expect("messages lock");
+        let mut rows: Vec<(String, String)> = vec![("Received".into(), all.len().to_string())];
+        for (i, m) in all.iter().rev().take(5).enumerate() {
+            rows.push((
+                format!("#{}", all.len() - i),
+                format!("{} → {}", m["from"].as_str().unwrap_or("?"), m["body"]),
+            ));
+        }
+        Section {
+            title: "Messages".into(),
+            explain: "Everything clients posted to /v1/messages since the service started; the newest five are listed.".into(),
+            rows,
+            html: None,
+        }
+    }
+}
+
+/// Each client's row on the Clients page gains a "messages" column (K16).
+struct MessagesColumn(Messages);
+
+impl ClientColumn for MessagesColumn {
+    fn title(&self) -> String {
+        "Messages".into()
+    }
+    fn cell(&self, client: &ClientView) -> String {
+        let n = self
+            .0
+            .lock()
+            .expect("messages lock")
+            .iter()
+            .filter(|m| m["from"].as_str() == Some(client.name.as_str()))
+            .count();
+        n.to_string()
+    }
 }
 
 async fn receive(
@@ -85,6 +128,8 @@ async fn main() -> std::process::ExitCode {
         "application/json",
         r#"{"hello":"from the dashboard"}"#,
     );
+    app.status_section(MessagesSection(messages.clone()));
+    app.client_column(MessagesColumn(messages.clone()));
     // K21: before a binary swap, the kit asks for a consistent copy of the state.
     app.state_copy(move |dest| {
         let snapshot = serde_json::to_vec_pretty(&*messages.lock().expect("messages lock"))

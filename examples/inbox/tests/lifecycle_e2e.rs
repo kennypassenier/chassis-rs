@@ -521,6 +521,10 @@ fn dashboard_pages_render_with_layout_and_assets() {
         html.contains("Health") && html.contains("Updates"),
         "the kit cards"
     );
+    assert!(
+        html.contains("Messages") && html.contains("Received"),
+        "the project's own status section (K17)"
+    );
     assert!(html.contains("aria-current=\"page\""), "active nav entry");
     assert!(html.contains("Log out"));
 
@@ -533,6 +537,10 @@ fn dashboard_pages_render_with_layout_and_assets() {
     assert_eq!(res.status(), 200);
     let html = res.text().unwrap();
     assert!(html.contains("page-test"));
+    assert!(
+        html.contains("<th>Messages</th>"),
+        "the project's extra client column (K16)"
+    );
     for needle in [
         "data-reveal=",
         "data-copy-token=",

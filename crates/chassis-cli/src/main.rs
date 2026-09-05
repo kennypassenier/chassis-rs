@@ -352,18 +352,28 @@ fn cmd_new(
     // The first commit bypasses the gates on purpose: a project without a
     // Cargo.lock cannot pass `cargo test` before it has ever been built,
     // and the gates hold from the second commit on.
-    run(
-        &dir,
-        "git",
-        &[
-            "commit",
-            "-q",
-            "--no-verify",
-            "-m",
-            "Project created with chassis new [meta]",
-        ],
-        false,
-    )?;
+    let mut commit_args: Vec<&str> = Vec::new();
+    // A machine without a git identity (a CI runner) still gets its first
+    // commit; a configured identity is left alone.
+    let has_identity = capture(&dir, "git", &["config", "user.email"])
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false);
+    if !has_identity {
+        commit_args.extend([
+            "-c",
+            "user.name=chassis",
+            "-c",
+            "user.email=chassis@localhost",
+        ]);
+    }
+    commit_args.extend([
+        "commit",
+        "-q",
+        "--no-verify",
+        "-m",
+        "Project created with chassis new [meta]",
+    ]);
+    run(&dir, "git", &commit_args, false)?;
     println!(
         "wrote {} with {} files and made the first commit",
         dir.display(),
@@ -575,9 +585,11 @@ fn cmd_release(
     // 1. Bump Cargo.toml and the changelog.
     let cargo_path = dir.join("Cargo.toml");
     let cargo = std::fs::read_to_string(&cargo_path).map_err(|e| io_err(&cargo_path, e))?;
+    let current = current_version(&cargo)?;
     let bumped = bump_version(&cargo, &v.to_string())?;
     let changelog_path = dir.join("CHANGELOG.md");
     let changelog = std::fs::read_to_string(&changelog_path).unwrap_or_default();
+    check_major_has_migration(&changelog, current, v)?;
     let dated = release_changelog(&changelog, &v.to_string(), &today());
     let steps = [
         format!("git commit -am 'chore(release): {v} [meta]'"),
@@ -648,6 +660,42 @@ fn cmd_release(
     // 4. Sign locally and upload .minisig before VERSION.
     run(dir, "scripts/sign-release.sh", &[&tag], false)?;
     println!("released {} {tag}", rec.name);
+    Ok(())
+}
+
+fn current_version(cargo_toml: &str) -> Result<chassis::core::update::Version, Error> {
+    let mut in_package = false;
+    for line in cargo_toml.lines() {
+        if line.trim_start().starts_with('[') {
+            in_package = line.trim() == "[package]";
+        }
+        if in_package
+            && line.trim_start().starts_with("version")
+            && let Some(v) = line.split('"').nth(1)
+        {
+            return chassis::core::update::Version::parse(v);
+        }
+    }
+    Err(Error::config(
+        "Cargo.toml has no [package] version line",
+        "add `version = \"x.y.z\"` under [package]",
+    ))
+}
+
+/// K25 / H3: a major bump ships with a migration note under Unreleased.
+fn check_major_has_migration(
+    changelog: &str,
+    current: chassis::core::update::Version,
+    next: chassis::core::update::Version,
+) -> Result<(), Error> {
+    if next.major > current.major && !changelog.contains("Migration") {
+        return Err(Error::invalid(
+            format!(
+                "{next} is a major bump over {current} but CHANGELOG.md has no Migration section"
+            ),
+            "add `### Migration` under [Unreleased] saying what an operator or consumer must change, then release again",
+        ));
+    }
     Ok(())
 }
 
@@ -989,6 +1037,30 @@ mod tests {
         );
         assert!(cl.contains("## [Unreleased]\n\n## [0.2.0] - 2026-09-05"));
         assert_eq!(chrono_free_today().len(), 10);
+    }
+
+    #[test]
+    fn major_bumps_need_a_migration_note() {
+        let v = |s: &str| chassis::core::update::Version::parse(s).unwrap();
+        assert_eq!(
+            current_version("[package]\nversion = \"1.2.3\"\n").unwrap(),
+            v("1.2.3")
+        );
+        assert!(
+            check_major_has_migration("## [Unreleased]\n- x\n", v("1.2.3"), v("1.3.0")).is_ok()
+        );
+        assert!(
+            check_major_has_migration("## [Unreleased]\n- x\n", v("1.2.3"), v("2.0.0")).is_err(),
+            "major without Migration is refused"
+        );
+        assert!(
+            check_major_has_migration(
+                "## [Unreleased]\n### Migration\n- rename X\n",
+                v("1.2.3"),
+                v("2.0.0")
+            )
+            .is_ok()
+        );
     }
 
     #[test]
