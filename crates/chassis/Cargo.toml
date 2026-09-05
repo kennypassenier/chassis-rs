@@ -45,6 +45,13 @@ metrics = "0.24"
 metrics-exporter-prometheus = { version = "0.18", default-features = false }
 governor = "0.10"
 reqwest = { workspace = true }
+# L3: encrypted stores, sessions, clients (K8, K12, K13, AR5, AR6)
+chacha20poly1305 = "0.10"
+sha2 = "0.10"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+axum-extra = { version = "0.12", features = ["cookie"] }
+# cookie lifetimes are `time::Duration` in the cookie crate
+time = "0.3"
 
 [dev-dependencies]
 tempfile = { workspace = true }

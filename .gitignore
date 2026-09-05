@@ -1,5 +1,7 @@
-# Build output
+# Build output (target-trixie is the Debian-trixie release build made in
+# Docker for the CT 118 drills, T8)
 /target/
+/target-trixie/
 **/target/
 
 # Local secrets and scratch — never committed (standing rule 10)

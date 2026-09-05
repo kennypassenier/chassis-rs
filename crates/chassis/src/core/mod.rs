@@ -6,5 +6,8 @@
 //! it that way: `std::fs`, `std::net`, `tokio::fs`, `reqwest` and
 //! `SystemTime` are refused under `src/core/`.
 
+pub mod clients;
 pub mod config;
+pub mod crypto;
 pub mod error;
+pub mod session;

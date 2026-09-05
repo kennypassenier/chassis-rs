@@ -15,7 +15,7 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | 6 · Development loop — L0 done, L1 in progress; R1–R5 drafted and queued |
+| Current phase | 6 · Development loop — L0–L3 done, L4 (dashboard) next; R1–R5 drafted and queued |
 | Last completed gate | Phase 0 approval form (2026-09-05, 17/17 Klopt); Phases 1–5 crossed AFK as R1–R5 |
 | Next gate | Combined ratification R1–R5 + milestone reports — docs/PENDING_MINI_ROUNDS.md, on Kenny's return |
 | AFK mode | **on** since 2026-09-05 — gates 1–5 become R1–R5, Phase 6 reports accumulate |

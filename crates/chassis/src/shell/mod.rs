@@ -1,6 +1,12 @@
 //! Everything that touches the world: files, sockets, signals, the clock
 //! (AR1). Thin by design; the decisions live in `crate::core`.
 
+#[cfg(feature = "dashboard")]
+pub mod auth;
+#[cfg(feature = "dashboard")]
+pub mod captures;
+#[cfg(feature = "dashboard")]
+pub mod clients_api;
 pub mod config_load;
 pub mod guards;
 pub mod health;
@@ -8,3 +14,5 @@ pub mod http;
 pub mod lifecycle;
 pub mod logging;
 pub mod metrics;
+pub mod store;
+pub mod time;

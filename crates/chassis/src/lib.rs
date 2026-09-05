@@ -16,11 +16,17 @@
 #![forbid(unsafe_code)]
 
 pub mod app;
+#[cfg(feature = "dashboard")]
+pub mod app_dashboard;
 pub mod core;
 pub mod shell;
 
 pub use app::{App, AppSpec, Control, Running};
 pub use core::error::{Error, IntoKitError, Kind};
+#[cfg(feature = "dashboard")]
+pub use shell::auth::Caller;
+pub use shell::health::{Subsystem, SubsystemStatus};
+pub use shell::metrics::ScrapeSource;
 
 /// The kit's own version, as compiled in. A service reports its OWN
 /// version in `/healthz` (K6); this one is for `--print-config` and the

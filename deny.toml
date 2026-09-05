@@ -21,6 +21,8 @@ allow = [
     "CC0-1.0",
     "MPL-2.0",
     "OpenSSL",
+    # webpki-roots (Mozilla's CA bundle) via reqwest/rustls; data, not code.
+    "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.9
 
