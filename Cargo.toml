@@ -14,7 +14,7 @@ authors = ["Kenny Passenier"]
 [workspace.dependencies]
 # Shared versions so the three members never drift apart (T3). Members
 # opt in with `workspace = true`; features are added where they are used.
-axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "query", "form", "json"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "query", "form", "json", "matched-path"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net", "time", "sync", "fs", "process"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

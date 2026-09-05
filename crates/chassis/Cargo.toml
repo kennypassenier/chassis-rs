@@ -39,9 +39,14 @@ sd-notify = "0.5"
 subtle = "2"
 hex = "0.4"
 getrandom = "0.3"
+# L2: metrics facade + Prometheus exporter (K7), keyed rate limiting (K10),
+# HTTP client for --healthcheck (K7) and, later, updates and webhooks.
+metrics = "0.24"
+metrics-exporter-prometheus = { version = "0.18", default-features = false }
+governor = "0.10"
+reqwest = { workspace = true }
 
 [dev-dependencies]
-reqwest = { workspace = true }
 tempfile = { workspace = true }
 
 [lints.rust]

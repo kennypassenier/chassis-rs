@@ -13,15 +13,17 @@ use std::time::Instant;
 
 use axum::Router;
 use axum::body::Body;
-use axum::extract::Request;
+use axum::extract::{MatchedPath, Request, State};
 use axum::http::{HeaderName, HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
+use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::request_id::{
     MakeRequestId, PropagateRequestIdLayer, RequestId, SetRequestIdLayer,
 };
 
 use crate::core::error::{Error, Kind};
+use crate::shell::guards::{Guards, csrf_guard, in_flight_guard, timeout_guard};
 
 static X_REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
 
@@ -36,19 +38,61 @@ impl MakeRequestId for MakeUuid {
     }
 }
 
-/// Wrap a router with the kit's layers, outermost last: set the id,
-/// log the request, propagate the id onto the response.
-pub fn with_kit_layers(router: Router) -> Router {
+/// What the access log needs besides the request: the metric to count in.
+#[derive(Clone)]
+pub struct AccessState {
+    /// Full metric name, e.g. `inbox_http_requests_total`; empty = do not count.
+    pub requests_total: String,
+}
+
+/// Wrap a router with the kit's layers. Order, outermost first as a
+/// request sees them: request-id set → access log (+ request counter) →
+/// body-size cap → in-flight cap → CSRF rule → request timeout → the
+/// routes; the id is propagated onto the response on the way out.
+pub fn with_kit_layers(
+    router: Router,
+    guards: Guards,
+    access: AccessState,
+    max_body_bytes: usize,
+) -> Router {
     router
-        .layer(middleware::from_fn(access_log))
+        .layer(middleware::from_fn_with_state(
+            guards.clone(),
+            timeout_guard,
+        ))
+        .layer(middleware::from_fn(csrf_guard))
+        .layer(middleware::from_fn_with_state(guards, in_flight_guard))
+        .layer(RequestBodyLimitLayer::new(max_body_bytes))
+        .layer(middleware::from_fn_with_state(access, access_log))
         .layer(PropagateRequestIdLayer::new(X_REQUEST_ID.clone()))
         .layer(SetRequestIdLayer::new(X_REQUEST_ID.clone(), MakeUuid))
 }
 
-/// One line per request at `info` (K4), carrying the request id.
-async fn access_log(req: Request<Body>, next: Next) -> Response {
+/// The bare layers for tests that need no guards.
+pub fn with_request_id_only(router: Router) -> Router {
+    router
+        .layer(middleware::from_fn_with_state(
+            AccessState {
+                requests_total: String::new(),
+            },
+            access_log,
+        ))
+        .layer(PropagateRequestIdLayer::new(X_REQUEST_ID.clone()))
+        .layer(SetRequestIdLayer::new(X_REQUEST_ID.clone(), MakeUuid))
+}
+
+/// One line per request at `info` (K4), carrying the request id, and one
+/// increment of `<prefix>_http_requests_total{route,status}` (K7). The
+/// `route` label is the matched route pattern, not the raw path, so an
+/// id in the URL cannot multiply the series.
+async fn access_log(State(access): State<AccessState>, req: Request<Body>, next: Next) -> Response {
     let method = req.method().clone();
     let path = req.uri().path().to_string();
+    let route = req
+        .extensions()
+        .get::<MatchedPath>()
+        .map(|m| m.as_str().to_string())
+        .unwrap_or_else(|| "unmatched".to_string());
     let request_id = req
         .extensions()
         .get::<RequestId>()
@@ -57,10 +101,20 @@ async fn access_log(req: Request<Body>, next: Next) -> Response {
         .to_string();
     let started = Instant::now();
     let response = next.run(req).await;
+    let status = response.status().as_u16();
+    if !access.requests_total.is_empty() {
+        metrics::counter!(
+            access.requests_total.clone(),
+            "route" => route.clone(),
+            "status" => status.to_string()
+        )
+        .increment(1);
+    }
     tracing::info!(
         method = %method,
         path = %path,
-        status = response.status().as_u16(),
+        route = %route,
+        status,
         duration_ms = started.elapsed().as_millis() as u64,
         request_id = %request_id,
         "request"
@@ -108,7 +162,7 @@ mod tests {
 
     #[tokio::test]
     async fn request_id_is_generated_or_echoed() {
-        let app = with_kit_layers(Router::new().route("/", get(|| async { "ok" })));
+        let app = with_request_id_only(Router::new().route("/", get(|| async { "ok" })));
         let res = app
             .clone()
             .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
