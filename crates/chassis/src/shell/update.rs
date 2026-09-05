@@ -200,6 +200,31 @@ impl Updater {
         with_suffix(&self.binary, ".drill")
     }
 
+    /// Versions that were installed and rolled back (CF-3): never retried.
+    pub fn skip_path(&self) -> PathBuf {
+        self.state_dir.join("update-skip.json")
+    }
+
+    fn skipped_versions(&self) -> Vec<String> {
+        std::fs::read(self.skip_path())
+            .ok()
+            .and_then(|b| serde_json::from_slice::<Vec<String>>(&b).ok())
+            .unwrap_or_default()
+    }
+
+    fn is_skipped(&self, v: Version) -> bool {
+        self.skipped_versions().contains(&v.to_string())
+    }
+
+    fn remember_skip(&self, version: &str) -> Result<(), Error> {
+        let mut v = self.skipped_versions();
+        if !v.iter().any(|s| s == version) {
+            v.push(version.to_string());
+        }
+        let bytes = serde_json::to_vec_pretty(&v).expect("skip list serialises");
+        write_atomic(&self.skip_path(), &bytes, "update skip list")
+    }
+
     /// What the status card shows (K17).
     pub fn last_check(&self) -> LastCheck {
         self.last.lock().expect("last lock").clone()
@@ -324,6 +349,18 @@ impl Updater {
         let latest = self.latest().await?;
         if !should_update(self.running, latest) {
             return Ok(Outcome::Current { latest });
+        }
+        // CF-3 (live drill 2026-09-05): a version that was installed and
+        // rolled back is never retried by this process; otherwise the loop
+        // reinstalls it every interval and the service churns through the
+        // same crash. A NEWER release clears the way on its own.
+        if self.is_skipped(latest) {
+            (self.notify)(Event {
+                kind: "update.held",
+                version: latest.to_string(),
+                detail: "rolled back earlier; skipped until a newer release appears".to_string(),
+            });
+            return Ok(Outcome::Held { latest });
         }
         if !self.cfg.hold.allows(self.running, latest) {
             (self.notify)(Event {
@@ -463,6 +500,9 @@ impl Updater {
                 let prev = PathBuf::from(&s.previous_binary);
                 let restored = std::fs::rename(&prev, &self.binary);
                 clear_state(&self.state_path());
+                if let Err(e) = self.remember_skip(&s.to_version) {
+                    tracing::error!(error = %e, version = %s.to_version, "cannot record the rolled-back version; it may be retried next interval");
+                }
                 match restored {
                     Ok(()) => {
                         fsync_dir(&self.binary);
@@ -530,13 +570,17 @@ impl Updater {
             Ok(latest) => {
                 last.error = None;
                 last.latest = Some(latest.to_string());
-                last.outcome = Some(if should_update(self.running, *latest) {
+                last.outcome = Some(if !should_update(self.running, *latest) {
+                    "current".to_string()
+                } else if self.is_skipped(*latest) {
+                    format!(
+                        "newer available: {latest}, but it was rolled back earlier and is skipped"
+                    )
+                } else {
                     format!(
                         "newer available: {latest} (not installed in {} mode)",
                         self.effective.mode.label()
                     )
-                } else {
-                    "current".to_string()
                 });
             }
             Err(e) => last.error = Some(e.to_string()),
@@ -1243,6 +1287,70 @@ mod tests {
             err.message
         );
         assert_eq!(std::fs::read(&bin).unwrap(), GOOD_BINARY);
+    }
+
+    /// CF-3, live drill 2026-09-05 on CT 118: after a rollback the SAME
+    /// version must not be installed again by the next check — the churn
+    /// was install → crash → revert → install, every twenty seconds.
+    #[tokio::test]
+    async fn a_rolled_back_version_is_never_reinstalled() {
+        let release = fake_release("1.1.0", GOOD_BINARY, "svc").await;
+        let dir = tempfile::tempdir().unwrap();
+        let old = b"#!/bin/sh\nexit 0\n# old\n";
+        let bin = installed(dir.path(), old);
+        let (sink, events) = sink();
+        let mk = |running: &str| {
+            Updater::new(
+                cfg(&release, Mode::Autonomous, dir.path().join("c")),
+                bin.clone(),
+                dir.path().join("s"),
+                Version::parse(running).unwrap(),
+                sink.clone(),
+                None,
+            )
+            .unwrap()
+        };
+        assert!(matches!(
+            mk("1.0.0").check_once().await.unwrap(),
+            Outcome::Installed { .. }
+        ));
+        let new = mk("1.1.0");
+        assert!(!new.handle_pending_update().unwrap(), "probation");
+        assert!(new.handle_pending_update().unwrap(), "second start reverts");
+        assert_eq!(std::fs::read(&bin).unwrap(), old, "1.0.0 is back");
+        // The restored 1.0.0 checks again: 1.1.0 is still the latest release.
+        let restored = mk("1.0.0");
+        assert!(!restored.handle_pending_update().unwrap());
+        let out = restored.check_once().await.unwrap();
+        assert!(
+            matches!(out, Outcome::Held { .. }),
+            "skipped, not reinstalled: {out:?}"
+        );
+        assert_eq!(std::fs::read(&bin).unwrap(), old, "binary untouched");
+        assert!(
+            events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|e| e.kind == "update.held" && e.detail.contains("rolled back"))
+        );
+        assert!(restored.watch_once().await.is_ok());
+        assert!(restored.last_check().outcome.unwrap().contains("skipped"));
+        // A NEWER release (its own signed fake server) is installed normally.
+        let newer = fake_release("1.2.0", GOOD_BINARY, "svc").await;
+        let up = Updater::new(
+            cfg(&newer, Mode::Autonomous, dir.path().join("c")),
+            bin.clone(),
+            dir.path().join("s"),
+            Version::parse("1.0.0").unwrap(),
+            Arc::new(|_| {}),
+            None,
+        )
+        .unwrap();
+        assert!(matches!(
+            up.check_once().await.unwrap(),
+            Outcome::Installed { .. }
+        ));
     }
 
     /// K18 / Almanac's lesson: the loop's FIRST tick comes after the startup

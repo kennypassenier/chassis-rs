@@ -82,7 +82,40 @@ follow; the unit now carries the hardening set (`UMask=0077`,
 `--check` refuses a missing or unwritable state dir (provision it before
 `ExecStartPre`).
 
+## Phase 8 (docs) — written 2026-09-05 by the doc-writer, awaiting R8
+
+Six documents from code and tests: docs/GETTING_STARTED.md, CONFIGURATION.md,
+DASHBOARD.md, SELF_UPDATE.md, OPERATIONS.md, MIGRATION.md (200 quoted strings
+verified against their source files, 95 cited test names verified against
+`cargo test -- --list`). The writer's honesty-pass findings and what happened
+to them: (1) the Clients page carried an inline `<script type="module">` that
+the new CSP would block in a browser — **fixed** (moved into chassis.js; E2E
+now asserts no inline script on /login, /, /clients, /messages); (2)
+`data-kp-busy` had no reader — **fixed** (`data-busy-label`, handled by
+chassis.js); (3) `--help` claimed a config-file key for `state_dir`/`config`
+— **fixed** (help text); (4) AR4/AR5 name `IntoApiError` and a different
+`ClientStore` sketch than the code — **dated notes added**, docs follow the
+code. R8 = one approval item per document (Goedkeuren · Aanpassen ·
+Herschrijven) with the three strongest claims each, on Kenny's return.
+
 ## Open with the Homelab Rust session (announce, do not fix here — rule 7a)
+
+- **Broken-after-ready drill ran on 2026-09-05 14:24 UTC against CT 118
+  (stack `inbox`, adopted the same afternoon)** — the kit's half works: the
+  new binary sent READY and exited 1 five seconds later. The homelab's
+  `update-native` declared "healthy" right after `systemctl restart` saw
+  `active`: the INSTALLED `~/.cargo/bin/homelab` is v3.48.0 (05:33), older
+  than F300 (commit 1ed72e3, 08:39) — the window/NRestarts supervision was
+  never exercised. What the homelab session needs to do: `cargo install
+  --path` (or its release flow), then re-run `homelab update-native inbox`
+  with CT 118 serving the drill: on the PC `scripts/drill-release.sh 0.1.4
+  --drill-key --serve 9000` (or any newer drill version), on CT 118
+  `INBOX_UPDATE_DRILL=broken-after-ready` and `INBOX_UPDATE_MODE=supervised`
+  in `/etc/inbox/inbox.env`, and the skip list `/var/lib/inbox/update-skip.json`
+  removed if present. Expected: DIED_IN_WINDOW → rollback to `.homelab-prev`.
+- `update_cmd` was removed from `stacks/inbox/service.yml` after the drill so
+  the nightly run does only the backup until a real release pipeline exists
+  (the drill server on the PC is not a release host).
 
 - ~~Critic #18~~ **resolved by the Homelab Rust session the same day**
   (homelab commit `1ed72e3`, F300): the `is-active` loop was effectively
@@ -109,6 +142,7 @@ follow; the unit now carries the hardening set (`UMask=0077`,
 | CF-1 | No Dutch coinage for a technical concept in user-facing text (list + rule in the central memory) | The Phase 4 architecture form of this project — which the AFK run turned into R4 of the combined ratification form: zero such words, counted before sending | measured at the combined form (see its leeswijzer) |
 | M3 | Restore from the backup regime restores the full state | Before the 1.0 release, on CT 118 with the real binary | **done 2026-09-05** — state root tarred, destroyed, restored; existing client token and session valid afterwards (REALIZATION_PLAN L8) |
 | C2 | Broken-release drill in both modes | Before the 1.0 release, on CT 118 | waits for a release signed with the ecosystem key (Kenny) |
+| CF-3 | After an autonomous rollback the same version is never reinstalled (skip list in the state root) | The first autonomous-mode drill after the fix on CT 118: install → crash → revert → the next check reports `Held` ("rolled back earlier"), zero further restarts in the following interval | **measured 2026-09-05 14:21 UTC on CT 118: one install/crash/revert, then Held twice across the next interval, NRestarts=3 — loop closed; correction form for Kenny's Klopt below** |
 | CF-2 | Text read on its own (consequence lines, pill labels, card subtitles) describes actions as "Claude doet…" / "Kenny doet…" — never a bare ik/jij | The Phase 7 hardening form of this project: Claude counts bare pronouns in those surfaces AFTER writing it by habit and BEFORE sending, reports the raw count, then fixes; Kenny finds none | **measured 2026-09-05 at the Phase 7 form: 26 consequence boxes, 104 pills, raw count = 1 bare "jij" (H17), fixed before sending.** Field 8 (fallback) therefore applies: from now on every form of this project is written to a file, run through the pronoun/coinage/gloss count and rendered only at 0 (the lint), and consequence lines start with Claude / Kenny / an article. Kenny's own reading of the Phase 7 form is the second half of the measurement. |
 
 ### CF-2 · correction form, answered 2026-09-05
@@ -144,6 +178,41 @@ follow; the unit now carries the hardening set (`UMask=0077`,
    lines go on the fixed template (start with Claude/Kenny/an article) AND
    the form-lint script becomes mandatory before every form. *(Klopt)*
 9. **Review** — at the chassis-rs Phase 10 retrospective. *(Klopt)*
+
+### CF-3 · correction form (drafted by Claude, for Kenny's Klopt/Aanpassen/Schrappen)
+
+1. **What went wrong** — autonomous rollback drill (CT 118, 2026-09-05,
+   drill release 0.1.2 with `update_drill=broken`): the rollback itself
+   worked (install → exit 1 before READY → second start reverted to 0.1.1),
+   but the restored 0.1.1 re-checked after `startup_delay` (3 s in the
+   drill), saw 0.1.2 as newer and installed it AGAIN. Journal: three full
+   install/crash/revert cycles, `NRestarts=6` in 45 s. With the default
+   interval the production shape is the same churn every six hours.
+2. **Gate that let it through** — the architecture (AR8/AR9) named the
+   rollback and stopped there; the critic pass (19 objections) did not ask
+   "and the next tick?"; the unit tests drove one revert and never a
+   second check afterwards. Only a live loop showed it.
+3. **Where else** — the same silence exists in Almanac's updater (the
+   ported design); its live rollback drill has not run either (homelab
+   docs: "the live broken-release drill is pending").
+4. **Measure** — `update-skip.json` in the state root: the reverted
+   version is recorded at revert time and `check_once` answers `Held`
+   for it (event `update.held`, detail "rolled back earlier"); a newer
+   release is installed normally; the read-only watch says "skipped".
+   Test `a_rolled_back_version_is_never_reinstalled` reproduces the churn
+   and fails on the old code (rule 8).
+5. **Cost** — one small JSON file; an operator who WANTS to retry the same
+   version deletes the file (documented in SELF_UPDATE.md) — no knob, on
+   purpose: retrying a version that just crashed is the exception.
+6. **Enforcement** — code-enforced (the test and the skip file).
+7. **Measurement** — the autonomous drill re-run on CT 118 right after the
+   fix: one install/crash/revert, then `Held` and no further restart in
+   the next interval.
+8. **Fallback** — if a retry ever happens anyway: refuse autonomous mode
+   at start when `update-skip.json` names the latest release (fail closed
+   into supervised behaviour) until an operator clears the file.
+9. **Review** — at the Phase 10 retro; and in Almanac's migration branch
+   the same skip logic arrives with the kit.
 
 ## The visible surface (PROCEDURE Phase 6: published as soon as there is something to see)
 

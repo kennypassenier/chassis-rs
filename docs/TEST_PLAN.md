@@ -39,7 +39,9 @@ and coverage (informational) on every branch; `main` requires both checks.
 | compiled-in `RELEASE_PUBKEY` verifies a real release | unit `the_compiled_in_key_verifies_a_real_almanac_release` (Almanac v2.4.0 manifest + `.minisig`, rule 9) | gates | — | — |
 | update loop: first tick after `startup_delay`, then every `interval` | unit, paused clock (`autonomous_loop_ticks…`) | gates | — | — |
 | read-only version watch in `off`/`supervised` | unit `watch_once_reports…` | gates | — | — |
-| supervised swap, autonomous rollback, broken-after-ready with the real binary | unit with shell-script stand-ins | — | **waits for the drill release** (`scripts/drill-release.sh --drill-key`, A1) | n/a |
+| supervised swap with the real binary | unit with shell-script stand-ins | — | **live 2026-09-05** (drill key, A1): `systemd-run --wait --pipe --collect --uid=inbox … /opt/inbox/bin/inbox update` installed 0.1.1 over 0.1.0 (exit 0, "restart to run it"), `inbox.prev` kept, pre-update copy `/var/lib/inbox-pre-update/0.1.1/messages.json`, `systemctl restart` → 0.1.1 active `NRestarts=0`, `/healthz` 0.1.1; second run "already current; nothing touched" exit 0 with the binary mtime unchanged; the card says TRUST ROOT OVERRIDDEN | n/a |
+| autonomous rollback with the real binary | unit with shell-script stand-ins; `a_rolled_back_version_is_never_reinstalled` (CF-3, driven red once) | gates | **live 2026-09-05**: 0.1.1 (autonomous, `update_drill=broken`) installed 0.1.2, the new binary exited 1 before READY, the second start reverted to 0.1.1 — rollback proven. The same drill found CF-3: the restored 0.1.1 reinstalled 0.1.2 after `startup_delay`, three cycles, `NRestarts=6` in 45 s. Fixed (skip list); **re-drill 0.1.3 → 0.1.4 (14:21 UTC): one install, one crash before READY, one revert (`NRestarts=3`), then `update.held` "rolled back earlier; skipped until a newer release appears" at +3 s and again at +63 s, `update-skip.json` = `["0.1.4"]`, no further restart** — CF-3 measured | n/a |
+| broken-after-ready under the homelab's supervision | unit (drill kind parsed) | — | **live 2026-09-05 14:24 UTC** after `homelab adopt` (CT 118 = stack `inbox`, hostname `118-app-inbox`): `homelab update-native inbox` ran the contract (`.homelab-prev` kept, supervised install exit 0, restart), the new 0.1.4 sent READY and exited 1 five seconds later exactly as the drill says — and the homelab declared "healthy" at once: the installed `homelab` v3.48.0 (built 05:33) predates the F300 fix (commit 1ed72e3, 08:39) that watches the window and `NRestarts`. The kit's half is proven; the homelab's half is announced for a re-run with the rebuilt binary (drill files ready: `dist/drill-0.1.4`, env `INBOX_UPDATE_DRILL=broken-after-ready`) | n/a |
 | release workflow (tag → binary, image, GitHub release) | — | **never run** (no tag yet; A5 gives the go after Phase 8) | — | — |
 | `chassis new` remote + `sync --protect` (live gh) | E2E `--no-remote` | E2E (`--no-remote`; the missing git identity of a runner was live-found and fixed) | — | — |
 | passkeys: gating, ceremony start, table cap | unit + E2E `passkeys_exist_only_over_https…` | gates | — | — |
@@ -73,7 +75,14 @@ the constants they read.
   units (only "binary not found" on the PC), workflows and `service.yml`
   parse; the gates E2E found two real gaps (template not rustfmt-clean,
   lockfile absent from the first commit) — both fixed.
-- **Pending (drill key, A1):** supervised swap, autonomous rollback,
-  broken-after-ready on CT 118 with `/opt/inbox/bin` and the hardened unit;
-  `systemd-run --wait --pipe --collect … inbox update` exit code (critic
-  #7); `ExecStartPre=--check` refusing a broken env (W9).
+- **Supervised swap** (2026-09-05, CT 118, drill key): through the homelab's
+  `systemd-run --wait --pipe --collect` contract (critic #7): exit 0,
+  "installed 0.1.1 over 0.1.0; restart to run it", `inbox.prev` kept,
+  pre-update copy written, restart → 0.1.1 `NRestarts=0`; second run "already
+  current; nothing touched", binary mtime unchanged.
+- **Autonomous rollback** (2026-09-05, CT 118): install → crash before READY →
+  revert on the second start, as designed; and the churn afterwards (CF-3),
+  fixed the same afternoon with a red-then-green test.
+- **Pending:** the re-drill after CF-3 (0.1.3 → 0.1.4); broken-after-ready
+  under the homelab (needs adopt); `ExecStartPre=--check` refusing a broken
+  env (W9).

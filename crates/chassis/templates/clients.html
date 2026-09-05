@@ -21,22 +21,11 @@
       <label class="kp-field__label" for="name">Name</label>
       <input class="kp-field__input" type="text" id="name" name="name" placeholder="home-assistant" required pattern="[A-Za-z0-9._-]{1,64}">
     </div>
-    <button type="submit" class="kp-button kp-button--primary" data-kp-busy="Issuing…">Issue token</button>
+    <button type="submit" class="kp-button kp-button--primary" data-busy-label="Issuing…">Issue token</button>
     <p class="kp-field__help" style="flex-basis: 100%; margin: 0">Letters, digits, dots, underscores and hyphens; 1–64 characters.</p>
   </form>
-  <script type="module">
-    document.getElementById('issue').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const button = e.target.querySelector('button');
-      button.disabled = true;
-      const res = await fetch('/api/clients', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ name: e.target.name.value }) });
-      if (res.ok) { window.location.reload(); return; }
-      const body = await res.json().catch(() => ({}));
-      button.disabled = false;
-      alert(body.remedy ? `${body.error}. ${body.remedy}` : `HTTP ${res.status}`);
-    });
-  </script>
+  <!-- The issue form is wired by chassis.js (form#issue): no inline script,
+       so the CSP can say script-src 'self' (S8). -->
 </div>
 
 <h2>Registered</h2>

@@ -464,11 +464,17 @@ impl App {
                     // `<name> update --update-url ...` works as the homelab's
                     // update_cmd would write it.
                     .global(true)
-                    .help(format!(
-                        "Overrides {} and the `{}` key in the config file",
-                        k.env_name(&spec.prefix()),
-                        k.key
-                    )),
+                    .help(if matches!(k.key, "state_dir" | "config") {
+                        // These two decide WHERE the file is, so the file
+                        // cannot set them (doc-writer finding, Phase 8).
+                        format!("Overrides {}", k.env_name(&spec.prefix()))
+                    } else {
+                        format!(
+                            "Overrides {} and the `{}` key in the config file",
+                            k.env_name(&spec.prefix()),
+                            k.key
+                        )
+                    }),
             );
         }
         let matches = cmd.try_get_matches_from(args).map_err(|e| {

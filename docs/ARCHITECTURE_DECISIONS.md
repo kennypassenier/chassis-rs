@@ -181,8 +181,9 @@ the `x-request-id` response header, set by a layer on every response.
 `request_id` — the handler that builds an error does not hold the id, the
 header layer always does, and neither kyu nor Almanac put it in a body
 today.*
-Project errors implement `chassis::IntoApiError` (one method returning
-the kit's error). Startup errors print message + remedy and exit 1;
+Project errors implement `chassis::IntoKitError` (one method returning
+the kit's error; *named `IntoApiError` in the original text — the code
+says `IntoKitError`, noted 2026-09-05 at the Phase 8 honesty pass*). Startup errors print message + remedy and exit 1;
 `--check` exits 1 on the first configuration error. **Code-enforced**
 (types).
 
@@ -196,6 +197,11 @@ fsync + rename (rule 12). The `ClientStore` trait (`list`, `get_by_token`,
 `insert`, `revoke`, `delete`, `touch`) is what kyu implements over SQLite;
 the kit ships the file implementation and an in-memory one for tests, and
 one suite drives all implementations (rule 7g). **Code-enforced.**
+
+*Note 2026-09-05 (Phase 8 honesty pass): the `ClientStore` trait as built has
+four methods — `snapshot`, `update`, `touch`, `persist` (in-memory mutation
+with debounced persistence, critic #13) — not the `list/get_by_token/insert/
+revoke/delete/touch` sketch above; `docs/MIGRATION.md` documents the code.*
 
 ### AR6 · Security model
 - Bootstrap token compared constant-time (`subtle`); client tokens stored
@@ -272,6 +278,16 @@ golden unit.
 | update state | temp+rename of `update-state.json` written **before** the swap | a swap without state cannot happen; state without swap is cleared on next start when hashes match |
 | captures | memory | lost |
 | notifier delivery | at-most-once per webhook attempt with bounded retries; never blocks the caller | a notification may be lost; the event is also logged |
+
+*Amendment 2026-09-05 (CF-3, live autonomous-rollback drill on CT 118): a
+version that was installed and rolled back is recorded in
+`<state>/update-skip.json` and is never installed again by this process; a
+newer release clears the way on its own. Without it the loop reinstalled
+the same broken release every `startup_delay` — install, crash, revert,
+install — six restarts in forty seconds. The bug was the frozen decision's
+silence on "what happens after a revert", so the amendment ships in the same
+commit as the fix (FORM_PROTOCOL §5.4). Queued for Kenny as correction form
+CF-3.*
 
 ### AR10 · Notifier
 A bounded `mpsc` queue drained by one task; each event fans out to its

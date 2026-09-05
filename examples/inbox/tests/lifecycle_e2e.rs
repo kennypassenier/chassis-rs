@@ -1638,10 +1638,38 @@ fn project_page_renders_inside_the_layout_with_security_headers() {
         html.contains("class=\"explain\""),
         "every page explains itself (K16)"
     );
-    assert!(
-        !html.contains("bunny.net") && !html.contains("<script>"),
-        "no third party, no inline script: {html}"
-    );
+    assert!(!html.contains("bunny.net"), "no third party: {html}");
+    // Every kit page: scripts only by src (the CSP blocks inline ones).
+    let mut pages = vec![(
+        "/login",
+        anon.get(format!("http://{addr}/login"))
+            .send()
+            .unwrap()
+            .text()
+            .unwrap(),
+    )];
+    for p in ["/", "/clients", "/messages"] {
+        pages.push((
+            p,
+            admin
+                .get(format!("http://{addr}{p}"))
+                .send()
+                .unwrap()
+                .text()
+                .unwrap(),
+        ));
+    }
+    for (p, page) in &pages {
+        for (i, _) in page.match_indices("<script") {
+            let end = page[i..].find('>').map(|e| i + e + 1).unwrap_or(page.len());
+            let tag = &page[i..end];
+            assert!(
+                tag.contains(" src="),
+                "{p} carries an inline script the CSP would block: {tag}"
+            );
+        }
+        assert!(page.contains("class=\"explain\""), "{p} explains itself");
+    }
     for asset in [
         "/static/fonts.css",
         "/static/theme-boot.js",

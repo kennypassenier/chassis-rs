@@ -205,3 +205,34 @@ function hide(target, toggle) {
   toggle.dataset.label = 'Reveal';
   toggle.textContent = 'Reveal';
 }
+
+
+// The Issue-token form (clients page): posts JSON, reloads on success, shows
+// the kit's remedy on failure. Lives here rather than inline so the page
+// carries no inline script (CSP script-src 'self', S8).
+document.addEventListener('submit', async (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement)) return;
+  const button = form.querySelector('button[type="submit"]');
+  if (form.id === 'issue') {
+    event.preventDefault();
+    if (!button) return;
+    await busy(button, async () => {
+      const res = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ name: form.name.value }),
+      });
+      if (res.ok) { window.location.reload(); return; }
+      const body = await res.json().catch(() => ({}));
+      alert(body.remedy ? `${body.error}. ${body.remedy}` : `HTTP ${res.status}`);
+    });
+    return;
+  }
+  // Any other form (login): a plain POST navigates away; the button still
+  // shows its busy label until the page changes (rule 31).
+  if (button && button.dataset.busyLabel) {
+    button.disabled = true;
+    button.textContent = button.dataset.busyLabel;
+  }
+});

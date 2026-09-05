@@ -40,12 +40,22 @@ done
 echo "== building $asset $version for Debian trixie (glibc) in docker"
 # The version the binary reports must be the version the release claims:
 # patch it into a scratch copy of the example's Cargo.toml for this build.
-work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
+work=$(mktemp -d); trap 'rm -rf "$work" 2>/dev/null || true' EXIT
 cp -r "$root/Cargo.toml" "$root/Cargo.lock" "$root/rust-toolchain.toml" "$root/crates" "$root/examples" "$root/scaffold" "$work/" 2>/dev/null || true
 sed -i -E "0,/^version = \"[0-9.]+\"/s//version = \"$version\"/" "$work/examples/inbox/Cargo.toml"
 toolchain=$(sed -nE 's/^channel = "([0-9.]+)"/\1/p' "$root/rust-toolchain.toml")
-docker run --rm -v "$work":/w -w /w -e CARGO_TARGET_DIR=/w/target-trixie -e CARGO_HOME=/w/target-trixie/cargo-home "rust:${toolchain}-slim-trixie" \
-  sh -c 'apt-get update -qq >/dev/null && apt-get install -y -qq pkg-config libssl-dev >/dev/null && cargo build --release --locked -p inbox' >/dev/null
+# One builder image (rust + pkg-config + libssl-dev) so cargo can run as
+# the caller: the work copy stays removable and nothing is root-owned.
+builder="chassis-trixie-builder:${toolchain}"
+if ! docker image inspect "$builder" >/dev/null 2>&1; then
+  printf 'FROM rust:%s-slim-trixie\nRUN apt-get update -qq && apt-get install -y -qq --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*\n' "$toolchain" \
+    | docker build -q -t "$builder" - >/dev/null
+fi
+# The lockfile is refreshed for the bumped version (only that line moves).
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$work":/w -w /w \
+  -e CARGO_TARGET_DIR=/w/target-trixie -e CARGO_HOME=/w/target-trixie/cargo-home "$builder" \
+  sh -c 'cargo update -q -p inbox && cargo build --release --locked -p inbox 2>&1 | tail -2' || {
+  echo "docker build failed. What now: read the lines above; the work copy is $work" >&2; exit 1; }
 cp "$work/target-trixie/release/$asset" "$dist/$asset"
 "$dist/$asset" --version | grep -q " $version\$" || { echo "the built binary does not report $version. What now: check the sed above." >&2; exit 1; }
 
