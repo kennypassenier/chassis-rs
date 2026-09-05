@@ -199,3 +199,18 @@ before bumping the tag.
 
 Nothing here is released or deployed by the migration branch itself
 (A2: gates green, no release, no deploy); Kenny gives the go per project.
+
+
+## Background workers: `on_start` and `on_flush` (1.1.0)
+
+A service with a pump or poller (kyu-runner, http-switchboard) spawns it
+from `app.on_start(|| { … tokio::spawn(…) … })` — after the bind and the
+READY notification, inside the runtime, never for `--check` or the other
+control commands — and stops it from `app.on_flush(|| { stop_tx.send(true);
+Handle::current().block_on(join_all(tasks)) })`, which the kit runs inside
+its shutdown window. The kit's own knob keys are stripped before a project
+deserialises the shared file with `deny_unknown_fields`:
+
+```rust
+let config = Config::from_table(&app.loaded.as_ref().unwrap().file_table, &app.spec.knob_keys())?;
+```

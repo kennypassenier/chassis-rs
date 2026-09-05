@@ -89,6 +89,12 @@ impl AppSpec {
         self.name.to_ascii_lowercase().replace('-', "_")
     }
 
+    /// The config-file keys the kit owns (1.1.0): a project that parses the
+    /// same file with `deny_unknown_fields` strips these first.
+    pub fn knob_keys(&self) -> Vec<&'static str> {
+        self.knobs().into_iter().map(|k| k.key).collect()
+    }
+
     fn state_dir_default(&self) -> PathBuf {
         self.default_state_dir
             .clone()
@@ -262,6 +268,11 @@ pub struct App {
     dashboard_router: Router,
     checks: Vec<Hook>,
     flush: Option<Box<dyn FnOnce() + Send>>,
+    /// Run once the listener is bound and READY is sent (1.1.0): where a
+    /// service spawns its background workers (pumps, pollers) so their
+    /// first log lines land after logging is up and `--check` never
+    /// starts them.
+    start_hooks: Vec<Box<dyn FnOnce() + Send>>,
     subsystems: Vec<Arc<dyn Subsystem>>,
     scrape_sources: Vec<Arc<dyn ScrapeSource>>,
     timeout_exempt: HashSet<String>,
@@ -368,6 +379,7 @@ impl App {
             dashboard_router: Router::new(),
             checks: Vec::new(),
             flush: None,
+            start_hooks: Vec::new(),
             subsystems: Vec::new(),
             scrape_sources: Vec::new(),
             timeout_exempt: HashSet::new(),
@@ -701,6 +713,7 @@ impl App {
             dashboard_router: Router::new(),
             checks: Vec::new(),
             flush: None,
+            start_hooks: Vec::new(),
             subsystems: Vec::new(),
             scrape_sources: Vec::new(),
             timeout_exempt: HashSet::new(),
@@ -921,6 +934,15 @@ impl App {
     /// checkpoint a database, flush a journal.
     pub fn on_flush(&mut self, f: impl FnOnce() + Send + 'static) -> &mut Self {
         self.flush = Some(Box::new(f));
+        self
+    }
+
+    /// Run after the socket is bound and readiness was announced, inside
+    /// the runtime, on the serving path only: spawn background workers
+    /// here (a pump, a poller). `--check` and the other control commands
+    /// never reach it; pair it with `on_flush` to stop the workers.
+    pub fn on_start(&mut self, f: impl FnOnce() + Send + 'static) -> &mut Self {
+        self.start_hooks.push(Box::new(f));
         self
     }
 
@@ -1465,6 +1487,9 @@ impl App {
                 }
             });
         }
+        for hook in self.start_hooks.drain(..) {
+            hook();
+        }
         Ok(Running {
             addr,
             stop: stop_tx,
@@ -1760,6 +1785,50 @@ mod tests {
 
     fn from_args_secret(spec: AppSpec, args: Vec<String>, router: Router) -> Result<App, Error> {
         App::from_args_with_env(spec, args, secret_map(), router)
+    }
+
+    /// 1.1.0: `on_start` runs once, after the bind, on the serving path
+    /// only — never for `--check`.
+    #[tokio::test]
+    async fn on_start_runs_once_after_bind_and_not_for_check() {
+        let dir = tempfile::tempdir().unwrap();
+        let ran = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let r2 = ran.clone();
+        let mut app =
+            from_args_secret(spec(), argv(&secrets_env(dir.path())), Router::new()).unwrap();
+        app.on_start(move || {
+            r2.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        });
+        assert_eq!(
+            ran.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "not before start"
+        );
+        let running = app.start().await.unwrap();
+        assert_eq!(
+            ran.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "exactly once after the bind"
+        );
+        running.stop().await;
+        assert_eq!(ran.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        let mut args = secrets_env(dir.path());
+        args.push("--check");
+        let r3 = ran.clone();
+        let mut check = from_args_secret(spec(), argv(&args), Router::new()).unwrap();
+        check.on_start(move || {
+            r3.fetch_add(10, std::sync::atomic::Ordering::SeqCst);
+        });
+        assert!(
+            check.control().await.unwrap().is_some(),
+            "--check is a control command"
+        );
+        assert_eq!(
+            ran.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "--check never starts workers"
+        );
     }
 
     #[tokio::test]

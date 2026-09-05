@@ -9,6 +9,18 @@ scaffold writes. A breaking change in either is a major and carries a
 
 _Nothing yet._
 
+## [1.1.0] - 2026-09-05
+
+### Added
+- `App::on_start(f)`: runs once after the socket is bound and readiness
+  was announced, on the serving path only — where a service spawns its
+  background workers (a pump, a poller). `--check` never reaches it. Found
+  by the first migration (kyu-runner): a pump spawned before `run()` would
+  start before logging and also under `--check`.
+- `AppSpec::knob_keys()` and a public `App::spec`: a service that parses
+  the shared config file with `deny_unknown_fields` strips the kit's keys
+  first (see `docs/MIGRATION.md`).
+
 ## [1.0.0] - 2026-09-05
 
 First release: the library (features `core`, `dashboard`, `passkeys`,
