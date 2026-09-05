@@ -178,3 +178,34 @@ phase re-derives them from memory. Feature IDs are assigned in Phase 2.
 - Open with the Homelab Rust session, to be requested once the kit can
   deliver: an Alloy JSON stage for logs; the quiesce call in the nightly
   backup.
+
+## Build vs buy (Phase 1 record, greenfield) — ratified in R1
+
+Crate survey of 2026-09-05 (versions and dates from crates.io that day).
+Per concern: use the crate, build our own, or hybrid — with what each
+wins and loses. The recommendation is what T3 in
+ARCHITECTURE_DECISIONS.md adopts.
+
+| Concern | Candidates | Decision | Why |
+|---|---|---|---|
+| Config layering + `${VAR}` + provenance | `config-rs` 0.15.25 (active), `figment` 0.10.19 (2024) | **Build our own** (~150 lines) | neither crate expands `${VAR}` inside values nor reports the source of each value, and `--print-config` (K2) needs both; clap supplies the flag layer, `toml` the file layer |
+| HTTP middleware | `tower-http` 0.7.1, `axum-extra` 0.12.6 | **Use** | same-day axum releases; request-id, body limit, timeout, cookies |
+| Rate limiting | `governor` 0.10.4 + `tower_governor` 0.8.0 | **Use** | GCRA, keyed; tower layer confirmed for axum 0.8 |
+| Secret wrapper | `secrecy` 0.10.3 + `zeroize` 1.9 | **Use** | `SecretString`/`SecretBox` redact Debug; zero on drop |
+| Metrics | `metrics` 0.24 + `metrics-exporter-prometheus` 0.18 + `axum-prometheus` 0.10 | **Use** | facade keeps project metric names verbatim (K7); the axum middleware saves hand-written HTTP metrics |
+| Self-update | `self_update` 1.3 (zipsign, not minisign), `self-replace` 1.5 | **Build our own** (Almanac's pipeline) | no crate does download → signature → hash → probe → rename with minisign; `self-replace` solves Windows quirks we do not have |
+| Minisign | `minisign-verify` 0.2.5 | **Use** | Almanac's choice; verify-only, minimal |
+| Passkeys | `webauthn-rs` 0.5.5 (MPL-2.0) | **Use the ceremony, write the axum glue** | reference example targets axum 0.7; ceremony state kept in memory (registration must finish on the same process) |
+| Sessions | `tower-sessions` 0.15, `axum-login` 0.18 | **Build our own** (kyu's ~100 lines) | our sessions live in the encrypted store next to clients; a store trait for tower-sessions would be that same code plus a layer |
+| Templates | `minijinja` 2.24 (askama as alternative) | **Use minijinja** | kyu precedent; block inheritance for the layout hooks |
+| Static assets | `rust-embed` 8.12 vs `include_str!` | **`include_str!`** | eight files; no build script; hash cache-busting is ten lines |
+| CLI | `clap` 4.6 | **Use** | no serious alternative |
+| Backoff | `backon` 1.6 (active), `backoff` 0.4 (unmaintained since 2024) | **Use backon** | Almanac's `backoff` crate is dead; kyu-runner's hand-rolled one is what we replace |
+| Scaffolding | `cargo-generate` 0.24 | **Build our own** (`chassis new/sync`) | one-shot only; no Rust tool re-syncs generated files, and `sync` is half the point (G2) |
+| Encrypted store | `chacha20poly1305` 0.11 (+ `hkdf` if a derived key is ever needed) | **Use the primitive, own the file format** | `age` is a whole file format for one blob |
+| systemd notify | `sd-notify` 0.5 | **Use** | pure Rust, finished scope |
+| Tests | `axum-test` 21, `tower::ServiceExt` | **reqwest against a real port 0 + tower oneshot** | K11 wants the real bind path exercised; `axum-test` optional later |
+
+Corrections this record made to the draft architecture: T3 named
+`figment` for configuration and a hand-rolled backoff; both changed to the
+decisions above before R3 was queued.

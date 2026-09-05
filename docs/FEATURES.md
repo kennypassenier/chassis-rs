@@ -59,6 +59,7 @@ function.
 | W6 | Don't do | **Unprotected mode with banner.** Kenny 2026-09-05: the kit never starts a dashboard without both secrets; kyu loses this behaviour when it migrates. | — |
 | W7 | Don't do | **`/readyz`.** The homelab does not need it; `/healthz` carries subsystem status. | — |
 | W8 | Don't do | **In-process TLS.** TLS is Traefik's job (C2 in the deep-dive round). | — |
+| W9 | Essential (proposed during AFK, ratify in R2) | **systemd readiness notify.** The golden unit uses `Type=notify`; the kit sends `READY=1` after the socket is bound and the stores opened, so `systemctl is-active` — the only health signal the homelab's update supervision reads today — means "bound and serving", not "process exists". Falls back silently when `NOTIFY_SOCKET` is unset. | E2E on CT 118: `systemctl start` returns only after `/healthz` answers; a unit with `ExecStart` pointing at a binary that fails `--check` never reaches active. Unit test: no `NOTIFY_SOCKET` → no error. |
 
 ## Mandatory items (M)
 

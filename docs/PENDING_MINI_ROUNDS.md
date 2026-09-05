@@ -13,9 +13,9 @@ Phase 6 milestone reports accumulate into one combined report.
 
 | Round | Gate | Status | Document | What Kenny ratifies |
 |---|---|---|---|---|
-| R1 | Phase 1 · build-vs-buy | pending | docs/SCOPE.md §Build vs buy | per concern: use crate / build own / hybrid |
-| R2 | Phase 2 · features + freeze | pending | docs/FEATURES.md | IDs, ratings, test expectations, mandatory items 1–4 |
-| R3 | Phase 3 · tech choice | pending | docs/ARCHITECTURE_DECISIONS.md | libraries, license, MSRV, platforms, environment differences |
+| R1 | Phase 1 · build-vs-buy | drafted 2026-09-05 | docs/SCOPE.md §Build vs buy | per concern: use crate / build own / hybrid (17 rows; five "build our own") |
+| R2 | Phase 2 · features + freeze | drafted 2026-09-05 | docs/FEATURES.md | IDs, ratings, test expectations, mandatory items 1–4. **Note for Kenny:** W2's clap half moved into K2 (a parser is needed for `--version`/`--check` anyway); only the backoff helper stays Desired. New W9 proposed: systemd `Type=notify` readiness (AR15), rated Essential by Claude because the homelab's update check is `systemctl is-active`. |
+| R3 | Phase 3 · tech choice | drafted 2026-09-05 | docs/ARCHITECTURE_DECISIONS.md T1–T8 | libraries, license, MSRV, platforms, environment differences; release target glibc/trixie because webauthn-rs needs OpenSSL |
 | R4 | Phase 4 · architecture + freeze | pending | docs/ARCHITECTURE_DECISIONS.md | AR decisions with the critic's surviving objections |
 | R5 | Phase 5 · realization plan + hooks | pending | docs/REALIZATION_PLAN.md | milestones, standing rules, which gates block |
 
