@@ -1,0 +1,19 @@
+[package]
+name = "chassis-cli"
+version = "0.1.0"
+description = "The `chassis` command: scaffold a new service, sync an existing one against the current scaffold, cut a signed release"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "chassis"
+path = "src/main.rs"
+
+[dependencies]
+
+[lints.rust]
+unsafe_code = "forbid"

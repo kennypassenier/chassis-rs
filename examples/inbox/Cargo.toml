@@ -1,0 +1,16 @@
+[package]
+name = "inbox"
+version = "0.1.0"
+description = "Example service on chassis: clients post JSON messages, the dashboard lists them (K26)"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+chassis = { path = "../../crates/chassis" }
+
+[lints.rust]
+unsafe_code = "forbid"

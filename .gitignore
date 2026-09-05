@@ -1,0 +1,15 @@
+# Build output
+/target/
+**/target/
+
+# Local secrets and scratch — never committed (standing rule 10)
+.env
+.env.*
+!.env.example
+/dist/
+/scratch/
+
+# Editor noise
+*.swp
+.idea/
+.vscode/

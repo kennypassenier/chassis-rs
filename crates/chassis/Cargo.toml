@@ -1,0 +1,28 @@
+[package]
+name = "chassis"
+version = "0.1.0"
+description = "Shared foundation for Kenny's Rust web services: configuration, logging, health, metrics, shutdown, dashboard, self-update and notifications behind feature flags"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[features]
+# `core` is always on; the others are opt-in (T2). `passkeys` implies
+# `dashboard` because a passkey without a login page has nowhere to live,
+# and it is separate because it pulls OpenSSL through webauthn-rs (T8).
+default = ["core"]
+core = []
+dashboard = ["core"]
+passkeys = ["dashboard"]
+self-update = ["core"]
+notify = ["core"]
+
+[dependencies]
+
+[dev-dependencies]
+
+[lints.rust]
+unsafe_code = "forbid"

@@ -1,0 +1,28 @@
+[workspace]
+resolver = "3"
+members = ["crates/chassis", "crates/chassis-cli", "examples/inbox"]
+
+[workspace.package]
+edition = "2024"
+# Pinned together with rust-toolchain.toml (standing rule 7): raising one
+# without the other is how a green local gate ships a commit CI rejects.
+rust-version = "1.97"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/kennypassenier/chassis-rs"
+authors = ["Kenny Passenier"]
+
+[workspace.dependencies]
+# Shared versions so the three members never drift apart (T3). Members
+# opt in with `workspace = true`; features are added where they are used.
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "query", "form", "json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net", "time", "sync", "fs", "process"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+clap = { version = "4.6", features = ["derive"] }
+secrecy = "0.10"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+tempfile = "3"

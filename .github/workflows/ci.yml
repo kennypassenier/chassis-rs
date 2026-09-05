@@ -1,0 +1,62 @@
+name: CI
+
+# Runs on every branch (standing rule 6a): branch protection waits for
+# these checks, and a branch push that produced no checks could never be
+# merged without a pull request.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  gates:
+    name: fmt · clippy · tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          # The same version rust-toolchain.toml pins (standing rule 7).
+          toolchain: "1.97"
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format check
+        run: cargo fmt --all -- --check
+      - name: Clippy (warnings are errors)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Tests
+        run: cargo test --workspace --all-features
+      - name: Walking-skeleton smoke (L0)
+        run: |
+          cargo run -q -p chassis-cli -- --version
+          cargo run -q -p inbox -- --version
+
+  deny:
+    name: cargo-deny (advisories · licenses · bans)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check all
+
+  coverage:
+    name: coverage (informational)
+    runs-on: ubuntu-latest
+    # Informational on purpose (Phase 7): a coverage percentage is a hint
+    # about where to look, not a quality gate.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97"
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Measure coverage
+        run: cargo llvm-cov --workspace --all-features --summary-only

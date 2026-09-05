@@ -1,0 +1,12 @@
+# The one Rust this project builds with, here and in CI (T1). Without this
+# file CI takes whatever "stable" is that day while the PC stays behind,
+# and a gate that passes locally ships a commit CI rejects over a lint the
+# local clippy does not have (kyu, 2026-08-28). A gate that does not
+# predict the build is not a gate (standing rule 7).
+#
+# Raising it is a deliberate act: bump the channel here and
+# `rust-version` in Cargo.toml together, run the gates, and fix what the
+# newer clippy has learned to complain about.
+[toolchain]
+channel = "1.97"
+components = ["rustfmt", "clippy"]
