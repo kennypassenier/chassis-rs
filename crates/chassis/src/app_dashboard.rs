@@ -137,7 +137,7 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
     let dash = Dashboard::new(
         spec.name,
         spec.version,
-        prefix,
+        prefix.clone(),
         addr.to_string(),
         registry.clients_label,
         crate::shell::time::reveal_seconds(loaded),
@@ -145,6 +145,8 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
         limits.capture_ttl.as_secs() / 60,
         limits.remember_me_secs / 86_400,
         has_test_route,
+        cfg!(feature = "passkeys"),
+        limits.public_url.clone().unwrap_or_default(),
         registry.nav,
         registry.sections,
         registry.columns,
@@ -169,7 +171,7 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
     let pages_admin = Router::new()
         .route("/", get(dashboard::status_page))
         .route("/clients", get(dashboard::clients_page))
-        .with_state(dash)
+        .with_state(dash.clone())
         .layer(from_fn_with_state(auth.clone(), require_admin));
 
     let clients_api = Router::new()
@@ -186,20 +188,72 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
         .with_state(api)
         .layer(from_fn_with_state(auth.clone(), require_admin));
 
+    #[cfg(feature = "passkeys")]
+    let passkey_routes = {
+        use crate::shell::passkeys::{self, PasskeyState};
+        let webauthn = passkeys::build_webauthn(spec.name, &prefix, limits.public_url.as_deref())?;
+        let pk = PasskeyState::open(
+            webauthn,
+            auth.clone(),
+            EncryptedFile::new(
+                loaded.state_dir.join("passkeys.json.enc"),
+                auth.secrets.key.clone(),
+                "passkeys store",
+            ),
+        )?;
+        let public = Router::new()
+            .route("/passkeys/login/start", post(passkeys::login_start))
+            .route("/passkeys/login/finish", post(passkeys::login_finish))
+            .layer(from_fn_with_state(pk.clone(), passkeys::require_https))
+            .with_state(pk.clone());
+        let admin_api = Router::new()
+            .route("/passkeys/register/start", post(passkeys::register_start))
+            .route("/passkeys/register/finish", post(passkeys::register_finish))
+            .route("/api/passkeys", get(passkeys::list))
+            .route("/api/passkeys/{id}", delete(passkeys::delete))
+            .layer(from_fn_with_state(pk.clone(), passkeys::require_https))
+            .with_state(pk.clone())
+            .layer(from_fn_with_state(auth.clone(), require_admin));
+        let page_state = (dash.clone(), pk);
+        let page = Router::new()
+            .route(
+                "/passkeys",
+                get(
+                    |axum::extract::State((d, pk)): axum::extract::State<(
+                        Dashboard,
+                        PasskeyState,
+                    )>,
+                     axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<
+                        std::net::SocketAddr,
+                    >,
+                     headers: axum::http::HeaderMap| async move {
+                        let https = d.is_https(peer, &headers);
+                        d.passkeys_page(https, pk.list())
+                    },
+                ),
+            )
+            .with_state(page_state)
+            .layer(from_fn_with_state(auth.clone(), require_admin));
+        public.merge(admin_api).merge(page)
+    };
+
     let project_pages = dashboard_router.layer(from_fn_with_state(auth.clone(), require_admin));
 
     let api_routes = api_router
         .layer(from_fn_with_state(captures, capture_requests))
         .layer(from_fn_with_state(auth, require_caller));
 
-    Ok((
-        pages_public
-            .merge(login)
-            .merge(logout)
-            .merge(pages_admin)
-            .merge(clients_api)
-            .merge(project_pages)
-            .merge(api_routes),
-        flush,
-    ))
+    #[allow(unused_mut)]
+    let mut all = pages_public
+        .merge(login)
+        .merge(logout)
+        .merge(pages_admin)
+        .merge(clients_api)
+        .merge(project_pages)
+        .merge(api_routes);
+    #[cfg(feature = "passkeys")]
+    {
+        all = all.merge(passkey_routes);
+    }
+    Ok((all, flush))
 }

@@ -143,6 +143,9 @@ pub struct Dashboard {
     pub capture_ttl_minutes: u64,
     pub remember_me_days: u64,
     pub has_test_route: bool,
+    /// The `passkeys` feature is compiled in and configured (K9).
+    pub passkeys_enabled: bool,
+    pub public_url: String,
     pub nav: Vec<NavEntry>,
     pub sections: Arc<Vec<Arc<dyn StatusSection>>>,
     pub columns: Arc<Vec<Arc<dyn ClientColumn>>>,
@@ -167,6 +170,8 @@ impl Dashboard {
         capture_ttl_minutes: u64,
         remember_me_days: u64,
         has_test_route: bool,
+        passkeys_enabled: bool,
+        public_url: String,
         mut nav: Vec<NavEntry>,
         sections: Vec<Arc<dyn StatusSection>>,
         columns: Vec<Arc<dyn ClientColumn>>,
@@ -187,6 +192,12 @@ impl Dashboard {
                 href: "/clients".into(),
             },
         ];
+        if passkeys_enabled {
+            kit_nav.push(NavEntry {
+                label: "Passkeys".into(),
+                href: "/passkeys".into(),
+            });
+        }
         kit_nav.append(&mut nav);
         let mut env = Environment::new();
         env.add_template("layout.html", include_str!("../../templates/layout.html"))
@@ -197,6 +208,11 @@ impl Dashboard {
             .map_err(template_error)?;
         env.add_template("clients.html", include_str!("../../templates/clients.html"))
             .map_err(template_error)?;
+        env.add_template(
+            "passkeys.html",
+            include_str!("../../templates/passkeys.html"),
+        )
+        .map_err(template_error)?;
         env.add_global("app_name", app_name);
         env.add_global("prefix", prefix.clone());
         env.add_global("assets", asset_version());
@@ -216,6 +232,8 @@ impl Dashboard {
             capture_ttl_minutes,
             remember_me_days,
             has_test_route,
+            passkeys_enabled,
+            public_url,
             nav: kit_nav,
             sections: Arc::new(sections),
             columns: Arc::new(columns),
@@ -247,7 +265,7 @@ impl Dashboard {
         Ok(Html(tmpl.render(ctx).map_err(template_error)?))
     }
 
-    fn login_page(&self, error: Option<&str>) -> Result<Html<String>, Error> {
+    fn login_page(&self, error: Option<&str>, https: bool) -> Result<Html<String>, Error> {
         self.render(
             "login.html",
             context! {
@@ -255,6 +273,30 @@ impl Dashboard {
                 active_nav => "",
                 error => error,
                 remember_me_days => self.remember_me_days,
+                passkeys => self.passkeys_enabled && https,
+            },
+        )
+    }
+
+    /// Whether this request came through the TLS proxy (AR6).
+    pub fn is_https(&self, peer: std::net::SocketAddr, headers: &HeaderMap) -> bool {
+        crate::shell::guards::is_https(peer, headers, &self.auth.guards.trusted_proxies)
+    }
+
+    /// The passkeys page (K9); `passkeys` is what the store holds.
+    pub fn passkeys_page(
+        &self,
+        https: bool,
+        passkeys: Vec<impl Serialize>,
+    ) -> Result<Html<String>, Error> {
+        self.render(
+            "passkeys.html",
+            context! {
+                logged_in => true,
+                active_nav => "/passkeys",
+                https => https,
+                public_url => self.public_url,
+                passkeys => passkeys,
             },
         )
     }
@@ -268,8 +310,13 @@ fn template_error(e: minijinja::Error) -> Error {
 }
 
 /// `GET /login`.
-pub async fn login_get(State(d): State<Dashboard>) -> Result<Html<String>, Error> {
-    d.login_page(None)
+pub async fn login_get(
+    State(d): State<Dashboard>,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
+    headers: HeaderMap,
+) -> Result<Html<String>, Error> {
+    let https = d.is_https(peer, &headers);
+    d.login_page(None, https)
 }
 
 /// `POST /login`: wrong token re-renders the page with the message and
@@ -284,7 +331,7 @@ pub async fn login_post(
         Ok(LoginOutcome::Ok(cookie)) => {
             (CookieJar::new().add(cookie), Redirect::to("/")).into_response()
         }
-        Ok(LoginOutcome::Wrong(msg)) => match d.login_page(Some(msg)) {
+        Ok(LoginOutcome::Wrong(msg)) => match d.login_page(Some(msg), d.is_https(peer, &headers)) {
             Ok(html) => (StatusCode::OK, html).into_response(),
             Err(e) => e.into_response(),
         },
@@ -384,6 +431,10 @@ mod tests {
             ("login.html", include_str!("../../templates/login.html")),
             ("status.html", include_str!("../../templates/status.html")),
             ("clients.html", include_str!("../../templates/clients.html")),
+            (
+                "passkeys.html",
+                include_str!("../../templates/passkeys.html"),
+            ),
         ] {
             assert!(
                 src.contains("class=\"explain\""),

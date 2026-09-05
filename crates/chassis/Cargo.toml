@@ -16,7 +16,7 @@ publish = false
 default = ["core"]
 core = []
 dashboard = ["core"]
-passkeys = ["dashboard"]
+passkeys = ["dashboard", "dep:webauthn-rs"]
 self-update = ["core"]
 notify = ["core"]
 
@@ -54,6 +54,10 @@ axum-extra = { version = "0.12", features = ["cookie"] }
 time = "0.3"
 # L4: server-rendered dashboard (K15, K16, K17)
 minijinja = { version = "2", features = ["json"] }
+# K9: passkeys (WebAuthn server side); pulls OpenSSL, hence its own feature (T8).
+# `danger-allow-state-serialisation` lets the ceremony state live in the
+# kit's own bounded map with a TTL instead of an opaque in-memory type.
+webauthn-rs = { version = "0.5", optional = true, features = ["danger-allow-state-serialisation"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }

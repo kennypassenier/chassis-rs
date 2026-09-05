@@ -43,6 +43,20 @@ _None yet._
 |---|---|---|---|
 | CF-1 | No Dutch coinage for a technical concept in user-facing text (list + rule in the central memory) | The Phase 4 architecture form of this project: zero such words, counted before sending | open |
 
+## The visible surface (PROCEDURE Phase 6: published as soon as there is something to see)
+
+The example service `inbox` with the L4 dashboard runs on the scratch
+container **CT 118** under a `Type=notify` systemd unit
+(`/etc/systemd/system/inbox.service`, user `inbox`, state in
+`/var/lib/inbox`), reachable on the LAN at **http://10.10.10.18:8080**.
+The login token is the `INBOX_TOKEN` line of `/etc/inbox/inbox.env` on
+that container (mode 0640, root:inbox) — read it with
+`ssh root@10.10.5.250 pct exec 118 -- cat /etc/inbox/inbox.env`. It is a
+drill secret on a disposable container and is deliberately not written
+anywhere in this repository. Kenny: open the URL, log in, issue a client,
+click Reveal / Copy token / Copy command / Last requests / Send test —
+this is what every service on chassis-rs will look like.
+
 ## Deliberately not done (waits for Kenny, AFK start round Q10)
 
 1. **Signing and publishing a release** — needs Kenny's minisign key and
@@ -50,7 +64,11 @@ _None yet._
 2. **`homelab adopt` of the scratch container** — writes into the
    homelab's state; Kenny runs it or gives the go in this session.
 3. **Passkey test behind Traefik** — needs a hostname and certificate
-   Kenny manages.
+   Kenny manages. What is ready: set `INBOX_PUBLIC_URL=https://<host>` and
+   `INBOX_TRUSTED_PROXIES=<traefik ip>` in `/etc/inbox/inbox.env` on
+   CT 118, point Traefik at 10.10.10.18:8080, open `/passkeys` after a
+   token login, register with Bitwarden, log out, log in with the passkey.
+   Everything up to the browser ceremony is covered by tests.
 4. **Anything that would change a frozen decision of 2026-09-05** —
    becomes a mini-round above instead of being built.
 

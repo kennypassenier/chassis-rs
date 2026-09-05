@@ -18,5 +18,7 @@ pub mod http;
 pub mod lifecycle;
 pub mod logging;
 pub mod metrics;
+#[cfg(feature = "passkeys")]
+pub mod passkeys;
 pub mod store;
 pub mod time;

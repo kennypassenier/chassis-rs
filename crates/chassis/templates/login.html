@@ -1,5 +1,6 @@
 {% extends "layout.html" %}
 {% block title %}{{ app_name }} — log in{% endblock %}
+{% block head %}{% if passkeys %}<script type="module" src="/static/passkeys.js?v={{ assets }}"></script>{% endif %}{% endblock %}
 {% block content %}
 <h1>Log in</h1>
 <p class="explain">
@@ -22,5 +23,11 @@
     </label>
     <button type="submit" class="kp-button kp-button--primary" data-kp-busy="Logging in…">Log in</button>
   </form>
+  {% if passkeys %}
+  <hr style="margin: 1rem 0; border: 0; border-top: 1px solid var(--border)">
+  <p class="explain" style="margin: 0 0 0.5rem">Or use a passkey from your password manager:</p>
+  <button type="button" class="kp-button" data-passkey-login data-status="passkey-status">Log in with a passkey</button>
+  <p id="passkey-status" class="kp-field__help" hidden></p>
+  {% endif %}
 </div>
 {% endblock %}

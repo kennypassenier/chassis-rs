@@ -134,6 +134,8 @@ impl AppSpec {
             k("capture_redact", Some("")),
             k("clients_persist_secs", Some("30")),
             k("reveal_seconds", Some("10")),
+            // K9 — the https origin the dashboard is reached at (passkeys)
+            k("public_url", None),
         ]
     }
 }
@@ -174,6 +176,7 @@ pub struct Limits {
     pub capture_ttl: Duration,
     pub capture_redact: Vec<String>,
     pub clients_persist: Duration,
+    pub public_url: Option<String>,
 }
 
 /// A configured, not yet started service.
@@ -413,7 +416,15 @@ impl App {
                 .filter(|s| !s.is_empty())
                 .collect(),
             clients_persist: Duration::from_secs(parse_u64(&loaded, "clients_persist_secs", 1)?),
+            public_url: loaded.get("public_url").map(|s| s.to_string()),
         };
+        // A malformed PUBLIC_URL is refused at parse time; its ABSENCE is
+        // refused by --check and start (after the secrets check), so the
+        // secrets remedy is the first thing an unconfigured service says.
+        #[cfg(feature = "passkeys")]
+        if let Some(url) = limits.public_url.as_deref() {
+            crate::shell::passkeys::build_webauthn(spec.name, &spec.prefix(), Some(url))?;
+        }
 
         // The dashboard's two secrets are validated at parse time so that
         // --check refuses a half-configured service (W6 = Don't do).
@@ -584,7 +595,15 @@ impl App {
             loaded.get("token"),
             loaded.get("secret_key"),
         )? {
-            Some(_) => Ok(()),
+            Some(_) => {
+                #[cfg(feature = "passkeys")]
+                crate::shell::passkeys::build_webauthn(
+                    self.spec.name,
+                    &prefix,
+                    self.limits.public_url.as_deref(),
+                )?;
+                Ok(())
+            }
             None => Err(Error::config(
                 format!(
                     "the dashboard is compiled in but {prefix}_TOKEN and {prefix}_SECRET_KEY are not set"
@@ -816,6 +835,7 @@ impl Limits {
             capture_ttl: Duration::from_secs(1),
             capture_redact: Vec::new(),
             clients_persist: Duration::from_secs(1),
+            public_url: None,
         }
     }
 }
@@ -877,6 +897,9 @@ mod tests {
             "127.0.0.1:0",
             "--shutdown-timeout-ms",
             "2000",
+            // Read only when the passkeys feature is compiled in (K9).
+            "--public-url",
+            "https://t.example",
         ]
     }
 

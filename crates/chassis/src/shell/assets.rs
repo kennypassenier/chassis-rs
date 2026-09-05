@@ -68,6 +68,11 @@ pub const ASSETS: &[(&str, &str, &str)] = &[
         "text/javascript; charset=utf-8",
         include_str!("../../static/chassis.js"),
     ),
+    (
+        "passkeys.js",
+        "text/javascript; charset=utf-8",
+        include_str!("../../static/passkeys.js"),
+    ),
 ];
 
 /// The vendored manifest, for the gate test and `--print-config`'s

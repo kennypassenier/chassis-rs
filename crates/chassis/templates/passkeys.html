@@ -1,0 +1,55 @@
+{% extends "layout.html" %}
+{% block title %}{{ app_name }} — passkeys{% endblock %}
+{% block head %}{% if https %}<script type="module" src="/static/passkeys.js?v={{ assets }}"></script>{% endif %}{% endblock %}
+{% block content %}
+<h1>Passkeys</h1>
+<p class="explain">
+  A passkey lets you open this dashboard from your password manager
+  (Bitwarden, the browser's own store) without typing the login token.
+  Register one here while logged in; from then on the login page shows a
+  passkey button. The token keeps working as the fallback. Browsers only
+  allow passkeys over HTTPS, so this page is live only when you reach the
+  dashboard through the TLS proxy named in <code>{{ prefix }}_PUBLIC_URL</code>.
+</p>
+
+{% if not https %}
+<div class="kp-alert kp-alert--warning" role="alert">
+  <div><strong>Not over HTTPS.</strong> You opened the dashboard on plain HTTP,
+  so the browser will not create or use a passkey here. Open it through the
+  proxy at <code>{{ public_url }}</code>, and make sure that proxy's address is in
+  <code>{{ prefix }}_TRUSTED_PROXIES</code>.</div>
+</div>
+{% else %}
+<div class="kp-card" style="margin-bottom: 1.5rem; max-width: 32rem">
+  <h2 class="kp-card__title" style="margin-top: 0; font-size: 1rem">Register a passkey</h2>
+  <div class="kp-field">
+    <label class="kp-field__label" for="passkey-label">Label</label>
+    <input class="kp-field__input" type="text" id="passkey-label" placeholder="Kenny's Bitwarden" maxlength="64">
+  </div>
+  <button type="button" class="kp-button kp-button--primary" data-passkey-register data-status="passkey-status" style="margin-top: 0.75rem">Register with this browser</button>
+  <p id="passkey-status" class="kp-field__help" hidden></p>
+</div>
+{% endif %}
+
+<h2>Registered</h2>
+<p class="explain">Each row is one authenticator. Delete a passkey you no longer own; the login token is unaffected.</p>
+{% if passkeys %}
+<div class="kp-table-wrap">
+<table class="kp-table">
+  <thead><tr><th>Label</th><th>Registered</th><th>Last used</th><th class="text-end"></th></tr></thead>
+  <tbody>
+  {% for p in passkeys %}
+  <tr>
+    <td style="font-weight: 500">{{ p.label }}</td>
+    <td><span class="mono">{{ p.created_at }}</span></td>
+    <td>{% if p.last_used_at %}<span class="mono">{{ p.last_used_at }}</span>{% else %}<span class="text-secondary">never</span>{% endif %}</td>
+    <td class="text-end"><button type="button" class="kp-button kp-button--destructive" data-post="/api/passkeys/{{ p.id }}" data-method="DELETE" data-kp-destructive data-kp-confirm="Delete this passkey?">Delete</button></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="text-secondary">No passkeys yet.</p>
+{% endif %}
+{% endblock %}
