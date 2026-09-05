@@ -7,11 +7,20 @@
 //! `self-update`; and per-event webhooks from `notify`. The service adds
 //! only what it does itself.
 //!
-//! L0 (walking skeleton): the crate compiles, declares its features and
-//! carries one test, so the gates and CI have something to run against.
-//! Every module arrives with its milestone (docs/REALIZATION_PLAN.md).
+//! Start with [`AppSpec`] and [`App`]: describe the service, hand over an
+//! axum `Router`, register the hooks you need, call `run`. Everything
+//! else is reachable from there. The crate is split into [`core`] (pure
+//! decisions, no I/O) and [`shell`] (everything that touches the world);
+//! a service normally needs neither directly.
 
 #![forbid(unsafe_code)]
+
+pub mod app;
+pub mod core;
+pub mod shell;
+
+pub use app::{App, AppSpec, Control, Running};
+pub use core::error::{Error, IntoKitError, Kind};
 
 /// The kit's own version, as compiled in. A service reports its OWN
 /// version in `/healthz` (K6); this one is for `--print-config` and the

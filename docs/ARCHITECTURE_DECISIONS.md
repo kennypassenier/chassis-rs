@@ -263,7 +263,7 @@ golden unit.
 |---|---|---|
 | issue / re-issue / revoke / delete client | one encrypted file write (temp+fsync+rename) | old file intact |
 | login (session create) | one sessions file write | no session; user retries |
-| binary swap | two renames; `bin.prev` exists before `bin` is replaced | worst case: `bin` missing between the renames for microseconds; systemd restarts; if `bin` absent, the rollback marker restores `bin.prev` |
+| binary swap | `link(bin, bin.prev)` then ONE `rename(staging, bin)` + directory fsync (critic #1) | a `bin` exists at every instant; after a crash either the old or the new binary is in place, and `bin.prev` is always the old one |
 | update state | temp+rename of `update-state.json` written **before** the swap | a swap without state cannot happen; state without swap is cleared on next start when hashes match |
 | captures | memory | lost |
 | notifier delivery | at-most-once per webhook attempt with bounded retries; never blocks the caller | a notification may be lost; the event is also logged |
@@ -322,11 +322,13 @@ commit on main, pushes, polls the **tag's** check runs (rule 6b), downloads
 Phase 6, not in CI: CI has no minisign key).
 
 ### AR15 · Lifecycle: startup, readiness, shutdown
-Order: parse args → control commands exit early (`--version` prints and
-exits before config; `--check` loads config + secrets presence, opens
-stores read-only, exits; `--print-config`) → config → logging → stores →
-`handle_pending_update` → bind → `sd_notify(READY=1)` when
-`NOTIFY_SOCKET` is set → serve. Shutdown per K5 with the project's flush
+Order: parse args → `--version` answers before anything else (AR20) →
+config → hooks registered by the project → control commands dispatched in
+`run()` (`--check` runs the kit's validation plus the project's `on_check`
+hooks, never writes, opens no socket; `--print-config`) → logging →
+**`handle_pending_update` before the stores open** (critic #2: a new
+version whose store fails must still bump the attempt counter) → stores →
+bind → `sd_notify(READY=1)` when `NOTIFY_SOCKET` is set → serve. Shutdown per K5 with the project's flush
 hook called after the HTTP server drained. The golden unit uses
 `Type=notify` so `systemctl is-active` means "bound and serving", which is
 what the homelab's update supervision measures. **Code-enforced** (E2E
@@ -378,3 +380,62 @@ state dir succeeds).
 
 Frozen at R4 (pending). Amendments are dated notes under the decision
 they change, added by the mini-round that changed them.
+
+---
+
+## Phase 4 critic pass (2026-09-05) — objections and how the draft changed
+
+The architecture-critic (fresh context) attacked the draft above and the
+reference code it borrows from. Every objection is listed with its
+resolution; the decisions it changed carry the objection number. Kenny
+ratifies the set in R4.
+
+| # | Attacks | Severity | Scenario | Resolution (adopted) |
+|---|---|---|---|---|
+| 1 | AR8/AR9 two-rename swap | blocking | power loss between `rename(bin, bin.prev)` and `rename(staging, bin)` leaves no binary; `ExecStartPre` fails with ENOENT forever and no process exists to run the rollback marker | **Hard-link, then one rename:** unlink a stale `bin.prev`, `link(bin, bin.prev)`, `rename(staging, bin)`, fsync the directory. At every instant a `bin` exists. Also: **refuse to update while `update-state.json` is pending** (an unproven binary must never overwrite the known-good `.prev`). |
+| 2 | AR15 startup order | blocking | a new version whose store open fails dies before the attempt counter is bumped; the revert never fires; crash loop | Order becomes `handle_pending_update` **before** stores open (Almanac does it that way for this reason). |
+| 3 | AR8/AR12 "healthy" | blocking | `/healthz` answers "doing its job" (503 when a project subsystem is degraded); the updater confirming on it rolls back a good binary because Home Assistant was down; `--healthcheck` marks a container unhealthy on a dependency outage | The updater confirms on **kit liveness only**: bound + READY sent + `HEALTHY_AFTER_SECS` elapsed + still running. `--healthcheck` treats any well-formed `/healthz` answer (200 or 503) as alive. |
+| 4 | AR17 latch variant | blocking | `latch run` spawns and waits (not exec): latch is the main PID, the child's `READY=1` is dropped under `NotifyAccess=main`; `ExecStartPre=<bin> --check` runs without latch's secrets | Latch variant gets `NotifyAccess=all` and `ExecStartPre=latch run --env prod -- <bin> --check`. |
+| 5 | AR3/K9 passkey origin | blocking | `WebauthnBuilder` needs rp_id and origin at construction; deriving them from `Host` is spoofable | New knob `<P>_PUBLIC_URL` (required when `passkeys` is enabled); rp_id and origin derive from it. |
+| 6 | AR8 drill flag | blocking | the marker is not version-bound: after rollback the restored binary sees the same env var and marker, exits 1 → "rollback also failed" (supervised) or an endless loop (autonomous); every tick re-installs | The marker records the **installed version** and lives beside the binary (`<bin>.drill`, so supervised still writes no state); a binary exits 1 only when its own version equals the marker's; the updater holds while the marker exists (one-shot). Second drill mode `broken-after-ready` (exit 1 five seconds after READY) added to expose #18. |
+| 7 | AR18 `update_cmd` via `systemd-run` | should-fix | without `--wait --pipe --collect` it returns 0 at once; the homelab sees "unchanged" and never restarts; next night it preserves the NEW binary as `.homelab-prev` | `update_cmd = "systemd-run --wait --pipe --collect --uid=<user> --property=EnvironmentFile=<env_file> --property=WorkingDirectory=<root> <bin> update"`. |
+| 8 | AR2 hooks registered too late | should-fix | `--check` and `update` handled before `app.on_check`/state-copy hooks exist; kyu's `VACUUM INTO` could never run | Control commands and subcommands are dispatched in `run()`, after hooks are registered; `App` gains `on_check` and `state_copy`; **`--check` never writes** (the staging probe runs against the live store while the old version serves). Implemented in L1. |
+| 9 | AR12 metrics verbatim | should-fix | kyu, Almanac and kyu-runner compute metrics at scrape time with dynamic label sets; the `metrics` facade is push-only and keeps series for deleted topics | `app.metrics_source(fn scrape(&self) -> String)` appends a project's own exposition text verbatim after the kit's registry. |
+| 10 | AR6 empty TRUSTED_PROXIES behind Traefik | should-fix | passkeys silently 404, cookie not `Secure`, rate limit keyed on Traefik's IP | An `X-Forwarded-Proto` from an untrusted peer logs once and adds a problems-card entry naming the knob; the limiter keys on `X-Forwarded-For` from trusted proxies. |
+| 11 | AR6 one key, no rotation | should-fix | sessions need no reversibility; rotating the key bricks every client token with no recovery | Sessions store `SHA-256(session_id)` (worthless without the key); new subcommand `<name> rekey --new <hex>` re-encrypts the stores. |
+| 12 | K8 generated secret at startup | should-fix | the candidate lands in journald | Print `run: <name> gen-secret` instead; `gen-secret` prints to a TTY only. |
+| 13 | AR5/K13 `touch` per request | should-fix | one encrypted write per API call | `last_used_at` and counters in memory, persisted debounced (`<P>_CLIENTS_PERSIST_SECS`, default 30) and at shutdown; the lag is documented. |
+| 14 | T3 request timeout | should-fix | no knob; kyu's long-poll and slow upstreams get cut | `<P>_REQUEST_TIMEOUT_SECS` (default 30) with a per-route exemption API. |
+| 15 | AR14 release polling | should-fix | the tag's SHA equals main's, so the already-green CI run is found before the release workflow is queued; `VERSION` before `.minisig` makes the updater count a failure | Wait for a run with `head_branch == tag`, then completion; download by tag, never `latest`; upload `.minisig` **before** `VERSION`. |
+| 16 | SCOPE build-vs-buy / T3 | should-fix | figment does report provenance (`find_metadata`); the estimate of ~150 lines is ~3× low | Reason corrected: only `${VAR}` is missing from figment; the own module is kept because it is small and fully owned. Estimate: 400–600 lines including `--print-config`, redaction of expanded values and validation. |
+| 17 | AR11 extension points | should-fix | no way to register project templates or static assets; no public extractor for the authenticated client | `app.templates()`, `app.static_asset()`, `chassis::Caller` extractor. |
+| 18 | AR15/AR8 Type=notify oversold | should-fix (cross-project) | a binary that dies 3 s after READY passes the homelab's `is-active` check once; supervised writes no state so nobody reverts; the homelab's in-place `cp` while `Restart=always` re-executes can hit ETXTBSY | Recorded for the Homelab Rust session: require `active` for the whole window; stop the unit before copying the rollback binary. Announced, not fixed here (rule 7a). |
+| 19 | AR8 container detection | should-fix | a `/lxc/` cgroup match would disable self-update on the LXC it is built for | Detection is OCI-only (`/.dockerenv`, `/run/.containerenv`, `docker`/`containerd`/`podman` cgroup paths); Almanac's `an_lxc_container_still_updates_itself` test is ported. |
+| 20 | notes | note | see below | Adopted: update state carries the `from` version and start clears it when `running == from`; `--check` warns when `TimeoutStopSec` < shutdown timeout; "exit 0 under `Restart=always`" is marked configuration-dependent; pre-update copies live in `<root>/../<name>-pre-update/` outside `data_dirs`; `<P>_UPDATE_URL` derives from `AppSpec.repository` (new field, required with `self-update`); `<P>_CAPTURE_REDACT` added to the table; `[[notify.webhook]]` is file-only by declared exception; expanded `${VAR}` values are treated as secrets in `--print-config`; `health.degraded` is debounced (`<P>_NOTIFY_DEBOUNCE_SECS`). |
+
+### Knobs the critic found hardcoded — now in the AR3 table
+
+| Knob | Default | Was |
+|---|---|---|
+| `session_ttl_secs` / `remember_me_days` | 86400 / 30 | AR6 literals |
+| `update_startup_delay_secs` | 300 | AR8 "short delay" |
+| `update_probe_timeout_secs` / `update_download_timeout_secs` | 30 / 300 | AR8 |
+| `notify_timeout_secs` / `notify_retries` / `notify_backoff_base_ms` / `notify_backoff_cap_ms` / `notify_queue_size` | 10 / 3 / 500 / 30000 / 1024 | AR10 |
+| `request_timeout_secs` | 30 | tower-http layer (#14) |
+| `subsystem_check_timeout_ms` / `healthcheck_timeout_secs` | 2000 / 5 | AR12 |
+| `retry_after_secs` / `rate_limit_login_burst` / `rate_limit_token_burst` | 5 / 5 / 100 | K10 |
+| `clients_persist_secs` | 30 | #13 |
+| `notify_debounce_secs` | 60 | #20 |
+| CLI: `--poll-interval-secs` / `--max-wait-secs` for `chassis release` | 15 / 1800 | AR14 |
+| Scaffold config (listed as such, not kit knobs): `RestartSec=5s`, `TimeoutStopSec=60`, Dockerfile HEALTHCHECK interval/timeout/retries 30s/5s/3 | — | AR17 |
+
+Pinned on purpose (rule 27 exception): nonce size, store format version,
+32-byte ids, `max-age=31536000`, the ETXTBSY retry.
+
+### Claims the critic verified as correct
+Rename keeps the running inode; signature-before-hash and anti-downgrade
+order; `MAX_START_ATTEMPTS=2` decision table; the supervised contract
+matches the homelab's `update_native` exactly; `Type=notify` +
+`ExecStartPre --check` fits the homelab's step budget; kyu's CSRF rule
+holds behind Traefik and on the LAN; passkey HTTPS detection is testable
+offline with `TRUSTED_PROXIES=127.0.0.1`.

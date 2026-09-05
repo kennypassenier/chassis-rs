@@ -16,8 +16,22 @@ Phase 6 milestone reports accumulate into one combined report.
 | R1 | Phase 1 · build-vs-buy | drafted 2026-09-05 | docs/SCOPE.md §Build vs buy | per concern: use crate / build own / hybrid (17 rows; five "build our own") |
 | R2 | Phase 2 · features + freeze | drafted 2026-09-05 | docs/FEATURES.md | IDs, ratings, test expectations, mandatory items 1–4. **Note for Kenny:** W2's clap half moved into K2 (a parser is needed for `--version`/`--check` anyway); only the backoff helper stays Desired. New W9 proposed: systemd `Type=notify` readiness (AR15), rated Essential by Claude because the homelab's update check is `systemctl is-active`. |
 | R3 | Phase 3 · tech choice | drafted 2026-09-05 | docs/ARCHITECTURE_DECISIONS.md T1–T8 | libraries, license, MSRV, platforms, environment differences; release target glibc/trixie because webauthn-rs needs OpenSSL |
-| R4 | Phase 4 · architecture + freeze | pending | docs/ARCHITECTURE_DECISIONS.md | AR decisions with the critic's surviving objections |
-| R5 | Phase 5 · realization plan + hooks | pending | docs/REALIZATION_PLAN.md | milestones, standing rules, which gates block |
+| R4 | Phase 4 · architecture + freeze | drafted 2026-09-05, critic pass done | docs/ARCHITECTURE_DECISIONS.md AR1–AR20 + §Critic pass | AR decisions; 6 blocking + 13 should-fix objections, all adopted with a resolution (table at the end of the document); the added knobs |
+| R5 | Phase 5 · realization plan + hooks | drafted 2026-09-05, hooks live | docs/REALIZATION_PLAN.md | milestones L0–L8, standing rules, hook config (Q9); hooks proven by firing (rule 7d) in the L0 commit |
+
+## Open with the Homelab Rust session (announce, do not fix here — rule 7a)
+
+- ~~Critic #18~~ **resolved by the Homelab Rust session the same day**
+  (homelab commit `1ed72e3`, F300): the `is-active` loop was effectively
+  dead code (a `Type=exec` unit is active the moment it is exec'd, so the
+  first iteration always passed). The supervision now requires `active`
+  over the window AND an unchanged `NRestarts` counter, waits up to 20 s
+  for the first `active` (room for `Type=notify`), names its failure
+  (`NEVER_ACTIVE`, `DIED_IN_WINDOW`, `RESTART_LOOP`), and stops the unit
+  before the rollback copy. They wait for the kit's `broken-after-ready`
+  drill mode (K20) on CT 118 to prove it live.
+- Alloy JSON stage for structured logs (K4) — once the kit ships JSON.
+- Quiesce call in the nightly backup (W4) — once the kit ships it.
 
 ## Mini-rounds (deviations from a frozen decision)
 

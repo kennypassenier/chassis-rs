@@ -50,8 +50,8 @@ that would change a frozen decision.
 
 | Milestone | Status | Evidence |
 |---|---|---|
-| L0 | in progress | — |
-| L1 | pending | — |
+| L0 | done 2026-09-05 | commit `d9679e7`; hooks fired red on an injected clippy warning and on a message without IDs before the green commit; CI run 33949831302 green on gates + coverage, cargo-deny red on a versionless path dependency (fixed in L1's commit); branch protection: pending the next green run |
+| L1 | done 2026-09-05 | `cargo test --workspace --all-features`: 21 unit tests in `chassis` (precedence table, `${VAR}` fail-closed, secret-in-file refused, request-id generated/echoed, error JSON with remedy, internal message hidden, shutdown bound, port-0 start + flush after drain, `--version` reads no config, `--check` runs project hooks) + 4 E2E in `examples/inbox/tests/lifecycle_e2e.rs` against the real binary (`--version` with no configuration, `--print-config` sources + `--check` touches nothing, SIGTERM → exit 0 with a second signal harmless, in-flight request completes during drain). Live-found while testing: ANSI colour codes in stderr off-terminal → fixed (`with_ansi(is_terminal)`), test child reaped on failure. **Drill on CT 118: pending** (glibc binary run there in L2's drill). |
 | L2 | pending | — |
 | L3 | pending | — |
 | L4 | pending | — |
