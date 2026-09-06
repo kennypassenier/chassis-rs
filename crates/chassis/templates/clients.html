@@ -11,7 +11,15 @@
 
 <div class="kp-card" style="margin-bottom: 1.5rem">
   <h2 class="kp-card__title" style="margin-top: 0; font-size: 1rem">Add a client</h2>
+  {% if open_dashboard %}
   <p class="explain" style="margin: 0 0 0.75rem">
+    No tokens can be issued while the dashboard is open: there is no secret
+    key to seal them with, and nothing needs one — every route already answers
+    everyone. Set the login token and the secret key to close the dashboard and
+    issue tokens here.
+  </p>
+{% else %}
+<p class="explain" style="margin: 0 0 0.75rem">
     Pick a name you will recognise in the logs (<code>home-assistant</code>,
     <code>kyu-runner</code>). The token appears on the row; reveal or copy
     it there, paste it into the caller, done.
@@ -24,6 +32,7 @@
     <button type="submit" class="kp-button kp-button--primary" data-busy-label="Issuing…">Issue token</button>
     <p class="kp-field__help" style="flex-basis: 100%; margin: 0">Letters, digits, dots, underscores and hyphens; 1–64 characters.</p>
   </form>
+{% endif %}
   <!-- The issue form is wired by chassis.js (form#issue): no inline script,
        so the CSP can say script-src 'self' (S8). -->
 </div>

@@ -67,6 +67,12 @@ pub struct AppSpec {
     /// Text appended to `--help` (1.2.0): the project's own environment
     /// variables and subcommands, which the kit cannot know about.
     pub help_extra: Option<&'static str>,
+    /// Opt in to running the dashboard OPEN when neither `<P>_TOKEN` nor
+    /// `<P>_SECRET_KEY` is set: no login, every page and every API route
+    /// answers anyone who can reach the port, a banner on every page and a
+    /// warning on every start. Off by default: a service that does not opt
+    /// in refuses to start without both secrets (kyu K2-4, 2026-09-06).
+    pub open_dashboard: bool,
 }
 
 impl Default for AppSpec {
@@ -78,6 +84,7 @@ impl Default for AppSpec {
             default_listen: "0.0.0.0:8080",
             repository: None,
             help_extra: None,
+            open_dashboard: false,
         }
     }
 }
@@ -1078,6 +1085,9 @@ impl App {
                 )?;
                 Ok(())
             }
+            // The opt-in (AppSpec::open_dashboard): no secrets is a valid,
+            // loud configuration for a service that asked for it.
+            None if self.spec.open_dashboard => Ok(()),
             None => Err(Error::config(
                 format!(
                     "the dashboard is compiled in but {prefix}_TOKEN and {prefix}_SECRET_KEY are not set"
@@ -1362,6 +1372,16 @@ impl App {
         let mut w = Vec::new();
         let loaded = self.loaded.as_ref().expect("loaded");
         let prefix = self.spec.prefix();
+        #[cfg(feature = "dashboard")]
+        if self.spec.open_dashboard
+            && loaded.get("token").is_none()
+            && loaded.get("secret_key").is_none()
+        {
+            w.push(format!(
+                "the dashboard is OPEN: {prefix}_TOKEN and {prefix}_SECRET_KEY are not set and this service opted in, so anyone who can reach {} can use every page and every route. What now: run `{} gen-secret` and set both to close it",
+                self.listen, self.spec.name
+            ));
+        }
         if self.limits.trusted_proxies.is_empty() && !self.listen.ip().is_loopback() {
             w.push(format!(
                 "trusted_proxies is empty while listening on {}: behind a reverse proxy every client shares the proxy's IP (one attacker's failed logins lock everyone out), cookies are never Secure and passkeys stay off. What now: set {prefix}_TRUSTED_PROXIES to the proxy's IP, or bind to 127.0.0.1 if no proxy is involved",

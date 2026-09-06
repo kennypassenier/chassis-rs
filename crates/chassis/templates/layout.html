@@ -48,7 +48,7 @@
     </div>
   </span>
   <p style="margin: 0" data-kp-theme-status hidden></p>
-  {% if logged_in %}
+  {% if logged_in and not open_dashboard %}
   <form method="post" action="/logout" style="margin: 0">
     <button type="submit" class="kp-button">Log out</button>
   </form>
@@ -56,6 +56,16 @@
 </nav>
 
 <main id="main">
+{% if open_dashboard %}
+<div class="kp-alert kp-alert--warning" role="alert">
+  <div>
+    <strong>This dashboard is open.</strong>
+    Neither the login token nor the secret key is set and this service opted in,
+    so anyone who can reach it can use every page and every route. Run
+    <code>{{ app_name }} gen-secret</code> and set both variables to close it.
+  </div>
+</div>
+{% endif %}
 {% block content %}{% endblock %}
 </main>
 </body>

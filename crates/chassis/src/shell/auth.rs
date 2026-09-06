@@ -89,7 +89,10 @@ impl Secrets {
 #[derive(Clone)]
 pub struct AuthState {
     pub name: &'static str,
-    pub secrets: Secrets,
+    /// `None` only for a service that opted in to an OPEN dashboard
+    /// (`AppSpec::open_dashboard`) and runs without both secrets: every
+    /// caller is then the admin and nothing is sealed.
+    pub secrets: Option<Secrets>,
     pub clients: Clients,
     pub sessions: Arc<SessionStore>,
     pub session_ttl_secs: u64,
@@ -138,10 +141,14 @@ fn bearer(headers: &HeaderMap) -> Option<String> {
 /// Resolve the caller from a bearer token or a session cookie; `None`
 /// when neither is valid. Touches the client's usage in memory.
 pub async fn identify(state: &AuthState, headers: &HeaderMap) -> Option<Caller> {
+    // An open dashboard has no door: whoever reached the port is the admin.
+    let Some(secrets) = &state.secrets else {
+        return Some(Caller::Admin);
+    };
     if let Some(token) = bearer(headers) {
         if ct_eq(
             token.as_bytes(),
-            state.secrets.login_token.expose_secret().as_bytes(),
+            secrets.login_token.expose_secret().as_bytes(),
         ) {
             return Some(Caller::Admin);
         }
@@ -233,9 +240,15 @@ pub async fn login(
     peer: std::net::SocketAddr,
     headers: &HeaderMap,
 ) -> Result<LoginOutcome, Error> {
+    let Some(secrets) = &state.secrets else {
+        return Err(Error::invalid(
+            "this dashboard is open; there is no token to log in with",
+            "set the service's _TOKEN and _SECRET_KEY to close it, then log in",
+        ));
+    };
     if !ct_eq(
         form.token.as_bytes(),
-        state.secrets.login_token.expose_secret().as_bytes(),
+        secrets.login_token.expose_secret().as_bytes(),
     ) {
         tracing::warn!(from = %client_ip(peer, headers, &state.guards.trusted_proxies), "login refused");
         return Ok(LoginOutcome::Wrong(

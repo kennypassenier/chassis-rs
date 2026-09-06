@@ -154,6 +154,8 @@ pub struct Dashboard {
     pub health: Health,
     pub clients: Clients,
     pub auth: AuthState,
+    /// The service opted in and runs without secrets: no door, a banner.
+    pub open: bool,
     env: Arc<Environment<'static>>,
 }
 
@@ -180,6 +182,7 @@ impl Dashboard {
         health: Health,
         clients: Clients,
         auth: AuthState,
+        open: bool,
     ) -> Result<Self, Error> {
         let clients_label = clients_label.unwrap_or_else(|| "Clients".to_string());
         let mut kit_nav = vec![
@@ -214,6 +217,7 @@ impl Dashboard {
         )
         .map_err(template_error)?;
         env.add_global("app_name", app_name);
+        env.add_global("open_dashboard", open);
         env.add_global("prefix", prefix.clone());
         env.add_global("assets", asset_version());
         env.add_global("themes", minijinja::Value::from_serialize(themes()));
@@ -242,6 +246,7 @@ impl Dashboard {
             health,
             clients,
             auth,
+            open,
             env: Arc::new(env),
         })
     }
@@ -325,9 +330,16 @@ pub async fn login_get(
     State(d): State<Dashboard>,
     ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     headers: HeaderMap,
-) -> Result<Html<String>, Error> {
+) -> Response {
+    if d.open {
+        // Nothing to log in with; the banner on every page says why.
+        return Redirect::to("/").into_response();
+    }
     let https = d.is_https(peer, &headers);
-    d.login_page(None, https)
+    match d.login_page(None, https) {
+        Ok(html) => html.into_response(),
+        Err(e) => e.into_response(),
+    }
 }
 
 /// `POST /login`: wrong token re-renders the page with the message and
@@ -338,6 +350,9 @@ pub async fn login_post(
     headers: HeaderMap,
     axum::Form(form): axum::Form<LoginForm>,
 ) -> Response {
+    if d.open {
+        return Redirect::to("/").into_response();
+    }
     match login(&d.auth, &form, peer, &headers).await {
         Ok(LoginOutcome::Ok(cookie)) => {
             (CookieJar::new().add(cookie), Redirect::to("/")).into_response()

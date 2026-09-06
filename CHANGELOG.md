@@ -9,6 +9,21 @@ scaffold writes. A breaking change in either is a major and carries a
 
 _Nothing yet._
 
+## [1.5.0] - 2026-09-06
+
+### Added
+
+- **An open dashboard, as an opt-in.** `AppSpec::open_dashboard = true`
+  lets a service run its dashboard without `<P>_TOKEN` and
+  `<P>_SECRET_KEY`: no login, every page and every API route answers
+  whoever reaches the port, a banner on every page, a warning at every
+  start and at `--check`, nothing sealed on disk (clients live in memory,
+  no session is minted, passkeys stay off). Off by default — a service
+  that does not opt in refuses to start exactly as before, and the remedy
+  now names the opt-in. Asked for by Kenny at kyu's step-2 form (K2-4,
+  2026-09-06): "a dashboard without a token must stay possible; for kyu we
+  ask for one anyway". Tests: `tests/open_dashboard.rs`.
+
 ## [1.4.1] - 2026-09-06
 
 Two faults that the first remote `chassis new` and the first `chassis

@@ -512,13 +512,15 @@ mod tests {
         );
         let auth = AuthState {
             name: "t",
-            secrets: crate::shell::auth::Secrets::parse(
-                "T",
-                Some("a-long-enough-login-token"),
-                Some(&"ab".repeat(32)),
-            )
-            .unwrap()
-            .unwrap(),
+            secrets: Some(
+                crate::shell::auth::Secrets::parse(
+                    "T",
+                    Some("a-long-enough-login-token"),
+                    Some(&"ab".repeat(32)),
+                )
+                .unwrap()
+                .unwrap(),
+            ),
             clients: Arc::new(crate::shell::store::MemoryClientStore::default()),
             sessions: Arc::new(crate::shell::store::SessionStore::in_memory()),
             session_ttl_secs: 60,

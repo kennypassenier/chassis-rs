@@ -12,6 +12,7 @@ use axum::middleware::from_fn_with_state;
 use axum::routing::{delete, get, post};
 
 use crate::app::{AppSpec, DashboardRegistry, Limits};
+use crate::core::crypto::Key;
 use crate::core::error::Error;
 use crate::shell::assets;
 use crate::shell::auth::{
@@ -23,7 +24,10 @@ use crate::shell::config_load::Loaded;
 use crate::shell::dashboard::{self, Dashboard, Problem, UpdateView};
 use crate::shell::guards::{Guards, ip_rate_limit};
 use crate::shell::health::Health;
-use crate::shell::store::{ClientStore, EncryptedFile, FileClientStore, SessionStore};
+use crate::shell::store::{
+    ClientStore, EncryptedFile, FileClientStore, MemoryClientStore, SessionStore,
+};
+use crate::shell::time::random_hex;
 
 /// Everything `mount` needs from the App.
 pub struct MountInput<'a> {
@@ -57,24 +61,48 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
         health,
     } = input;
     let prefix = spec.prefix();
-    let secrets = Secrets::parse(&prefix, loaded.get("token"), loaded.get("secret_key"))?.ok_or_else(|| {
-        Error::config(
-            format!("the dashboard is compiled in but {prefix}_TOKEN and {prefix}_SECRET_KEY are not set"),
-            format!("run `{} gen-secret` on a terminal and put both lines in the environment file; a dashboard never starts without a login (W6)", spec.name),
-        )
-    })?;
+    let secrets = Secrets::parse(&prefix, loaded.get("token"), loaded.get("secret_key"))?;
+    // The opt-in (AppSpec::open_dashboard): no secrets, no door. Nothing is
+    // sealed — clients live in memory, no session is ever minted, passkeys
+    // stay off — and every page carries the banner.
+    let open = secrets.is_none() && spec.open_dashboard;
+    if secrets.is_none() && !open {
+        return Err(Error::config(
+            format!(
+                "the dashboard is compiled in but {prefix}_TOKEN and {prefix}_SECRET_KEY are not set"
+            ),
+            format!(
+                "run `{} gen-secret` on a terminal and put both lines in the environment file; a dashboard never starts without a login unless the service opted in (AppSpec::open_dashboard)",
+                spec.name
+            ),
+        ));
+    }
+    let seal_key = match &secrets {
+        Some(s) => s.key.clone(),
+        // Never used to write anything: the open store below is in memory
+        // and no session is created without a login.
+        None => Key::parse_hex("open", &random_hex(32)?, "")?,
+    };
 
-    let clients: Arc<dyn ClientStore> = match client_store {
-        Some(s) => s,
-        None => Arc::new(FileClientStore::open(EncryptedFile::new(
+    let clients: Arc<dyn ClientStore> = match (client_store, open) {
+        (_, true) => Arc::new(MemoryClientStore::default()),
+        (Some(s), false) => s,
+        (None, false) => Arc::new(FileClientStore::open(EncryptedFile::new(
             loaded.state_dir.join("clients.json.enc"),
-            secrets.key.clone(),
+            seal_key.clone(),
             "clients store",
         ))?),
     };
+    // Open: a file name nothing ever writes (no login, no session), so a
+    // sealed sessions file from a closed run is neither read nor touched.
+    let sessions_file = if open {
+        "sessions.open.json.enc"
+    } else {
+        "sessions.json.enc"
+    };
     let sessions = Arc::new(SessionStore::open(EncryptedFile::new(
-        loaded.state_dir.join("sessions.json.enc"),
-        secrets.key.clone(),
+        loaded.state_dir.join(sessions_file),
+        seal_key.clone(),
         "sessions store",
     ))?);
 
@@ -157,7 +185,7 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
         limits.capture_ttl.as_secs() / 60,
         limits.remember_me_secs / 86_400,
         has_test_route,
-        cfg!(feature = "passkeys"),
+        cfg!(feature = "passkeys") && !open,
         limits.public_url.clone().unwrap_or_default(),
         registry.nav,
         registry.sections,
@@ -167,6 +195,7 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
         health,
         clients,
         auth.clone(),
+        open,
     )?;
 
     let pages_public = Router::new()
@@ -202,7 +231,9 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
         .layer(from_fn_with_state(auth.clone(), require_admin));
 
     #[cfg(feature = "passkeys")]
-    let passkey_routes = {
+    let passkey_routes = if open {
+        Router::new()
+    } else {
         use crate::shell::passkeys::{self, PasskeyState};
         let webauthn = passkeys::build_webauthn(spec.name, &prefix, limits.public_url.as_deref())?;
         let pk = PasskeyState::open(
@@ -210,7 +241,7 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
             auth.clone(),
             EncryptedFile::new(
                 loaded.state_dir.join("passkeys.json.enc"),
-                auth.secrets.key.clone(),
+                seal_key.clone(),
                 "passkeys store",
             ),
             passkeys::CeremonyLimits {

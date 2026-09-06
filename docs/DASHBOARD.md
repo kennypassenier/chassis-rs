@@ -292,6 +292,27 @@ the self-update feature, `not compiled in` otherwise), **Problems** (only
 when there are any), then every project `Section` as a label/value table
 and optional raw HTML.
 
+## An open dashboard (opt-in, 1.5.0)
+
+A service that sets `AppSpec { open_dashboard: true, .. }` may run without
+`<P>_TOKEN` and `<P>_SECRET_KEY`. It is then **open**: no login page (a
+visit to `/login` goes home), every dashboard page and every `api_routes`
+handler answers anyone who can reach the port, `Caller` is always
+`Admin`, the Log out button is gone, and every page opens with a banner
+("This dashboard is open …"). Nothing sealed is written: clients live in
+a memory store (the Clients page explains that no token can be issued),
+no session is ever minted, passkeys are off. `--check` and every start
+print a warning naming both variables; setting them closes the dashboard
+again without any other change.
+
+This is the mode kyu's W2 had in 2.x ("a hub nothing else can reach"),
+kept in the kit at Kenny's request (K2-4, 2026-09-06) and **off by
+default**: a service that does not opt in refuses to start without both
+secrets, and the refusal's remedy names the opt-in. Proven by
+`tests/open_dashboard.rs`
+(`an_opted_in_service_runs_open_and_says_so_on_every_page`,
+`a_service_that_did_not_opt_in_still_refuses_without_secrets`).
+
 ## Passkeys page
 
 Live only when the request came over HTTPS through a proxy listed in

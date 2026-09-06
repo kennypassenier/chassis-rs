@@ -266,6 +266,13 @@ let config = Config::from_table(&app.loaded.as_ref().unwrap().file_table, &app.s
   Enable the `assets` feature for this (`dashboard` implies it):
   `features = ["core", "self-update", "assets"]`.
 
+## 1.5.0 additions
+
+- `AppSpec::open_dashboard` (default `false`): opt in to running the
+  dashboard open when neither `<P>_TOKEN` nor `<P>_SECRET_KEY` is set
+  (DASHBOARD.md, "An open dashboard"). Nothing changes for a service that
+  leaves it off.
+
 ## 1.3.0 additions
 
 - **`on_update_event`.** A project that already has a notifier keeps it and
