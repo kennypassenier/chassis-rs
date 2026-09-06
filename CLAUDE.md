@@ -15,9 +15,9 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | **6 · Development loop — kit batch 3 (L9)**, AFK. Seven Onmisbaar kit candidates (K25 harness, K27–K32) build in parallel in five worktrees under `.claude/worktrees/` (branches `kit-f1-testing`, `kit-f4f5-dashboard`, `kit-f6-clients-cli`, `kit-f2f7-kit-docs`, `kit-f8-sync-drift`); Claude merges G1, G5, G4, G3, G2 onto `main`, then one report form. Kit at **1.7.1**; release timing of 1.8.0 is Kenny's (R1). The kp-themes hold (layout utilities, theme revert, confirm dialog) still stands as a separate Unblock step
+| Current phase | **6 · Development loop — kit batch 3 (L9) built**, AFK. K25 harness, K27–K32 landed on `main` from five worktrees (G1, G5, G4, G3, G2); CHANGELOG `[Unreleased]` and MIGRATION 1.8.0 composed; the report form (with CF-9 for the GIT_DIR hook fault and the gates.sh ratification) is the next gate. Kit at **1.7.1**, 1.8.0 waits for Kenny's word (R1). The kp-themes hold still stands as a separate Unblock step
 | Last completed gate | Deep-dive form 2026-09-07: F3 Later (K33), P1 Parallel in worktrees, A1 AFK Aan, R1 "zie ik zelf nog wel"; weighing form 2026-09-06: F1, F2, F4–F8 Onmisbaar |
-| Next gate | Report form for batch 3 (one item per group with evidence, registry coverage K25/K27–K32, CHANGELOG draft) → Kenny decides the 1.8.0 moment. Deferred items still queued: R1 (three turns), D6 (kyu-runner 0.2.1), H1 (http-switchboard inbound door); Unblock: kp-themes release → adoption in the kit |
+| Next gate | Report form for batch 3: R-rows per group with evidence, registry coverage K25/K27–K32, CF-9 (nine fields), gates.sh ratification, the decisions listed in PENDING §Kit batch 3 → then Kenny decides the 1.8.0 moment. Deferred: R1 (three turns), D6, H1; Unblock kp-themes |
 | AFK mode | **on since 2026-09-07 for batch 3 (A1)**: milestone gates accumulate into one report; a deviation from a ratified design is quarantined and queued as a mini-round, never built silently. Rule 7a stays in force: the four consumer projects are touched only in their own sessions |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 

@@ -280,6 +280,32 @@ let config = Config::from_table(&app.loaded.as_ref().unwrap().file_table, &app.s
   Enable the `assets` feature for this (`dashboard` implies it):
   `features = ["core", "self-update", "assets"]`.
 
+## 1.8.0 additions (kit batch 3)
+
+Nothing is required. What a project can adopt, each on its own:
+
+- **Tests:** add `chassis = { …, features = ["dashboard", "testing"] }` to
+  `[dev-dependencies]` and replace the hand-written `tests/common/mod.rs`
+  harness with `chassis::testing::TestApp` (docs/TESTING.md). kyu, Almanac and
+  the inbox example each carry such a copy today.
+- **Vocabulary:** Almanac replaces `clients_label("Sources")` with
+  `vocabulary("source", "sources")` (keep `clients_label` only when the
+  heading should differ from the capitalised plural).
+- **Actions:** implement `fn actions(&self) -> Vec<SectionAction>` on a status
+  section (Almanac: `SectionAction::post("Reload profiles from disk",
+  "/calendars/reload")` replaces its stand-alone form) and register
+  `client_action(ClientAction::post("Sync now", "/sources/{id}/sync"))` for a
+  per-row button; the route stays the project's own under `dashboard_routes`.
+- **Headless token management:** http-switchboard and kyu-runner need no
+  dashboard to issue a caller's token any more: `chassis clients issue
+  <name> --url <base> --token-env <VAR>`.
+- **Docs:** `chassis sync --write` adds `docs/KIT.md` (kit-owned; point the
+  project's own docs at it instead of retelling the kit) and the knob table
+  behind `<name> --knobs`; hand-written kit knob tables can go.
+- **Drift:** `chassis sync` now also reports a kit tag in Cargo.toml that
+  differs from `chassis_tag`, a stale `kp_themes`, and with `--remote` a branch
+  protection that names other checks than the CI does.
+
 ## 1.7.0 additions
 
 - A project that needs more than a name for a client registers

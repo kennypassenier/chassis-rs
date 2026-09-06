@@ -1033,3 +1033,42 @@ projects (rule 7a, their own sessions, after kp-themes).
 "drill a new test red once and note it in a comment" habit is asked of
 every subagent in its brief and reported per group; Claude spot-checks it
 at merge instead of trusting the report.
+
+**Outcome (2026-09-07, night).** All five groups delivered and went green in
+their own CI: G1 `19db404` (K25, 146→155 tests), G2 `b363770` (K28+K29,
+146→152), G3 `9d98c70` (K30, 147→158), G4 `ef17738` (K27+K31, 146→153), G5
+`884abd7` → rebased `99507d5` (K32, 146→159). Landed on `main` as G5 first
+(rebased over the hook fix) and then the stack G1, G4, G3, G2 on
+`batch3-merge`; every group's rule-7e drill list is in its commit message or
+report and spot-checked at merge. The CHANGELOG `[Unreleased]` and
+MIGRATION "1.8.0 additions" were composed from the five reports.
+
+**Live-found during the batch (→ correction form CF-9 at the report):**
+1. *GIT_DIR hijack.* Git exports `GIT_DIR` (absolute in a linked worktree)
+   and `GIT_INDEX_FILE` to hooks; the pre-commit gate runs the suite that
+   runs `chassis new`, whose git children inherited them and committed the
+   scaffold onto the committer's branch — four of five worktrees got a
+   "Project created with chassis new" commit (all reset with
+   `git reset --mixed`, `main` never touched) and one `git init` set
+   `core.bare = true` on the shared `.git/config`, which made the main
+   checkout unusable until reset. A plain `.git` checkout never showed it.
+   Fixed test-first on `main` `e0285a2` (CLI drops the variables for every
+   child; both `gates.sh` unset them). **Enforcement changed** (gates.sh) →
+   ratification item in the report form (PROCEDURE ground rule L9).
+2. *Shared scratchpad.* Five agents wrote bare filenames into one scratchpad
+   directory and overwrote each other's commit messages and baselines; two
+   agents moved to subdirectories. Brief template fix: a per-agent
+   subdirectory.
+3. *Refusals on dashboard buttons were invisible* (G2, chassis.js) — shipped
+   as a Fixed line; measured by G2 in a browser.
+4. *sync ordering* (combined suite): `--write` corrected `kp_themes` after
+   rendering `docs/KIT.md` from the stale record, so the next sync drifted
+   again; reordered in the G4 cherry-pick (`dcc7fe9`).
+
+**Decisions for the report form:** G5's exit semantics (`sync --write` with
+drift it cannot fix, e.g. the kit tag, exits 0 today — exit 1 instead?);
+G3's 401-for-wrong-bearer (a behaviour change on admin routes, additive but
+visible); G1's `as_browser()` sending Chrome's current headers (the CF-7
+`Origin: null` case kept as an override in one test); the unratified extras
+each group added (`start_with_env`/`start_open`, `Action::method/busy_label`,
+`reveal` verb, `Knob.feature`); the release moment (Kenny's, R1).

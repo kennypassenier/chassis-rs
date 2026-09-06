@@ -7,7 +7,82 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
-_Nothing yet._
+Kit batch 3 (F1–F8, weighed by Kenny 2026-09-06): seven Essential candidates
+built in parallel worktrees on 2026-09-07. Additive only; nothing a 1.7.x
+consumer must change.
+
+### Added
+- **`chassis::testing`** (K25, feature `testing`, implies `dashboard`; for a
+  project's dev-dependencies): `TestApp::start` / `start_with` /
+  `start_with_env` / `start_open` bring a service up in-process — temporary
+  state dir, fresh `<P>_TOKEN` and `<P>_SECRET_KEY`, port 0 — with `login`,
+  `issue_client` (K16 form fields included), `bearer`, `page`,
+  `get_json` / `post_json` / `delete`, `as_browser` / `as_cross_site_browser`
+  (Chrome's form-submit headers, CF-7) and `shutdown`. It is the harness kyu,
+  Almanac and the inbox example each wrote by hand; the kit's own in-process
+  suites now run on it. `FakeReleaseServer` (with `self-update`) is the update
+  suite's signed fake release, made public. `docs/TESTING.md` carries the
+  worked example, which the suite compiles and runs.
+- **Project vocabulary** (K28): `App::vocabulary(singular, plural)` names what
+  this service calls a client ("source"/"sources" for Almanac). Every kit
+  sentence on the login, clients and status pages and every refusal from the
+  clients API use it; the heading and nav label default to the capitalised
+  plural (`clients_label` still wins when set). Presentation only: paths,
+  JSON keys, cookies, metrics and log fields keep saying `client`.
+- **Row and section actions** (K29): `App::client_action(ClientAction)` puts a
+  project button on every active client row (`{id}` in the route becomes the
+  client's id); `StatusSection::actions()` (a default method) puts buttons
+  under a section on `/`. Both render through the kit's `[data-post]`
+  mechanism with arm-before-act and a busy label on destructive ones; the
+  route is the project's own, behind the admin login. Almanac's stand-alone
+  "Reload profiles from disk" form becomes one `SectionAction`.
+- **`chassis clients`** (K30): `chassis clients <list|issue|reissue|revoke|
+  delete|reveal> --url <base> --token-env <VAR> [--field k=v]... [--json]
+  [--timeout-secs N]` manages a running service's client tokens over its own
+  `/api/clients`, for headless services (http-switchboard, kyu-runner) that
+  need a token for a caller like Alertmanager. The admin token comes from the
+  environment only; `issue`, `reissue` and `reveal` print the token once on
+  stdout and nothing else; every refusal names a remedy; exit codes 0/1/2.
+- **The knob table from the spec** (K31): every kit knob carries a
+  one-sentence meaning and the feature that reads it; `AppSpec::knobs_markdown()`
+  renders the list as a Markdown table and the new control `<name> --knobs`
+  prints it — answered before any configuration is read, like `--version`.
+  The hand-written knob tables in CONFIGURATION.md are gone; they point at
+  `--knobs`.
+- **`docs/KIT.md` in every project** (K27): `chassis new` writes and `chassis
+  sync` keeps a generated, kit-owned document describing what the project gets
+  from the kit — the door (client tokens, the two secrets, `gen-secret`), the
+  dashboard pages, `/healthz` and `/metrics`, self-update, notifications, the
+  control commands, the full knob table for the pinned kit version, and where
+  state lives.
+- **`chassis sync` reports drift that is not a file** (K32): the kit tag
+  `Cargo.toml` pins vs `.chassis.toml`'s `chassis_tag` (a path dependency is a
+  note), `kp_themes` vs the version the kit vendors (`--write` corrects the
+  record before rendering, since `docs/KIT.md` names it; a test pins the CLI's
+  constant to `KP_THEMES.sha256`), and behind the new `--remote` flag main's
+  branch protection (checks, `strict`, `enforce_admins`) vs the scaffold's CI
+  job names — one list shared with `--protect`. Every difference is one
+  `! <what>: <project> vs <expected> — <remedy>` line and exits 1; sync stays
+  offline without `--remote`. Measured 2026-09-06 on Almanac (1.7.0 vs 1.7.1)
+  and kyu (`gates` still required).
+
+### Fixed
+- `chassis new` drops `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, `GIT_PREFIX`
+  and `GIT_COMMON_DIR` for every tool it runs: from a pre-commit hook in a
+  linked worktree, its `git init` + first commit landed in the caller's
+  repository (and set `core.bare` on the shared config). Both `gates.sh`
+  (the kit's and the scaffold's) unset the same variables, so any test that
+  spawns git stays in its own directory. The scaffold copy reaches projects
+  through `chassis sync`.
+- A refusal on a `[data-post]` button (Re-issue, Revoke, Delete, and now
+  project actions) was never visible: the remedy flashed during the button's
+  busy spell was overwritten the same tick by the busy restore, and the button
+  came back reading "Working…". The flash now outlives the busy spell and
+  shows the kit's error and remedy for five seconds; Reveal reads "Hide" while
+  a token is shown, as DASHBOARD.md always said.
+- A wrong bearer on the admin routes (`/api/clients*`, pages) is answered with
+  a JSON 401 and a remedy naming `<PREFIX>_TOKEN` instead of a redirect to
+  `/login`; requests without any credential are still redirected (K30).
 
 ## [1.7.1] - 2026-09-06
 
