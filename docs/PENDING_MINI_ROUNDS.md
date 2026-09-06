@@ -208,6 +208,54 @@ contradicting option. Both go to the next form (CF-7 + the A2-2 revisit).
 release) — **not installed**: it carries the same fault (kit 1.5.0). The
 CT 112 install waits for almanac 4.0.1 on kit 1.5.1, in almanac's turn.
 
+## Correction form CF-7 — ratified 2026-09-06 (18:40), all nine fields Klopt
+
+### CF-7 · kit dashboard forms refused from Chrome; refusals as bare JSON tabs — **ratified, measurement open**
+
+1. **What went wrong:** every form in every kit dashboard was refused
+   from Chrome, login included, and the refusal was a JSON document on
+   its own tab. Evidence: on CT 112 `curl -X POST -H "Origin: null" -d
+   token=x http://127.0.0.1:8080/login` → 403 `cross-origin request from
+   null refused`; every response carried `referrer-policy: no-referrer`,
+   under which the Fetch standard makes a browser send `Origin: null` on a
+   form submit (a navigation). Kit fault since 1.0 (`csrf_guard` +
+   `security_headers`); live on CT 112 since 11:09 (almanac 3.0.0 on kit
+   1.4.0), also in kit 1.5.0 and thus in the signed almanac v4.0.0.
+2. **Gate:** the Phase 7 test plan — every dashboard test posts without
+   `Origin` (the "scripts pass" branch), the CT 118 drills used curl, no
+   browser ever submitted a kit form (H7 deferred to V10). Rule 35 again.
+3. **Where else:** one guard, one header, in the core every project
+   loads: almanac 3.0.0 live, almanac v4.0.0 signed, kyu 3.0.0 main, inbox
+   0.1.3 on CT 118. kyu-runner and http-switchboard have no dashboard.
+   The JSON-tab half sits in every `Error` the kit answers to a browser.
+4. **Measure (kit 1.5.1):** (a) `referrer-policy: same-origin`; (b) the
+   guard reads `Sec-Fetch-Site` first (`same-origin`/`none` pass,
+   `cross-site`/`same-site` refused, `Origin` vs `Host` only without it,
+   `null` stays refused); (c) refusals to browser navigations render in
+   the layout (`templates/error.html`); (d) tests sending exactly Chrome's
+   headers (`tests/browser_forms.rs`, guard and HTML-error unit tests) plus
+   the Chrome drill in TEST_PLAN §5 before every dashboard-touching kit
+   release.
+5. **Cost:** ~2 h kit work in the same release as CF-6 a/b; five minutes
+   of drill per dashboard release; projects only bump the kit tag.
+6. **Enforcement:** a–d code (tests, CI); the Chrome drill discipline
+   (TEST_PLAN §5), marked as such.
+7. **Measurement moment:** the almanac 4.0.1 install on CT 112 — Kenny
+   logs in from Chrome and deletes calendar `almanac-test`; Claude measures
+   beforehand with the fingerprint tests and the Chrome drill on CT 118.
+8. **Fallback:** if Chrome still refuses, a synchronizer token in every
+   form (kyu 2.x's approach), kit 1.5.2.
+9. **Review:** with CF-6 at the first project retro on the kit or the next
+   kit major; the drill goes when the fingerprint tests catch everything.
+
+**Decided in the same form:** A2-2 revisited — *Captures op de Sources-rij
+(K13), /captures verdwijnt*: Almanac drops its own capture store, the
+`/v1/debug/capture` path and the Captures page in 4.0.1; the kit's
+per-client captures on the Sources row (K13) replace them, FEATURES gets
+the dated amendment. D3 — *Wachten op 4.0.1*: CT 112 stays on 3.0.0 (the
+ingest keeps working; only the browser dashboard is unusable) until the
+4.0.1 install.
+
 ## Correction form CF-6 — ratified 2026-09-06 (17:50), all nine fields Klopt
 
 ### CF-6 · three faults found live in the release chain — **ratified, measurement open**
@@ -658,7 +706,7 @@ them. The first 3.x release must be signed with `scripts/sign-release.sh`
 | CF-2 | Text read on its own (consequence lines, pill labels, card subtitles) describes actions as "Claude doet…" / "Kenny doet…" — never a bare ik/jij | The Phase 7 hardening form of this project: Claude counts bare pronouns in those surfaces AFTER writing it by habit and BEFORE sending, reports the raw count, then fixes; Kenny finds none | **measured 2026-09-05 at the Phase 7 form: 26 consequence boxes, 104 pills, raw count = 1 bare "jij" (H17), fixed before sending.** Field 8 (fallback) therefore applies: from now on every form of this project is written to a file, run through the pronoun/coinage/gloss count and rendered only at 0 (the lint), and consequence lines start with Claude / Kenny / an article. Kenny's own reading of the Phase 7 form is the second half of the measurement. **CLOSED 2026-09-05 (evening): the combined ratification form ran through the lint (28 items, 196 loose text lines, 0 bare pronouns, 0 Dutch coinages) and Kenny answered CF-2.M Klopt — the fallback lint is this project's working method from here on.** |
 | CF-4 | A Dutch sentence that names a code concept uses the code's English word, glossed on first use; the lint word list grows with each find | The Phase 10 retrospective form of this project: Kenny finds no coinage in its Dutch explanations; Claude checks each code concept carries its English identifier before sending | **CLOSED 2026-09-06** — measured at the Phase 10 retro form: the lint reported 0 bare pronouns over 81 loose lines and 1 coinage hit, which was the quoted counter-example "pomplussen" itself; Kenny found no coinage and adopted all nine lessons. The rule is now STANDING_RULES §1 (dev-procedure 0cad95c). |
 | CF-6 | (a) scaffold E2E runs cargo-deny on the generated project, (b) `chassis release --dry-run` checks Dockerfile/`.chassis.toml`/Migration, (c) migration closing check, (d) measure target paths first | (a) first CI run of the next fresh remote project; (b) the next release of kyu/kyu-runner/http-switchboard/almanac; (c, d) http-switchboard's step 2 | **open** — a/b to be built as kit 1.5.1 |
-| CF-7 | (proposed 2026-09-06 18:00, awaiting Kenny) kit dashboard forms refused from Chrome (`Origin: null` under `referrer-policy: no-referrer`) and refusals rendered as bare JSON pages | the almanac 4.0.1 install on CT 112: Kenny logs in from Chrome and deletes calendar `almanac-test` | **awaiting ratification** |
+| CF-7 | CSRF guard reads `Sec-Fetch-Site` first, `referrer-policy: same-origin`, refusals to navigations render in the layout, browser-fingerprint tests, Chrome drill before dashboard-touching kit releases (TEST_PLAN §5) | the almanac 4.0.1 install on CT 112: Kenny logs in from Chrome and deletes calendar `almanac-test`; Claude measures the same beforehand with the fingerprint tests and the Chrome drill on CT 118 | **ratified 2026-09-06 (18:40), all nine Klopt; fix built on `kit-1.5.1` (d2d8f13), measurement open** |
 | CF-5 | Kit releases only through `chassis release`; every hand-run commit step guarded by a HEAD-changed check; a tag only from a verified `origin/main` SHA whose `git show --stat` lists the feature files | The next kit release (1.3.1 or 1.4.0): it runs through `chassis release`, and the tag's commit is checked before the GitHub release exists | **closed** — measured 2026-09-06 at kit 1.4.0: released through `scripts/release-kit.sh` (rule 36 chain), tag `v1.4.0` → `3e0a41e` verified against `origin/main` before the GitHub release existed |
 
 ### CF-2 · correction form, answered 2026-09-05
