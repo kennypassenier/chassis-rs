@@ -208,6 +208,19 @@ contradicting option. Both go to the next form (CF-7 + the A2-2 revisit).
 release) — **not installed**: it carries the same fault (kit 1.5.0). The
 CT 112 install waits for almanac 4.0.1 on kit 1.5.1, in almanac's turn.
 
+## Kit 1.5.1 — released 2026-09-06 (19:20)
+
+CF-6 a/b, the CF-7 fix, and three faults the release chain itself surfaced
+in the kit gates on three consecutive runs (each fixed with a test, not
+retried): the updater's `--check` probe hit `ETXTBSY` right after staging
+(now retried, 40 × 50 ms); the inbox E2E reused a pooled connection the
+server had closed after a streamed 413 (fresh client); and `/healthz`'s
+"last write" slot was cleared by any successful write — a real health
+fault (a broken store directory read as healed the moment another file
+was written) that also raced parallel writers in the tests; failures are
+now kept per path. Released through `scripts/release-kit.sh` at
+`149d4fa`; CLI 1.5.1 installed on the PC.
+
 ## Correction form CF-7 — ratified 2026-09-06 (18:40), all nine fields Klopt
 
 ### CF-7 · kit dashboard forms refused from Chrome; refusals as bare JSON tabs — **ratified, measurement open**
@@ -705,8 +718,8 @@ them. The first 3.x release must be signed with `scripts/sign-release.sh`
 | CF-3 | After an autonomous rollback the same version is never reinstalled (skip list in the state root) | The first autonomous-mode drill after the fix on CT 118: install → crash → revert → the next check reports `Held` ("rolled back earlier"), zero further restarts in the following interval | **CLOSED 2026-09-05: measured at 14:21 UTC on CT 118 (one install/crash/revert, then Held twice across the next interval, NRestarts=3) and ratified the same evening — all nine fields Klopt** |
 | CF-2 | Text read on its own (consequence lines, pill labels, card subtitles) describes actions as "Claude doet…" / "Kenny doet…" — never a bare ik/jij | The Phase 7 hardening form of this project: Claude counts bare pronouns in those surfaces AFTER writing it by habit and BEFORE sending, reports the raw count, then fixes; Kenny finds none | **measured 2026-09-05 at the Phase 7 form: 26 consequence boxes, 104 pills, raw count = 1 bare "jij" (H17), fixed before sending.** Field 8 (fallback) therefore applies: from now on every form of this project is written to a file, run through the pronoun/coinage/gloss count and rendered only at 0 (the lint), and consequence lines start with Claude / Kenny / an article. Kenny's own reading of the Phase 7 form is the second half of the measurement. **CLOSED 2026-09-05 (evening): the combined ratification form ran through the lint (28 items, 196 loose text lines, 0 bare pronouns, 0 Dutch coinages) and Kenny answered CF-2.M Klopt — the fallback lint is this project's working method from here on.** |
 | CF-4 | A Dutch sentence that names a code concept uses the code's English word, glossed on first use; the lint word list grows with each find | The Phase 10 retrospective form of this project: Kenny finds no coinage in its Dutch explanations; Claude checks each code concept carries its English identifier before sending | **CLOSED 2026-09-06** — measured at the Phase 10 retro form: the lint reported 0 bare pronouns over 81 loose lines and 1 coinage hit, which was the quoted counter-example "pomplussen" itself; Kenny found no coinage and adopted all nine lessons. The rule is now STANDING_RULES §1 (dev-procedure 0cad95c). |
-| CF-6 | (a) scaffold E2E runs cargo-deny on the generated project, (b) `chassis release --dry-run` checks Dockerfile/`.chassis.toml`/Migration, (c) migration closing check, (d) measure target paths first | (a) first CI run of the next fresh remote project; (b) the next release of kyu/kyu-runner/http-switchboard/almanac; (c, d) http-switchboard's step 2 | **open** — a/b to be built as kit 1.5.1 |
-| CF-7 | CSRF guard reads `Sec-Fetch-Site` first, `referrer-policy: same-origin`, refusals to navigations render in the layout, browser-fingerprint tests, Chrome drill before dashboard-touching kit releases (TEST_PLAN §5) | the almanac 4.0.1 install on CT 112: Kenny logs in from Chrome and deletes calendar `almanac-test`; Claude measures the same beforehand with the fingerprint tests and the Chrome drill on CT 118 | **ratified 2026-09-06 (18:40), all nine Klopt; fix built on `kit-1.5.1` (d2d8f13), measurement open** |
+| CF-6 | (a) scaffold E2E runs cargo-deny on the generated project, (b) `chassis release --dry-run` checks Dockerfile/`.chassis.toml`/Migration, (c) migration closing check, (d) measure target paths first | (a) first CI run of the next fresh remote project; (b) the next release of kyu/kyu-runner/http-switchboard/almanac; (c, d) http-switchboard's step 2 | **built, kit 1.5.1 released 2026-09-06** (`149d4fa`): the E2E found and fixed the path-override wildcard at once; measurement still open at the moments named |
+| CF-7 | CSRF guard reads `Sec-Fetch-Site` first, `referrer-policy: same-origin`, refusals to navigations render in the layout, browser-fingerprint tests, Chrome drill before dashboard-touching kit releases (TEST_PLAN §5) | the almanac 4.0.1 install on CT 112: Kenny logs in from Chrome and deletes calendar `almanac-test`; Claude measures the same beforehand with the fingerprint tests and the Chrome drill on CT 118 | **ratified 2026-09-06 (18:40), all nine Klopt; fix released in kit 1.5.1 (`149d4fa`); measurement open at the almanac 4.0.1 install** |
 | CF-5 | Kit releases only through `chassis release`; every hand-run commit step guarded by a HEAD-changed check; a tag only from a verified `origin/main` SHA whose `git show --stat` lists the feature files | The next kit release (1.3.1 or 1.4.0): it runs through `chassis release`, and the tag's commit is checked before the GitHub release exists | **closed** — measured 2026-09-06 at kit 1.4.0: released through `scripts/release-kit.sh` (rule 36 chain), tag `v1.4.0` → `3e0a41e` verified against `origin/main` before the GitHub release existed |
 
 ### CF-2 · correction form, answered 2026-09-05
