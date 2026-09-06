@@ -7,6 +7,10 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.5.1] - 2026-09-06
+
 ### Fixed
 - **Dashboard forms were refused from Chrome** (CF-7, found live on
   CT 112 with Almanac 3.0.0): under `referrer-policy: no-referrer` a
