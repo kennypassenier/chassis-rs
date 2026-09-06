@@ -177,16 +177,22 @@ mod tests {
                 key: "listen",
                 default: Some("0.0.0.0:8080"),
                 secret: false,
+                doc: "",
+                feature: None,
             },
             Knob {
                 key: "state_dir",
                 default: None,
                 secret: false,
+                doc: "",
+                feature: None,
             },
             Knob {
                 key: "config",
                 default: None,
                 secret: false,
+                doc: "",
+                feature: None,
             },
         ]
     }

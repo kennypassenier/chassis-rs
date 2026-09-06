@@ -16,7 +16,7 @@
 //! ```
 //!
 //! `run` does everything AR15 lists: answer the control commands
-//! (`--version`, `--check`, `--print-config`, `--healthcheck`,
+//! (`--version`, `--knobs`, `--check`, `--print-config`, `--healthcheck`,
 //! `gen-secret`) without opening a listening socket, start logging, bind,
 //! tell systemd we are ready, serve, and stop cleanly on SIGTERM. Control
 //! commands are dispatched in `run`, not in `from_args`, so a project's
@@ -112,83 +112,405 @@ impl AppSpec {
             .unwrap_or_else(|| PathBuf::from("/var/lib").join(self.name))
     }
 
-    /// The kit's own knobs (AR3). Milestones add rows here; a doc test
-    /// compares this list with the AR3 table.
+    /// The kit's own knobs (AR3), in milestone order: listening and
+    /// logging first, then the guards, the dashboard, self-update and the
+    /// notifier. Milestones add rows here; `docs/CONFIGURATION.md` points
+    /// at `--knobs` instead of repeating the list (K31).
     pub fn knobs(&self) -> Vec<Knob> {
-        let k = |key: &'static str, default: Option<&'static str>| Knob {
+        const DASHBOARD: Option<&str> = Some("dashboard");
+        const PASSKEYS: Option<&str> = Some("passkeys");
+        const UPDATE: Option<&str> = Some("self-update");
+        const NOTIFY: Option<&str> = Some("notify");
+        let k = |key: &'static str,
+                 default: Option<&'static str>,
+                 feature: Option<&'static str>,
+                 doc: &'static str| Knob {
             key,
             default,
             secret: false,
+            doc,
+            feature,
         };
-        let secret = |key: &'static str| Knob {
+        let secret = |key: &'static str, doc: &'static str| Knob {
             key,
             default: None,
             secret: true,
+            doc,
+            feature: DASHBOARD,
         };
         vec![
-            k("listen", Some(self.default_listen)),
-            k("state_dir", None),
-            k("config", None),
-            k("log", Some("info")),
-            k("log_format", Some("text")),
-            k("shutdown_timeout_ms", Some("10000")),
+            k(
+                "listen",
+                Some(self.default_listen),
+                None,
+                "The `host:port` to bind; port 0 picks a free one and the bound address is logged.",
+            ),
+            k(
+                "state_dir",
+                None,
+                None,
+                "The one directory all state lives under (default `/var/lib/<name>`); flag or env only, since the config file lives inside it.",
+            ),
+            k(
+                "config",
+                None,
+                None,
+                "Path of the TOML config file (default `<state_dir>/config.toml`); flag or env only.",
+            ),
+            k(
+                "log",
+                Some("info"),
+                None,
+                "The `tracing` log filter, e.g. `info` or `info,chassis=debug`.",
+            ),
+            k(
+                "log_format",
+                Some("text"),
+                None,
+                "Format of a log line: `text` or `json`.",
+            ),
+            k(
+                "shutdown_timeout_ms",
+                Some("10000"),
+                None,
+                "Milliseconds allowed for draining in-flight requests and for each flush hook at stop; 0 is refused.",
+            ),
             // L2 — guards, health, metrics (K6, K7, K10)
-            k("max_body_bytes", Some("1048576")),
-            k("max_in_flight", Some("64")),
-            k("retry_after_secs", Some("5")),
-            k("request_timeout_secs", Some("30")),
-            k("rate_limit_login_per_min", Some("10")),
-            k("rate_limit_login_burst", Some("5")),
-            k("rate_limit_token_per_sec", Some("50")),
-            k("rate_limit_token_burst", Some("100")),
-            k("subsystem_check_timeout_ms", Some("2000")),
-            k("healthcheck_timeout_secs", Some("5")),
-            k("trusted_proxies", Some("")),
+            k(
+                "max_body_bytes",
+                Some("1048576"),
+                None,
+                "Request bodies above this many bytes are answered 413.",
+            ),
+            k(
+                "max_in_flight",
+                Some("64"),
+                None,
+                "Concurrent requests above this number are answered 503 with a `Retry-After` header.",
+            ),
+            k(
+                "retry_after_secs",
+                Some("5"),
+                None,
+                "The `Retry-After` value, in seconds, on 429 and 503 answers.",
+            ),
+            k(
+                "request_timeout_secs",
+                Some("30"),
+                None,
+                "Requests taking longer than this many seconds are answered 408, except on paths the service exempts.",
+            ),
+            k(
+                "rate_limit_login_per_min",
+                Some("10"),
+                None,
+                "Login attempts allowed per client IP per minute.",
+            ),
+            k(
+                "rate_limit_login_burst",
+                Some("5"),
+                None,
+                "Login attempts one client IP may make in a burst before the per-minute rate applies.",
+            ),
+            k(
+                "rate_limit_token_per_sec",
+                Some("50"),
+                None,
+                "API requests allowed per client token per second; the admin token is not limited.",
+            ),
+            k(
+                "rate_limit_token_burst",
+                Some("100"),
+                None,
+                "API requests one client token may make in a burst before the per-second rate applies.",
+            ),
+            k(
+                "subsystem_check_timeout_ms",
+                Some("2000"),
+                None,
+                "A `/healthz` subsystem check longer than this many milliseconds counts as failing.",
+            ),
+            k(
+                "healthcheck_timeout_secs",
+                Some("5"),
+                None,
+                "Seconds the `--healthcheck` probe waits for `/healthz`.",
+            ),
+            k(
+                "trusted_proxies",
+                Some(""),
+                None,
+                "Comma-separated IP addresses whose `X-Forwarded-For` and `X-Forwarded-Proto` headers are believed.",
+            ),
             // L3 — login, clients, captures (K8, K12, K13)
-            secret("token"),
-            secret("secret_key"),
-            k("session_ttl_secs", Some("86400")),
-            k("remember_me_days", Some("30")),
-            k("capture_keep", Some("20")),
-            k("capture_body_bytes", Some("4096")),
-            k("capture_ttl_secs", Some("3600")),
-            k("capture_redact", Some("")),
-            k("clients_persist_secs", Some("30")),
-            k("reveal_seconds", Some("10")),
+            secret(
+                "token",
+                "The admin token (at least 16 characters): logs in on `/login` and works as a bearer for the operator's own scripts.",
+            ),
+            secret(
+                "secret_key",
+                "32 bytes as 64 hex characters, sealing the clients, sessions and passkeys stores on disk.",
+            ),
+            k(
+                "session_ttl_secs",
+                Some("86400"),
+                DASHBOARD,
+                "Seconds a plain login session stays valid after its last use.",
+            ),
+            k(
+                "remember_me_days",
+                Some("30"),
+                DASHBOARD,
+                "Days a \"keep me logged in\" session lasts.",
+            ),
+            k(
+                "capture_keep",
+                Some("20"),
+                DASHBOARD,
+                "Last requests kept in memory per client for the Last requests panel.",
+            ),
+            k(
+                "capture_body_bytes",
+                Some("4096"),
+                DASHBOARD,
+                "Bytes of a captured request body kept before it is cut with a `truncated` mark.",
+            ),
+            k(
+                "capture_ttl_secs",
+                Some("3600"),
+                DASHBOARD,
+                "Seconds a captured request is kept before it disappears.",
+            ),
+            k(
+                "capture_redact",
+                Some(""),
+                DASHBOARD,
+                "Comma-separated header names shown as `***` in captures, on top of `authorization`, `cookie`, `set-cookie` and `x-api-key`.",
+            ),
+            k(
+                "clients_persist_secs",
+                Some("30"),
+                DASHBOARD,
+                "Seconds between writes of the clients' usage counters to disk.",
+            ),
+            k(
+                "reveal_seconds",
+                Some("10"),
+                DASHBOARD,
+                "Seconds the Reveal button shows a token in the browser.",
+            ),
             // K9 — the https origin the dashboard is reached at (passkeys)
-            k("public_url", None),
+            k(
+                "public_url",
+                None,
+                PASSKEYS,
+                "The `https://` origin the dashboard is reached at; required when passkeys are compiled in.",
+            ),
             // S6 — the bounds on pending passkey ceremonies (1.4.0)
-            k("passkey_ceremony_cap", Some("64")),
-            k("passkey_ceremony_ttl_secs", Some("300")),
-            k("passkey_ceremonies_per_ip", Some("8")),
+            k(
+                "passkey_ceremony_cap",
+                Some("64"),
+                PASSKEYS,
+                "Pending passkey ceremonies kept in memory; at the cap the oldest makes room.",
+            ),
+            k(
+                "passkey_ceremony_ttl_secs",
+                Some("300"),
+                PASSKEYS,
+                "Seconds a started passkey ceremony may take before it is swept.",
+            ),
+            k(
+                "passkey_ceremonies_per_ip",
+                Some("8"),
+                PASSKEYS,
+                "Pending passkey ceremonies one client IP may hold at once.",
+            ),
             // L5 — self-update (K18–K21)
-            k("update_mode", Some("off")),
-            k("update_url", None),
-            k("update_asset", None),
-            k("update_interval_secs", Some("21600")),
-            k("update_startup_delay_secs", Some("300")),
-            k("update_healthy_after_secs", Some("60")),
-            k("update_max_start_attempts", Some("2")),
-            k("update_hold", Some("")),
-            k("update_drill", Some("")),
-            k("update_keep_copies", Some("3")),
-            k("update_probe_timeout_secs", Some("30")),
-            k("update_download_timeout_secs", Some("300")),
-            k("update_copies_dir", None),
-            k("update_pubkey", None),
-            k("update_allow_insecure", Some("false")),
-            k("update_max_download_bytes", Some("268435456")),
+            k(
+                "update_mode",
+                Some("off"),
+                UPDATE,
+                "Who installs updates: `off`, `supervised` (the homelab runs `<name> update`) or `autonomous` (the process itself).",
+            ),
+            k(
+                "update_url",
+                None,
+                UPDATE,
+                "Directory URL holding `VERSION`, `SHA256SUMS`, `SHA256SUMS.minisig` and the binary; default the latest GitHub release of the service's repository.",
+            ),
+            k(
+                "update_asset",
+                None,
+                UPDATE,
+                "The binary's asset name in the release manifest; default the service name.",
+            ),
+            k(
+                "update_interval_secs",
+                Some("21600"),
+                UPDATE,
+                "Seconds between release checks.",
+            ),
+            k(
+                "update_startup_delay_secs",
+                Some("300"),
+                UPDATE,
+                "Seconds after start before the first release check.",
+            ),
+            k(
+                "update_healthy_after_secs",
+                Some("60"),
+                UPDATE,
+                "Seconds an autonomously installed version must serve before it counts as proven.",
+            ),
+            k(
+                "update_max_start_attempts",
+                Some("2"),
+                UPDATE,
+                "Starts an unproven version gets before the previous binary is restored.",
+            ),
+            k(
+                "update_hold",
+                Some(""),
+                UPDATE,
+                "Pin a version (`1.4.0` or `pin:1.4.0`) or refuse exactly one (`skip:1.4.0`); empty holds nothing.",
+            ),
+            k(
+                "update_drill",
+                Some(""),
+                UPDATE,
+                "`broken` or `broken-after-ready` runs the broken-release drill; empty otherwise.",
+            ),
+            k(
+                "update_keep_copies",
+                Some("3"),
+                UPDATE,
+                "Pre-update state copies kept.",
+            ),
+            k(
+                "update_probe_timeout_secs",
+                Some("30"),
+                UPDATE,
+                "Seconds the staged binary's `--check` may take.",
+            ),
+            k(
+                "update_download_timeout_secs",
+                Some("300"),
+                UPDATE,
+                "Seconds allowed per download.",
+            ),
+            k(
+                "update_copies_dir",
+                None,
+                UPDATE,
+                "Where pre-update state copies go; default `<state_dir>-pre-update`, beside the state root.",
+            ),
+            k(
+                "update_pubkey",
+                None,
+                UPDATE,
+                "A minisign public key (base64 line) replacing the compiled-in one, for drills and staging.",
+            ),
+            k(
+                "update_allow_insecure",
+                Some("false"),
+                UPDATE,
+                "Allow a plain `http://` release host (`true` or `false`).",
+            ),
+            k(
+                "update_max_download_bytes",
+                Some("268435456"),
+                UPDATE,
+                "An asset above this many bytes is refused before it is read in full.",
+            ),
             // A3 (1.4.0) — say it once, after N consecutive failed checks
-            k("update_notify_after_failures", Some("3")),
-            k("timeout_stop_secs", None),
+            k(
+                "update_notify_after_failures",
+                Some("3"),
+                UPDATE,
+                "Consecutive failed release checks before `update.failed` is emitted once; `update.ok` follows the next success.",
+            ),
+            k(
+                "timeout_stop_secs",
+                None,
+                None,
+                "Mirror of the unit's `TimeoutStopSec`, in seconds, so `--check` can warn when it is shorter than `shutdown_timeout_ms`.",
+            ),
             // L5 — notifications (K22)
-            k("notify_timeout_secs", Some("10")),
-            k("notify_retries", Some("3")),
-            k("notify_backoff_base_ms", Some("500")),
-            k("notify_backoff_cap_ms", Some("30000")),
-            k("notify_queue_size", Some("1024")),
-            k("health_sample_secs", Some("30")),
+            k(
+                "notify_timeout_secs",
+                Some("10"),
+                NOTIFY,
+                "Seconds allowed per webhook attempt.",
+            ),
+            k(
+                "notify_retries",
+                Some("3"),
+                NOTIFY,
+                "Retries per webhook target before the fallback is tried.",
+            ),
+            k(
+                "notify_backoff_base_ms",
+                Some("500"),
+                NOTIFY,
+                "Milliseconds before the first webhook retry.",
+            ),
+            k(
+                "notify_backoff_cap_ms",
+                Some("30000"),
+                NOTIFY,
+                "Largest delay, in milliseconds, between webhook retries.",
+            ),
+            k(
+                "notify_queue_size",
+                Some("1024"),
+                NOTIFY,
+                "Events waiting for delivery; a full queue drops the event with a warning.",
+            ),
+            k(
+                "health_sample_secs",
+                Some("30"),
+                NOTIFY,
+                "Seconds between health samples for `health.degraded` and `health.recovered`.",
+            ),
         ]
+    }
+
+    /// The knob table as Markdown (K31): one row per knob in `knobs()`
+    /// order, with the three names, the default (`—` when there is none,
+    /// `(secret)` for the two secrets, whose value never appears anywhere),
+    /// the feature that reads it and its one-sentence meaning. Printed by
+    /// `--knobs`; `chassis sync` renders it into `docs/KIT.md`.
+    pub fn knobs_markdown(&self) -> String {
+        let prefix = self.prefix();
+        let mut out = String::from(
+            "| Key | Env | Flag | Default | Feature | Meaning |\n|---|---|---|---|---|---|\n",
+        );
+        for k in self.knobs() {
+            let default = if k.secret {
+                "(secret)".to_string()
+            } else {
+                match k.default {
+                    Some("") => "`\"\"`".to_string(),
+                    Some(d) => format!("`{d}`"),
+                    None => "—".to_string(),
+                }
+            };
+            let flag = if k.secret {
+                "—".to_string()
+            } else {
+                format!("`{}`", k.flag_name())
+            };
+            out.push_str(&format!(
+                "| `{}` | `{}` | {} | {} | {} | {} |\n",
+                k.key,
+                k.env_name(&prefix),
+                flag,
+                default,
+                k.feature.unwrap_or("core"),
+                k.doc,
+            ));
+        }
+        out
     }
 }
 
@@ -200,6 +522,9 @@ pub enum Control {
     Help(String),
     Check,
     PrintConfig,
+    /// `--knobs`: the knob table as Markdown (K31), stdout, exit 0; like
+    /// `--version` it is answered before configuration is read.
+    Knobs,
     /// Probe a running instance's `/healthz` (K7). `None` = derive the URL
     /// from the configured listen address.
     Healthcheck(Option<String>),
@@ -282,7 +607,8 @@ pub struct NotifyKnobs {
 /// A configured, not yet started service.
 pub struct App {
     pub spec: AppSpec,
-    /// `None` only for `--version` and `gen-secret`, which never read configuration.
+    /// `None` only for `--version`, `--knobs` and `gen-secret`, which never
+    /// read configuration.
     pub loaded: Option<Loaded>,
     pub listen: SocketAddr,
     pub shutdown_timeout: Duration,
@@ -491,6 +817,12 @@ impl App {
                     .help("Print every knob with its effective value and source; secrets masked"),
             )
             .arg(
+                Arg::new("knobs")
+                    .long("knobs")
+                    .action(ArgAction::SetTrue)
+                    .help("Print every knob (key, env, flag, default, feature, meaning) as a Markdown table and exit (reads nothing else)"),
+            )
+            .arg(
                 Arg::new("healthcheck")
                     .long("healthcheck")
                     .value_name("URL")
@@ -543,6 +875,9 @@ impl App {
 
         if matches.get_flag("version") {
             return Ok(App::bare(spec, router, Control::Version));
+        }
+        if matches.get_flag("knobs") {
+            return Ok(App::bare(spec, router, Control::Knobs));
         }
         if matches.subcommand_matches("gen-secret").is_some() {
             return Ok(App::bare(spec, router, Control::GenSecret));
@@ -1055,8 +1390,8 @@ impl App {
 
     /// Whether this invocation is going to read the project's own
     /// configuration (1.2.0): a real start or `--check`. `--version`,
-    /// `--help`, `gen-secret`, `--healthcheck`, `--print-config`, `update`
-    /// and `rekey` are the kit's alone and must work without it — two
+    /// `--help`, `--knobs`, `gen-secret`, `--healthcheck`, `--print-config`,
+    /// `update` and `rekey` are the kit's alone and must work without it — two
     /// projects got this wrong the same afternoon and broke their
     /// `--healthcheck` on a box without a config file.
     pub fn needs_project_config(&self) -> bool {
@@ -1239,6 +1574,10 @@ impl App {
             Some(Control::PrintConfig) => {
                 let loaded = self.loaded.as_ref().expect("loaded for print-config");
                 print!("{}", render_table(&loaded.resolved));
+                Ok(Some(ExitCode::SUCCESS))
+            }
+            Some(Control::Knobs) => {
+                print!("{}", self.spec.knobs_markdown());
                 Ok(Some(ExitCode::SUCCESS))
             }
             Some(Control::Check) => {
@@ -1813,6 +2152,93 @@ mod tests {
         assert_eq!(app.control().await.unwrap(), Some(ExitCode::SUCCESS));
     }
 
+    /// K31: the table has one row per knob, in `knobs()` order, and the
+    /// two secrets show `(secret)` where a default would be — never a
+    /// value, never a flag. Drilled red once by adding a duplicate row.
+    #[test]
+    fn k31_knob_table_lists_every_knob_once_and_no_secret_default() {
+        let spec = spec();
+        let table = spec.knobs_markdown();
+        let rows: Vec<&str> = table
+            .lines()
+            .skip(2)
+            .filter(|l| l.starts_with('|'))
+            .collect();
+        let knobs = spec.knobs();
+        assert_eq!(rows.len(), knobs.len(), "one row per knob:\n{table}");
+        for (row, knob) in rows.iter().zip(&knobs) {
+            let cells: Vec<&str> = row.split('|').map(str::trim).collect();
+            assert_eq!(cells[1], format!("`{}`", knob.key), "order follows knobs()");
+            assert_eq!(cells[2], format!("`{}`", knob.env_name("T_APP")));
+            if knob.secret {
+                assert_eq!(cells[3], "—", "a secret has no flag: {row}");
+                assert_eq!(cells[4], "(secret)", "{row}");
+            } else {
+                assert_eq!(cells[3], format!("`{}`", knob.flag_name()));
+            }
+            assert_eq!(cells[5], knob.feature.unwrap_or("core"));
+            assert_eq!(cells[6], knob.doc);
+        }
+        for key in spec.knob_keys() {
+            assert_eq!(
+                table.matches(&format!("| `{key}` |")).count(),
+                1,
+                "{key} appears exactly once"
+            );
+        }
+        assert!(table.contains("| `T_APP_LISTEN` |"), "{table}");
+        assert!(table.contains("| self-update |") && table.contains("| notify |"));
+    }
+
+    /// K31: every knob carries a meaning — a whole sentence, so the table
+    /// never shows an empty cell or a fragment. Drilled red once by
+    /// blanking one doc.
+    #[test]
+    fn k31_every_knob_has_a_doc_sentence() {
+        for k in spec().knobs() {
+            assert!(
+                k.doc.split_whitespace().count() >= 3 && k.doc.ends_with('.'),
+                "{}: doc must be a sentence ending in a period, got {:?}",
+                k.key,
+                k.doc
+            );
+            assert!(
+                !k.doc.contains('|') && !k.doc.contains('\n'),
+                "{}: a pipe or newline would break the Markdown row",
+                k.key
+            );
+            if let Some(f) = k.feature {
+                assert!(
+                    matches!(f, "dashboard" | "passkeys" | "self-update" | "notify"),
+                    "{}: unknown feature {f}",
+                    k.key
+                );
+            }
+        }
+    }
+
+    /// K31: `--knobs` is answered like `--version`, before any
+    /// configuration is read. Drilled red once by skipping the early answer,
+    /// so the flag fell through to configuration loading.
+    #[tokio::test]
+    async fn k31_knobs_flag_reads_no_configuration() {
+        let mut app = App::from_args(
+            spec(),
+            argv(&[
+                "--knobs",
+                "--state-dir",
+                "/nonexistent/x",
+                "--listen",
+                "garbage",
+            ]),
+            Router::new(),
+        )
+        .unwrap();
+        assert_eq!(app.control, Some(Control::Knobs));
+        assert!(app.loaded.is_none(), "--knobs reads no configuration");
+        assert_eq!(app.control().await.unwrap(), Some(ExitCode::SUCCESS));
+    }
+
     #[tokio::test]
     async fn gen_secret_refuses_a_pipe() {
         // Under `cargo test` stdout is not a terminal, so the guard fires (critic #12).
@@ -2019,6 +2445,7 @@ mod tests {
             vec!["--version"],
             vec!["--help"],
             vec!["--print-config"],
+            vec!["--knobs"],
             vec!["--healthcheck", "http://127.0.0.1:1/healthz"],
         ] {
             assert!(

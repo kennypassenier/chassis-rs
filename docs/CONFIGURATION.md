@@ -1,4 +1,4 @@
-# Configuration — every knob, the precedence rule, the control commands
+# Configuration — the precedence rule, where the knob list lives, the control commands
 
 The kit resolves its configuration from four layers, strongest first:
 **command-line flag > environment variable > config file > built-in
@@ -91,100 +91,34 @@ not reached (the env layer wins first) and stays ignored. Proven by:
 
 ## The knobs
 
+The list of knobs is **not** kept by hand here: it is generated from the
+same `AppSpec::knobs()` the parser reads (K31), so it cannot drift from the
+code. Two places show it:
+
+- `<name> --knobs` prints it as a Markdown table — key, env var, flag,
+  default, the feature that reads it, and one sentence on what it does and
+  in which unit. It answers before any configuration is read, like
+  `--version`: no socket, no state directory, no secrets needed.
+- `docs/KIT.md` in every project created with `chassis new` carries the
+  same table for the kit version the project pins; `chassis sync` keeps it
+  current (K27).
+
 Env var is `<P>_` + the key upper-cased; the flag is `--` + the key with
-`_` → `-`; the file key is the key itself. "min" is the smallest value
-the parser accepts; below it is a configuration error naming the knob.
-
-### Core: listening, state, logging, shutdown
-
-| Key | Default | What it does |
-|---|---|---|
-| `listen` | `0.0.0.0:8080` | `host:port` to bind. `0` picks a free port; the bound address is logged (`listening … addr=`). |
-| `state_dir` | `/var/lib/<name>` | The one state root. `--check` refuses a missing one; start creates it. Env/flag only. |
-| `config` | `<state_dir>/config.toml` | Path of the TOML file. Env/flag only. |
-| `log` | `info` | `tracing` filter, e.g. `info,chassis=debug`. |
-| `log_format` | `text` | `text` or `json`; anything else is refused. |
-| `shutdown_timeout_ms` | `10000` | Bound on the drain and each flush hook at stop. `0` and non-numbers are refused. |
-| `timeout_stop_secs` | — | Mirror of the unit's `TimeoutStopSec` (the scaffold sets `Environment=<P>_TIMEOUT_STOP_SECS=60`) so `--check` can warn when it is shorter than `shutdown_timeout_ms`. Not validated. |
-
-### Guards, health, metrics (K10, K6, K7)
-
-| Key | Default | min | What it does |
-|---|---|---|---|
-| `max_body_bytes` | `1048576` | 1 | Request bodies above this → 413. |
-| `max_in_flight` | `64` | 1 | Concurrent requests above this → 503 + `Retry-After`. |
-| `retry_after_secs` | `5` | 1 | The `Retry-After` value on 429 and 503. |
-| `request_timeout_secs` | `30` | 1 | Requests longer than this → 408, except paths registered with `App::exempt_from_timeout`. |
-| `rate_limit_login_per_min` | `10` | 1 | `/login` attempts per client IP per minute. |
-| `rate_limit_login_burst` | `5` | 1 | Burst allowed on `/login` before the per-minute rate applies. |
-| `rate_limit_token_per_sec` | `50` | 1 | API requests per client token per second (the login token is not limited). |
-| `rate_limit_token_burst` | `100` | 1 | Burst per client token. |
-| `subsystem_check_timeout_ms` | `2000` | 1 | A `/healthz` subsystem check longer than this counts as failing (`check timed out`). |
-| `healthcheck_timeout_secs` | `5` | 1 | Timeout of the `--healthcheck` probe. |
-| `trusted_proxies` | `` | — | Comma-separated IPs whose `X-Forwarded-For` / `X-Forwarded-Proto` are believed. Non-IP entries are refused. |
-
-### Login, clients, captures (K8, K12, K13)
-
-| Key | Default | min | What it does |
-|---|---|---|---|
-| `token` | — | 16 chars | **Secret.** The dashboard login token; also works as a bearer for scripts. |
-| `secret_key` | — | 64 hex | **Secret.** 32 bytes hex; seals `clients.json.enc`, `sessions.json.enc`, `passkeys.json.enc`. |
-| `session_ttl_secs` | `86400` | 60 | A plain session slides this far from its last use. |
-| `remember_me_days` | `30` | 1 | Fixed lifetime of a "keep me logged in" session (also the cookie's `Max-Age`). |
-| `capture_keep` | `20` | 1 | Last requests kept per client, in memory. |
-| `capture_body_bytes` | `4096` | 1 | Captured bodies are cut here with a `truncated` mark. |
-| `capture_ttl_secs` | `3600` | 1 | Captures older than this disappear. |
-| `capture_redact` | `` | — | Extra header names shown as `***`; `authorization`, `cookie`, `set-cookie`, `x-api-key` always are. |
-| `clients_persist_secs` | `30` | 1 | How often `last_used_at`/`uses` are written to disk (also at shutdown). |
-| `reveal_seconds` | `10` | — | How long the Reveal button shows a token in the browser. Not validated; unparsable values fall back to 10. |
-| `passkey_ceremony_cap` | `64` | 1 | Pending passkey ceremonies kept in memory; at the cap the oldest makes room (S6, 1.4.0 — until then the table refused). |
-| `passkey_ceremony_ttl_secs` | `300` | 1 | A started ceremony must finish within this; expired ones are swept. |
-| `passkey_ceremonies_per_ip` | `8` | 1 | One client IP's share of the table; at its share its own oldest goes, nobody else's. The `/login` IP limiter (`rate_limit_login_*`) also covers `/passkeys/login/*`. |
-| `public_url` | — | — | The `https://` origin the dashboard is reached at; required at `--check`/start when `passkeys` is compiled in. |
-
-### Self-update (K18–K21; read only with the `self-update` feature)
-
-| Key | Default | min | What it does |
-|---|---|---|---|
-| `update_mode` | `off` | — | `off`, `supervised` or `autonomous`. |
-| `update_url` | derived | — | Directory holding `VERSION`, `SHA256SUMS`, `SHA256SUMS.minisig` and the binary. Default `https://github.com/<AppSpec.repository>/releases/latest/download`; with neither set and mode not `off`, `--check` refuses: `update_mode is on but neither update_url nor AppSpec.repository says where releases live`. |
-| `update_asset` | `<name>` | — | The binary's asset name in the manifest. |
-| `update_interval_secs` | `21600` | 60 | Time between checks (autonomous installs; off/supervised watch read-only). |
-| `update_startup_delay_secs` | `300` | 0 | Delay before the first check after start. |
-| `update_healthy_after_secs` | `60` | 1 | Autonomous: serving this long after bind confirms the new version. |
-| `update_max_start_attempts` | `2` | 1 | Autonomous: starts of an unproven version before the previous binary is restored. |
-| `update_hold` | `` | — | `1.4.0` or `pin:1.4.0` pins that version; `skip:1.4.0` refuses exactly that one. Must parse as `x.y.z`. |
-| `update_drill` | `` | — | `broken` or `broken-after-ready` for the broken-release drill; anything else refused. |
-| `update_keep_copies` | `3` | 1 | Pre-update state copies kept. |
-| `update_probe_timeout_secs` | `30` | 1 | Bound on `<staging> --check`. |
-| `update_download_timeout_secs` | `300` | 1 | HTTP timeout per download. |
-| `update_copies_dir` | `<state_dir>-pre-update` | — | Where pre-update copies go (beside, not under, the state root). |
-| `update_pubkey` | compiled-in key | — | A minisign public key (base64 line) replacing the ecosystem key. Refused if not a minisign key; logged and shown on the card when set. |
-| `update_allow_insecure` | `false` | — | Allow an `http://` release host. `true/false/1/0/yes/no/on/off`. |
-| `update_max_download_bytes` | `268435456` | 1 | An asset above this is refused before it is read in full. |
-| `update_notify_after_failures` | `3` | 1 | `update.failed` is emitted once, on the N-th consecutive failed release check (unreachable host, refused signature, bad hash), and `update.ok` once when checks succeed again — not every interval (A3, 1.4.0; Almanac's AR24). `1` reports every first failure. |
-
-### Notifications (K22; read only with the `notify` feature)
-
-| Key | Default | min | What it does |
-|---|---|---|---|
-| `notify_timeout_secs` | `10` | 1 | HTTP timeout per webhook attempt. |
-| `notify_retries` | `3` | 0 | Retries per target before the fallback is tried. |
-| `notify_backoff_base_ms` | `500` | 1 | First retry delay. |
-| `notify_backoff_cap_ms` | `30000` | 1 | Largest retry delay (jitter may add up to one more). |
-| `notify_queue_size` | `1024` | 1 | Events waiting for delivery; a full queue drops the event with a warning. |
-| `health_sample_secs` | `30` | 1 | How often health is sampled for `health.degraded` / `health.recovered`. |
-
-The `[[notify.webhook]]` entries themselves live only in the file (see
+`_` → `-`; the file key is the key itself. A value below the smallest the
+parser accepts is a configuration error naming the knob. Knobs of a feature
+the binary was built without are accepted and ignored. The
+`[[notify.webhook]]` entries themselves live only in the file (see
 OPERATIONS.md § Notifications). Proven by:
 `app::tests::shipped_defaults_pass_their_own_validation` (the defaults
-survive their own parser; `--max-in-flight 0` is refused).
+survive their own parser; `--max-in-flight 0` is refused),
+`app::tests::k31_knob_table_lists_every_knob_once_and_no_secret_default`,
+`app::tests::k31_every_knob_has_a_doc_sentence`.
 
 ## Control commands
 
 All knobs are **global flags**: `inbox update --update-url …` works, and
 so does the flag before the subcommand. Every command below except
-`--version` and `gen-secret` loads and validates the full configuration
+`--version`, `--knobs` and `gen-secret` loads and validates the full configuration
 first, so a bad knob makes it exit 1 with a remedy. Exit codes are 0 or
 1 only.
 
@@ -193,6 +127,7 @@ first, so a bad knob makes it exit 1 with a remedy. Exit codes are 0 or
 | `--version`, `-V` | Prints `<name> <version>`. Reads no configuration, no environment, no state dir (a garbage `<P>_LISTEN` does not matter). | 0 |
 | `--check` | Validates every knob; with `dashboard` requires both secrets (and `public_url` with `passkeys`); requires an **existing, writable** state dir (writes and removes a zero-byte `.chassis-probe`, creates nothing); prints warnings to stderr; runs the project's `App::on_check` hooks; prints `<name>: configuration ok`. Opens no socket. | 0 ok / 1 first error |
 | `--print-config` | The table above. Works without secrets when neither is set. | 0 / 1 on a load error |
+| `--knobs` | The knob table (see "The knobs"), Markdown on stdout. Reads no configuration, no environment, no state dir. | 0 |
 | `--healthcheck [URL]` | `GET` the URL (default: the configured port on `127.0.0.1`), prints `<name>: alive=<bool> status=<ok\|degraded> version=<v>`. Alive means a well-formed JSON report came back, 200 **or** 503. | 0 alive / 1 |
 | `gen-secret` | Prints `<P>_TOKEN=<48 hex>` and `<P>_SECRET_KEY=<64 hex>`. Refuses when stdout is not a terminal. Reads nothing. | 0 / 1 |
 | `update` | One supervised update attempt regardless of `update_mode` (SELF_UPDATE.md). Prints one of: `… already current (<v>); nothing touched`, `… <v> is available but held; nothing touched`, `… an update to <v> is still on probation; nothing touched`, `… installed <to> over <from>; restart to run it`. Never restarts, never writes update state. | 0 for all four outcomes / 1 on error |

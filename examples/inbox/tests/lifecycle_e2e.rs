@@ -161,6 +161,45 @@ fn print_config_and_check_touch_nothing() {
     );
 }
 
+// K31: --knobs prints the knob table on stdout and exits 0 without
+// reading configuration (garbage LISTEN, no secrets) and without touching
+// the state dir. Drilled red once by skipping the kit's early answer, so
+// the garbage listen address made it exit 1.
+#[test]
+fn k31_knobs_prints_the_table_and_touches_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = inbox()
+        .args(["--knobs"])
+        .env("INBOX_LISTEN", "garbage")
+        .env("INBOX_STATE_DIR", dir.path())
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    assert!(
+        stdout.starts_with("| Key | Env | Flag | Default | Feature | Meaning |"),
+        "{stdout}"
+    );
+    for needle in [
+        "| `listen` | `INBOX_LISTEN` | `--listen` | `0.0.0.0:8080` | core |",
+        "| `token` | `INBOX_TOKEN` | — | (secret) | dashboard |",
+        "| `update_mode` | `INBOX_UPDATE_MODE` | `--update-mode` | `off` | self-update |",
+        "| `notify_retries` |",
+    ] {
+        assert!(stdout.contains(needle), "--knobs lacks {needle}:\n{stdout}");
+    }
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        0,
+        "--knobs wrote into the state dir"
+    );
+    assert!(out.stderr.is_empty(), "nothing on stderr");
+}
+
 // K8 / W6: with the dashboard compiled in, no secrets means no start and
 // no green --check; the remedy names gen-secret and never a value.
 #[test]

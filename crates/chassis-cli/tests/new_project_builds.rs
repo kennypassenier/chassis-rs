@@ -59,6 +59,14 @@ fn a_new_project_compiles_and_answers_version() {
         "tells how to create the remote later"
     );
 
+    // K27: the kit documentation is part of the scaffold and names the
+    // project's admin token variable. Drilled red once by removing the
+    // scaffold entry, so `new` wrote no KIT.md.
+    let kit_md = std::fs::read_to_string(project.join("docs/KIT.md"))
+        .expect("docs/KIT.md is written by chassis new");
+    assert!(kit_md.contains("DEMO_SVC_TOKEN"), "{kit_md}");
+    assert!(kit_md.contains("| `DEMO_SVC_LISTEN` |"), "{kit_md}");
+
     // H10: the generated project passes ITS OWN gates (fmt, clippy -D
     // warnings, tests, clean tree) — what its first real commit will face.
     let gates = project.join(".claude/hooks/gates.sh");

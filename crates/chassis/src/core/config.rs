@@ -53,6 +53,12 @@ pub struct Knob {
     /// Secret knobs are shown as `***` by `--print-config` and are never
     /// accepted from the config file (AR3: secrets come from env only).
     pub secret: bool,
+    /// One plain sentence: what the knob does and in which unit (K31).
+    /// Rendered by `--knobs` and into every project's `docs/KIT.md`.
+    pub doc: &'static str,
+    /// The kit feature that reads the knob (`dashboard`, `passkeys`,
+    /// `self-update`, `notify`); `None` for the core (K31).
+    pub feature: Option<&'static str>,
 }
 
 impl Knob {
@@ -211,21 +217,29 @@ mod tests {
                 key: "listen",
                 default: Some("0.0.0.0:8080"),
                 secret: false,
+                doc: "",
+                feature: None,
             },
             Knob {
                 key: "token",
                 default: None,
                 secret: true,
+                doc: "",
+                feature: None,
             },
             Knob {
                 key: "shutdown_timeout_ms",
                 default: Some("10000"),
                 secret: false,
+                doc: "",
+                feature: None,
             },
             Knob {
                 key: "log",
                 default: Some("info"),
                 secret: false,
+                doc: "",
+                feature: None,
             },
         ]
     }

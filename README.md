@@ -47,11 +47,20 @@ is the source of truth there), and with `--remote` the checks `main`'s
 branch protection requires against the scaffold's CI job names, plus
 `strict` and `enforce_admins` (`--protect` repairs). Every such difference
 is one line, `! <what>: <project value> vs <expected> — <remedy>`, printed
-after the file diffs. Exit 0 = in sync (or every difference applied with
+next to the file diffs (`kp_themes` first, because that record feeds
+the rendered files such as `docs/KIT.md`). Exit 0 = in sync (or every difference applied with
 `--write`); exit 1 = drift found and not applied, or the command itself
 could not run (unparseable file, missing tool — stderr carries the remedy).
 Without `--remote` sync needs no network and no token, so a CI job can run
 it as a drift check; `--remote` is the only part that needs `gh` and a login.
+
+Every project also carries `docs/KIT.md`: what it gets from the kit — the
+door (tokens, the two secrets), the dashboard pages, `/healthz` and
+`/metrics`, self-update, notifications, the control commands and the
+full knob table — written for the kit version the project pins. `chassis
+new` writes it and `chassis sync` keeps it current; it is generated, so
+the same table is one `<name> --knobs` away on any machine that has the
+binary (K27, K31).
 
 ## Where the decisions live
 

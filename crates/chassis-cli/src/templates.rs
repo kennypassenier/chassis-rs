@@ -73,6 +73,12 @@ pub const ENTRIES: &[Entry] = &[
         include_str!("../../../scaffold/rust-toolchain.toml"),
     ),
     rendered("deny.toml", include_str!("../../../scaffold/deny.toml")),
+    // K27: what the project gets from the kit, for the kit version it pins;
+    // kit-owned so a sync rewrites it, unlike the rest of docs/.
+    rendered(
+        "docs/KIT.md",
+        include_str!("../../../scaffold/docs/KIT.md.tmpl"),
+    ),
     rendered(
         ".github/workflows/ci.yml",
         include_str!("../../../scaffold/.github/workflows/ci.yml"),

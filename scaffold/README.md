@@ -21,6 +21,7 @@ existing one against. Each file is a minijinja template rendered with:
 | `deny_ignore` | RUSTSEC ids cargo-deny ignores for this project (1.7.0), each a reviewed decision with its reason in a comment beside it | `["RUSTSEC-2023-0071"]` |
 | `latch_env` | the `--env` the latch unit passes (1.6.0; default `prod`; `""` = no `--env`, latch's own default) | `""` |
 | `vmid` / `stack` | for `service.yml`; placeholders until adoption | `0` / `inbox` |
+| `knobs_table` | the kit's knob table as Markdown, pre-rendered from `AppSpec::knobs()` for `docs/KIT.md` (K27, K31) | `\| Key \| Env \| …` |
 
 Rendered paths mirror this directory: `scaffold/.github/workflows/ci.yml`
 lands at `.github/workflows/ci.yml`. A file named `*.tmpl` loses the
@@ -29,7 +30,8 @@ treating templates as the real thing.
 
 Files the project owns after `new` and that `sync` therefore never
 overwrites without `--write --force`: `src/**`, `README.md`, `CHANGELOG.md`,
-`docs/**`. Everything else is the kit's contract (H3) and `sync` shows the
+`docs/**` — except `docs/KIT.md`, which is generated (K27) and therefore
+kit-owned. Everything else is the kit's contract (H3) and `sync` shows the
 diff.
 
 ## What sync keeps
