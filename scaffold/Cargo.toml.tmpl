@@ -13,7 +13,7 @@ publish = false
 # The kit, pinned to a tag: a new kit version is a deliberate bump here,
 # a build and a release (SCOPE N3). Features: drop what this service does
 # not need; `passkeys` pulls OpenSSL.
-chassis = { git = "{{ chassis_repo }}", tag = "{{ chassis_tag }}", features = ["dashboard", "passkeys", "self-update", "notify"] }
+chassis = { git = "{{ chassis_repo }}", tag = "{{ chassis_tag }}", version = "{{ chassis_version }}", features = ["dashboard", "passkeys", "self-update", "notify"] }
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json", "matched-path"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
 serde_json = "1"

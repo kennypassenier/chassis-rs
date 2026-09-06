@@ -9,6 +9,29 @@ scaffold writes. A breaking change in either is a major and carries a
 
 _Nothing yet._
 
+## [1.4.1] - 2026-09-06
+
+Two faults that the first remote `chassis new` and the first `chassis
+release` on a real machine found within an hour of each other.
+
+### Fixed
+
+- **`chassis release` refused a machine with minisign installed.** The
+  tool check ran `minisign --version`, which minisign 0.12 answers with
+  exit 2; `-v` is accepted now. Test:
+  `a_tool_that_only_answers_dash_v_counts_as_available`.
+- **A generated project's CI was red on cargo-deny.** `wildcards = "deny"`
+  flags a git dependency without a version requirement, and the scaffold's
+  `Cargo.toml` had only the tag. It now carries `version = "<tag without
+  v>"` next to the tag — what kyu-runner's migration had already added by
+  hand. Test: `the_git_dependency_pins_a_version_next_to_its_tag`.
+
+### Changed
+
+- MIGRATION.md §10 step 1 makes `.chassis.toml` a required part of the
+  copy: the three projects migrated on 2026-09-05 lacked it and `chassis
+  release` refused all three.
+
 ## [1.4.0] - 2026-09-06
 
 The two items Kenny put on the table after the Phase 10 retrospective.

@@ -180,9 +180,14 @@ before bumping the tag.
 
 1. `chassis new <name> --no-remote --dir /tmp/<name>-scaffold` and copy
    the scaffold files you lack into the existing repository on a
-   `chassis-migration` branch (or run `chassis sync --write` after writing
-   a `.chassis.toml`, see `scaffold/README.md`). Commit the kit as a git
-   dependency pinned to a tag.
+   `chassis-migration` branch — **`.chassis.toml` included** (edit `name`,
+   `repo`, `state_dir`, `latch`; or write it first and run `chassis sync
+   --write`, see `scaffold/README.md`). `chassis sync` and `chassis release`
+   refuse to run without it; the three projects migrated on 2026-09-05
+   lacked it and could not release until it was added. Commit the kit as a
+   git dependency pinned to a tag, with `version = "<tag without v>"`
+   beside it — cargo-deny's wildcard rule rejects a git dependency without
+   a version requirement.
 2. Rewrite `main.rs` per §5; move handlers under `api_routes` /
    `dashboard_routes`; delete the code from §1.
 3. Map the knobs (§3); write the new env file with `gen-secret`; make

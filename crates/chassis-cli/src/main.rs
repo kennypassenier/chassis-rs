@@ -56,6 +56,7 @@ impl Recorded {
             description => self.description,
             toolchain => self.toolchain,
             chassis_tag => self.chassis_tag,
+            chassis_version => self.chassis_tag.trim_start_matches('v'),
             chassis_repo => self.chassis_repo,
             chassis_path => self.chassis_path,
             kp_themes => self.kp_themes,
@@ -898,14 +899,19 @@ fn wait_for_release_run(repo: &str, tag: &str, poll: u64, max_wait: u64) -> Resu
 // ───────────────────────── processes ─────────────────────────
 
 fn require_tool(tool: &str, remedy: &str) -> Result<(), Error> {
-    if Command::new(tool)
-        .arg("--version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
-    {
+    // `--version` for most tools; minisign 0.12 only knows `-v` and exits 2
+    // on `--version`, which made `chassis release` refuse a machine that
+    // had it (2026-09-06).
+    let answers = |flag: &str| {
+        Command::new(tool)
+            .arg(flag)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    };
+    if answers("--version") || answers("-v") {
         Ok(())
     } else {
         Err(Error::config(
@@ -1090,6 +1096,37 @@ mod tests {
         assert!(kit.contains(&format!(
             "pub const RELEASE_PUBKEY: &str = \"{RELEASE_PUBKEY}\""
         )));
+    }
+
+    #[test]
+    fn a_tool_that_only_answers_dash_v_counts_as_available() {
+        // minisign 0.12 exits 2 on `--version` and 0 on `-v`; `chassis release`
+        // refused a machine that had it installed (2026-09-06).
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let tool = dir.path().join("fake-minisign");
+        std::fs::write(&tool, "#!/bin/sh\n[ \"$1\" = \"-v\" ] && exit 0\nexit 2\n").unwrap();
+        std::fs::set_permissions(&tool, std::fs::Permissions::from_mode(0o755)).unwrap();
+        require_tool(tool.to_str().unwrap(), "install it").expect("-v is enough");
+        let absent = dir.path().join("absent");
+        assert!(require_tool(absent.to_str().unwrap(), "install it").is_err());
+    }
+
+    #[test]
+    fn the_git_dependency_pins_a_version_next_to_its_tag() {
+        // cargo-deny's `wildcards = "deny"` flags a git dependency without a
+        // version requirement; the first remote `chassis new` was red on it
+        // (2026-09-06), as kyu-runner's migration had already found by hand.
+        let cargo = render_all(&rec())
+            .unwrap()
+            .into_iter()
+            .find(|(p, ..)| p == "Cargo.toml")
+            .unwrap()
+            .1;
+        assert!(
+            cargo.contains("tag = \"v0.1.0\", version = \"0.1.0\", features = ["),
+            "{cargo}"
+        );
     }
 
     #[test]
