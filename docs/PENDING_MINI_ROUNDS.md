@@ -208,6 +208,19 @@ contradicting option. Both go to the next form (CF-7 + the A2-2 revisit).
 release) — **not installed**: it carries the same fault (kit 1.5.0). The
 CT 112 install waits for almanac 4.0.1 on kit 1.5.1, in almanac's turn.
 
+## Hold — 2026-09-06 (23:35 local): waiting for kp-themes
+
+Kenny skipped the report/D6/H1 form on purpose: first a kp-themes update
+(layout utilities, the theme-revert report, the destructive-confirm dialog
+— prompt handed over earlier tonight), which chassis-rs implements first;
+the other projects then take it in **their own sessions** (rule 7a back in
+force; the three lifts of today are over). kyu v3.0.0 is signed
+(`SHA256SUMS.minisig` + `VERSION` on the release); its deploy on CT 109 is
+the Homelab Rust session's (V6). The form's items stay open in this file:
+R1 (kyu/kyu-runner/http-switchboard turns), D6 (kyu-runner 0.2.1), H1
+(http-switchboard's inbound door: kit client tokens / drop / keep — measured:
+no inbound profile live).
+
 ## Kit 1.7.1 — released 2026-09-06 (22:05 local)
 
 Found by kyu's first sync: `service.yml` came back with `vmid: 0` and

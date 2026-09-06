@@ -15,10 +15,10 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | 10 · Retrospective — done 2026-09-06. Phases 0–10 complete; the kit is at **1.7.1**. Kenny's order: chassis-rs (done for now), almanac (4.0.2 live), kyu (3.0.0 release in flight), kyu-runner, http-switchboard |
+| Current phase | 10 · Retrospective — done. Kit at **1.7.1**; all four projects on it with synced scaffolds (almanac 4.0.2 live on CT 112; kyu 3.0.0 signed, deploy via Homelab Rust; kyu-runner 0.2.0 signed + main on 1.7.1; http-switchboard 2.0.0 signed + main on 1.7.1). **On hold since 2026-09-06 23:35** for a kp-themes update (layout utilities, theme revert, confirm dialog) that chassis-rs implements first |
 | Last completed gate | Report form 2026-09-06 21:35: R1 kit 1.6.0/1.7.0 Akkoord, R2 almanac 4.0.2 live + CF-8 closed Akkoord, K1 kyu's turn in this session (rule 7a lifted) |
-| Next gate | Form: report on kyu/kyu-runner/http-switchboard turns, D6 (kyu-runner 0.2.1 now?), H1 (http-switchboard's inbound door → kit client tokens / drop / keep). Kenny signs kyu v3.0.0. Deploys via the Homelab Rust session (V6) |
-| AFK mode | **off** since Kenny returned 2026-09-05 evening. Standing rule 7a (a session touches only its own project) is back in force: D-K1 (kyu dashboard adoption), D-H1 (http-switchboard log stream) and Almanac's half of D-A1 belong in sessions opened in those repositories. |
+| Next gate | Unblock: kp-themes releases the update → chassis-rs adopts it (vendored copy, templates), release, report. Deferred form items: R1 (three turns), D6 (kyu-runner 0.2.1), H1 (http-switchboard's inbound door). Other projects continue in their own sessions (rule 7a) |
+| AFK mode | **off**. Standing rule 7a (a session touches only its own project) is back in force after three lifts on 2026-09-06 (V7, V8, kyu's turn): D-K1 (kyu dashboard adoption), D-H1 (http-switchboard log stream) and Almanac's half of D-A1 belong in sessions opened in those repositories. |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 
 <!-- Update this block after every completed gate. -->
