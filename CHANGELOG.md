@@ -9,6 +9,13 @@ scaffold writes. A breaking change in either is a major and carries a
 
 _Nothing yet._
 
+## [1.7.1] - 2026-09-06
+
+### Fixed
+- `.chassis.toml` gains `vmid`: `service.yml` and its hostname come from it,
+  so a sync no longer resets an adopted project's stack file to vmid 0
+  (Almanac's and kyu's did on their first sync).
+
 ## [1.7.0] - 2026-09-06
 
 ### Added

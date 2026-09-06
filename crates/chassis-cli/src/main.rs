@@ -57,6 +57,10 @@ struct Recorded {
     /// into the kit-owned `deny.toml`, so a sync keeps them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     deny_ignore: Vec<String>,
+    /// The LXC's vmid (1.7.1): `service.yml` names it and the hostname
+    /// `<vmid>-app-<name>` the homelab validates. 0 = not adopted yet.
+    #[serde(default)]
+    vmid: u32,
 }
 
 impl Recorded {
@@ -97,7 +101,7 @@ impl Recorded {
             latch_env_flag => self.latch_env_flag(),
             deny_ignore => self.deny_ignore.clone(),
             release_pubkey => RELEASE_PUBKEY,
-            vmid => 0,
+            vmid => self.vmid,
             stack => self.name,
         }
     }
@@ -360,6 +364,7 @@ fn cmd_new(
         env_file: None,
         latch_env: None,
         deny_ignore: Vec::new(),
+        vmid: 0,
         name,
         description,
         latch,
@@ -1078,6 +1083,7 @@ mod tests {
             env_file: None,
             latch_env: None,
             deny_ignore: Vec::new(),
+            vmid: 0,
         }
     }
 
@@ -1405,11 +1411,17 @@ mod tests {
             unit.contains("ExecStart=/usr/local/bin/latch run -- /opt/demo-svc/bin/demo-svc\n"),
             "{unit}"
         );
+        r.vmid = 112;
+        let files = render_all(&r).unwrap();
         let stack = &files
             .iter()
             .find(|(p, ..)| p == "deploy/service.yml")
             .unwrap()
             .1;
+        assert!(
+            stack.contains("vmid: 112\nhostname: 112-app-demo-svc"),
+            "{stack}"
+        );
         assert!(
             stack.contains("env_file: /appdata/demo-svc/demo-svc-config/latch.env"),
             "{stack}"

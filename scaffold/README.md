@@ -17,6 +17,7 @@ existing one against. Each file is a minijinja template rendered with:
 | `kp_themes` | the kp-themes version the kit vendors | `3.1.0` |
 | `state_dir` | the default state root | `/var/lib/inbox` |
 | `env_file` | where the env file lives on the target (1.6.0; default `/etc/<name>/<name>.env`) — a migrated project records the measured path | `/appdata/almanac/almanac-config/latch.env` |
+| `vmid` | the LXC's vmid once adopted (1.7.1); `service.yml` and its hostname `<vmid>-app-<name>` come from it — a sync no longer resets them to 0 | `112` |
 | `deny_ignore` | RUSTSEC ids cargo-deny ignores for this project (1.7.0), each a reviewed decision with its reason in a comment beside it | `["RUSTSEC-2023-0071"]` |
 | `latch_env` | the `--env` the latch unit passes (1.6.0; default `prod`; `""` = no `--env`, latch's own default) | `""` |
 | `vmid` / `stack` | for `service.yml`; placeholders until adoption | `0` / `inbox` |
