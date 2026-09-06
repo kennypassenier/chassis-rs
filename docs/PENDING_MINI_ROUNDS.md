@@ -24,6 +24,32 @@ waits-for-Kenny list) all **Klopt**. D1 (`/` = status page), D2
 Kenny also flagged an ambiguous "ik" in the D7 consequence line →
 correction form CF-2, open (see below).
 
+## Combined ratification AFK run 2 — answered 2026-09-05 (evening)
+
+All 28 items answered. **R7** (Phase 7 close-out), **R9** (releases 1.0.0,
+1.1.0, 1.2.0) and **MIG-1 … MIG-4** (the four migration branches):
+**Akkoord**. **R8.1 … R8.6** (the six user documents): **Goedkeuren**, so
+Phase 8 is closed as written. **CF-3** fields 1–9: **Klopt** — the
+correction form is closed and its measurement (the 14:21 UTC re-drill) is
+final. **H16** (the Kenny-only list), **HL-1** and **HL-2** (the two
+announcements for the Homelab Rust session) and **CF-2.M**: **Klopt** — the
+CF-2 loop is closed with the fallback lint in force as this project's
+working method.
+
+Three decision items came back **Opnemen**, and each is new work rather
+than a ratification:
+
+| ID | Decision | What it means |
+|---|---|---|
+| D-K1 | kyu adopts the kit dashboard as step 2 | A separate branch after this ratification: app tokens move from kyu's SQLite table to the kit's clients (every token re-issued to kyu-runner, newsflash and Home Assistant), `/apps` becomes `/clients`, the unprotected mode goes away, kyu's topics dashboard becomes a project page in the kit layout. The kit's FEATURES W6 note stands as written. |
+| D-H1 | http-switchboard: one log stream | The switchboard's own JSON event lines go through the kit's logger, so `HTTP_SWITCHBOARD_LOG_FORMAT=json` yields one shape. Lands in the `chassis-migration` branch before the 2.0.0 release. |
+| D-A1 | Almanac's update notifications return | Kit **1.3.0** gets `App::on_update_event(|event| …)` so a project routes the kit's update events into its own notifier; Almanac wires it onto `almanac-update` / `-reverted` / `-unverified`. Also useful for kyu and kyu-runner. |
+
+**Standing rule 7a is back in force** now that Kenny has returned: D-K1
+(kyu), D-H1 (http-switchboard) and Almanac's half of D-A1 are work in those
+repositories and belong in sessions opened there. The kit's half of D-A1
+(the `on_update_event` hook, release 1.3.0) is this project's work.
+
 ## Ratification rounds (gates crossed during AFK)
 
 | Round | Gate | Status | Document | What Kenny ratifies |
@@ -287,8 +313,8 @@ them. The first 3.x release must be signed with `scripts/sign-release.sh`
 | CF-1 | No Dutch coinage for a technical concept in user-facing text (list + rule in the central memory) | The Phase 4 architecture form of this project — which the AFK run turned into R4 of the combined ratification form: zero such words, counted before sending | measured at the combined form (see its leeswijzer) |
 | M3 | Restore from the backup regime restores the full state | Before the 1.0 release, on CT 118 with the real binary | **done 2026-09-05** — state root tarred, destroyed, restored; existing client token and session valid afterwards (REALIZATION_PLAN L8) |
 | C2 | Broken-release drill in both modes | Before the 1.0 release, on CT 118 | waits for a release signed with the ecosystem key (Kenny) |
-| CF-3 | After an autonomous rollback the same version is never reinstalled (skip list in the state root) | The first autonomous-mode drill after the fix on CT 118: install → crash → revert → the next check reports `Held` ("rolled back earlier"), zero further restarts in the following interval | **measured 2026-09-05 14:21 UTC on CT 118: one install/crash/revert, then Held twice across the next interval, NRestarts=3 — loop closed; correction form for Kenny's Klopt below** |
-| CF-2 | Text read on its own (consequence lines, pill labels, card subtitles) describes actions as "Claude doet…" / "Kenny doet…" — never a bare ik/jij | The Phase 7 hardening form of this project: Claude counts bare pronouns in those surfaces AFTER writing it by habit and BEFORE sending, reports the raw count, then fixes; Kenny finds none | **measured 2026-09-05 at the Phase 7 form: 26 consequence boxes, 104 pills, raw count = 1 bare "jij" (H17), fixed before sending.** Field 8 (fallback) therefore applies: from now on every form of this project is written to a file, run through the pronoun/coinage/gloss count and rendered only at 0 (the lint), and consequence lines start with Claude / Kenny / an article. Kenny's own reading of the Phase 7 form is the second half of the measurement. |
+| CF-3 | After an autonomous rollback the same version is never reinstalled (skip list in the state root) | The first autonomous-mode drill after the fix on CT 118: install → crash → revert → the next check reports `Held` ("rolled back earlier"), zero further restarts in the following interval | **CLOSED 2026-09-05: measured at 14:21 UTC on CT 118 (one install/crash/revert, then Held twice across the next interval, NRestarts=3) and ratified the same evening — all nine fields Klopt** |
+| CF-2 | Text read on its own (consequence lines, pill labels, card subtitles) describes actions as "Claude doet…" / "Kenny doet…" — never a bare ik/jij | The Phase 7 hardening form of this project: Claude counts bare pronouns in those surfaces AFTER writing it by habit and BEFORE sending, reports the raw count, then fixes; Kenny finds none | **measured 2026-09-05 at the Phase 7 form: 26 consequence boxes, 104 pills, raw count = 1 bare "jij" (H17), fixed before sending.** Field 8 (fallback) therefore applies: from now on every form of this project is written to a file, run through the pronoun/coinage/gloss count and rendered only at 0 (the lint), and consequence lines start with Claude / Kenny / an article. Kenny's own reading of the Phase 7 form is the second half of the measurement. **CLOSED 2026-09-05 (evening): the combined ratification form ran through the lint (28 items, 196 loose text lines, 0 bare pronouns, 0 Dutch coinages) and Kenny answered CF-2.M Klopt — the fallback lint is this project's working method from here on.** |
 
 ### CF-2 · correction form, answered 2026-09-05
 
@@ -324,7 +350,7 @@ them. The first 3.x release must be signed with `scripts/sign-release.sh`
    the form-lint script becomes mandatory before every form. *(Klopt)*
 9. **Review** — at the chassis-rs Phase 10 retrospective. *(Klopt)*
 
-### CF-3 · correction form (drafted by Claude, for Kenny's Klopt/Aanpassen/Schrappen)
+### CF-3 · correction form — **CLOSED 2026-09-05, all nine fields Klopt**
 
 1. **What went wrong** — autonomous rollback drill (CT 118, 2026-09-05,
    drill release 0.1.2 with `update_drill=broken`): the rollback itself

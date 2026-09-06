@@ -15,10 +15,10 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | 9 · Release — 1.0.0, 1.1.0 and 1.2.0 tagged and released (A5 go); the four `chassis-migration` branches (kyu-runner 0.2.0, http-switchboard 2.0.0, kyu 3.0.0, Almanac 3.0.0) are pushed, gates green, no release, no deploy (A2). Everything now waits for the combined ratification on Kenny's return. |
-| Last completed gate | Combined ratification R1–R5 + L0–L8 (2026-09-05, all Akkoord); DD-1 D1–D3 Klopt; CF-2 answered (measurement pending) |
-| Next gate | Combined ratification R7 (hardening close-out) + CF-3 + R8 (six docs) + R9 (1.0.0–1.2.0) + H16 + the four migration reports + homelab announcements, on Kenny's return (docs/PENDING_MINI_ROUNDS.md) |
-| AFK mode | **on** again since 2026-09-05 afternoon (AFK round 2: A1 drill key, A2 kit + four migration branches, A3 adopt CT 118 only if it does not stall, A4 passkeys later, A5 tag v1.0.0 after green Phase 7+8 and drills, A6 gates → R7–R9). Rule 7a (one session, one project) suspended by Kenny until his return. |
+| Current phase | 9 · Release — closed. 1.0.0/1.1.0/1.2.0 released; the four `chassis-migration` branches ratified (kyu-runner 0.2.0, http-switchboard 2.0.0, kyu 3.0.0, Almanac 3.0.0), none released or deployed. Next in THIS repo: kit 1.3.0 with `on_update_event` (D-A1), then Phase 10 retrospective. |
+| Last completed gate | Combined ratification AFK run 2 (2026-09-05 evening): R7, R9, MIG-1…4 Akkoord; R8.1–R8.6 Goedkeuren; CF-3 (9 fields), H16, HL-1, HL-2, CF-2.M Klopt; D-K1, D-H1, D-A1 Opnemen |
+| Next gate | Phase 10 retrospective, after kit 1.3.0 (`on_update_event`) is built and released |
+| AFK mode | **off** since Kenny returned 2026-09-05 evening. Standing rule 7a (a session touches only its own project) is back in force: D-K1 (kyu dashboard adoption), D-H1 (http-switchboard log stream) and Almanac's half of D-A1 belong in sessions opened in those repositories. |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 
 <!-- Update this block after every completed gate. -->
