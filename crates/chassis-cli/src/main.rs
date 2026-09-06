@@ -1012,10 +1012,32 @@ fn require_tool(tool: &str, remedy: &str) -> Result<(), Error> {
     }
 }
 
+/// Git exports `GIT_DIR`, `GIT_INDEX_FILE` and friends to its hooks, and a
+/// project's pre-commit gate runs the suite that runs `chassis new`. A child
+/// git inheriting them acts on the repository being committed instead of on
+/// the fresh project — from a linked worktree (absolute `GIT_DIR`) the first
+/// such commit put the scaffold on the committer's branch (2026-09-07). Every
+/// child starts without them; none of the tools the CLI runs needs them.
+const HOOK_ENV: [&str; 5] = [
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_PREFIX",
+    "GIT_COMMON_DIR",
+];
+
+fn command(program: &str, dir: &Path) -> Command {
+    let mut cmd = Command::new(program);
+    cmd.current_dir(dir);
+    for var in HOOK_ENV {
+        cmd.env_remove(var);
+    }
+    cmd
+}
+
 fn run(dir: &Path, program: &str, args: &[&str], quiet: bool) -> Result<(), Error> {
-    let out = Command::new(program)
+    let out = command(program, dir)
         .args(args)
-        .current_dir(dir)
         .stdin(std::process::Stdio::inherit())
         .output()
         .map_err(|e| {
@@ -1041,16 +1063,12 @@ fn run(dir: &Path, program: &str, args: &[&str], quiet: bool) -> Result<(), Erro
 }
 
 fn capture(dir: &Path, program: &str, args: &[&str]) -> Result<String, Error> {
-    let out = Command::new(program)
-        .args(args)
-        .current_dir(dir)
-        .output()
-        .map_err(|e| {
-            Error::dependency(
-                format!("cannot run {program}: {e}"),
-                format!("is {program} installed and on PATH?"),
-            )
-        })?;
+    let out = command(program, dir).args(args).output().map_err(|e| {
+        Error::dependency(
+            format!("cannot run {program}: {e}"),
+            format!("is {program} installed and on PATH?"),
+        )
+    })?;
     if !out.status.success() {
         return Err(Error::dependency(
             format!(

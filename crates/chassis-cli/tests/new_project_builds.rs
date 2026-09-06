@@ -202,3 +202,87 @@ fn a_new_project_compiles_and_answers_version() {
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("gen-secret"));
 }
+
+/// K23, live-found 2026-09-07: git exports `GIT_DIR` (absolute in a linked
+/// worktree) and `GIT_INDEX_FILE` to its hooks, and the pre-commit gate runs
+/// this suite. `chassis new` spawns `git init`/`add`/`commit` for the fresh
+/// project; with those variables inherited, every one of them acted on the
+/// repository being committed instead and put the scaffold files on the
+/// committer's branch. Red before the fix (the outer repository gained a
+/// commit), green after it.
+#[test]
+fn k23_new_inside_a_foreign_git_context_touches_only_its_own_repository() {
+    let kit = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../chassis");
+    let dir = tempfile::tempdir().unwrap();
+    let outer = dir.path().join("outer");
+    std::fs::create_dir_all(&outer).unwrap();
+    let git = |args: &[&str]| {
+        let out = Command::new("git")
+            .args(["-c", "user.name=t", "-c", "user.email=t@example.invalid"])
+            .args(args)
+            .current_dir(&outer)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    };
+    git(&["init", "-q"]);
+    std::fs::write(outer.join("outer.txt"), "outer\n").unwrap();
+    git(&["add", "outer.txt"]);
+    git(&["commit", "-q", "-m", "outer"]);
+    let head_before = git(&["rev-parse", "HEAD"]);
+
+    let project = dir.path().join("demo-svc");
+    let out = chassis()
+        .args([
+            "new",
+            "demo-svc",
+            "--no-remote",
+            "--dir",
+            project.to_str().unwrap(),
+            "--chassis-path",
+            kit.to_str().unwrap(),
+            "--chassis-tag",
+            "v0.0.0-test",
+        ])
+        // What a git hook's child sees.
+        .env("GIT_DIR", outer.join(".git"))
+        .env("GIT_INDEX_FILE", outer.join(".git/index"))
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "chassis new failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    assert_eq!(
+        git(&["rev-parse", "HEAD"]),
+        head_before,
+        "the outer repository gained a commit"
+    );
+    assert_eq!(
+        git(&["status", "--porcelain"]),
+        "",
+        "the outer repository's tree or index moved"
+    );
+    assert!(
+        project.join(".git").exists(),
+        "the new project has its own repository"
+    );
+    let log = Command::new("git")
+        .args(["log", "--oneline"])
+        .current_dir(&project)
+        .output()
+        .unwrap();
+    assert!(log.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&log.stdout).lines().count(),
+        1,
+        "the new project holds exactly its first commit"
+    );
+}
