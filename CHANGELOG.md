@@ -12,6 +12,9 @@ _Nothing yet._
 ## [1.5.1] - 2026-09-06
 
 ### Fixed
+- The self-updater's `--check` probe retries a spawn that fails with
+  `ETXTBSY` (the staged binary still held open for a moment) instead of
+  declaring the release unusable — seen once in the kit's own CI.
 - **Dashboard forms were refused from Chrome** (CF-7, found live on
   CT 112 with Almanac 3.0.0): under `referrer-policy: no-referrer` a
   browser sends `Origin: null` on every form submit, and the CSRF rule

@@ -741,20 +741,59 @@ fn write_executable(path: &Path, bytes: &[u8]) -> Result<(), Error> {
     Ok(())
 }
 
+/// `ETXTBSY`: the kernel refuses to execute a file that some process still
+/// holds open for writing. Right after `write_executable` that is a race
+/// — a sibling thread's fork inherited the descriptor for a moment (seen
+/// in the kit's own CI, 2026-09-06), or a scanner has the file open — so
+/// the probe retries briefly instead of declaring the release unusable.
+fn is_text_file_busy(e: &std::io::Error) -> bool {
+    e.raw_os_error() == Some(26)
+}
+
+/// How long the probe keeps retrying an `ETXTBSY` spawn before giving up.
+const BUSY_RETRY_ATTEMPTS: u32 = 40;
+const BUSY_RETRY_DELAY: Duration = Duration::from_millis(50);
+
+/// Runs `spawn` until it succeeds, fails for another reason, or the
+/// attempts are used up on `ETXTBSY`.
+async fn spawn_retrying_busy<T>(
+    mut spawn: impl FnMut() -> std::io::Result<T>,
+    attempts: u32,
+    delay: Duration,
+) -> std::io::Result<T> {
+    let mut left = attempts;
+    loop {
+        match spawn() {
+            Err(e) if is_text_file_busy(&e) && left > 0 => {
+                left -= 1;
+                tokio::time::sleep(delay).await;
+            }
+            other => return other,
+        }
+    }
+}
+
 /// `<staging> --check`, bounded. A binary that hangs is killed.
 async fn probe(binary: &Path, timeout: Duration) -> Result<(), Error> {
-    let child = tokio::process::Command::new(binary)
-        .arg("--check")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|e| {
-            Error::config(
-                format!("cannot run the staged binary: {e}"),
-                "nothing was installed",
-            )
-        })?;
+    let child = spawn_retrying_busy(
+        || {
+            tokio::process::Command::new(binary)
+                .arg("--check")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::piped())
+                .kill_on_drop(true)
+                .spawn()
+        },
+        BUSY_RETRY_ATTEMPTS,
+        BUSY_RETRY_DELAY,
+    )
+    .await
+    .map_err(|e| {
+        Error::config(
+            format!("cannot run the staged binary: {e}"),
+            "nothing was installed",
+        )
+    })?;
     match tokio::time::timeout(timeout, child.wait_with_output()).await {
         Ok(Ok(out)) if out.status.success() => Ok(()),
         Ok(Ok(out)) => Err(Error::config(
@@ -1721,5 +1760,60 @@ mod tests {
         prune_copies(&dir.path().join("copies"), 2);
         assert!(!dir.path().join("copies/1.0.0").exists());
         assert!(dir.path().join("copies/1.2.0").exists());
+    }
+
+    /// CI 2026-09-06: `ETXTBSY` right after staging — a sibling thread's
+    /// fork held the descriptor for a moment. The probe retries that and
+    /// only that; any other error is final.
+    #[tokio::test]
+    async fn the_probe_retries_a_text_file_busy_spawn_and_nothing_else() {
+        let mut calls = 0;
+        let out = spawn_retrying_busy(
+            || {
+                calls += 1;
+                if calls < 3 {
+                    Err(std::io::Error::from_raw_os_error(26))
+                } else {
+                    Ok("spawned")
+                }
+            },
+            5,
+            Duration::from_millis(1),
+        )
+        .await
+        .unwrap();
+        assert_eq!((out, calls), ("spawned", 3));
+
+        let mut calls = 0;
+        let err = spawn_retrying_busy(
+            || {
+                calls += 1;
+                Err::<(), _>(std::io::Error::from_raw_os_error(26))
+            },
+            2,
+            Duration::from_millis(1),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            is_text_file_busy(&err) && calls == 3,
+            "gives up after the attempts"
+        );
+
+        let mut calls = 0;
+        let err = spawn_retrying_busy(
+            || {
+                calls += 1;
+                Err::<(), _>(std::io::Error::from_raw_os_error(2))
+            },
+            5,
+            Duration::from_millis(1),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            !is_text_file_busy(&err) && calls == 1,
+            "ENOENT is not retried"
+        );
     }
 }
