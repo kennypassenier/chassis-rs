@@ -2,22 +2,14 @@
 //! sets `AppSpec::open_dashboard` and runs without `<P>_TOKEN` and
 //! `<P>_SECRET_KEY` serves every page and route to whoever reaches it, says
 //! so on every page, and a service that did not opt in still refuses.
-#![cfg(feature = "dashboard")]
-
-use std::collections::BTreeMap;
+//! Driven through `chassis::testing` (K25) since 1.8.0.
+#![cfg(feature = "testing")]
 
 use axum::Router;
 use axum::routing::post;
-use chassis::{App, AppSpec};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-fn env(dir: &std::path::Path) -> BTreeMap<String, String> {
-    let mut env = BTreeMap::new();
-    env.insert("OPENDEMO_STATE_DIR".into(), dir.display().to_string());
-    env.insert("OPENDEMO_LISTEN".into(), "127.0.0.1:0".into());
-    env.insert("OPENDEMO_LOG".into(), "warn".into());
-    env
-}
+use chassis::AppSpec;
+use chassis::testing::TestApp;
+use reqwest::Method;
 
 fn spec(open: bool) -> AppSpec {
     AppSpec {
@@ -28,51 +20,20 @@ fn spec(open: bool) -> AppSpec {
     }
 }
 
-/// One raw HTTP/1.1 request; returns (status, body). No client crate: the
-/// kit's dev-dependencies stay small, and four requests need no more.
-async fn http(addr: std::net::SocketAddr, method: &str, path: &str) -> (u16, String) {
-    let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
-    let request = format!(
-        "{method} {path} HTTP/1.1\r\nHost: {addr}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-    );
-    stream.write_all(request.as_bytes()).await.unwrap();
-    let mut raw = Vec::new();
-    stream.read_to_end(&mut raw).await.unwrap();
-    let text = String::from_utf8_lossy(&raw).to_string();
-    let status: u16 = text
-        .split_whitespace()
-        .nth(1)
-        .and_then(|s| s.parse().ok())
-        .expect("a status line");
-    let body = text
-        .split("\r\n\r\n")
-        .nth(1)
-        .unwrap_or_default()
-        .to_string();
-    (status, body)
-}
-
 #[tokio::test]
 async fn an_opted_in_service_runs_open_and_says_so_on_every_page() {
-    let dir = tempfile::tempdir().unwrap();
-    let mut app = App::from_args_with_env(
-        spec(true),
-        vec!["opendemo".into()],
-        env(dir.path()),
-        Router::new(),
-    )
-    .expect("no secrets is a valid configuration for an opted-in service");
-    app.api_routes(Router::new().route("/v1/ping", post(|| async { "pong" })));
-    let running = app.start().await.expect("starts open");
-    let addr = running.addr;
-    let (status, body) = http(addr, "GET", "/").await;
+    let mut app = TestApp::start_open(spec(true), Router::new(), |app| {
+        app.api_routes(Router::new().route("/v1/ping", post(|| async { "pong" })));
+    })
+    .await;
+    let (status, body) = app.page("/").await;
     assert_eq!(status, 200, "no login needed: {body}");
     assert!(
         body.contains("This dashboard is open"),
         "the banner is on the status page"
     );
     assert!(!body.contains("Log out"), "there is nothing to log out of");
-    let (status, body) = http(addr, "GET", "/clients").await;
+    let (status, body) = app.page("/clients").await;
     assert_eq!(status, 200);
     assert!(
         body.contains("No tokens can be issued while the dashboard is open"),
@@ -82,34 +43,26 @@ async fn an_opted_in_service_runs_open_and_says_so_on_every_page() {
         !body.contains("form id=\"issue\""),
         "the issue form is absent"
     );
-    let (status, body) = http(addr, "POST", "/v1/ping").await;
+    let (status, body) = TestApp::send_text(app.request(Method::POST, "/v1/ping")).await;
     assert_eq!(status, 200, "an API route answers without a token: {body}");
     assert_eq!(body, "pong");
-    let (status, _) = http(addr, "GET", "/login").await;
+    let (status, _) = app.page("/login").await;
     assert_eq!(status, 303, "the login page sends an open dashboard home");
-    let (status, body) = http(addr, "GET", "/healthz").await;
+    let (status, body) = app.get_json("/healthz").await;
     assert_eq!(status, 200, "{body}");
-    running.stop().await;
+    app.shutdown().await;
     assert!(
-        !dir.path().join("clients.json.enc").exists()
-            && !dir.path().join("sessions.json.enc").exists(),
+        !app.state_dir().join("clients.json.enc").exists()
+            && !app.state_dir().join("sessions.json.enc").exists(),
         "nothing sealed is written by an open run"
     );
 }
 
 #[tokio::test]
 async fn a_service_that_did_not_opt_in_still_refuses_without_secrets() {
-    let dir = tempfile::tempdir().unwrap();
-    let app = App::from_args_with_env(
-        spec(false),
-        vec!["opendemo".into()],
-        env(dir.path()),
-        Router::new(),
-    )
-    .expect("construction reads the configuration");
-    let error = match app.start().await {
-        Ok(running) => {
-            running.stop().await;
+    let error = match TestApp::try_start_open(spec(false), Router::new()).await {
+        Ok(mut app) => {
+            app.shutdown().await;
             panic!("a dashboard without secrets must not start unless the service opted in");
         }
         Err(e) => e.to_string(),

@@ -22,6 +22,11 @@ dashboard = ["core", "assets"]
 passkeys = ["dashboard", "dep:webauthn-rs"]
 self-update = ["core", "dep:minisign-verify", "dep:backon"]
 notify = ["core", "dep:backon"]
+# K25: the in-process test harness (`chassis::testing`), for a project's
+# dev-dependencies. Implies `dashboard` because logging in and issuing a
+# client are what it wraps; `minisign` signs the fake release server's
+# manifests when `self-update` is on as well.
+testing = ["dashboard", "dep:tempfile", "dep:minisign"]
 
 [dependencies]
 axum = { workspace = true }
@@ -65,6 +70,11 @@ webauthn-rs = { version = "0.5", optional = true }
 # L5: signed self-update (K18–K21) and the notifier (K22)
 minisign-verify = { version = "0.2", optional = true }
 backon = { version = "1", optional = true }
+
+# K25: `chassis::testing` (feature `testing`) needs a temp dir and a signer;
+# both stay dev-dependencies below for the kit's own unit tests.
+tempfile = { workspace = true, optional = true }
+minisign = { version = "0.9", optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

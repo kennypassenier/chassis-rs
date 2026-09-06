@@ -26,6 +26,7 @@ file, login, tokens, health, metrics, shutdown — is the kit's.
 | `passkeys` | WebAuthn login behind a TLS proxy (`<P>_PUBLIC_URL`, `<P>_TRUSTED_PROXIES`); pulls OpenSSL | off |
 | `self-update` | `off` / `supervised` (`<name> update`) / `autonomous`, minisign-verified, staged probe, rollback | off |
 | `notify` | `[[notify.webhook]]` per event, retries, fallback | off |
+| `testing` | `chassis::testing` — start the app in-process on port 0, log in, issue a client, post with its token, fetch a page; a project's dev-dependency (implies `dashboard`) | off |
 
 ## The `chassis` command
 
@@ -74,6 +75,33 @@ Three small decisions that surprise people once, ratified 2026-09-05
 - **Knob flags are global**: `inbox update --update-url http://pc:9000/`
   works, and so does the flag before the subcommand. Environment
   variables stay the primary way to configure a service.
+
+## Testing a service built on the kit
+
+```rust
+let mut app = TestApp::start_with(spec, Router::new(), |app| {
+    app.api_routes(my_routes());          // what main registers, verbatim
+    app.on_client_issued(make_profile);
+})
+.await;
+app.login().await;
+let source = app.issue_client("job-tracker", &[("calendar", "cal-42")]).await;
+let (status, body) = TestApp::send_json(
+    app.bearer(Method::POST, "/v1/events", &source.token).json(&event),
+)
+.await;
+let (status, html) = app.page("/sources").await;
+app.shutdown().await;
+```
+
+`chassis::testing` (feature `testing`, in a project's dev-dependencies)
+is the harness kyu, Almanac and the inbox example each used to write by
+hand: a temporary state directory, fresh secrets, port 0, the admin
+session, a client token, a browser's form headers (`as_browser()`,
+`as_cross_site_browser()`), a clean stop. `docs/TESTING.md` has the
+worked example in full, compiled and run by the kit's own suite
+(`tests/testing_harness.rs`), and the kit's in-process suites run on the
+same harness.
 
 ## Ejecting a module
 

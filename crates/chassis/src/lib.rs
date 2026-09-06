@@ -20,6 +20,10 @@ pub mod app;
 pub mod app_dashboard;
 pub mod core;
 pub mod shell;
+/// K25: the test harness. Also compiled for the kit's own unit tests, so
+/// the update suite reaches `FakeReleaseServer` without the feature.
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
 
 pub use app::{App, AppSpec, Control, Running};
 pub use core::error::{Error, IntoKitError, Kind};

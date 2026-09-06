@@ -167,7 +167,7 @@ pub fn container_evidence() -> ContainerEvidence {
     }
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
 
@@ -863,24 +863,16 @@ fn prune_copies(dir: &Path, keep: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::Router;
-    use axum::routing::get;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    /// A signed fake release, served in-process.
-    struct FakeRelease {
-        pub url: String,
-        pub pubkey: String,
-        pub version_dir: tempfile::TempDir,
-        /// GET /VERSION count: the loop tests read the tick schedule from it.
-        pub version_hits: Arc<AtomicUsize>,
-        _task: tokio::task::JoinHandle<()>,
-    }
+    /// The signed fake release lives in `chassis::testing` (K25); these
+    /// two wrappers keep the suite's call sites and the repo it signs for.
+    type FakeRelease = crate::testing::FakeReleaseServer;
 
     const TEST_REPO: &str = "kennypassenier/svc";
 
     async fn fake_release(version: &str, binary: &[u8], asset: &str) -> FakeRelease {
-        fake_release_signed_as(version, binary, asset, &format!("{TEST_REPO} v{version}")).await
+        FakeRelease::start(TEST_REPO, version, binary, asset).await
     }
 
     /// A release whose trusted comment is `comment` (S1 tests a wrong one).
@@ -890,54 +882,7 @@ mod tests {
         asset: &str,
         comment: &str,
     ) -> FakeRelease {
-        let dir = tempfile::tempdir().unwrap();
-        let kp = minisign::KeyPair::generate_unencrypted_keypair().unwrap();
-        let manifest = format!("{}  {}\n", sha256_hex(binary), asset);
-        let sig = minisign::sign(
-            Some(&kp.pk),
-            &kp.sk,
-            manifest.as_bytes(),
-            Some(comment),
-            None,
-        )
-        .unwrap();
-        std::fs::write(dir.path().join("VERSION"), version).unwrap();
-        std::fs::write(dir.path().join("SHA256SUMS"), &manifest).unwrap();
-        std::fs::write(dir.path().join("SHA256SUMS.minisig"), sig.into_string()).unwrap();
-        std::fs::write(dir.path().join(asset), binary).unwrap();
-        let root = dir.path().to_path_buf();
-        let version_hits = Arc::new(AtomicUsize::new(0));
-        let hits = version_hits.clone();
-        let app = Router::new().route(
-            "/{name}",
-            get(
-                move |axum::extract::Path(name): axum::extract::Path<String>| {
-                    let root = root.clone();
-                    let hits = hits.clone();
-                    async move {
-                        if name == "VERSION" {
-                            hits.fetch_add(1, Ordering::SeqCst);
-                        }
-                        match std::fs::read(root.join(&name)) {
-                            Ok(b) => (axum::http::StatusCode::OK, b),
-                            Err(_) => (axum::http::StatusCode::NOT_FOUND, Vec::new()),
-                        }
-                    }
-                },
-            ),
-        );
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        let task = tokio::spawn(async move {
-            axum::serve(listener, app).await.unwrap();
-        });
-        FakeRelease {
-            url: format!("http://{addr}"),
-            pubkey: kp.pk.to_base64(),
-            version_dir: dir,
-            version_hits,
-            _task: task,
-        }
+        FakeRelease::start_signed_as(version, binary, asset, comment).await
     }
 
     /// A "binary" that passes --check: a shell script exiting 0.
@@ -1058,7 +1003,7 @@ mod tests {
         );
         assert_eq!(std::fs::metadata(&bin).unwrap().modified().unwrap(), before);
         assert_eq!(up2.last_check().latest.as_deref(), Some("1.1.0"));
-        drop(release.version_dir);
+        drop(release.dir);
     }
 
     #[tokio::test]
@@ -1099,7 +1044,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let bin = installed(dir.path(), GOOD_BINARY);
         // Tamper with the manifest: the signature no longer verifies.
-        let manifest_path = release.version_dir.path().join("SHA256SUMS");
+        let manifest_path = release.dir.path().join("SHA256SUMS");
         let mut m = std::fs::read_to_string(&manifest_path).unwrap();
         m.push_str("deadbeef  extra\n");
         std::fs::write(&manifest_path, m).unwrap();
@@ -1122,7 +1067,7 @@ mod tests {
         // Fresh release, but the served binary differs from the signed one.
         let release = fake_release("1.1.0", GOOD_BINARY, "svc").await;
         std::fs::write(
-            release.version_dir.path().join("svc"),
+            release.dir.path().join("svc"),
             b"#!/bin/sh\nexit 0\n#tampered\n",
         )
         .unwrap();
