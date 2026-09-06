@@ -6,8 +6,11 @@
 //!   `gh` and push. Records its inputs in `.chassis.toml` so `sync` can
 //!   render the same files again later.
 //! - `sync`: render the current scaffold with the recorded inputs and show
-//!   a unified diff per kit-owned file; `--write` applies; `--protect`
-//!   turns on branch protection once CI has run (rule 6a).
+//!   a unified diff per kit-owned file, then report the drift that is not a
+//!   file (K32: kit tag vs `Cargo.toml`, `kp_themes` vs what the kit
+//!   vendors, and with `--remote` branch protection vs the CI job names);
+//!   `--write` applies; `--protect` turns on branch protection once CI has
+//!   run (rule 6a).
 //! - `release <version>`: bump, changelog, commit, tag, push, wait for the
 //!   tag's Release run, then sign and upload with `scripts/sign-release.sh`.
 //!   `--dry-run` prints every external command instead of running it.
@@ -17,6 +20,7 @@
 
 #![forbid(unsafe_code)]
 
+mod drift;
 mod templates;
 
 use std::path::{Path, PathBuf};
@@ -165,6 +169,9 @@ enum Cmd {
         /// Enable branch protection on main requiring the CI checks (needs gh)
         #[arg(long)]
         protect: bool,
+        /// Also compare main's branch protection with the CI job names (needs gh; sync is offline without it)
+        #[arg(long)]
+        remote: bool,
     },
     /// Bump, tag, wait for CI, sign and upload the release
     Release {
@@ -210,7 +217,8 @@ fn main() -> ExitCode {
             write,
             force,
             protect,
-        } => cmd_sync(&dir, write, force, protect).map(|changed| {
+            remote,
+        } => cmd_sync(&dir, write, force, protect, remote).map(|changed| {
             if changed && !write {
                 // A CI-friendly signal: differences exist and were not applied.
                 std::process::exit(1);
@@ -568,9 +576,21 @@ fn merge_gitignore(scaffold: &str, current: &str) -> String {
     )
 }
 
-/// Returns whether any kit-owned file differed.
-fn cmd_sync(dir: &Path, write: bool, force: bool, protect: bool) -> Result<bool, Error> {
+/// Returns whether any kit-owned file, or anything K32 compares, differed.
+fn cmd_sync(
+    dir: &Path,
+    write: bool,
+    force: bool,
+    protect: bool,
+    remote: bool,
+) -> Result<bool, Error> {
     let rec = read_recorded(dir)?;
+    if remote {
+        require_tool(
+            "gh",
+            "install the GitHub CLI and run `gh auth login`, or drop --remote (sync stays offline without it)",
+        )?;
+    }
     let mut changed = false;
     for (rel, body, exec, owned) in render_all(&rec)? {
         let current = std::fs::read_to_string(dir.join(&rel)).unwrap_or_default();
@@ -601,6 +621,45 @@ fn cmd_sync(dir: &Path, write: bool, force: bool, protect: bool) -> Result<bool,
             println!("  written");
         }
     }
+    // K32: drift that is not a file, after the diffs and in one shape.
+    let mut drifted = false;
+    let cargo_path = dir.join("Cargo.toml");
+    let cargo = std::fs::read_to_string(&cargo_path).map_err(|e| {
+        Error::config(
+            format!("cannot read {}: {e}", cargo_path.display()),
+            "run `chassis sync` in the project root, next to .chassis.toml",
+        )
+    })?;
+    let dep = drift::kit_dependency(&cargo)?;
+    if let drift::KitDependency::Path(path) = &dep {
+        println!(
+            "~ Cargo.toml: chassis is a path dependency ({path}); the kit tag is not compared"
+        );
+    }
+    for d in drift::kit_tag_drift(&dep, &rec.chassis_tag) {
+        drifted = true;
+        println!("{d}");
+    }
+    let vendored = drift::vendored_kp_themes();
+    if let Some(d) = drift::kp_themes_drift(&rec.kp_themes, vendored) {
+        drifted = true;
+        println!("{d}");
+        if write {
+            // The kit is the source of truth for kp_themes, so --write may
+            // correct the record; Cargo.toml stays project-owned (reported only).
+            let path = dir.join(".chassis.toml");
+            let text = std::fs::read_to_string(&path).map_err(|e| io_err(&path, e))?;
+            drift::write_atomically(&path, &drift::set_kp_themes(&text, vendored)?)?;
+            println!("  written");
+        }
+    }
+    if remote {
+        for d in drift::remote_drift(&rec.repo)? {
+            drifted = true;
+            println!("{d}");
+        }
+    }
+    changed |= drifted;
     if !changed {
         println!(
             "in sync with the scaffold of chassis {}",
@@ -616,7 +675,7 @@ fn cmd_sync(dir: &Path, write: bool, force: bool, protect: bool) -> Result<bool,
 fn protect_main(rec: &Recorded) -> Result<(), Error> {
     require_tool("gh", "install the GitHub CLI and run `gh auth login`")?;
     let body = serde_json::json!({
-        "required_status_checks": { "strict": true, "contexts": ["fmt · clippy · tests", "cargo-deny (advisories · licenses · bans)", "container build"] },
+        "required_status_checks": { "strict": true, "contexts": drift::REQUIRED_CHECKS },
         "enforce_admins": true,
         "required_pull_request_reviews": null,
         "restrictions": null,
@@ -1201,6 +1260,46 @@ mod tests {
         );
     }
 
+    /// K32: the version `new` records is the one the kit's static files
+    /// are, so `.chassis.toml` cannot start life with a claim nothing checks.
+    // Drilled red once (compared the constant with "3.0.0"): failed, restored.
+    #[test]
+    fn k32_kp_themes_constant_equals_the_vendored_manifest() {
+        assert_eq!(KP_THEMES, drift::vendored_kp_themes());
+    }
+
+    /// K32: the checks protection requires are the scaffold's CI job names;
+    /// this test is what keeps `REQUIRED_CHECKS` and `ci.yml` one list.
+    // Drilled red once (dropped `container build` from the expected list): failed, restored.
+    #[test]
+    fn k32_required_checks_are_the_scaffold_ci_job_names() {
+        let ci = render_all(&rec())
+            .unwrap()
+            .into_iter()
+            .find(|(p, ..)| p == ".github/workflows/ci.yml")
+            .unwrap()
+            .1;
+        // Job names sit at four spaces (`    name: …`); step names are list
+        // items deeper in. A job with `continue-on-error: true` is
+        // informational and never required.
+        let mut jobs: Vec<(String, bool)> = Vec::new();
+        for line in ci.lines() {
+            if let Some(name) = line.strip_prefix("    name: ") {
+                jobs.push((name.trim().to_string(), false));
+            } else if line == "    continue-on-error: true"
+                && let Some(last) = jobs.last_mut()
+            {
+                last.1 = true;
+            }
+        }
+        let required: Vec<String> = jobs
+            .into_iter()
+            .filter(|(_, informational)| !informational)
+            .map(|(n, _)| n)
+            .collect();
+        assert_eq!(required, drift::REQUIRED_CHECKS, "{ci}");
+    }
+
     #[test]
     fn release_pubkey_matches_the_kit() {
         // The CLI does not enable the kit's self-update feature, so it
@@ -1344,23 +1443,46 @@ mod tests {
         }
         // Freshly generated: zero diffs.
         assert!(
-            !cmd_sync(&target, false, false, false).unwrap(),
+            !cmd_sync(&target, false, false, false, false).unwrap(),
             "no differences right after new"
         );
         // A drifted kit file is reported and --write repairs it.
         std::fs::write(target.join("deny.toml"), "# drifted\n").unwrap();
-        assert!(cmd_sync(&target, false, false, false).unwrap());
-        assert!(cmd_sync(&target, true, false, false).unwrap());
-        assert!(!cmd_sync(&target, false, false, false).unwrap());
+        assert!(cmd_sync(&target, false, false, false, false).unwrap());
+        assert!(cmd_sync(&target, true, false, false, false).unwrap());
+        assert!(!cmd_sync(&target, false, false, false, false).unwrap());
         // A project-owned file is left alone.
         std::fs::write(target.join("src/main.rs"), "fn main() {}\n").unwrap();
         assert!(
-            !cmd_sync(&target, false, false, false).unwrap(),
+            !cmd_sync(&target, false, false, false, false).unwrap(),
             "owned files do not count as drift"
         );
         assert_eq!(
             std::fs::read_to_string(target.join("src/main.rs")).unwrap(),
             "fn main() {}\n"
+        );
+        // K32: a stale kp_themes record is drift; --write corrects it and
+        // keeps the file's header comment. Drilled red once (dropped the
+        // `changed |= drifted` line in cmd_sync): failed, restored.
+        let chassis_toml = target.join(".chassis.toml");
+        let text = std::fs::read_to_string(&chassis_toml).unwrap();
+        std::fs::write(&chassis_toml, text.replace(KP_THEMES, "3.0.0")).unwrap();
+        assert!(cmd_sync(&target, false, false, false, false).unwrap());
+        assert!(cmd_sync(&target, true, false, false, false).unwrap());
+        assert_eq!(std::fs::read_to_string(&chassis_toml).unwrap(), text);
+        assert!(!cmd_sync(&target, false, false, false, false).unwrap());
+        // K32: a Cargo.toml that pins another kit tag is drift --write does not touch.
+        let cargo = target.join("Cargo.toml");
+        let pinned = std::fs::read_to_string(&cargo).unwrap();
+        std::fs::write(
+            &cargo,
+            pinned.replace("tag = \"v0.1.0\"", "tag = \"v0.0.9\""),
+        )
+        .unwrap();
+        assert!(cmd_sync(&target, true, false, false, false).unwrap());
+        assert!(
+            std::fs::read_to_string(&cargo).unwrap().contains("v0.0.9"),
+            "Cargo.toml is project-owned"
         );
     }
 

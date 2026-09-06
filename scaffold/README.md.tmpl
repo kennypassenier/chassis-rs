@@ -40,6 +40,19 @@ under systemd journald rotates (the `deploy/journald.conf` drop-in caps the
 LXC's journal), under docker set `logging: options: max-size` in the
 compose file.
 
+## Staying on the kit
+
+```bash
+chassis sync            # diff the kit-owned files, check the kit tag and kp_themes
+chassis sync --remote   # also compare main's branch protection with CI (needs gh)
+chassis sync --write    # apply the kit's files and correct kp_themes
+```
+
+Exit 1 means drift: a file diff, or a `! …` line naming what differs and
+how to fix it (kit tag in `Cargo.toml` vs `.chassis.toml`, `kp_themes`,
+required checks). Without `--remote` it needs no network, so a CI job can
+run it as a drift check.
+
 ## Release
 
 ```bash

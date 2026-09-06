@@ -32,8 +32,25 @@ file, login, tokens, health, metrics, shutdown — is the kit's.
 ```bash
 chassis new inbox --description "Clients post JSON messages"   # scaffold + repo
 chassis sync                                                    # diff against the current scaffold
+chassis sync --remote                                           # …and compare branch protection (needs gh)
 chassis release 0.2.0                                           # bump, tag, wait for CI, sign, upload
 ```
+
+`sync` compares the kit-owned files with the scaffold (unified diff per
+file; `--write` applies, `--write --force` also rewrites project-owned
+files) and then the drift that is not a file (K32): the kit tag
+`Cargo.toml` pins against `.chassis.toml`'s `chassis_tag` (a path
+dependency is noted, not drift), `.chassis.toml`'s `kp_themes` against the
+kp-themes version this kit vendors (`--write` corrects the record; the kit
+is the source of truth there), and with `--remote` the checks `main`'s
+branch protection requires against the scaffold's CI job names, plus
+`strict` and `enforce_admins` (`--protect` repairs). Every such difference
+is one line, `! <what>: <project value> vs <expected> — <remedy>`, printed
+after the file diffs. Exit 0 = in sync (or every difference applied with
+`--write`); exit 1 = drift found and not applied, or the command itself
+could not run (unparseable file, missing tool — stderr carries the remedy).
+Without `--remote` sync needs no network and no token, so a CI job can run
+it as a drift check; `--remote` is the only part that needs `gh` and a login.
 
 ## Where the decisions live
 

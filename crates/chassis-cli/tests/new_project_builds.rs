@@ -11,6 +11,19 @@ fn chassis() -> Command {
     Command::new(env!("CARGO_BIN_EXE_chassis"))
 }
 
+/// A command that acts on the repository at `dir`, whatever git exported
+/// to this test: from a pre-commit hook in a linked worktree the test
+/// inherits `GIT_DIR` (+ `GIT_INDEX_FILE`), and `git log` in a temp dir
+/// would otherwise read the kit's own history.
+fn in_repo(program: &str, dir: &std::path::Path) -> Command {
+    let mut cmd = Command::new(program);
+    cmd.current_dir(dir);
+    for var in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX"] {
+        cmd.env_remove(var);
+    }
+    cmd
+}
+
 #[test]
 fn a_new_project_compiles_and_answers_version() {
     let kit = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../chassis");
@@ -50,9 +63,8 @@ fn a_new_project_compiles_and_answers_version() {
     // warnings, tests, clean tree) — what its first real commit will face.
     let gates = project.join(".claude/hooks/gates.sh");
     assert!(gates.exists(), "gates.sh is part of the scaffold");
-    let out = Command::new("bash")
+    let out = in_repo("bash", &project)
         .arg(&gates)
-        .current_dir(&project)
         .env("CARGO_TARGET_DIR", &workspace_target)
         .output()
         .unwrap();
@@ -112,15 +124,25 @@ fn a_new_project_compiles_and_answers_version() {
         }
     }
 
-    // The scaffold's own sync sees no drift.
+    // The scaffold's own sync sees no drift — in the files and (K32) in the
+    // kit tag, kp_themes and the path dependency it reports as a note.
+    // Drilled red once (misspelt the note's needle): failed, restored.
     let out = chassis()
         .args(["sync", "--dir", project.to_str().unwrap()])
         .output()
         .unwrap();
+    let sync_out = String::from_utf8_lossy(&out.stdout);
     assert!(
         out.status.success(),
-        "sync right after new must be clean: {}",
-        String::from_utf8_lossy(&out.stdout)
+        "sync right after new must be clean: {sync_out}"
+    );
+    assert!(
+        sync_out.contains("in sync with the scaffold of chassis"),
+        "{sync_out}"
+    );
+    assert!(
+        sync_out.contains("path dependency"),
+        "a --chassis-path project is told its tag is not compared: {sync_out}"
     );
 
     // A dry-run release names every step without touching git or gh.
