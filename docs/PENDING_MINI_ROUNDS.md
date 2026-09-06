@@ -166,6 +166,93 @@ conversation:
 - The update notifications are wired via `on_update_event` (D-A1); the kit
   dashboard's update card then shows the same events.
 
+## Closing form of the batch — answered 2026-09-06 (17:50)
+
+**Report:** R1 kit 1.4.1 + 1.5.0 Akkoord · R2 three releases + Almanac
+3.0.0 live: **Eigen antwoord** (see the live fault below) · R3 remote
+scaffold + C2 Akkoord · R4 kyu step 2 Akkoord · R5 Almanac step 2 + 4.0.0
+Akkoord. **CF-6** (the kit/migration faults found live on 2026-09-06):
+all nine fields **Klopt** — ratified below, measures a/b become kit 1.5.1.
+**D1** http-switchboard's webhook door: *Stap 2 plannen* (inventory +
+its own form, last in the order below). **D2** the Almanac 4.0.0 install:
+*Eigen antwoord* — Claude manages the latch env itself (create the
+gitignored `.env` in the project with latch if absent, edit it if present,
+push to latch); standing instruction from Kenny: "als je zelf met latch
+iets kan doen zodat ik het niet hoef te doen, dan mag dat en heeft het
+zelfs de voorkeur" (asking first is fine too).
+
+**Kenny's order for everything that is still open** (his remark): all
+answers stand, but the work runs **chassis-rs first, fully; then almanac;
+then kyu; then kyu-runner; last http-switchboard** — "als er dan iets in
+chassis-rs gewijzigd moet worden, dan moeten we niet altijd alle andere
+projecten aanpassen".
+
+**Live fault reported in R2** (Kenny, on almanac.kp-soft.dev = CT 112,
+almanac 3.0.0 on kit 1.4.0, and on 10.10.10.12:8080): deleting the calendar
+`almanac-test` answered `{"error":"cross-origin request from null
+refused", …}` on a bare JSON page; logging in at the IP gave the same
+refusal instead of the dashboard. Measured: `curl -X POST -H "Origin: null"
+http://127.0.0.1:8080/login` on CT 112 → 403 with that body; every kit
+response carries `referrer-policy: no-referrer`, and per the Fetch
+standard a browser sends `Origin: null` on a navigation POST (a form
+submit) under that policy — so **every form in every kit dashboard is
+refused from Chrome**, login included, and the refusal is a JSON page
+outside the layout. Kit fault since 1.0 (`shell/guards.rs::csrf_guard` +
+`shell/http.rs::security_headers`); correction form **CF-7** below.
+Kenny also asked whether the Captures page was not supposed to disappear
+into the Sources page — he is right: the kit's FEATURES K13 says "replaces
+Almanac's captures page"; the A2-2 form of this session offered the
+contradicting option. Both go to the next form (CF-7 + the A2-2 revisit).
+
+**v4.0.0 signed by Kenny 2026-09-06 ~17:55** (`SHA256SUMS.minisig` on the
+release) — **not installed**: it carries the same fault (kit 1.5.0). The
+CT 112 install waits for almanac 4.0.1 on kit 1.5.1, in almanac's turn.
+
+## Correction form CF-6 — ratified 2026-09-06 (17:50), all nine fields Klopt
+
+### CF-6 · three faults found live in the release chain — **ratified, measurement open**
+
+1. **What went wrong:** the scaffold wrote the kit git dependency without
+   `version` (first remote project red on cargo-deny, run 34028203294);
+   `chassis release` refused this PC because `minisign --version` exits 2;
+   the migrations lacked `.chassis.toml` (×3), kyu-runner lacked the
+   Dockerfile the Release workflow expects, and the migration note claimed
+   CT 112's state root was `/opt/almanac` (measured:
+   `/appdata/almanac/almanac-config`).
+2. **Gate:** each mechanism was proven only in the kit's own environment,
+   never where it had to work (rule 35): the generated-project drill never
+   ran cargo-deny or a real CI; `chassis release` was dry-run/unit-tested
+   only; the migration branches were reported "gates green" without
+   `chassis release --dry-run` or a Release run; the CT 112 claim was never
+   measured (protocol §5.6a).
+3. **Where else:** measured — all three repos lacked `.chassis.toml` (now
+   added), kyu's `deny.toml` lacked the git source (fixed in step 2); NOT
+   yet measured: kyu-runner's and http-switchboard's deploy files against
+   CT 109 — that measurement belongs to V6 before their deploy.
+4. **Measure:** (a) the kit's scaffold E2E runs `cargo deny check` on the
+   generated project (in CI; skipped locally when absent) — kit 1.5.1;
+   (b) `chassis release --dry-run` checks the workflow's preconditions
+   (Dockerfile when release.yml builds an image, `.chassis.toml`, a
+   Migration heading on a major) — kit 1.5.1; (c) MIGRATION.md §10 closing
+   check: dry-run green + one Release run on a test tag before "gates
+   green" is reported; (d) deploy files: measure the target's paths first
+   (`systemctl cat`, `ls`), then write the unit/stack file.
+5. **Cost:** one kit release (~1 h), a few CI minutes for cargo-deny on the
+   generated project; two checklist sentences; per migration one dry-run
+   and one test tag.
+6. **Enforcement:** a/b code (tests, CI); c/d discipline (MIGRATION.md
+   checklist), marked as such.
+7. **Measurement moment:** the next fresh `chassis new` project with a
+   remote — first CI run green at once (a); the next release of one of the
+   four projects — the dry-run catches a missing Dockerfile/Migration
+   before the tag (b); the next migration/step 2 (http-switchboard) — the
+   checklist ticked in that project's PENDING (c, d).
+8. **Fallback:** a/b fail → red kit test then fix, CF-6 reopened with the
+   case; c/d fail → `chassis sync` refuses a repository without
+   `.chassis.toml` and a passed dry-run marker.
+9. **Review:** at the retro of the first project built on the kit, or at
+   the next kit major, whichever comes first.
+
 ## Correction forms CF-4 and CF-5 — ratified 2026-09-06, all fields Klopt
 
 ### CF-4 · a Dutch coinage slipped through the lint ("pomplussen") — **ratified, measurement open**
@@ -276,10 +363,9 @@ measurement, or a decision put to him in the closing form:
 | AR24 · "three failed verifications before notifying" has no kit equivalent | **closed** — Opnemen; kit 1.4.0 knob `update_notify_after_failures` (default 3): one `update.failed` event at the N-th consecutive failed check, one `update.ok` on recovery; Almanac pins 1.4.0 | done 2026-09-06 |
 | The four `chassis-migration` branches | **three released up to the signature** 2026-09-06 (V1–V4): after `.chassis.toml` + changelog preparation in each repo (kyu-runner `115c517`, http-switchboard `c630914`, almanac `480b7e1`), `chassis release` (CLI 1.4.1) tagged and built kyu-runner **v0.2.0** (re-tagged at `f48916a` after the first Release run failed for the missing Dockerfile), http-switchboard **v2.0.0** (`52a654e`) and almanac **v3.0.0** (`096af8d`); each release holds the binary and `SHA256SUMS` and is inert until Kenny runs `scripts/sign-release.sh v<version>` in that repo (one password prompt each). kyu stays on `chassis-migration` `1ca1e08` until step 2 (V7, this session) | Kenny signs; then V5/V6 |
 | kyu D-K1 step 2 (kit dashboard) | **done 2026-09-06, merged to kyu `main` (`7b7428c`, unreleased)**: K2-1 kit clients file with the 2.x app tokens imported unchanged on first start (`kyu::kit::import_app_tokens`) · K2-2 `/topics` project page + Topics section on `/` · K2-3 `/apps` → `/clients` redirect, docs in kyu and kyu-runner (`3663b39`) · K2-4 kyu requires the token (W2 amended), the kit gained the opt-in open dashboard (**kit 1.5.0**, `AppSpec::open_dashboard`). kyu 3.0.0 on kit 1.4.1: 181 tests, `tests/k2_dashboard.rs` through the real `chassis::App`; CI needed `deny.toml` (git source, two licenses) and the container smoke test with the door | Kenny: release + deploy later |
-| Almanac step 2 (kit dashboard, V8) | **done 2026-09-06, merged to almanac `main` (`7cb6104`, 4.0.0 unreleased)**: A2-1 kit clients file with the 3.x source tokens imported on first start · A2-2 Journal + Sources sections on `/`, `/sources` and `/captures` project pages, `/dashboard*` redirects · A2-3 captures take any client token, `ALMANAC_CAPTURE_TOKEN` gone · A2-4 4.0.0 with the hard rename `ALMANAC_BOOTSTRAP_TOKEN` → `ALMANAC_TOKEN`. Kenny's deep-dive ruling: every project works like a new `chassis new` project (the kit file is the standard, `ClientStore` the escape hatch). 251 tests; CI needed the login token in the container check. `chassis release 4.0.0` runs to the signature; the CT 112 install needs the env rename in latch first (Kenny) | Kenny signs + renames; then the install |
-| http-switchboard's own webhook door (`inbound_token` per path) | **new, from Kenny's rule at the Almanac deep-dive** ("alle vier zoals een nieuw project"): the switchboard still authenticates inbound webhooks with its own per-path token instead of kit client tokens — a step 2 of its own; decision item in the batch report form | Kenny decides |
+| Almanac step 2 (kit dashboard, V8) | **done 2026-09-06, merged to almanac `main` (`7cb6104`, 4.0.0 unreleased)**: A2-1 kit clients file with the 3.x source tokens imported on first start · A2-2 Journal + Sources sections on `/`, `/sources` and `/captures` project pages, `/dashboard*` redirects · A2-3 captures take any client token, `ALMANAC_CAPTURE_TOKEN` gone · A2-4 4.0.0 with the hard rename `ALMANAC_BOOTSTRAP_TOKEN` → `ALMANAC_TOKEN`. Kenny's deep-dive ruling: every project works like a new `chassis new` project (the kit file is the standard, `ClientStore` the escape hatch). 251 tests; CI needed the login token in the container check. `chassis release 4.0.0` ran to the signature; **v4.0.0 signed by Kenny 2026-09-06 ~17:55**. **Not installed:** it carries the Chrome form fault (CF-7, kit 1.5.0) and the A2-2 captures contradiction; almanac 4.0.1 on kit 1.5.1 follows in almanac's turn, then Claude renames the token in latch (D2) and installs | after kit 1.5.1 |
+| http-switchboard's own webhook door (`inbound_token` per path) | **new, from Kenny's rule at the Almanac deep-dive** ("alle vier zoals een nieuw project"): the switchboard still authenticates inbound webhooks with its own per-path token instead of kit client tokens — a step 2 of its own. **D1 answered 2026-09-06: Stap 2 plannen** — inventory of today's webhook senders + its own form; **last** in Kenny's order (chassis-rs → almanac → kyu → kyu-runner → http-switchboard) | after kyu-runner |
 | Almanac 3.0.0 on CT 112, first 3.x by hand (V5) | **done 2026-09-06 11:09 UTC**: signed assets verified locally (minisign + SHA256SUMS), binary pushed to `/opt/almanac/bin/almanac`, unit replaced with CT 112's real paths (state root `/appdata/almanac/almanac-config`, `latch run --`, `Type=notify`, `ExecStartPre --check`, `ALMANAC_UPDATE_MODE=supervised`), 2.4.0 unit kept as `almanac.service.2.4.0` and the 2.4.0 binary at `/opt/almanac/almanac`; `--check` ok under the real environment before the switch; after restart `active`, NRestarts=0, `/healthz` `{"status":"ok","version":"3.0.0"}`, profiles loaded (job-tracker), authenticated against Google. One warning to hand to the homelab: `trusted_proxies` is empty while listening on 0.0.0.0. Almanac's own docs corrected to the measured layout (`31b7f49`) | done |
-| Almanac step 2 (kit dashboard) | **handover written** — §A2 below; Kenny opens a session in `~/Projects/almanac` when it fits | done 2026-09-06 |
 
 ## Ratification rounds (gates crossed during AFK)
 
@@ -571,6 +657,8 @@ them. The first 3.x release must be signed with `scripts/sign-release.sh`
 | CF-3 | After an autonomous rollback the same version is never reinstalled (skip list in the state root) | The first autonomous-mode drill after the fix on CT 118: install → crash → revert → the next check reports `Held` ("rolled back earlier"), zero further restarts in the following interval | **CLOSED 2026-09-05: measured at 14:21 UTC on CT 118 (one install/crash/revert, then Held twice across the next interval, NRestarts=3) and ratified the same evening — all nine fields Klopt** |
 | CF-2 | Text read on its own (consequence lines, pill labels, card subtitles) describes actions as "Claude doet…" / "Kenny doet…" — never a bare ik/jij | The Phase 7 hardening form of this project: Claude counts bare pronouns in those surfaces AFTER writing it by habit and BEFORE sending, reports the raw count, then fixes; Kenny finds none | **measured 2026-09-05 at the Phase 7 form: 26 consequence boxes, 104 pills, raw count = 1 bare "jij" (H17), fixed before sending.** Field 8 (fallback) therefore applies: from now on every form of this project is written to a file, run through the pronoun/coinage/gloss count and rendered only at 0 (the lint), and consequence lines start with Claude / Kenny / an article. Kenny's own reading of the Phase 7 form is the second half of the measurement. **CLOSED 2026-09-05 (evening): the combined ratification form ran through the lint (28 items, 196 loose text lines, 0 bare pronouns, 0 Dutch coinages) and Kenny answered CF-2.M Klopt — the fallback lint is this project's working method from here on.** |
 | CF-4 | A Dutch sentence that names a code concept uses the code's English word, glossed on first use; the lint word list grows with each find | The Phase 10 retrospective form of this project: Kenny finds no coinage in its Dutch explanations; Claude checks each code concept carries its English identifier before sending | **CLOSED 2026-09-06** — measured at the Phase 10 retro form: the lint reported 0 bare pronouns over 81 loose lines and 1 coinage hit, which was the quoted counter-example "pomplussen" itself; Kenny found no coinage and adopted all nine lessons. The rule is now STANDING_RULES §1 (dev-procedure 0cad95c). |
+| CF-6 | (a) scaffold E2E runs cargo-deny on the generated project, (b) `chassis release --dry-run` checks Dockerfile/`.chassis.toml`/Migration, (c) migration closing check, (d) measure target paths first | (a) first CI run of the next fresh remote project; (b) the next release of kyu/kyu-runner/http-switchboard/almanac; (c, d) http-switchboard's step 2 | **open** — a/b to be built as kit 1.5.1 |
+| CF-7 | (proposed 2026-09-06 18:00, awaiting Kenny) kit dashboard forms refused from Chrome (`Origin: null` under `referrer-policy: no-referrer`) and refusals rendered as bare JSON pages | the almanac 4.0.1 install on CT 112: Kenny logs in from Chrome and deletes calendar `almanac-test` | **awaiting ratification** |
 | CF-5 | Kit releases only through `chassis release`; every hand-run commit step guarded by a HEAD-changed check; a tag only from a verified `origin/main` SHA whose `git show --stat` lists the feature files | The next kit release (1.3.1 or 1.4.0): it runs through `chassis release`, and the tag's commit is checked before the GitHub release exists | **closed** — measured 2026-09-06 at kit 1.4.0: released through `scripts/release-kit.sh` (rule 36 chain), tag `v1.4.0` → `3e0a41e` verified against `origin/main` before the GitHub release existed |
 
 ### CF-2 · correction form, answered 2026-09-05
