@@ -269,13 +269,14 @@ measurement, or a decision put to him in the closing form:
 |---|---|---|
 | S6 · unauthenticated exhaustion of the passkey ceremony table | **closed** — Dichten in the closing form; shipped in kit 1.4.0: bounded `Ceremonies` table (cap, TTL and per-IP share as knobs), an IP evicts only its own oldest ceremony, `/passkeys/login/*` behind the `/login` IP limiter; three unit tests + a 429 check in the passkeys E2E | done 2026-09-06 |
 | CF-5 measurement · next kit release through the release command, tag checked before the GitHub release | **measured, passed** — 1.4.0 went out through `scripts/release-kit.sh` (the kit is a workspace, so this script is its release command in the sense of rule 36); tag `v1.4.0` → `3e0a41e` = `origin/main`, read back before `gh release create` ran | done 2026-09-06 |
-| C2 · broken-release drill in both modes with a release signed by the ecosystem key | open drill | Kenny signs a release, then Claude drills on CT 118 |
-| H7 · passkey success path (register/login) live behind Traefik with Bitwarden (A4) | Later, Kenny | hostname + certificate |
-| Remote `chassis new` + `sync --protect` live (creates a repository) | Kenny's go | any time |
+| C2 · broken-release drill in both modes with a release signed by the ecosystem key | **Nu voorbereiden** (form of 2026-09-06, V9): Kenny runs `scripts/drill-release.sh 0.1.4 --serve 9000` (one password prompt; the PC serves `dist/drill-0.1.4` on http://10.10.10.10:9000, which is what CT 118's `INBOX_UPDATE_URL` already names); Claude drops the `INBOX_UPDATE_PUBKEY` override on CT 118 so the kit's baked-in key applies, then drills supervised swap, autonomous rollback (`INBOX_UPDATE_DRILL=broken`) and broken-after-ready through `ssh root@10.10.5.250 pct exec 118`, and records the result in TEST_PLAN §5 | after Kenny's signed drill release |
+| H7 · passkey success path (register/login) live behind Traefik with Bitwarden (A4) | **Homelab Rust session makes the route, Kenny drills** (V10): announced below under "Open with the Homelab Rust session" | after the route exists |
+| Remote `chassis new` + `sync --protect` live (creates a repository) | **done 2026-09-06** (V11): `kennypassenier/chassis-smoke-20260906` created and pushed by `chassis new` (CLI 1.4.1), CI green 4/4, `chassis sync --protect` set protection on `main` requiring `fmt · clippy · tests`, `cargo-deny (advisories · licenses · bans)` and `container build` (read back through the API: strict, enforce_admins), repository deleted afterwards. The first attempt with CLI 1.4.0 was red on cargo-deny (git dependency without a version requirement) → kit 1.4.1 | done |
 | Homelab binary reinstall + broken-after-ready re-run on CT 118 | Homelab Rust session | announced (HL-2) |
 | AR24 · "three failed verifications before notifying" has no kit equivalent | **closed** — Opnemen; kit 1.4.0 knob `update_notify_after_failures` (default 3): one `update.failed` event at the N-th consecutive failed check, one `update.ok` on recovery; Almanac pins 1.4.0 | done 2026-09-06 |
-| The four `chassis-migration` branches | **three merged** 2026-09-06 on Kenny's "Claude merget drie nu, kyu wacht op stap 2": kyu-runner `43c3e9f`, http-switchboard `0c8186f`, almanac `991624b` are `main` (unreleased, not deployed); kyu stays on `chassis-migration` `1ca1e08` until D-K1 step 2. Still Kenny-only (signing): releases, homelab stack updates, deploys; Almanac's first 3.x by hand | per project |
-| kyu D-K1 step 2 (kit dashboard) | separate kyu session | Kenny opens it |
+| The four `chassis-migration` branches | **three released up to the signature** 2026-09-06 (V1–V4): after `.chassis.toml` + changelog preparation in each repo (kyu-runner `115c517`, http-switchboard `c630914`, almanac `480b7e1`), `chassis release` (CLI 1.4.1) tagged and built kyu-runner **v0.2.0** (re-tagged at `f48916a` after the first Release run failed for the missing Dockerfile), http-switchboard **v2.0.0** (`52a654e`) and almanac **v3.0.0** (`096af8d`); each release holds the binary and `SHA256SUMS` and is inert until Kenny runs `scripts/sign-release.sh v<version>` in that repo (one password prompt each). kyu stays on `chassis-migration` `1ca1e08` until step 2 (V7, this session) | Kenny signs; then V5/V6 |
+| kyu D-K1 step 2 (kit dashboard) | **this session** (V7, form of 2026-09-06): decision form K2-1 (ClientStore over the `apps` table) · K2-2 (topics page placement) · K2-3 (`/apps` → `/clients`) · K2-4 (mini-round on W2, unprotected mode) rendered 2026-09-06 | Kenny answers |
+| Almanac 3.0.0 on CT 112, first 3.x by hand (V5) | **waits for the signature**; measured on CT 112 (2026-09-06, via `pct exec 112`): the live unit is `Type=exec`, `ExecStart=/usr/local/bin/latch run -- /opt/almanac/almanac` (no `--env`), `EnvironmentFile=/appdata/almanac/almanac-config/latch.env`, **`ALMANAC_STATE_DIR=/appdata/almanac/almanac-config`** (the migration notes and `deploy/almanac.service` assume `/opt/almanac` and `/etc/almanac/latch.env` — wrong for CT 112; `/opt/almanac` holds only the binary, `.prev`/`.homelab-prev` copies and latch's `.latch` store), `/healthz` 2.4.0 ok, latch 2.2.0. Plan: verify the signed assets locally, `pct push` the binary to `/opt/almanac/bin/almanac`, install the 3.0.0 unit with CT 112's real paths (state root and env file as above, `latch run --` without `--env`, `ReadWritePaths` + `/opt/almanac/bin` + `/opt/almanac-pre-update`), keep the 2.4.0 unit as `almanac.service.2.4.0` and the old binary in place for the way back, restart, expect `/healthz` version 3.0.0; then correct Almanac's deploy files and Migration note to the measured paths | Claude, after Kenny signs v3.0.0 |
 | Almanac step 2 (kit dashboard) | **handover written** — §A2 below; Kenny opens a session in `~/Projects/almanac` when it fits | done 2026-09-06 |
 
 ## Ratification rounds (gates crossed during AFK)
@@ -527,6 +528,30 @@ them. The first 3.x release must be signed with `scripts/sign-release.sh`
   drill mode (K20) on CT 118 to prove it live.
 - Alloy JSON stage for structured logs (K4) — once the kit ships JSON.
 - Quiesce call in the nightly backup (W4) — once the kit ships it.
+
+**Added 2026-09-06 (follow-up form "de overgebleven items", V6 and V10):**
+
+- **V6 · stack files and the CT 109 rollout.** The three services carry the exact
+  proposal for their homelab stack file in their own `deploy/service.yml`;
+  the homelab copies are behind: `stacks/almanac/service.yml` names
+  `binary: /opt/almanac/almanac` and the 2.x `update_cmd` (3.0.0: binary
+  `/opt/almanac/bin/almanac`, `update_cmd` through `systemd-run --wait --pipe
+  --collect` + `latch run -- … update`; **the state root on CT 112 is
+  `/appdata/almanac/almanac-config`, measured 2026-09-06, not `/opt/almanac`
+  as the project's file says — take the paths from the box, then fix the
+  project's file**); `stacks/kyu/kyu-runner/service.yml` and
+  `stacks/kyu/http-switchboard/service.yml` name `/usr/local/bin/<name>` and,
+  for kyu-runner, the asset `kyu-runner-x86_64-linux-musl` (kit releases:
+  asset `<name>`, install path `/opt/<name>/bin`, `Type=notify` unit from
+  `deploy/<name>.service`). Then roll out kyu-runner 0.2.0 and
+  http-switchboard 2.0.0 on CT 109 (both `active` there today under
+  `/usr/local/bin`, measured 2026-09-06) once Kenny has signed their releases.
+- **V10 · H7 passkeys behind Traefik.** Add a Traefik route
+  `inbox.kp-soft.dev → http://10.10.10.18:8080` (CT 118, the kit's example
+  service) in the gateway stack's `traefik-routes.yml`, with Cloudflare Access
+  in front as everywhere; Kenny then registers and logs in with a passkey from
+  Bitwarden; the route can go again afterwards. Nothing in production depends
+  on it.
 
 ## Mini-rounds and deep-dives (deviations from a frozen decision)
 

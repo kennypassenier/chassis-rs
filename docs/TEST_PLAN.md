@@ -83,6 +83,11 @@ the constants they read.
 - **Autonomous rollback** (2026-09-05, CT 118): install → crash before READY →
   revert on the second start, as designed; and the churn afterwards (CF-3),
   fixed the same afternoon with a red-then-green test.
+- **Remote `chassis new` + `sync --protect`** (2026-09-06, CLI 1.4.1): a throwaway
+  repository created and pushed by `chassis new`, CI green (4 checks), branch
+  protection on `main` set by `sync --protect` and read back through the API
+  (three required checks, strict, enforce_admins), repository deleted. The
+  first attempt (CLI 1.4.0) was red on cargo-deny — fixed in 1.4.1.
 - **Pending:** the re-drill after CF-3 (0.1.3 → 0.1.4); broken-after-ready
   under the homelab (needs adopt); `ExecStartPre=--check` refusing a broken
   env (W9).
