@@ -208,6 +208,31 @@ contradicting option. Both go to the next form (CF-7 + the A2-2 revisit).
 release) — **not installed**: it carries the same fault (kit 1.5.0). The
 CT 112 install waits for almanac 4.0.1 on kit 1.5.1, in almanac's turn.
 
+## Correction form CF-8 + T1/N1/Q1/V1 — answered 2026-09-06 (20:40)
+
+**CF-8** (Almanac 4.0.1 dashboard layout: calendar IDs in tables, buttons
+glued to fields, double "Sources" nav; no page was ever looked at in a
+browser): fields 1–3 and 5–9 **Klopt**; **field 4 Eigen antwoord** — Kenny:
+layout affordances are kp-themes' business; the kp-themes session will
+build test pages to find layout faults, so the kit gets NO stopgap layout
+classes (4a dropped). What stays of the measure: 4b minus the spacing
+(calendar names instead of IDs, IDs behind a reveal, nav per N1) and 4c
+(the look-drill). **T1** the theme-revert report happens on
+almanac.kp-soft.dev — handed to kp-themes with the measurement (not
+reproducible in Chromium 148 on either address). **N1 Eigen antwoord** —
+Kenny: merge the two Sources pages; Almanac's per-source extras (a token
+belongs to a name AND a calendar) should ride on the kit's dynamic page
+extension — "dat was toch het hele concept van kit?" → a design form on the
+kit's clients-page extension points follows (chassis-rs first). **Q1** —
+Kenny pastes the kp-themes question himself; Claude delivered the prompt in
+the reply (layout utilities or a Bootstrap base, the theme revert, the
+confirm-by-relabel UX). **V1** — logged in and deleted `almanac-test`:
+**CF-7 measured and closed**; but the kit's destructive-confirm (relabel the
+button for a few seconds, click again) is bad UX in Kenny's words — a
+dialog belongs there; kp components' behaviour → in the kp-themes prompt.
+Kenny's order: everything not theming-related first, here; theming in the
+kp-themes session in parallel.
+
 ## Mini-round form M1–M4 + D5 follow-up — answered 2026-09-06 (19:40)
 
 The D5 trial (`chassis sync --write` on a throwaway Almanac branch, discarded)
@@ -744,7 +769,7 @@ them. The first 3.x release must be signed with `scripts/sign-release.sh`
 | CF-2 | Text read on its own (consequence lines, pill labels, card subtitles) describes actions as "Claude doet…" / "Kenny doet…" — never a bare ik/jij | The Phase 7 hardening form of this project: Claude counts bare pronouns in those surfaces AFTER writing it by habit and BEFORE sending, reports the raw count, then fixes; Kenny finds none | **measured 2026-09-05 at the Phase 7 form: 26 consequence boxes, 104 pills, raw count = 1 bare "jij" (H17), fixed before sending.** Field 8 (fallback) therefore applies: from now on every form of this project is written to a file, run through the pronoun/coinage/gloss count and rendered only at 0 (the lint), and consequence lines start with Claude / Kenny / an article. Kenny's own reading of the Phase 7 form is the second half of the measurement. **CLOSED 2026-09-05 (evening): the combined ratification form ran through the lint (28 items, 196 loose text lines, 0 bare pronouns, 0 Dutch coinages) and Kenny answered CF-2.M Klopt — the fallback lint is this project's working method from here on.** |
 | CF-4 | A Dutch sentence that names a code concept uses the code's English word, glossed on first use; the lint word list grows with each find | The Phase 10 retrospective form of this project: Kenny finds no coinage in its Dutch explanations; Claude checks each code concept carries its English identifier before sending | **CLOSED 2026-09-06** — measured at the Phase 10 retro form: the lint reported 0 bare pronouns over 81 loose lines and 1 coinage hit, which was the quoted counter-example "pomplussen" itself; Kenny found no coinage and adopted all nine lessons. The rule is now STANDING_RULES §1 (dev-procedure 0cad95c). |
 | CF-6 | (a) scaffold E2E runs cargo-deny on the generated project, (b) `chassis release --dry-run` checks Dockerfile/`.chassis.toml`/Migration, (c) migration closing check, (d) measure target paths first | (a) first CI run of the next fresh remote project; (b) the next release of kyu/kyu-runner/http-switchboard/almanac; (c, d) http-switchboard's step 2 | **built, kit 1.5.1 released 2026-09-06** (`149d4fa`): the E2E found and fixed the path-override wildcard at once; measurement still open at the moments named |
-| CF-7 | CSRF guard reads `Sec-Fetch-Site` first, `referrer-policy: same-origin`, refusals to navigations render in the layout, browser-fingerprint tests, Chrome drill before dashboard-touching kit releases (TEST_PLAN §5) | the almanac 4.0.1 install on CT 112: Kenny logs in from Chrome and deletes calendar `almanac-test`; Claude measures the same beforehand with the fingerprint tests and the Chrome drill on CT 118 | **ratified; kit 1.5.1 released; Claude's half measured 2026-09-06 16:53 UTC on CT 112 (almanac 4.0.1 live: Chrome-header form → 200, cross-site → 403 page, script → 403 JSON); Kenny's half open: log in from Chrome and delete calendar `almanac-test`** |
+| CF-7 | CSRF guard reads `Sec-Fetch-Site` first, `referrer-policy: same-origin`, refusals to navigations render in the layout, browser-fingerprint tests, Chrome drill before dashboard-touching kit releases (TEST_PLAN §5) | the almanac 4.0.1 install on CT 112: Kenny logs in from Chrome and deletes calendar `almanac-test`; Claude measures the same beforehand with the fingerprint tests and the Chrome drill on CT 118 | **CLOSED 2026-09-06 20:40** — Claude's half 16:53 UTC on CT 112 (Chrome-header form → 200, cross-site → 403 page, script → 403 JSON); Kenny's half the same evening: logged in from Chrome on almanac.kp-soft.dev and deleted calendar `almanac-test` |
 | CF-5 | Kit releases only through `chassis release`; every hand-run commit step guarded by a HEAD-changed check; a tag only from a verified `origin/main` SHA whose `git show --stat` lists the feature files | The next kit release (1.3.1 or 1.4.0): it runs through `chassis release`, and the tag's commit is checked before the GitHub release exists | **closed** — measured 2026-09-06 at kit 1.4.0: released through `scripts/release-kit.sh` (rule 36 chain), tag `v1.4.0` → `3e0a41e` verified against `origin/main` before the GitHub release existed |
 
 ### CF-2 · correction form, answered 2026-09-05
