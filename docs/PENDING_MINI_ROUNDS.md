@@ -125,6 +125,8 @@ container smoke test found the config under `/etc` while the kit looked in
 `/var/lib`. Both fixed on the branches, through their gates, before the
 fast-forwards.
 
+**Report form of 2026-09-06 (R1 kit 1.4.0 + CF-5 measurement · R2 three merges after two CI fixes · R3 Almanac step-2 handover): R1 Akkoord, R2 Akkoord, R3 Klopt.** Recorded in the gate log; nothing further is scheduled for chassis-rs.
+
 ### A2 · handover for the Almanac step-2 session (kit dashboard)
 
 Almanac takes the kit's dashboard as a second migration step, in a session
