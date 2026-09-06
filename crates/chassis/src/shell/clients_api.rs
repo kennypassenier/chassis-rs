@@ -67,14 +67,15 @@ pub struct ClientsApi {
     /// K16 (1.7.0): the project's say before a token is issued — it gets
     /// the client-to-be and the extra form fields, and may refuse.
     pub on_issued: Option<IssueHook>,
-    /// K16 (1.7.0): told after a client is deleted, so what the project
-    /// created alongside (a profile) goes with it.
+    /// K16 (1.7.0): asked before a client is deleted — the project removes
+    /// what it created alongside (a profile), or refuses with a reason
+    /// (events still waiting for that profile) and nothing is deleted.
     pub on_deleted: Option<DeleteHook>,
 }
 
 pub type IssueHook =
     Arc<dyn Fn(&ClientView, &BTreeMap<String, String>) -> Result<(), Error> + Send + Sync>;
-pub type DeleteHook = Arc<dyn Fn(&ClientView) + Send + Sync>;
+pub type DeleteHook = Arc<dyn Fn(&ClientView) -> Result<(), Error> + Send + Sync>;
 
 #[derive(Debug, Deserialize)]
 pub struct IssueForm {
@@ -158,12 +159,20 @@ pub async fn delete(
     State(api): State<ClientsApi>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, Error> {
+    if let Some(hook) = &api.on_deleted {
+        let snap = api.clients.snapshot();
+        let Some(client) = snap.clients.iter().find(|c| c.id == id) else {
+            return Err(Error::new(
+                crate::core::error::Kind::NotFound,
+                format!("no client with id {id}"),
+                "the list on the clients page is current",
+            ));
+        };
+        hook(&ClientView::from(client))?;
+    }
     let client = api.clients.update(&mut |f| f.delete(&id))?;
     api.captures.forget(&id);
     tracing::info!(client = %client.name, id = %client.id, "client deleted");
-    if let Some(hook) = &api.on_deleted {
-        hook(&ClientView::from(&client));
-    }
     Ok(StatusCode::NO_CONTENT)
 }
 

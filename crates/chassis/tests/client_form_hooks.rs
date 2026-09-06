@@ -106,7 +106,21 @@ async fn extra_fields_reach_the_issue_hook_and_a_refusal_issues_nothing() {
         Ok(())
     });
     let gone = deleted.clone();
-    app.on_client_deleted(move |client| gone.lock().unwrap().push(client.name.clone()));
+    let refuse_once = Arc::new(Mutex::new(true));
+    app.on_client_deleted(move |client| {
+        // The first attempt is refused (events still waiting), the next one
+        // goes through — Almanac's rule.
+        let mut first = refuse_once.lock().unwrap();
+        if *first {
+            *first = false;
+            return Err(Error::invalid(
+                "job-tracker still has 2 events waiting",
+                "wait for the queue to drain",
+            ));
+        }
+        gone.lock().unwrap().push(client.name.clone());
+        Ok(())
+    });
     let running = app.start().await.unwrap();
     let addr = running.addr;
 
@@ -189,7 +203,20 @@ async fn extra_fields_reach_the_issue_hook_and_a_refusal_issues_nothing() {
         "the hook did not run again"
     );
 
-    // Deleting tells the project.
+    // Deleting asks the project first: a refusal deletes nothing.
+    let (status, _, body) = http(
+        addr,
+        "DELETE",
+        &format!("/api/clients/{id}"),
+        &[("Cookie", &cookie)],
+        "",
+    )
+    .await;
+    assert_eq!(status, 400, "{body}");
+    assert!(body.contains("wait for the queue to drain"), "{body}");
+    let (_, _, list) = http(addr, "GET", "/api/clients", &[("Cookie", &cookie)], "").await;
+    assert!(list.contains("job-tracker"), "still there: {list}");
+    assert!(deleted.lock().unwrap().is_empty());
     let (status, _, _) = http(
         addr,
         "DELETE",

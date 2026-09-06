@@ -233,13 +233,14 @@ does the rest; there is no second page to build:
 ```rust
 app.client_form_field(ClientFormField::select("calendar", "Calendar", || calendars()));
 app.on_client_issued(|client, fields| profiles.create(&client.name, &fields["calendar"]));
-app.on_client_deleted(|client| profiles.remove(&client.name));
+app.on_client_deleted(|client| profiles.remove(&client.name)); // Err refuses the delete
 app.client_column(TargetCalendar);   // shows the calendar's name on the row
 ```
 
-`on_client_issued` runs before the token exists: return an `Error` and
-nothing is issued — the page shows the kit's error with your remedy. A
-duplicate name is refused before the hook runs. `POST /api/clients` takes
+`on_client_issued` runs before the token exists and `on_client_deleted`
+before the client goes: return an `Error` from either and nothing changes —
+the page shows the kit's error with your remedy. A duplicate name is refused
+before the issue hook runs. `POST /api/clients` takes
 the fields as extra JSON keys next to `name`; the page's form sends every
 control it has.
 

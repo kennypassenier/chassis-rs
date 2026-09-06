@@ -1023,12 +1023,13 @@ impl App {
         self
     }
 
-    /// Runs after a client is deleted (K16, 1.7.0), so what the project
-    /// created alongside it goes too.
+    /// Runs before a client is deleted (K16, 1.7.0): the project removes
+    /// what it created alongside, or returns an `Error` and nothing is
+    /// deleted — the page shows the error with its remedy.
     #[cfg(feature = "dashboard")]
     pub fn on_client_deleted(
         &mut self,
-        f: impl Fn(&crate::shell::clients_api::ClientView) + Send + Sync + 'static,
+        f: impl Fn(&crate::shell::clients_api::ClientView) -> Result<(), Error> + Send + Sync + 'static,
     ) -> &mut Self {
         self.dash.on_client_deleted = Some(Arc::new(f));
         self

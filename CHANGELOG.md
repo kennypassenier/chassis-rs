@@ -9,6 +9,26 @@ scaffold writes. A breaking change in either is a major and carries a
 
 _Nothing yet._
 
+## [1.7.0] - 2026-09-06
+
+### Added
+- **Issue-form fields and hooks** (K16): `App::client_form_field` adds a
+  text or select field (options asked for at render time) to the clients
+  page's issue form; `App::on_client_issued(client, fields)` runs before a
+  token exists and may refuse; `App::on_client_deleted(client)` runs before
+  a delete and may refuse — either error reaches the page with its remedy.
+  Almanac's sources become one page: name + calendar → profile and token in
+  one click. `POST /api/clients` accepts the extra fields as JSON keys next
+  to `name`.
+- **`deny_ignore` in `.chassis.toml`**: reviewed RUSTSEC exceptions reach
+  the kit-owned `deny.toml`, so a sync keeps them — the first kit-CI run on
+  Almanac was red on three advisories with nowhere to record the decision.
+
+### Fixed
+- The scaffold units set `<PREFIX>_STATE_DIR` explicitly from
+  `.chassis.toml` instead of relying on the binary's compiled-in default —
+  Almanac's rendered unit lacked the line CT 112 actually runs with.
+
 ## [1.6.0] - 2026-09-06
 
 ### Added

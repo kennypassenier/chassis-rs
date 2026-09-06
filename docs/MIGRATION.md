@@ -285,7 +285,8 @@ let config = Config::from_table(&app.loaded.as_ref().unwrap().file_table, &app.s
 - A project that needs more than a name for a client registers
   `App::client_form_field(...)` and `App::on_client_issued(...)` (create
   what the project keeps per client; refuse with an `Error` to issue
-  nothing) plus `App::on_client_deleted(...)`; its own "add" page can then
+  nothing) plus `App::on_client_deleted(...)` (before the delete; refuse with an
+  `Error` to keep the client); its own "add" page can then
   go. `POST /api/clients` takes the fields as extra JSON keys.
 - `.chassis.toml` `deny_ignore = [...]`: each RUSTSEC id with its reason in
   a comment beside it; `chassis sync --write` renders them into `deny.toml`.
