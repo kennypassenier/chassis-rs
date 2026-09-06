@@ -231,9 +231,10 @@ fn main() -> ExitCode {
             force,
             protect,
             remote,
-        } => cmd_sync(&dir, write, force, protect, remote).map(|changed| {
-            if changed && !write {
-                // A CI-friendly signal: differences exist and were not applied.
+        } => cmd_sync(&dir, write, force, protect, remote).map(|outcome| {
+            if outcome.unresolved {
+                // A CI-friendly signal: a difference is still there — not
+                // applied, or one --write cannot apply (D1).
                 std::process::exit(1);
             }
         }),
@@ -591,13 +592,24 @@ fn merge_gitignore(scaffold: &str, current: &str) -> String {
 }
 
 /// Returns whether any kit-owned file, or anything K32 compares, differed.
+/// What `sync` found (K32, D1 2026-09-07). `changed`: a difference existed.
+/// `unresolved`: a difference is still there when this run ends — file drift
+/// that was not written, or drift `--write` cannot fix (the kit tag in
+/// Cargo.toml, a branch protection without `--protect`). Scripts and CI read
+/// the exit code, so `unresolved` is what decides exit 1, `--write` or not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SyncOutcome {
+    changed: bool,
+    unresolved: bool,
+}
+
 fn cmd_sync(
     dir: &Path,
     write: bool,
     force: bool,
     protect: bool,
     remote: bool,
-) -> Result<bool, Error> {
+) -> Result<SyncOutcome, Error> {
     let mut rec = read_recorded(dir)?;
     if remote {
         require_tool(
@@ -610,9 +622,12 @@ fn cmd_sync(
     // anything is rendered; corrected afterwards, it would leave a file
     // rendered from the stale record behind and the next sync would drift.
     let mut drifted = false;
+    // D1: what is still there when this run ends decides the exit code.
+    let mut unresolved = false;
     let vendored = drift::vendored_kp_themes();
     if let Some(d) = drift::kp_themes_drift(&rec.kp_themes, vendored) {
         drifted = true;
+        unresolved |= !write;
         println!("{d}");
         if write {
             // The kit is the source of truth for kp_themes, so --write may
@@ -644,6 +659,7 @@ fn cmd_sync(
             continue;
         }
         changed = true;
+        unresolved |= !write;
         let diff = similar::TextDiff::from_lines(&current, &body);
         println!("--- {rel} (project)\n+++ {rel} (scaffold)");
         for hunk in diff.unified_diff().context_radius(2).iter_hunks() {
@@ -669,12 +685,18 @@ fn cmd_sync(
         );
     }
     for d in drift::kit_tag_drift(&dep, &rec.chassis_tag) {
+        // Cargo.toml is project-owned: --write never touches it, so this
+        // stays unresolved until the project moves its pin.
         drifted = true;
+        unresolved = true;
         println!("{d}");
     }
     if remote {
         for d in drift::remote_drift(&rec.repo)? {
             drifted = true;
+            // --protect repairs the protection right after this; without it
+            // the difference is only reported.
+            unresolved |= !protect;
             println!("{d}");
         }
     }
@@ -688,7 +710,10 @@ fn cmd_sync(
     if protect {
         protect_main(&rec)?;
     }
-    Ok(changed)
+    Ok(SyncOutcome {
+        changed,
+        unresolved,
+    })
 }
 
 fn protect_main(rec: &Recorded) -> Result<(), Error> {
@@ -1520,18 +1545,34 @@ mod tests {
         }
         // Freshly generated: zero diffs.
         assert!(
-            !cmd_sync(&target, false, false, false, false).unwrap(),
+            !cmd_sync(&target, false, false, false, false)
+                .unwrap()
+                .changed,
             "no differences right after new"
         );
         // A drifted kit file is reported and --write repairs it.
         std::fs::write(target.join("deny.toml"), "# drifted\n").unwrap();
-        assert!(cmd_sync(&target, false, false, false, false).unwrap());
-        assert!(cmd_sync(&target, true, false, false, false).unwrap());
-        assert!(!cmd_sync(&target, false, false, false, false).unwrap());
+        assert!(
+            cmd_sync(&target, false, false, false, false)
+                .unwrap()
+                .changed
+        );
+        assert!(
+            cmd_sync(&target, true, false, false, false)
+                .unwrap()
+                .changed
+        );
+        assert!(
+            !cmd_sync(&target, false, false, false, false)
+                .unwrap()
+                .changed
+        );
         // A project-owned file is left alone.
         std::fs::write(target.join("src/main.rs"), "fn main() {}\n").unwrap();
         assert!(
-            !cmd_sync(&target, false, false, false, false).unwrap(),
+            !cmd_sync(&target, false, false, false, false)
+                .unwrap()
+                .changed,
             "owned files do not count as drift"
         );
         assert_eq!(
@@ -1544,10 +1585,22 @@ mod tests {
         let chassis_toml = target.join(".chassis.toml");
         let text = std::fs::read_to_string(&chassis_toml).unwrap();
         std::fs::write(&chassis_toml, text.replace(KP_THEMES, "3.0.0")).unwrap();
-        assert!(cmd_sync(&target, false, false, false, false).unwrap());
-        assert!(cmd_sync(&target, true, false, false, false).unwrap());
+        assert!(
+            cmd_sync(&target, false, false, false, false)
+                .unwrap()
+                .changed
+        );
+        assert!(
+            cmd_sync(&target, true, false, false, false)
+                .unwrap()
+                .changed
+        );
         assert_eq!(std::fs::read_to_string(&chassis_toml).unwrap(), text);
-        assert!(!cmd_sync(&target, false, false, false, false).unwrap());
+        assert!(
+            !cmd_sync(&target, false, false, false, false)
+                .unwrap()
+                .changed
+        );
         // K32: a Cargo.toml that pins another kit tag is drift --write does not touch.
         let cargo = target.join("Cargo.toml");
         let pinned = std::fs::read_to_string(&cargo).unwrap();
@@ -1556,10 +1609,33 @@ mod tests {
             pinned.replace("tag = \"v0.1.0\"", "tag = \"v0.0.9\""),
         )
         .unwrap();
-        assert!(cmd_sync(&target, true, false, false, false).unwrap());
+        assert!(
+            cmd_sync(&target, true, false, false, false)
+                .unwrap()
+                .changed
+        );
         assert!(
             std::fs::read_to_string(&cargo).unwrap().contains("v0.0.9"),
             "Cargo.toml is project-owned"
+        );
+        // D1 (2026-09-07): a difference --write cannot fix stays unresolved,
+        // and that — not "did --write run" — decides the exit code. Drilled
+        // red once (unresolved computed as `changed && !write`, the pre-D1
+        // rule): failed, restored.
+        let after = cmd_sync(&target, true, false, false, false).unwrap();
+        assert!(
+            after.unresolved,
+            "the foreign kit tag is still there after --write"
+        );
+        let fixed = std::fs::read_to_string(&cargo)
+            .unwrap()
+            .replace("v0.0.9", "v0.1.0");
+        std::fs::write(&cargo, fixed).unwrap();
+        assert!(
+            !cmd_sync(&target, false, false, false, false)
+                .unwrap()
+                .unresolved,
+            "nothing left once Cargo.toml agrees again"
         );
     }
 

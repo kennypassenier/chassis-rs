@@ -1072,3 +1072,39 @@ visible); G1's `as_browser()` sending Chrome's current headers (the CF-7
 `Origin: null` case kept as an override in one test); the unratified extras
 each group added (`start_with_env`/`start_open`, `Action::method/busy_label`,
 `reveal` verb, `Knob.feature`); the release moment (Kenny's, R1).
+
+**Report form answered 2026-09-07 (morning):** R1–R7 Akkoord; CF-9.1–9.9 all
+Klopt; CF-10 Klopt; E1 Klopt (gates.sh change ratified); CH Goedkeuren;
+D1 exit 1 on unresolved drift (built the same morning, red-first, [K32]);
+D2 Houden (401 for a wrong Bearer); D3 Houden (`as_browser()` = Chrome's
+current headers); D4 Alles houden (the extras stay, recorded as FEATURES
+amendments); D5 Opnemen (K34, batch 4); D6 Bij de retro. **AFK off** again.
+
+**CF-9 — CLOSED 2026-09-07.** Field 7's measurement already happened
+(three worktree commits after the fix without a stray commit) and the
+regression test is in every gate; review at the batch-3 retro (field 9).
+
+**CF-10 — measurement queued:** at the next parallel build, no agent reports
+an overwritten scratch file (the brief gives each agent its own subdirectory).
+
+**Retro candidates for this batch (D6, Kenny: at the retro):**
+1. `hooks/gates.example.sh` in dev-procedure unsets `GIT_DIR GIT_WORK_TREE
+   GIT_INDEX_FILE GIT_PREFIX GIT_COMMON_DIR` after resolving the toplevel
+   (CF-9.3: the template has no GIT_DIR handling).
+2. A brief template for parallel subagents in worktrees: the GIT_* warning,
+   a scratch subdirectory per agent (CF-10), one new module per group in
+   shared files, "never touch main", the repository's real number of
+   required checks, and "hold your commit until the coordinator says so"
+   as a first-class instruction.
+3. Rule 37 (absolute `cd`) slipped six times in one night in this session
+   (one `git rebase main` in the wrong worktree, one memory note written
+   into the dev-procedure repo and removed). A mechanical guard — a
+   PreToolUse check that a Bash command starts with `cd /` or `git -C /` —
+   is the candidate measure.
+4. Rule 7d for worktrees: "a gate proves itself by firing once" should fire
+   once FROM A LINKED WORKTREE when a project uses them (CF-9.2).
+
+**Open for chassis-rs after batch 3:** the 1.8.0 release (Kenny's word,
+then `scripts/release-kit.sh 1.8.0`); K34 (batch 4); the `Clock` trait of
+K25 (open, unrated); the kp-themes adoption (Unblock item); deferred form
+items R1 (three turns), D6 (kyu-runner 0.2.1), H1 (http-switchboard door).

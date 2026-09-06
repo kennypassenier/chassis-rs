@@ -83,6 +83,11 @@ consumer must change.
 - A wrong bearer on the admin routes (`/api/clients*`, pages) is answered with
   a JSON 401 and a remedy naming `<PREFIX>_TOKEN` instead of a redirect to
   `/login`; requests without any credential are still redirected (K30).
+- `chassis sync` exits 1 whenever a difference is still there when the run
+  ends — also under `--write`, for the drift it cannot fix (the kit tag in
+  Cargo.toml, a branch protection without `--protect`). Before, `--write`
+  exited 0 after printing the red line, so a script read green over an
+  unresolved difference (K32, D1).
 
 ## [1.7.1] - 2026-09-06
 

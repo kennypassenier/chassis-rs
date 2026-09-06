@@ -153,6 +153,37 @@ fn a_new_project_compiles_and_answers_version() {
         "a --chassis-path project is told its tag is not compared: {sync_out}"
     );
 
+    // D1 (K32, 2026-09-07): drift --write cannot fix exits 1 even with
+    // --write, so a script never reads "green" over a red line. A git
+    // dependency pinned to a foreign tag stands in for the real case
+    // (Almanac on v1.7.0 while .chassis.toml said v1.7.1). Drilled red once
+    // (the exit code still followed `changed && !write`): failed, restored.
+    let cargo_toml = project.join("Cargo.toml");
+    let pinned = std::fs::read_to_string(&cargo_toml).unwrap();
+    let foreign = regex_free_replace_path_dep(&pinned);
+    assert_ne!(foreign, pinned, "the kit dependency line was found");
+    std::fs::write(&cargo_toml, &foreign).unwrap();
+    let out = chassis()
+        .args(["sync", "--write", "--dir", project.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let drift_out = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "unresolved kit-tag drift must exit 1 under --write: {drift_out}"
+    );
+    assert!(drift_out.contains("! kit tag"), "{drift_out}");
+    std::fs::write(&cargo_toml, &pinned).unwrap();
+    let out = chassis()
+        .args(["sync", "--dir", project.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "clean again after restoring Cargo.toml"
+    );
+
     // A dry-run release names every step without touching git or gh.
     let out = chassis()
         .args([
@@ -315,4 +346,21 @@ fn k23_new_inside_a_foreign_git_context_touches_only_its_own_repository() {
         1,
         "the new project holds exactly its first commit"
     );
+}
+
+/// Turns the scaffold's `chassis = { path = "…", version = "…", … }` line into a
+/// git dependency pinned to a tag nobody has, without pulling in a regex crate.
+fn regex_free_replace_path_dep(cargo_toml: &str) -> String {
+    let Some(start) = cargo_toml.find("path = \"") else {
+        return cargo_toml.to_string();
+    };
+    let rest = &cargo_toml[start + "path = \"".len()..];
+    let Some(end) = rest.find('"') else {
+        return cargo_toml.to_string();
+    };
+    format!(
+        "{}git = \"https://example.invalid/kit.git\", tag = \"v0.0.9\"{}",
+        &cargo_toml[..start],
+        &rest[end + 1..]
+    )
 }
