@@ -1,4 +1,4 @@
-# Operations — health, metrics, logs, limits, state, keys, notifications, shutdown
+# Operations — health, metrics, logs, limits, state, keys, notifications, shutdown, client tokens
 
 Day-two facts and numbered procedures for a service on chassis. Every
 message in this document is quoted from the source or from a run of the
@@ -333,7 +333,89 @@ configuration errors exit 1. Proven by:
 `in_flight_request_completes_during_drain`,
 `shell::lifecycle::tests::bounded_reports_timeout_without_panicking`.
 
-## 11 · Symptom → cause
+## 11 · Managing client tokens without a dashboard (`chassis clients`, K30)
+
+A service's client tokens are normally issued on its `/clients` page
+(DASHBOARD.md). A headless service — http-switchboard or kyu-runner on an
+LXC, with a caller like Alertmanager waiting for a token — has no operator
+in a browser, so the `chassis` command drives the same `/api/clients`
+routes from a terminal:
+
+```
+chassis clients <verb> --url <base url> --token-env <VAR> [--json] [--timeout-secs N]
+```
+
+| Verb | Does | stdout |
+|---|---|---|
+| `list` | lists the clients (id, name, state, issued, last used, uses); never a token | the table, or the JSON array with `--json` |
+| `issue <name> [--field k=v]...` | creates a client and prints its token | the token, once; with `--json` the client view with a `token` field |
+| `reissue <id-or-name>` | replaces the token; the old one is refused the same second | the new token, once (same `--json` shape) |
+| `revoke <id-or-name>` | locks the caller out; the row stays as revoked, the name is free | nothing (the client view with `--json`) |
+| `delete <id-or-name>` | removes the client and its request history | nothing (`{"id","name","deleted":true}` with `--json`) |
+| `reveal <id-or-name>` | prints the current token | the token, once (the API's `{token, command}` with `--json`) |
+
+Everything that is not the result — confirmations, refusals — goes to
+stderr, so `TOKEN="$(chassis clients issue …)"` captures exactly the
+token. `<id-or-name>` is the id from the first column of `list`, or the
+exact name; when a name belongs to several rows (revoked namesakes), the
+one active client is meant, otherwise the refusal lists the ids.
+`--field key=value` (repeatable) fills the extra issue-form fields a
+service declares (`App::client_form_field`, 1.7.0), e.g. Almanac's
+`--field calendar=cal-1`; the service's hook can refuse, and its remedy
+comes back verbatim.
+
+**The admin token.** The command authenticates with the service's own
+`<PREFIX>_TOKEN` (the login token from its environment file), sent as
+`Authorization: Bearer`. It is read from the environment variable named
+by `--token-env` (default `CHASSIS_TOKEN`), never from the command line —
+argv is visible to every user on the box through `ps`, an environment
+variable only to the process — and it never appears in an error, a log
+line or the help text. Exit codes: 0 done, 1 refused or failed (the reason
+and its remedy on stderr), 2 usage.
+
+**Worked example: a token for Alertmanager on http-switchboard.** On the
+machine that has the service's environment file (or any machine that can
+reach the service's port):
+
+```bash
+# 1. The service's admin token, from its env file into a variable of your choosing.
+export SWITCHBOARD_TOKEN="$(sudo sed -n 's/^HTTP_SWITCHBOARD_TOKEN=//p' /etc/http-switchboard/http-switchboard.env)"
+
+# 2. One client, one token; the token is the only thing on stdout.
+TOKEN="$(chassis clients issue alertmanager --url http://10.10.10.13:8080 --token-env SWITCHBOARD_TOKEN)"
+
+# 3. Alertmanager sends it as a bearer (alertmanager.yml, the receiver's webhook_config).
+#    http_config:
+#      authorization:
+#        credentials: <the value of $TOKEN>
+
+# Later: who calls, how often; rotate; lock out.
+chassis clients list    --url http://10.10.10.13:8080 --token-env SWITCHBOARD_TOKEN
+chassis clients reissue alertmanager --url http://10.10.10.13:8080 --token-env SWITCHBOARD_TOKEN
+chassis clients revoke  alertmanager --url http://10.10.10.13:8080 --token-env SWITCHBOARD_TOKEN
+```
+
+What the refusals say: connection refused → *is the service running at
+`<url>`? compare with its `--print-config`*; 401 (or a kit before 1.8.0
+redirecting to `/login`) → *the token in `$VAR` is not this service's
+admin token*; an unknown client → *list them with `chassis clients
+list`*; a service without the dashboard feature or a wrong base URL →
+*`<url>` has no `/api/clients`*. Since 1.8.0 the kit answers a wrong
+bearer on `/api/clients*` with that 401 and its remedy instead of the
+browser's redirect; a request without any credential is still redirected.
+
+Proven by: `k30_issue_reveal_reissue_revoke_delete_round_trip`,
+`k30_a_wrong_admin_token_is_refused_with_a_remedy_and_never_echoed`,
+`k30_without_a_token_variable_or_a_url_nothing_is_sent`,
+`k30_a_service_that_is_not_there_is_named_with_its_url_and_print_config`,
+`k30_extra_fields_reach_the_services_issue_hook_and_its_refusal_comes_back`
+(`crates/chassis-cli/tests/clients_cli.rs`),
+`k30_admin_bearer_manages_clients_and_a_wrong_bearer_gets_401_not_a_redirect`
+(`crates/chassis/tests/admin_bearer_api.rs`), and the `clients::tests::k30_*`
+unit tests for field parsing, token lookup, id-or-name resolution and the
+table.
+
+## 12 · Symptom → cause
 
 | Symptom | Cause | Where to look |
 |---|---|---|

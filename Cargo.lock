@@ -372,13 +372,17 @@ dependencies = [
 name = "chassis-cli"
 version = "1.7.1"
 dependencies = [
+ "axum",
  "chassis",
  "clap",
  "minijinja",
+ "reqwest",
+ "secrecy",
  "serde",
  "serde_json",
  "similar",
  "tempfile",
+ "tokio",
  "toml",
 ]
 

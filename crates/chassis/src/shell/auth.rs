@@ -211,6 +211,19 @@ pub async fn require_admin(
             "log in on /login with the service's login token",
         )
         .into_response(),
+        // K30: a caller that SENT a bearer is a script, not a browser; a
+        // login page is no answer for it, a 401 with the remedy is.
+        None if bearer(req.headers()).is_some() => {
+            let prefix = state.name.to_ascii_uppercase().replace('-', "_");
+            Error::new(
+                Kind::Unauthorized,
+                format!("the bearer token is not this service's {prefix}_TOKEN"),
+                format!(
+                    "send the value of {prefix}_TOKEN from the service's environment file (`chassis clients` reads it from the variable named by --token-env); a client token cannot manage clients"
+                ),
+            )
+            .into_response()
+        }
         None => Redirect::to("/login").into_response(),
     }
 }

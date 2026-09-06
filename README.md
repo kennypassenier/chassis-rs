@@ -35,6 +35,8 @@ chassis new inbox --description "Clients post JSON messages"   # scaffold + repo
 chassis sync                                                    # diff against the current scaffold
 chassis sync --remote                                           # …and compare branch protection (needs gh)
 chassis release 0.2.0                                           # bump, tag, wait for CI, sign, upload
+chassis clients issue alertmanager --url http://10.10.10.13:8080 --token-env SWITCHBOARD_TOKEN
+                                                                # a client token without a browser
 ```
 
 `sync` compares the kit-owned files with the scaffold (unified diff per
@@ -61,6 +63,15 @@ full knob table — written for the kit version the project pins. `chassis
 new` writes it and `chassis sync` keeps it current; it is generated, so
 the same table is one `<name> --knobs` away on any machine that has the
 binary (K27, K31).
+
+`chassis clients` (`list`, `issue`, `reissue`, `revoke`, `delete`,
+`reveal`) drives a running service's `/api/clients` — the routes its
+dashboard buttons use — so a headless service gets a token for a caller
+like Alertmanager from a terminal. The service's admin token is read from
+the environment variable named by `--token-env`, never from argv; `issue`
+and `reveal` print the token once on stdout and nothing else, so a script
+can capture it. Details and the refusals' remedies: `docs/OPERATIONS.md`
+§11.
 
 ## Where the decisions live
 

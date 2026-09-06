@@ -14,12 +14,16 @@
 //! - `release <version>`: bump, changelog, commit, tag, push, wait for the
 //!   tag's Release run, then sign and upload with `scripts/sign-release.sh`.
 //!   `--dry-run` prints every external command instead of running it.
+//! - `clients <verb>`: manage a running service's client tokens over its
+//!   own `/api/clients` (K30), for services without a dashboard operator
+//!   at hand; see `clients.rs`.
 //!
 //! Every external tool is called by name and reported with a remedy when
 //! missing; nothing here needs a personal access token (J2).
 
 #![forbid(unsafe_code)]
 
+mod clients;
 mod drift;
 mod kit_docs;
 mod templates;
@@ -126,7 +130,7 @@ const CHASSIS_REPO: &str = "https://github.com/kennypassenier/chassis-rs";
 #[command(
     name = "chassis",
     version,
-    about = "Scaffold, sync and release services built on chassis"
+    about = "Scaffold, sync and release services built on chassis; manage a running service's client tokens"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -192,6 +196,11 @@ enum Cmd {
         #[arg(long, default_value_t = 1800)]
         max_wait_secs: u64,
     },
+    /// Manage a running service's client tokens without a browser (list, issue, reissue, revoke, delete, reveal)
+    #[command(
+        long_about = "Manage a running service's client tokens without a browser, over the same /api/clients the dashboard uses: list, issue, reissue, revoke, delete, reveal. For a headless service (http-switchboard, kyu-runner) that needs a token for a caller such as Alertmanager."
+    )]
+    Clients(clients::ClientsArgs),
 }
 
 fn main() -> ExitCode {
@@ -235,6 +244,7 @@ fn main() -> ExitCode {
             poll_interval_secs,
             max_wait_secs,
         } => cmd_release(&dir, &version, dry_run, poll_interval_secs, max_wait_secs),
+        Cmd::Clients(args) => clients::run(args),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

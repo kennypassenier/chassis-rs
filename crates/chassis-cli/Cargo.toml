@@ -23,9 +23,19 @@ serde_json = { workspace = true }
 toml = { workspace = true }
 # Unified diffs for `sync`.
 similar = "2"
+# `clients` (K30) drives a service's /api/clients over HTTP; the workspace
+# entry keeps reqwest at one version across the tree, `blocking` because
+# the CLI has no runtime of its own.
+reqwest = { workspace = true, features = ["blocking"] }
+# The admin token is held as a secret so no Debug or log line can print it.
+secrecy = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+# The `clients` E2E starts a real service in-process (K30).
+chassis = { path = "../chassis", version = "1.7.1", features = ["dashboard"] }
+tokio = { workspace = true }
+axum = { workspace = true }
 
 [lints.rust]
 unsafe_code = "forbid"
