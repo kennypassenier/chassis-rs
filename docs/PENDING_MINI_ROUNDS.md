@@ -208,6 +208,29 @@ contradicting option. Both go to the next form (CF-7 + the A2-2 revisit).
 release) — **not installed**: it carries the same fault (kit 1.5.0). The
 CT 112 install waits for almanac 4.0.1 on kit 1.5.1, in almanac's turn.
 
+## Kit 1.7.1 — released 2026-09-06 (22:05 local)
+
+Found by kyu's first sync: `service.yml` came back with `vmid: 0` and
+hostname `0-app-kyu` (Almanac's first sync had done the same, unnoticed).
+`.chassis.toml` gains `vmid`; both projects record theirs (109, 112) and
+re-synced. Released through `scripts/release-kit.sh` at `da6a45e`; CLI
+1.7.1 installed.
+
+## kyu's turn — 2026-09-06 (22:10 local, this session, rule 7a lifted)
+
+Measured on CT 109: `User=kyu`, `EnvironmentFile=/appdata/kyu/kyu-config/kyu.env`
+(KYU_TOKEN, KYU_SECRET_KEY, KYU_LISTEN, KYU_DATA_DIR, KYU_LOG), state root
+`/appdata/kyu/kyu-config`, binary still `/usr/local/bin/kyu` (2.4.1,
+`Type=simple`), no latch; kyu's own `service.yml` already targets
+`/opt/kyu/bin/kyu` for 3.0.0 (the V6 deploy moves it), so the scaffold's
+binary layout stands. Done: `.chassis.toml` (measured paths, vmid 109),
+kit 1.4.1 → 1.7.1 (CF-7 fix), `chassis sync --write` (kit CI/hooks/deny/
+Dockerfile/deploy), SQL guard + CI-only container smoke in
+`gates.project.sh`, ignore rules under the marker, CHANGELOG folded for the
+release; 181 tests, cargo-deny clean without exceptions. Release 3.0.0 runs
+to Kenny's signature; the deploy on CT 109 stays with the Homelab Rust
+session (V6).
+
 ## Report form kit 1.6.0/1.7.0 + almanac 4.0.2 — answered 2026-09-06 (21:35 local)
 
 R1 kit 1.6.0/1.7.0 **Akkoord** · R2 almanac 4.0.2 live + CF-8 closed
