@@ -16,8 +16,8 @@ gates hold from any session or terminal. After a fresh clone, run:
 | Field | Value |
 |---|---|
 | Current phase | 10 · Retrospective — done 2026-09-06. Phases 0–10 complete; the kit is at **1.5.1** (CF-6 a/b, CF-7 fix, three gate-found fixes). Kenny's order for the rest: chassis-rs first (done), then almanac (4.0.1 in progress), kyu, kyu-runner, http-switchboard |
-| Last completed gate | CF-7 form, 2026-09-06 18:40: all nine Klopt; A2-2 revisit → captures on the Sources row (K13), /captures goes; D3 → CT 112 waits on 4.0.1 |
-| Next gate | Report form after kit 1.5.1 (CF-6 a/b + CF-7 fix, branch `kit-1.5.1`) and almanac 4.0.1 (kit bump, captures per K13, token rename in latch by Claude, install on CT 112 = the CF-7 measurement: Kenny logs in from Chrome and deletes calendar `almanac-test`). Then kyu 3.0.0, kyu-runner, http-switchboard step 2, in that order |
+| Last completed gate | Report form 2026-09-06 18:55: R1 kit 1.5.1 Akkoord, R2 almanac 4.0.1 Akkoord, D4 Claude renamed the token in latch on CT 112, D5 scaffold sync as its own Almanac step. almanac 4.0.1 live on CT 112 16:52 UTC |
+| Next gate | Kenny's half of the CF-7 measurement (Chrome login on almanac.kp-soft.dev + delete calendar `almanac-test`) and `latch push` of the almanac secrets from a machine with a PAT. Then D5 (Almanac `chassis sync --write` step, report item), then kyu 3.0.0, kyu-runner, http-switchboard step 2 |
 | AFK mode | **off** since Kenny returned 2026-09-05 evening. Standing rule 7a (a session touches only its own project) is back in force: D-K1 (kyu dashboard adoption), D-H1 (http-switchboard log stream) and Almanac's half of D-A1 belong in sessions opened in those repositories. |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 
