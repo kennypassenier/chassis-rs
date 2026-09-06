@@ -15,9 +15,9 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | 10 · Retrospective — done 2026-09-06. Phases 0–10 complete; the kit is at **1.5.1** (CF-6 a/b, CF-7 fix, three gate-found fixes). Kenny's order for the rest: chassis-rs first (done), then almanac (4.0.1 in progress), kyu, kyu-runner, http-switchboard |
-| Last completed gate | Report form 2026-09-06 18:55: R1 kit 1.5.1 Akkoord, R2 almanac 4.0.1 Akkoord, D4 Claude renamed the token in latch on CT 112, D5 scaffold sync as its own Almanac step. almanac 4.0.1 live on CT 112 16:52 UTC |
-| Next gate | Kenny's half of the CF-7 measurement (Chrome login on almanac.kp-soft.dev + delete calendar `almanac-test`) and `latch push` of the almanac secrets from a machine with a PAT. Then D5 (Almanac `chassis sync --write` step, report item), then kyu 3.0.0, kyu-runner, http-switchboard step 2 |
+| Current phase | 10 · Retrospective — done 2026-09-06. Phases 0–10 complete; the kit is at **1.6.0** (M1 project gates hook, M2 env_file/latch_env, M3 .gitignore marker). Kenny's order for the rest: chassis-rs first, then almanac (4.0.1 live; 4.0.2 next), kyu (needs .chassis.toml), kyu-runner, http-switchboard |
+| Last completed gate | CF-8 form 2026-09-06 20:40: fields 1–3, 5–9 Klopt, 4 adjusted (layout affordances go to kp-themes, no kit stopgap classes); CF-7 closed (Kenny logged in from Chrome and deleted calendar almanac-test); N1 → merge the two Sources pages via kit extension (form S1/S2 open) |
+| Next gate | S1/S2 (one Sources page: issue-form fields + on_client_issued/on_client_deleted hooks as kit 1.7.0; order vs Almanac 4.0.2). Theming, spacing and the destructive-confirm dialog are with Kenny in the kp-themes session (prompt handed over 2026-09-06). Then Almanac: scaffold sync with gates.project.sh + measured deploy knobs, 4.0.2, install on CT 112 |
 | AFK mode | **off** since Kenny returned 2026-09-05 evening. Standing rule 7a (a session touches only its own project) is back in force: D-K1 (kyu dashboard adoption), D-H1 (http-switchboard log stream) and Almanac's half of D-A1 belong in sessions opened in those repositories. |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 

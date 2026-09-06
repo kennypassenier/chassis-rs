@@ -208,6 +208,13 @@ contradicting option. Both go to the next form (CF-7 + the A2-2 revisit).
 release) — **not installed**: it carries the same fault (kit 1.5.0). The
 CT 112 install waits for almanac 4.0.1 on kit 1.5.1, in almanac's turn.
 
+## Kit 1.6.0 — released 2026-09-06 (21:05)
+
+M1–M3 as ratified: `gates.sh`/CI run `.claude/hooks/gates.project.sh` when
+present; `.chassis.toml` `env_file` and `latch_env` reach the deploy
+templates; `.gitignore` entries under the marker survive a sync. Released
+through `scripts/release-kit.sh` at `9ffb423`; CLI 1.6.0 installed.
+
 ## Correction form CF-8 + T1/N1/Q1/V1 — answered 2026-09-06 (20:40)
 
 **CF-8** (Almanac 4.0.1 dashboard layout: calendar IDs in tables, buttons
