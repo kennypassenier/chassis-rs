@@ -15,9 +15,9 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | 10 · Retrospective — done 2026-09-06 (dev-procedure `0cad95c`, all nine lessons adopted). Phases 0–10 complete; the kit is at 1.3.0. Open: see docs/PENDING_MINI_ROUNDS.md §Open items after Phase 10 (S6, AR24, Almanac step 2 and the branch merges were put to Kenny in the closing form; CF-5 and C2 wait for the next signed release). Kenny renames the session when the project rests. |
-| Last completed gate | Phase 10 retrospective (2026-09-06): L1–L8 + E1 all Opnemen |
-| Next gate | None scheduled. Closing form of 2026-09-06 (S6, Almanac step 2, AR24 knob, branch merges) decides the follow-ups; a kit 1.4.0 would re-enter Phase 6–9 as a mini-cycle. |
+| Current phase | 10 · Retrospective — done 2026-09-06 (dev-procedure `0cad95c`, all nine lessons adopted). Phases 0–10 complete; the kit is at **1.4.0** (S6 closed, `update_notify_after_failures`). Closing form of 2026-09-06 executed: kyu-runner, http-switchboard and almanac `chassis-migration` merged to `main` (unreleased, not deployed); kyu waits on D-K1 step 2. Open: docs/PENDING_MINI_ROUNDS.md §Open items after Phase 10 (Kenny-only) |
+| Last completed gate | Closing form of 2026-09-06 (S6 Dichten · A2 Opnemen · A3 Opnemen · A4 three merges now) — executed as kit 1.4.0 + three merges |
+| Next gate | Report form R1–R3 (kit 1.4.0 + CF-5 measurement, three merges, Almanac handover) awaits Kenny. Afterwards nothing is scheduled for chassis-rs: D-K1 (kyu) and Almanac step 2 run in their own sessions. |
 | AFK mode | **off** since Kenny returned 2026-09-05 evening. Standing rule 7a (a session touches only its own project) is back in force: D-K1 (kyu dashboard adoption), D-H1 (http-switchboard log stream) and Almanac's half of D-A1 belong in sessions opened in those repositories. |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 
