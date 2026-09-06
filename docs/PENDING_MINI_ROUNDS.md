@@ -208,6 +208,17 @@ contradicting option. Both go to the next form (CF-7 + the A2-2 revisit).
 release) — **not installed**: it carries the same fault (kit 1.5.0). The
 CT 112 install waits for almanac 4.0.1 on kit 1.5.1, in almanac's turn.
 
+## Almanac 4.0.2 — signed and live on CT 112 2026-09-06 (19:01 UTC)
+
+Kenny signed v4.0.2; assets verified locally (minisign, SHA256SUMS,
+trusted comment `kennypassenier/almanac v4.0.2`), binary staged as
+`almanac.4.0.2`, `--check` ok through `latch run` under the real
+environment, swap, restart: `active`, NRestarts=0, `/healthz` 4.0.2,
+`/sources` → 303 `/calendars`, calendar cache primed without a warning.
+4.0.1 kept as `bin/almanac.4.0.1`. Kenny's half of the CF-8 measurement
+(Chrome on almanac.kp-soft.dev: one Sources page with the calendar column,
+Calendars page with the id toggle, no horizontal scroll) is the next gate.
+
 ## Almanac 4.0.2 — released to the signature 2026-09-06 (23:05)
 
 One Sources page on the kit (S1), Calendars page, deny exceptions, scaffold
