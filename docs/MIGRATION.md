@@ -280,6 +280,17 @@ let config = Config::from_table(&app.loaded.as_ref().unwrap().file_table, &app.s
   Enable the `assets` feature for this (`dashboard` implies it):
   `features = ["core", "self-update", "assets"]`.
 
+## 1.6.0 additions
+
+- `.chassis.toml`: `env_file` and `latch_env` — set them to the paths the
+  target machine was measured at (CF-6 d) before `chassis sync --write`, or
+  the rendered unit and `service.yml` describe a machine that does not exist.
+- Project gates move into `.claude/hooks/gates.project.sh` (executable);
+  the kit's `gates.sh` and CI call it. Almanac: AR13 and `check-version.sh`;
+  kyu: the SQL guard.
+- `.gitignore` entries of your own go under the marker line the scaffold
+  ends with; anything above it is the kit's and gets rewritten.
+
 ## 1.5.0 additions
 
 - `AppSpec::open_dashboard` (default `false`): opt in to running the

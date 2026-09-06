@@ -12,7 +12,7 @@
 # service owns that directory: chown -R {{ name }}: /opt/{{ name }}), copy
 # this file to /etc/systemd/system/{{ name }}.service, create the user
 # ({{ name }}), the state dir ({{ state_dir }}) and the env file
-# (/etc/{{ name }}/{{ name }}.env, 0640 root:{{ name }}), then
+# ({{ env_file }}, 0640 root:{{ name }}), then
 # systemctl enable --now {{ name }}.
 
 [Unit]
@@ -26,7 +26,7 @@ StartLimitBurst=0
 Type=notify
 User={{ name }}
 Group={{ name }}
-EnvironmentFile=/etc/{{ name }}/{{ name }}.env
+EnvironmentFile={{ env_file }}
 WorkingDirectory={{ state_dir }}
 ExecStartPre=/opt/{{ name }}/bin/{{ name }} --check
 ExecStart=/opt/{{ name }}/bin/{{ name }}

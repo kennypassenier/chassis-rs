@@ -208,6 +208,21 @@ contradicting option. Both go to the next form (CF-7 + the A2-2 revisit).
 release) — **not installed**: it carries the same fault (kit 1.5.0). The
 CT 112 install waits for almanac 4.0.1 on kit 1.5.1, in almanac's turn.
 
+## Mini-round form M1–M4 + D5 follow-up — answered 2026-09-06 (19:40)
+
+The D5 trial (`chassis sync --write` on a throwaway Almanac branch, discarded)
+showed three kit gaps; Kenny: **M1 Opnemen** (kit `gates.sh` and `ci.yml` run
+`.claude/hooks/gates.project.sh` when present — Almanac keeps AR13 and M8,
+kyu its SQL guard), **M2 Opnemen** (`.chassis.toml` knobs `env_file` and
+`latch_env`, used by the deploy templates, so the rendered unit and
+`service.yml` equal the measured CT 112 layout), **M3 Opnemen** (sync keeps
+the `.gitignore` block under `# --- project additions below ---`), **M4**
+kyu has no `.chassis.toml` — Claude adds it in kyu's turn with CT 109's
+measured paths, dry-run before the 3.0.0 release. **D5 follow-up:** kit
+1.6.0 first, then the Almanac sync on a branch (CI green, report item), then
+kyu-runner (390 drift lines), http-switchboard (443), kyu. All three M items
+are dated amendments to FEATURES (K25 scaffold/sync) once built.
+
 ## Report form kit 1.5.1 + almanac 4.0.1 — answered 2026-09-06 (18:55)
 
 R1 kit 1.5.1 **Akkoord** · R2 almanac 4.0.1 **Akkoord** · **D4** latch rename:

@@ -20,6 +20,14 @@ cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test
 
+# Project-owned gates (chassis 1.6.0, M1): a project keeps its own checks
+# in .claude/hooks/gates.project.sh — a module-boundary grep, a version
+# consistency script, a SQL guard. This file is the kit's and `chassis
+# sync` rewrites it; that one is never touched.
+if [ -x .claude/hooks/gates.project.sh ]; then
+  .claude/hooks/gates.project.sh
+fi
+
 if [ "$(gate_tree_fingerprint)" != "$gate_tree_before" ]; then
   {
     echo "gates: the checks rewrote the working tree while they ran."

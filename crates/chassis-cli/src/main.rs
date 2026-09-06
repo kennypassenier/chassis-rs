@@ -42,9 +42,35 @@ struct Recorded {
     state_dir: String,
     #[serde(default)]
     latch: bool,
+    /// Where the env file lives on the target (M2, 1.6.0). Default
+    /// `/etc/<name>/<name>.env`; a migrated project records the path it
+    /// was measured at (Almanac: `/appdata/almanac/almanac-config/latch.env`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    env_file: Option<String>,
+    /// The latch environment `latch run --env <x>` selects (M2, 1.6.0).
+    /// Default `prod`; an empty string means no `--env` at all (latch's
+    /// own default, `dev`), which is how CT 112 runs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    latch_env: Option<String>,
 }
 
 impl Recorded {
+    /// The env file path the deploy files name (M2).
+    fn env_file(&self) -> String {
+        self.env_file
+            .clone()
+            .unwrap_or_else(|| format!("/etc/{0}/{0}.env", self.name))
+    }
+
+    /// ` --env <x>` for the latch unit, or nothing when `latch_env` is "" (M2).
+    fn latch_env_flag(&self) -> String {
+        match self.latch_env.as_deref() {
+            None => " --env prod".to_string(),
+            Some("") => String::new(),
+            Some(env) => format!(" --env {env}"),
+        }
+    }
+
     fn context(&self) -> minijinja::Value {
         let prefix = self.name.to_ascii_uppercase().replace('-', "_");
         let owner = self.repo.split('/').next().unwrap_or("").to_string();
@@ -62,6 +88,8 @@ impl Recorded {
             kp_themes => self.kp_themes,
             state_dir => self.state_dir,
             latch => self.latch,
+            env_file => self.env_file(),
+            latch_env_flag => self.latch_env_flag(),
             release_pubkey => RELEASE_PUBKEY,
             vmid => 0,
             stack => self.name,
@@ -323,6 +351,8 @@ fn cmd_new(
         toolchain: TOOLCHAIN.to_string(),
         kp_themes: KP_THEMES.to_string(),
         state_dir: format!("/var/lib/{name}"),
+        env_file: None,
+        latch_env: None,
         name,
         description,
         latch,
@@ -505,17 +535,40 @@ fn read_recorded(dir: &Path) -> Result<Recorded, Error> {
         .map_err(|e| Error::config(format!(".chassis.toml does not parse: {e}"), "fix the file"))
 }
 
+/// The line under which a project keeps its own `.gitignore` entries.
+const GITIGNORE_MARKER: &str = "# --- project additions below (kept by chassis sync) ---";
+
+/// M3 (1.6.0): `.gitignore` is kit-owned, but everything a project wrote
+/// under the marker survives a sync — Almanac's guard against a compiled
+/// binary in the repository root would otherwise have gone with the first
+/// `sync --write`.
+fn merge_gitignore(scaffold: &str, current: &str) -> String {
+    let Some(tail) = current.split_once(GITIGNORE_MARKER).map(|(_, t)| t) else {
+        return scaffold.to_string();
+    };
+    let tail = tail.trim_matches('\n');
+    if tail.is_empty() {
+        return scaffold.to_string();
+    }
+    format!(
+        "{}{tail}\n",
+        scaffold.trim_end_matches('\n').to_string() + "\n"
+    )
+}
+
 /// Returns whether any kit-owned file differed.
 fn cmd_sync(dir: &Path, write: bool, force: bool, protect: bool) -> Result<bool, Error> {
     let rec = read_recorded(dir)?;
     let mut changed = false;
     for (rel, body, exec, owned) in render_all(&rec)? {
+        let current = std::fs::read_to_string(dir.join(&rel)).unwrap_or_default();
         let body = if rel == "Cargo.toml" {
             with_chassis_path(&body, &rec)
+        } else if rel == ".gitignore" {
+            merge_gitignore(&body, &current)
         } else {
             body
         };
-        let current = std::fs::read_to_string(dir.join(&rel)).unwrap_or_default();
         if current == body {
             continue;
         }
@@ -1015,6 +1068,8 @@ mod tests {
             kp_themes: KP_THEMES.into(),
             state_dir: "/var/lib/demo-svc".into(),
             latch: false,
+            env_file: None,
+            latch_env: None,
         }
     }
 
@@ -1296,5 +1351,89 @@ mod tests {
         std::fs::write(wf.join("release.yml"), "steps:\n  - run: cargo build\n").unwrap();
         check_release_files(&dir).unwrap();
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// M3: project entries under the marker survive a sync.
+    #[test]
+    fn gitignore_additions_under_the_marker_survive_a_sync() {
+        let scaffold = format!("/target/\n\n{GITIGNORE_MARKER}\n");
+        let current = format!("/old/\n{GITIGNORE_MARKER}\n/almanac\n/cal-stacean\n");
+        let merged = merge_gitignore(&scaffold, &current);
+        assert_eq!(
+            merged,
+            format!("/target/\n\n{GITIGNORE_MARKER}\n/almanac\n/cal-stacean\n")
+        );
+        assert_eq!(
+            merge_gitignore(&scaffold, "/old/\n"),
+            scaffold,
+            "no marker: the scaffold wins"
+        );
+        assert_eq!(
+            merge_gitignore(&scaffold, &scaffold),
+            scaffold,
+            "an empty tail adds nothing"
+        );
+    }
+
+    /// M2: a migrated project records the paths it was measured at and the
+    /// deploy files render them — CT 112's layout, byte for byte.
+    #[test]
+    fn measured_env_file_and_latch_env_reach_the_deploy_files() {
+        let mut r = rec();
+        r.latch = true;
+        r.env_file = Some("/appdata/demo-svc/demo-svc-config/latch.env".into());
+        r.latch_env = Some(String::new());
+        let files = render_all(&r).unwrap();
+        let unit = &files
+            .iter()
+            .find(|(p, ..)| p == "deploy/demo-svc-latch.service")
+            .unwrap()
+            .1;
+        assert!(
+            unit.contains("EnvironmentFile=/appdata/demo-svc/demo-svc-config/latch.env"),
+            "{unit}"
+        );
+        assert!(
+            unit.contains("ExecStart=/usr/local/bin/latch run -- /opt/demo-svc/bin/demo-svc\n"),
+            "{unit}"
+        );
+        let stack = &files
+            .iter()
+            .find(|(p, ..)| p == "deploy/service.yml")
+            .unwrap()
+            .1;
+        assert!(
+            stack.contains("env_file: /appdata/demo-svc/demo-svc-config/latch.env"),
+            "{stack}"
+        );
+        assert!(
+            stack
+                .contains("--property=EnvironmentFile=/appdata/demo-svc/demo-svc-config/latch.env"),
+            "{stack}"
+        );
+        // The defaults are what a fresh project always got.
+        let fresh = render_all(&rec()).unwrap();
+        let unit = &fresh
+            .iter()
+            .find(|(p, ..)| p == "deploy/demo-svc.service")
+            .unwrap()
+            .1;
+        assert!(
+            unit.contains("EnvironmentFile=/etc/demo-svc/demo-svc.env"),
+            "{unit}"
+        );
+        // M1: the gates call the project's own hook when it exists.
+        let gates = &fresh
+            .iter()
+            .find(|(p, ..)| p == ".claude/hooks/gates.sh")
+            .unwrap()
+            .1;
+        assert!(gates.contains("gates.project.sh"), "{gates}");
+        let ci = &fresh
+            .iter()
+            .find(|(p, ..)| p == ".github/workflows/ci.yml")
+            .unwrap()
+            .1;
+        assert!(ci.contains("gates.project.sh"), "{ci}");
     }
 }

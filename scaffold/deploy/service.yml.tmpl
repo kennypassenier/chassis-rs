@@ -9,12 +9,12 @@ vmid: {{ vmid }}
 hostname: {{ vmid }}-app-{{ stack }}
 unit: {{ name }}
 binary: /opt/{{ name }}/bin/{{ name }}
-env_file: /etc/{{ name }}/{{ name }}.env
+env_file: {{ env_file }}
 data_dirs:
   - {{ state_dir }}
 update_cmd: >-
   systemd-run --wait --pipe --collect --uid={{ name }} --gid={{ name }}
-  --property=EnvironmentFile=/etc/{{ name }}/{{ name }}.env
+  --property=EnvironmentFile={{ env_file }}
   --property=WorkingDirectory={{ state_dir }}
   /opt/{{ name }}/bin/{{ name }} update
 release_repo: {{ repo }}
