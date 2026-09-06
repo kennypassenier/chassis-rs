@@ -7,6 +7,10 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.6.0] - 2026-09-06
+
 ### Added
 - **Project-owned gates** (M1): the scaffold's `gates.sh` and CI run
   `.claude/hooks/gates.project.sh` when it exists — a project keeps its own
