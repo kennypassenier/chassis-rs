@@ -1,6 +1,6 @@
 [package]
 name = "chassis-cli"
-version = "1.7.0"
+version = "1.7.1"
 description = "The `chassis` command: scaffold a new service, sync an existing one against the current scaffold, cut a signed release"
 edition.workspace = true
 rust-version.workspace = true
@@ -15,7 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 # The kit's error type (remedy mandatory) and its constants; core only.
-chassis = { path = "../chassis", version = "1.7.0", default-features = false, features = ["core"] }
+chassis = { path = "../chassis", version = "1.7.1", default-features = false, features = ["core"] }
 clap = { workspace = true }
 minijinja = { version = "2", features = ["json"] }
 serde = { workspace = true }
