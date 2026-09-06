@@ -33,6 +33,9 @@ _Nothing yet._
   failed on exactly that (CF-6 b).
 
 ### Changed
+- `/healthz` keeps a failed store write until a write to that **same path**
+  succeeds; a good write elsewhere no longer clears it (it also made the
+  health check race between parallel writers in the kit's own tests).
 - The scaffold end-to-end test also runs `cargo deny check` on the
   generated project when cargo-deny is installed (the kit's CI installs
   it); the first remote project was red on cargo-deny while every local

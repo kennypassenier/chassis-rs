@@ -122,11 +122,23 @@ pub fn rekey_dir(dir: &Path, old: &Key, new: &Key) -> Result<usize, Error> {
 /// The last store write that failed, if the most recent write failed
 /// (H11): `/healthz` reports it through `StoreSubsystem`, so a state
 /// directory that turned unwritable after start shows as degraded.
-static LAST_WRITE_ERROR: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+/// Failed writes by path. A path leaves the map only when a write to that
+/// same path succeeds: a good write elsewhere never heals a store that is
+/// still broken (1.5.1 — before, any success cleared the one global slot,
+/// which also made the health check race between parallel writers).
+static LAST_WRITE_ERROR: std::sync::Mutex<std::collections::BTreeMap<PathBuf, String>> =
+    std::sync::Mutex::new(std::collections::BTreeMap::new());
 
-fn record_write(result: &Result<(), Error>) {
-    let mut last = LAST_WRITE_ERROR.lock().expect("write-error lock");
-    *last = result.as_ref().err().map(|e| e.to_string());
+fn record_write(path: &Path, result: &Result<(), Error>) {
+    let mut failed = LAST_WRITE_ERROR.lock().expect("write-error lock");
+    match result {
+        Ok(()) => {
+            failed.remove(path);
+        }
+        Err(e) => {
+            failed.insert(path.to_path_buf(), e.to_string());
+        }
+    }
 }
 
 /// Built-in `/healthz` subsystem: is the state root taking writes? Ok until
@@ -138,11 +150,16 @@ impl crate::shell::health::Subsystem for StoreSubsystem {
         "store"
     }
     fn check(&self) -> crate::shell::health::SubsystemStatus {
-        match LAST_WRITE_ERROR.lock().expect("write-error lock").as_ref() {
+        let failed = LAST_WRITE_ERROR.lock().expect("write-error lock");
+        match failed.iter().next() {
             None => crate::shell::health::SubsystemStatus::ok("writable"),
-            Some(e) => {
+            Some((_, e)) if failed.len() == 1 => {
                 crate::shell::health::SubsystemStatus::failing(format!("last write failed: {e}"))
             }
+            Some((_, e)) => crate::shell::health::SubsystemStatus::failing(format!(
+                "last write failed: {e} (and {} more path(s))",
+                failed.len() - 1
+            )),
         }
     }
 }
@@ -173,14 +190,14 @@ pub fn probe_state_dir(dir: &Path, create: bool) -> Result<(), Error> {
         )
     });
     let _ = std::fs::remove_file(&probe);
-    record_write(&res);
+    record_write(&probe, &res);
     res
 }
 
 /// temp + fsync + rename, then fsync the directory (rule 12).
 pub fn write_atomic(path: &Path, bytes: &[u8], what: &str) -> Result<(), Error> {
     let res = write_atomic_inner(path, bytes, what);
-    record_write(&res);
+    record_write(path, &res);
     res
 }
 
@@ -446,10 +463,17 @@ mod tests {
             let status = StoreSubsystem.check();
             assert!(!status.ok, "a failed write shows in /healthz");
             assert!(status.detail.contains("last write failed"));
-            // A successful write clears it.
+            // A successful write elsewhere does NOT clear it (1.5.1): the
+            // broken directory is still broken.
             write_atomic(&dir.path().join("ok.json"), b"{}", "test").unwrap();
-            assert!(StoreSubsystem.check().ok);
+            assert!(
+                !StoreSubsystem.check().ok,
+                "another path's success is not a cure"
+            );
+            // A successful write to the same path does.
             std::fs::set_permissions(&ro, std::fs::Permissions::from_mode(0o755)).unwrap();
+            probe_state_dir(&ro, true).unwrap();
+            assert!(StoreSubsystem.check().ok);
         }
     }
 
