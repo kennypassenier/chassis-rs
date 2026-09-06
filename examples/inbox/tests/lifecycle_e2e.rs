@@ -1431,7 +1431,12 @@ fn oversized_body_on_an_api_route_is_413_not_empty() {
         body["remedy"].as_str().unwrap().contains("max_body_bytes"),
         "{body}"
     );
-    let small = plain
+    // A fresh client: after a 413 with an unread body the server closes the
+    // connection, and a pooled reuse of it races that close (seen once in
+    // the kit's gates as `IncompleteMessage`, 2026-09-06). Real callers see
+    // the same and reconnect; the assertion is about the service, not the
+    // pool.
+    let small = reqwest::blocking::Client::new()
         .post(format!("http://{addr}/v1/messages"))
         .bearer_auth(&token)
         .json(&serde_json::json!({"payload": "ok"}))
