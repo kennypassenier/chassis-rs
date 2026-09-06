@@ -208,6 +208,29 @@ contradicting option. Both go to the next form (CF-7 + the A2-2 revisit).
 release) — **not installed**: it carries the same fault (kit 1.5.0). The
 CT 112 install waits for almanac 4.0.1 on kit 1.5.1, in almanac's turn.
 
+## Almanac 4.0.2 — released to the signature 2026-09-06 (23:05)
+
+One Sources page on the kit (S1), Calendars page, deny exceptions, scaffold
+on 1.7.0: almanac main `86b7573` = tag `v4.0.2`, Release workflow green,
+`sign-release.sh` waits for Kenny. Look-drill done locally (CF-8 c): one
+"Sources" in the nav, name + calendar on the issue form, no horizontal
+scroll; the glued "Make and share it" stays with kp-themes. Almanac's
+branch protection still required the old check name `gates`; set to the
+kit's three checks with `chassis sync --protect` (read back). Lesson (rule
+37 again, 2026-09-06 evening): two background chains in the same worktree
+(a docs commit while the release chain merged) lost a commit — one
+git-writing chain per repository at a time.
+
+## Kit 1.7.0 — released 2026-09-06 (22:20)
+
+S1 as ratified: `App::client_form_field` (text/select, options at render
+time), `on_client_issued` (before the token; may refuse) and
+`on_client_deleted` (before the delete; may refuse — Almanac keeps a source
+while its events wait), `POST /api/clients` takes the fields; `deny_ignore`
+in `.chassis.toml`; the units set `<PREFIX>_STATE_DIR` explicitly (found by
+the Almanac sync). E2E `tests/client_form_hooks.rs`. Released through
+`scripts/release-kit.sh` at `5ca3712`; CLI 1.7.0 installed.
+
 ## Form S1/S2 — answered 2026-09-06 (21:30)
 
 **S1** *Eigen antwoord*: fields on the issue form + hooks (the recommended
