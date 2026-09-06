@@ -63,6 +63,34 @@ fn a_new_project_compiles_and_answers_version() {
         String::from_utf8_lossy(&out.stderr)
     );
 
+    // CF-6 (2026-09-06): the generated project must also pass cargo-deny.
+    // The first remote project was red on it (a git dependency without a
+    // version requirement) while every local gate above was green; the
+    // gate that predicts CI has to run what CI runs. Runs when cargo-deny
+    // is installed (the kit's CI installs it) and says so loudly otherwise.
+    let deny_available = Command::new("cargo")
+        .args(["deny", "--version"])
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if deny_available {
+        let out = Command::new("cargo")
+            .args(["deny", "check"])
+            .current_dir(&project)
+            .env("CARGO_TARGET_DIR", &workspace_target)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "the generated project fails cargo-deny:\n{}\n{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+    } else {
+        eprintln!(
+            "new_project_builds: cargo-deny is not installed — the cargo-deny check on the generated project was SKIPPED (CI runs it)"
+        );
+    }
+
     // H10: the rendered systemd units parse (systemd-analyze, when present).
     if let Ok(analyze) = Command::new("systemd-analyze")
         .args([

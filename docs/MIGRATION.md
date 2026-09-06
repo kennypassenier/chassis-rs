@@ -199,7 +199,21 @@ before bumping the tag.
 5. Drill on a scratch LXC: install per GETTING_STARTED §9, restore drill
    per OPERATIONS.md §7, and — once a signed release exists — the
    supervised swap per SELF_UPDATE.md.
-6. Release with `chassis release <version>`; then `homelab adopt` with
+6. **Closing check before "gates green" is reported** (CF-6, 2026-09-06):
+   `chassis release <next> --dry-run` is green (it checks `.chassis.toml`,
+   the Dockerfile the image job expects, and the Migration section on a
+   major), and the Release workflow has run once on a test tag of the
+   branch. Discipline-enforced: the migration is not reported done without
+   both lines in its PENDING entry. Three migrations were reported green on
+   2026-09-05 and none of them could release the next day.
+7. **Deploy files come from measured paths** (CF-6 d): before writing the
+   unit, `service.yml` or an env file for a target machine, read what is
+   there (`systemctl cat <unit>`, `ls` of the state root and the binary
+   directory) and copy those paths — never the scaffold's defaults or the
+   project's README. Almanac's migration note put the state root at
+   `/opt/almanac`; the LXC had it at `/appdata/almanac/almanac-config`.
+   Discipline-enforced.
+8. Release with `chassis release <version>`; then `homelab adopt` with
    the new `service.yml`.
 
 Nothing here is released or deployed by the migration branch itself

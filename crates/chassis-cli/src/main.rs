@@ -270,10 +270,13 @@ fn with_chassis_path(cargo_toml: &str, rec: &Recorded) -> String {
                 .find("features =")
                 .unwrap_or(0);
             let features = &cargo_toml[git_line_start + features_start..git_line_end];
+            // CF-6 a: a path dependency without `version` is a wildcard to
+            // cargo-deny too — the E2E found it the moment it ran the check.
             format!(
-                "{}chassis = {{ path = \"{}\", {} }}{}",
+                "{}chassis = {{ path = \"{}\", version = \"{}\", {} }}{}",
                 &cargo_toml[..git_line_start],
                 p,
+                env!("CARGO_PKG_VERSION"),
                 features.trim_end_matches(" }"),
                 &cargo_toml[git_line_end..]
             )
@@ -609,6 +612,7 @@ fn cmd_release(
     max_wait: u64,
 ) -> Result<(), Error> {
     let rec = read_recorded(dir)?;
+    check_release_files(dir)?;
     let v = chassis::core::update::Version::parse(version)?;
     let tag = format!("v{v}");
     if !dry_run {
@@ -660,6 +664,9 @@ fn cmd_release(
         ),
     ];
     if dry_run {
+        println!(
+            "checked: .chassis.toml present · Dockerfile present where release.yml builds an image · Migration section on a major"
+        );
         println!(
             "dry run: would write Cargo.toml version = \"{v}\" and a {v} section in CHANGELOG.md, then:"
         );
@@ -732,6 +739,25 @@ fn current_version(cargo_toml: &str) -> Result<chassis::core::update::Version, E
         "Cargo.toml has no [package] version line",
         "add `version = \"x.y.z\"` under [package]",
     ))
+}
+
+/// CF-6 (2026-09-06): the release must satisfy the workflow it is about to
+/// trigger. kyu-runner's first v0.2.0 run failed on a Dockerfile that the
+/// image job expected and the repository did not have — one tag deleted and
+/// re-created. So: when `.github/workflows/release.yml` builds an image, a
+/// `Dockerfile` must exist, and the dry run says so before any tag.
+fn check_release_files(dir: &Path) -> Result<(), Error> {
+    let workflow = dir.join(".github/workflows/release.yml");
+    let builds_image = std::fs::read_to_string(&workflow)
+        .map(|w| w.contains("build-push-action") || w.contains("docker build"))
+        .unwrap_or(false);
+    if builds_image && !dir.join("Dockerfile").exists() {
+        return Err(Error::config(
+            "release.yml builds a container image but the repository has no Dockerfile",
+            "run `chassis sync --write` to add the scaffold Dockerfile (and .dockerignore), or remove the image job from release.yml",
+        ));
+    }
+    Ok(())
 }
 
 /// K25 / H3: a major bump ships with a migration note under Unreleased.
@@ -1145,7 +1171,10 @@ mod tests {
             },
         );
         assert!(
-            local.contains("chassis = { path = \"/tmp/kit\", features = ["),
+            local.contains(&format!(
+                "chassis = {{ path = \"/tmp/kit\", version = \"{}\", features = [",
+                env!("CARGO_PKG_VERSION")
+            )),
             "{local}"
         );
         assert!(!local.contains("git ="));
@@ -1246,5 +1275,26 @@ mod tests {
             std::fs::read_to_string(target.join("src/main.rs")).unwrap(),
             "fn main() {}\n"
         );
+    }
+
+    #[test]
+    fn a_release_workflow_that_builds_an_image_needs_a_dockerfile() {
+        let dir = std::env::temp_dir().join(format!("chassis-cf6-{}", std::process::id()));
+        let wf = dir.join(".github/workflows");
+        std::fs::create_dir_all(&wf).unwrap();
+        std::fs::write(
+            wf.join("release.yml"),
+            "steps:\n  - uses: docker/build-push-action@sha # v6\n",
+        )
+        .unwrap();
+        let err = check_release_files(&dir).unwrap_err();
+        assert!(err.to_string().contains("no Dockerfile"), "{err}");
+        std::fs::write(dir.join("Dockerfile"), "FROM scratch\n").unwrap();
+        check_release_files(&dir).unwrap();
+        // A workflow without an image job needs no Dockerfile.
+        std::fs::remove_file(dir.join("Dockerfile")).unwrap();
+        std::fs::write(wf.join("release.yml"), "steps:\n  - run: cargo build\n").unwrap();
+        check_release_files(&dir).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

@@ -7,7 +7,17 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+- `chassis release` (also `--dry-run`) refuses a repository whose
+  `release.yml` builds a container image but has no `Dockerfile`, with the
+  `chassis sync --write` remedy — kyu-runner's first v0.2.0 Release run
+  failed on exactly that (CF-6 b).
+
+### Changed
+- The scaffold end-to-end test also runs `cargo deny check` on the
+  generated project when cargo-deny is installed (the kit's CI installs
+  it); the first remote project was red on cargo-deny while every local
+  gate was green (CF-6 a).
 
 ## [1.5.0] - 2026-09-06
 
