@@ -15,9 +15,9 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | 10 · Retrospective — done 2026-09-06. Phases 0–10 complete; the kit is at **1.4.1** (minisign `-v`, scaffold pins `version` beside the git tag). Follow-up batch of 2026-09-06 (form "de overgebleven items") in progress: kyu-runner v0.2.0, http-switchboard v2.0.0 and almanac v3.0.0 are tagged and built, waiting for Kenny's signature; kyu step 2 runs in this session (rule 7a suspended by Kenny for V7/V8); remaining items and handovers in docs/PENDING_MINI_ROUNDS.md §Open items after Phase 10 |
+| Current phase | 10 · Retrospective — done 2026-09-06. Phases 0–10 complete; the kit is at **1.5.0** (1.4.1: minisign `-v` + scaffold version pin; 1.5.0: opt-in open dashboard). Follow-up batch of 2026-09-06: three releases signed by Kenny, Almanac 3.0.0 live on CT 112, kyu step 2 merged (kyu `main` 7b7428c, unreleased), remote scaffold proven, C2 drilled with the real key; Almanac step 2 awaits its decision form; handovers in docs/PENDING_MINI_ROUNDS.md §Open items after Phase 10 |
 | Last completed gate | Report form R1–R3 of 2026-09-06 (kit 1.4.0 + CF-5 measurement · three merges · Almanac handover): Akkoord · Akkoord · Klopt |
-| Next gate | kyu step-2 decision form K2-1…K2-4 (rendered 2026-09-06) and, after the batch, a report + correction form (CF-6: the three kit/migration faults found live on 2026-09-06). Kenny signs the three releases with `scripts/sign-release.sh`; Almanac 3.0.0 goes onto CT 112 right after its signature. |
+| Next gate | Almanac step-2 decision form A2-1…A2-4 (rendered 2026-09-06), then the batch's report + correction form CF-6 (three kit/migration faults found live). Kenny-only afterwards: kyu 3.0.0 / kyu-runner 0.2.0 / http-switchboard 2.0.0 deploys through the Homelab Rust session (V6). |
 | AFK mode | **off** since Kenny returned 2026-09-05 evening. Standing rule 7a (a session touches only its own project) is back in force: D-K1 (kyu dashboard adoption), D-H1 (http-switchboard log stream) and Almanac's half of D-A1 belong in sessions opened in those repositories. |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 

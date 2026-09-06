@@ -88,6 +88,12 @@ the constants they read.
   protection on `main` set by `sync --protect` and read back through the API
   (three required checks, strict, enforce_admins), repository deleted. The
   first attempt (CLI 1.4.0) was red on cargo-deny — fixed in 1.4.1.
-- **Pending:** the re-drill after CF-3 (0.1.3 → 0.1.4); broken-after-ready
+- **C2 with the ecosystem key** (2026-09-06, CT 118, `drill-release.sh 0.1.4`
+  signed by Kenny, no pubkey override): supervised swap 0.1.3→0.1.4 via
+  `systemd-run` (exit 0, `.prev` kept, restart NRestarts=0, healthcheck
+  0.1.4, second run no-op); autonomous rollback with `update_drill=broken`
+  (install, DRILL exit 1, revert on the second start, `update.held` for
+  0.1.4 = `update-skip.json`, NRestarts=3, 0.1.3 back).
+- **Pending:** broken-after-ready
   under the homelab (needs adopt); `ExecStartPre=--check` refusing a broken
   env (W9).
