@@ -208,6 +208,20 @@ contradicting option. Both go to the next form (CF-7 + the A2-2 revisit).
 release) — **not installed**: it carries the same fault (kit 1.5.0). The
 CT 112 install waits for almanac 4.0.1 on kit 1.5.1, in almanac's turn.
 
+## Form S1/S2 — answered 2026-09-06 (21:30)
+
+**S1** *Eigen antwoord*: fields on the issue form + hooks (the recommended
+option), minus the "schema" column — Kenny: "wat is die schema 2 en waarom
+zouden we dat tonen?" — it is the profile file's format version, an
+internal detail; the row shows name, calendar, token, last requests, Send
+test, Delete. **S2** kit 1.7.0 first, then one Almanac 4.0.2 (merge +
+calendar names + hidden ids + scaffold sync). Found on the way: the
+scaffold-synced Almanac branch was red on cargo-deny (RUSTSEC-2023-0071 rsa
+Marvin via jsonwebtoken, RUSTSEC-2024-0384 instant, RUSTSEC-2025-0012
+backoff) with nowhere to record a reviewed exception → `deny_ignore` in
+`.chassis.toml` (1.7.0); replacing `backoff` (unmaintained) is an Almanac
+item for its next turn.
+
 ## Kit 1.6.0 — released 2026-09-06 (21:05)
 
 M1–M3 as ratified: `gates.sh`/CI run `.claude/hooks/gates.project.sh` when

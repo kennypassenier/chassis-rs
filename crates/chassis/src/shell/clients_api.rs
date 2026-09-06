@@ -6,6 +6,7 @@
 //! exactly one response: `GET /clients/{id}/token`, fetched by the reveal
 //! and copy buttons on click (K12) — never in the list.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use axum::Json;
@@ -63,11 +64,24 @@ pub struct ClientsApi {
     pub test_route: Option<Arc<TestRoute>>,
     /// Where the test request is sent: this instance's own address.
     pub self_base_url: String,
+    /// K16 (1.7.0): the project's say before a token is issued — it gets
+    /// the client-to-be and the extra form fields, and may refuse.
+    pub on_issued: Option<IssueHook>,
+    /// K16 (1.7.0): told after a client is deleted, so what the project
+    /// created alongside (a profile) goes with it.
+    pub on_deleted: Option<DeleteHook>,
 }
+
+pub type IssueHook =
+    Arc<dyn Fn(&ClientView, &BTreeMap<String, String>) -> Result<(), Error> + Send + Sync>;
+pub type DeleteHook = Arc<dyn Fn(&ClientView) + Send + Sync>;
 
 #[derive(Debug, Deserialize)]
 pub struct IssueForm {
     pub name: String,
+    /// The project's extra fields (K16), by field name.
+    #[serde(flatten)]
+    pub fields: BTreeMap<String, String>,
 }
 
 pub async fn list(State(api): State<ClientsApi>) -> Json<Vec<ClientView>> {
@@ -83,6 +97,33 @@ pub async fn issue(
     let token = random_hex(TOKEN_BYTES)?;
     let now = now_rfc3339();
     let name = form.name.clone();
+    // The project's hook runs before the token exists, so a refusal issues
+    // nothing — and it must not see a name the store would refuse anyway.
+    if let Some(hook) = &api.on_issued {
+        crate::core::clients::validate_name(&name)?;
+        if api
+            .clients
+            .snapshot()
+            .clients
+            .iter()
+            .any(|c| c.name == name && c.token.is_some())
+        {
+            return Err(Error::invalid(
+                format!("a client named `{name}` already has a token"),
+                "re-issue that client's token instead, or revoke it first to free the name",
+            ));
+        }
+        let provisional = ClientView {
+            id: id.clone(),
+            name: name.clone(),
+            active: true,
+            issued_at: now.clone(),
+            revoked_at: None,
+            last_used_at: None,
+            uses: 0,
+        };
+        hook(&provisional, &form.fields)?;
+    }
     let client = api
         .clients
         .update(&mut |f| f.issue(&name, id.clone(), token.clone(), &now).cloned())?;
@@ -120,6 +161,9 @@ pub async fn delete(
     let client = api.clients.update(&mut |f| f.delete(&id))?;
     api.captures.forget(&id);
     tracing::info!(client = %client.name, id = %client.id, "client deleted");
+    if let Some(hook) = &api.on_deleted {
+        hook(&ClientView::from(&client));
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

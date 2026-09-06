@@ -59,6 +59,69 @@ pub trait ClientColumn: Send + Sync {
     fn cell(&self, client: &ClientView) -> String;
 }
 
+/// An extra field on the clients page's issue form (K16, 1.7.0): the
+/// project asks for what a client of *this* service needs besides a name
+/// — Almanac: the calendar a source writes to. The values reach the
+/// project's `on_client_issued` hook, which may refuse; the kit stores
+/// only the name.
+#[derive(Clone)]
+pub struct ClientFormField {
+    /// The form/JSON key (`[a-z_]+`).
+    pub name: String,
+    pub label: String,
+    pub kind: FieldKind,
+}
+
+#[derive(Clone)]
+pub enum FieldKind {
+    Text {
+        placeholder: String,
+    },
+    /// Options are asked for at render time, so a list that changes at
+    /// runtime (calendars) is always current.
+    Select {
+        options: Arc<dyn Fn() -> Vec<(String, String)> + Send + Sync>,
+    },
+}
+
+impl ClientFormField {
+    pub fn text(name: &str, label: &str, placeholder: &str) -> Self {
+        Self {
+            name: name.into(),
+            label: label.into(),
+            kind: FieldKind::Text {
+                placeholder: placeholder.into(),
+            },
+        }
+    }
+
+    pub fn select(
+        name: &str,
+        label: &str,
+        options: impl Fn() -> Vec<(String, String)> + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            label: label.into(),
+            kind: FieldKind::Select {
+                options: Arc::new(options),
+            },
+        }
+    }
+
+    fn view(&self) -> serde_json::Value {
+        match &self.kind {
+            FieldKind::Text { placeholder } => serde_json::json!({
+                "name": self.name, "label": self.label, "kind": "text", "placeholder": placeholder
+            }),
+            FieldKind::Select { options } => serde_json::json!({
+                "name": self.name, "label": self.label, "kind": "select",
+                "options": options().into_iter().map(|(v, l)| serde_json::json!({"value": v, "label": l})).collect::<Vec<_>>()
+            }),
+        }
+    }
+}
+
 /// A problem the project wants shown on the status page (K17): some
 /// configuration it could see but not use.
 #[derive(Debug, Clone, Serialize)]
@@ -149,6 +212,7 @@ pub struct Dashboard {
     pub nav: Vec<NavEntry>,
     pub sections: Arc<Vec<Arc<dyn StatusSection>>>,
     pub columns: Arc<Vec<Arc<dyn ClientColumn>>>,
+    pub form_fields: Arc<Vec<ClientFormField>>,
     pub problems: Arc<dyn Fn() -> Vec<Problem> + Send + Sync>,
     pub update: Arc<dyn Fn() -> UpdateView + Send + Sync>,
     pub health: Health,
@@ -177,6 +241,7 @@ impl Dashboard {
         mut nav: Vec<NavEntry>,
         sections: Vec<Arc<dyn StatusSection>>,
         columns: Vec<Arc<dyn ClientColumn>>,
+        form_fields: Vec<ClientFormField>,
         problems: Arc<dyn Fn() -> Vec<Problem> + Send + Sync>,
         update: Arc<dyn Fn() -> UpdateView + Send + Sync>,
         health: Health,
@@ -243,6 +308,7 @@ impl Dashboard {
             nav: kit_nav,
             sections: Arc::new(sections),
             columns: Arc::new(columns),
+            form_fields: Arc::new(form_fields),
             problems,
             update,
             health,
@@ -440,6 +506,7 @@ pub async fn clients_page(State(d): State<Dashboard>) -> Result<Html<String>, Er
             clients_label => d.clients_label,
             clients => rows,
             extra_columns => columns,
+            form_fields => d.form_fields.iter().map(|f| f.view()).collect::<Vec<_>>(),
             reveal_seconds => d.reveal_seconds,
             capture_body_bytes => d.capture_body_bytes,
             capture_ttl_minutes => d.capture_ttl_minutes,

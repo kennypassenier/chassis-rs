@@ -52,6 +52,11 @@ struct Recorded {
     /// own default, `dev`), which is how CT 112 runs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     latch_env: Option<String>,
+    /// RUSTSEC ids cargo-deny may ignore for this project (1.7.0), each a
+    /// reviewed decision with its reason in this file's comments; rendered
+    /// into the kit-owned `deny.toml`, so a sync keeps them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    deny_ignore: Vec<String>,
 }
 
 impl Recorded {
@@ -90,6 +95,7 @@ impl Recorded {
             latch => self.latch,
             env_file => self.env_file(),
             latch_env_flag => self.latch_env_flag(),
+            deny_ignore => self.deny_ignore.clone(),
             release_pubkey => RELEASE_PUBKEY,
             vmid => 0,
             stack => self.name,
@@ -353,6 +359,7 @@ fn cmd_new(
         state_dir: format!("/var/lib/{name}"),
         env_file: None,
         latch_env: None,
+        deny_ignore: Vec::new(),
         name,
         description,
         latch,
@@ -1070,6 +1077,7 @@ mod tests {
             latch: false,
             env_file: None,
             latch_env: None,
+            deny_ignore: Vec::new(),
         }
     }
 
@@ -1435,5 +1443,22 @@ mod tests {
             .unwrap()
             .1;
         assert!(ci.contains("gates.project.sh"), "{ci}");
+    }
+
+    /// 1.7.0: a project's reviewed advisory exceptions live in .chassis.toml
+    /// and reach the kit-owned deny.toml, so a sync keeps them.
+    #[test]
+    fn deny_ignore_reaches_the_rendered_deny_toml() {
+        let mut r = rec();
+        r.deny_ignore = vec!["RUSTSEC-2023-0071".into(), "RUSTSEC-2025-0012".into()];
+        let files = render_all(&r).unwrap();
+        let deny = &files.iter().find(|(p, ..)| p == "deny.toml").unwrap().1;
+        assert!(
+            deny.contains("ignore = [\"RUSTSEC-2023-0071\", \"RUSTSEC-2025-0012\"]"),
+            "{deny}"
+        );
+        let fresh = render_all(&rec()).unwrap();
+        let deny = &fresh.iter().find(|(p, ..)| p == "deny.toml").unwrap().1;
+        assert!(deny.contains("ignore = []"), "{deny}");
     }
 }

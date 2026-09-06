@@ -3,6 +3,10 @@
 
 [advisories]
 yanked = "deny"
+# Reviewed exceptions come from .chassis.toml (`deny_ignore`), each with its
+# reason next to it there; this file is the kit's and `chassis sync`
+# rewrites it.
+ignore = [{% for id in deny_ignore %}"{{ id }}"{% if not loop.last %}, {% endif %}{% endfor %}]
 
 [licenses]
 # This service is MIT OR Apache-2.0; dependencies must be permissive.

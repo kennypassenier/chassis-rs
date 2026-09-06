@@ -326,6 +326,9 @@ pub struct DashboardRegistry {
     pub nav: Vec<crate::shell::dashboard::NavEntry>,
     pub sections: Vec<Arc<dyn crate::shell::dashboard::StatusSection>>,
     pub columns: Vec<Arc<dyn crate::shell::dashboard::ClientColumn>>,
+    pub form_fields: Vec<crate::shell::dashboard::ClientFormField>,
+    pub on_client_issued: Option<crate::shell::clients_api::IssueHook>,
+    pub on_client_deleted: Option<crate::shell::clients_api::DeleteHook>,
     pub problems: Option<Arc<dyn Fn() -> Vec<crate::shell::dashboard::Problem> + Send + Sync>>,
     pub update: Option<Arc<dyn Fn() -> crate::shell::dashboard::UpdateView + Send + Sync>>,
     pub clients_label: Option<String>,
@@ -987,6 +990,47 @@ impl App {
         c: impl crate::shell::dashboard::ClientColumn + 'static,
     ) -> &mut Self {
         self.dash.columns.push(Arc::new(c));
+        self
+    }
+
+    /// An extra field on the issue form of the clients page (K16, 1.7.0):
+    /// what a client of this service needs besides a name. The values
+    /// reach `on_client_issued`.
+    #[cfg(feature = "dashboard")]
+    pub fn client_form_field(
+        &mut self,
+        field: crate::shell::dashboard::ClientFormField,
+    ) -> &mut Self {
+        self.dash.form_fields.push(field);
+        self
+    }
+
+    /// Runs before a client token is issued (K16, 1.7.0) with the
+    /// client-to-be and the extra form fields; an `Err` refuses the
+    /// issue and reaches the page as the kit's error with remedy.
+    #[cfg(feature = "dashboard")]
+    pub fn on_client_issued(
+        &mut self,
+        f: impl Fn(
+            &crate::shell::clients_api::ClientView,
+            &std::collections::BTreeMap<String, String>,
+        ) -> Result<(), Error>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.dash.on_client_issued = Some(Arc::new(f));
+        self
+    }
+
+    /// Runs after a client is deleted (K16, 1.7.0), so what the project
+    /// created alongside it goes too.
+    #[cfg(feature = "dashboard")]
+    pub fn on_client_deleted(
+        &mut self,
+        f: impl Fn(&crate::shell::clients_api::ClientView) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.dash.on_client_deleted = Some(Arc::new(f));
         self
     }
 

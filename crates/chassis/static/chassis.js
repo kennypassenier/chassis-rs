@@ -221,7 +221,8 @@ document.addEventListener('submit', async (event) => {
       const res = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ name: form.name.value }),
+        // Every named control, so a project's extra fields (K16) ride along.
+        body: JSON.stringify(Object.fromEntries(new FormData(form))),
       });
       if (res.ok) { window.location.reload(); return; }
       const body = await res.json().catch(() => ({}));

@@ -280,6 +280,16 @@ let config = Config::from_table(&app.loaded.as_ref().unwrap().file_table, &app.s
   Enable the `assets` feature for this (`dashboard` implies it):
   `features = ["core", "self-update", "assets"]`.
 
+## 1.7.0 additions
+
+- A project that needs more than a name for a client registers
+  `App::client_form_field(...)` and `App::on_client_issued(...)` (create
+  what the project keeps per client; refuse with an `Error` to issue
+  nothing) plus `App::on_client_deleted(...)`; its own "add" page can then
+  go. `POST /api/clients` takes the fields as extra JSON keys.
+- `.chassis.toml` `deny_ignore = [...]`: each RUSTSEC id with its reason in
+  a comment beside it; `chassis sync --write` renders them into `deny.toml`.
+
 ## 1.6.0 additions
 
 - `.chassis.toml`: `env_file` and `latch_env` — set them to the paths the

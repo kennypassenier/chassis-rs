@@ -224,6 +224,25 @@ How the two controls behave, per `crates/chassis/static/chassis.js`:
 Two things the scaffold's `Cargo.toml` does not enable and this example
 needs: axum's `form` feature (for `Form`) and `serde` with `derive`.
 
+## Extending the clients page (K16, 1.7.0)
+
+A client of your service may need more than a name — Almanac's source is a
+name and a calendar. Register the field and the hooks and the kit's page
+does the rest; there is no second page to build:
+
+```rust
+app.client_form_field(ClientFormField::select("calendar", "Calendar", || calendars()));
+app.on_client_issued(|client, fields| profiles.create(&client.name, &fields["calendar"]));
+app.on_client_deleted(|client| profiles.remove(&client.name));
+app.client_column(TargetCalendar);   // shows the calendar's name on the row
+```
+
+`on_client_issued` runs before the token exists: return an `Error` and
+nothing is issued — the page shows the kit's error with your remedy. A
+duplicate name is refused before the hook runs. `POST /api/clients` takes
+the fields as extra JSON keys next to `name`; the page's form sends every
+control it has.
+
 ## What the kit guarantees around a project page
 
 - **Admin login.** The whole `dashboard_routes` router sits behind

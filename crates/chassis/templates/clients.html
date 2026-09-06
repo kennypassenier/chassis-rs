@@ -29,6 +29,19 @@
       <label class="kp-field__label" for="name">Name</label>
       <input class="kp-field__input" type="text" id="name" name="name" placeholder="home-assistant" required pattern="[A-Za-z0-9._-]{1,64}">
     </div>
+    {% for f in form_fields %}
+    <div class="kp-field">
+      <label class="kp-field__label" for="field-{{ f.name }}">{{ f.label }}</label>
+      {% if f.kind == "select" %}
+      <select class="kp-field__input" id="field-{{ f.name }}" name="{{ f.name }}" required>
+        <option value="" disabled selected>— choose —</option>
+        {% for o in f.options %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
+      </select>
+      {% else %}
+      <input class="kp-field__input" type="text" id="field-{{ f.name }}" name="{{ f.name }}" placeholder="{{ f.placeholder }}" required>
+      {% endif %}
+    </div>
+    {% endfor %}
     <button type="submit" class="kp-button kp-button--primary" data-busy-label="Issuing…">Issue token</button>
     <p class="kp-field__help" style="flex-basis: 100%; margin: 0">Letters, digits, dots, underscores and hyphens; 1–64 characters.</p>
   </form>

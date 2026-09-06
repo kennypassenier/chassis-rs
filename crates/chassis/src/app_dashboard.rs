@@ -144,6 +144,8 @@ pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
         captures: captures.clone(),
         test_route: test_route.map(Arc::new),
         self_base_url,
+        on_issued: registry.on_client_issued.clone(),
+        on_deleted: registry.on_client_deleted.clone(),
     };
     let kit_guards = guards.clone();
     let token_limit =
@@ -199,6 +201,7 @@ pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
         registry.nav,
         registry.sections,
         registry.columns,
+        registry.form_fields,
         problems,
         update,
         health,
