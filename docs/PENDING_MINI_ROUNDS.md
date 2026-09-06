@@ -50,6 +50,136 @@ than a ratification:
 repositories and belong in sessions opened there. The kit's half of D-A1
 (the `on_update_event` hook, release 1.3.0) is this project's work.
 
+## Follow-up on the ratification — answered 2026-09-05 (late evening)
+
+Kenny's answers to the four sequencing questions: **V1 Nu bouwen** (kit
+1.3.0 with `on_update_event`), **V2 Deze sessie doet het nu** (D-H1 in
+http-switchboard), **V3 Deze sessie doet het na V1** (Almanac's half of
+D-A1), **V4 Aparte sessie in kyu** (D-K1).
+
+Done in this session:
+
+- **Kit 1.3.0** — `App::on_update_event`, `chassis::UpdateEvent`,
+  `compose_sink` with a test; commit `3533047` on `main`, tag `v1.3.0`,
+  GitHub release. *Live-found process fault on the way (CF-5 below): the
+  first commit attempt was blocked by the gate (unstaged `Cargo.lock` after
+  the version bump), my result check missed it, and the branch/tag/release
+  were made on the ratification-docs commit. Caught when Almanac could not
+  find the method; the wrong release and tag were deleted and re-created on
+  the real commit within minutes. Nothing had consumed the wrong tag.*
+- **D-H1 http-switchboard** — the three hand-built JSON emitters are
+  structured tracing events (target `http_switchboard::events`); the k8
+  log-scan test runs in json mode and asserts one shape; commit `97a0089`
+  on `chassis-migration`, pushed.
+- **D-A1 Almanac half** — `on_update_event` maps `update.installed` /
+  `update.rolled_back` / `update.failed` onto `almanac-update` /
+  `-reverted` / `-unverified` via the existing Notifier; the kit pin moved to
+  `v1.3.0`. Commit: see the report item. AR24's "three verification failures
+  before notifying" is NOT reproduced (the kit says it once) — known
+  limitation, in the CHANGELOG.
+
+### D-K1 · handover for the kyu session (V4: separate session)
+
+kyu takes the kit's dashboard as a second migration step. What that session
+needs to know, so it can start without this conversation:
+
+- Branch `chassis-migration` in `~/Projects/kyu` is at 3.0.0 on kit
+  `v1.2.0` (`1ca1e08`); bump to `v1.3.0` first (nothing in kyu needs 1.3.0,
+  but one pin for all four projects is simpler).
+- Read `docs/MIGRATION.md` §6 ("`ClientStore`: keeping your own client
+  table") in chassis-rs: kyu's SQLite `apps` table can back the kit's
+  clients through a `ClientStore` impl, which avoids re-issuing every token
+  — the alternative is `clients.json.enc` and a re-issue to kyu-runner,
+  newsflash and Home Assistant. **That choice is a form item for Kenny.**
+- Enable the `dashboard` feature; kyu's `/`, `/login`, `/logout`,
+  `/static/*` and `/apps` collide with the kit's routes — the topics
+  dashboard becomes `dashboard_routes` project pages, `/apps` becomes
+  `/clients` (`clients_label("Apps")` keeps the label), the unprotected
+  mode goes away (the kit refuses to start a dashboard without
+  `KYU_TOKEN` + `KYU_SECRET_KEY`), sessions move to the kit's sealed store.
+- Tests to expect red: `p7_auth.rs` (unprotected-mode cases), `l7_dashboard.rs`,
+  `w13_themes.rs` (kyu's templates → kit layout), `p7_security.rs` (cookie
+  names), `p7_cli.rs` (`--help` mentions of `KYU_TOKEN` stay, via
+  `help_extra`).
+- kyu's FEATURES W2 (unprotected mode) and the kit's FEATURES W6 note both
+  need a dated amendment in the same commit as the change (FORM_PROTOCOL §5.4).
+
+## Correction forms drafted for Kenny (live-found faults, rule 29)
+
+### CF-4 · a Dutch coinage slipped through the lint ("pomplussen")
+
+1. **What went wrong** — the explanation of the four migrations (Claude,
+   2026-09-05 evening) called kyu-runner's route loops "pomplussen"; the code
+   and docs say pump / route loop. Kenny: "is dat een gekke nederlandse
+   vertaling voor wat een engelse term moet zijn?" — yes. Same fault as
+   CF-1 (2026-09-05 morning).
+2. **Gate that let it through** — CF-1's measure was a rule in the central
+   memory plus a lint that checks a fixed word list (afbeelding, stapel,
+   vergrendeling, …). A list only catches yesterday's coinages; this one
+   was new. The reply was prose, not a form, so the lint did not even run.
+3. **Where else** — every Dutch explanation this session wrote from
+   memory of the code; not measured (transcripts). The property is "a
+   Dutch word invented for a concept the code names in English", not the
+   word list.
+4. **Measure** — when a Dutch sentence names a code concept (a loop, a
+   worker, a pump, a sink, a store, a guard), Claude uses the identifier's
+   English word in the Dutch sentence and, first time, glosses it: "de
+   pump loops (de lussen die per route de hub pollen)". The lint's word
+   list stays as a backstop and gains each new find.
+5. **Cost** — none in tooling; slightly more English in Dutch prose, which
+   is Kenny's stated preference.
+6. **Enforcement** — discipline-enforced (rule 24); visible to Kenny in
+   every reply.
+7. **Measurement** — at the Phase 10 retrospective form of this project:
+   Kenny reads the retro's Dutch explanations and finds no coinage; Claude
+   greps the retro text for words not in the code before sending.
+8. **Fallback** — if another coinage is found: every Dutch reply that
+   explains code goes through the form lint (word list + a check that each
+   backticked identifier in the source paragraph appears in the Dutch text).
+9. **Review** — Phase 10 retro.
+
+### CF-5 · a blocked commit went unnoticed; tag and release landed on the wrong commit
+
+1. **What went wrong** — kit 1.3.0: `git commit` was blocked by the
+   pre-commit gate (the version bump left `Cargo.lock` modified and
+   unstaged, so the tree fingerprint failed). Claude's check grepped the
+   output for `BLOCKED|error|FAILED` and printed `git log -1` without
+   comparing it to the expected new commit; the chain went on to push the
+   branch (at the old commit), wait for CI (green, trivially), fast-forward
+   `main` (no-op), tag `v1.3.0` and create a GitHub release — all on the
+   ratification-docs commit. Evidence: `git log --oneline -1` printed
+   `365266d docs: ratification …` right after the "commit"; Almanac's build
+   then failed with "no method named `on_update_event`".
+2. **Gate that let it through** — none in the procedure: `chassis release`
+   (the CLI) does this chain with checks, but Claude ran the steps by hand
+   in a shell chain without asserting each step's postcondition. The same
+   fault class as the AFK-morning "background commit jobs failed silently"
+   note, corrected once by hand, never written down as a rule.
+3. **Where else** — every hand-run commit→push→tag chain this session (kit
+   1.1.0, 1.2.0 went right by luck: no unstaged file). The property is "a
+   multi-step publish chain whose steps are not each verified".
+4. **Measure** — Claude publishes kit releases with `chassis release
+   <version>` (which bumps, commits through the gates, waits for the
+   commit's CI, fast-forwards, tags and refuses to continue on any failed
+   step) instead of a hand-typed chain. For other repos' commits: every
+   commit step is followed by `[ "$(git rev-parse HEAD)" != "$before" ]`
+   before anything is pushed, and a tag is only ever created from a
+   verified `origin/main` SHA that contains the expected file change
+   (`git show --stat`).
+5. **Cost** — `chassis release` is already built and tested (L6); the SHA
+   guard is one line per chain.
+6. **Enforcement** — code-enforced for the kit (`chassis release`);
+   discipline-enforced for other repos until their scaffold gains the same
+   command.
+7. **Measurement** — the next kit release (1.4.0 or 1.3.1): it must go
+   through `chassis release`, and the tag must point at a commit whose
+   `git show --stat` lists the feature files — checked before the GitHub
+   release is created.
+8. **Fallback** — if a wrong tag ever ships again: the release is deleted
+   and re-created within the same session (as today) AND the standing
+   rules get a "publish only through the release command" rule.
+9. **Review** — Phase 10 retro.
+
 ## Ratification rounds (gates crossed during AFK)
 
 | Round | Gate | Status | Document | What Kenny ratifies |
