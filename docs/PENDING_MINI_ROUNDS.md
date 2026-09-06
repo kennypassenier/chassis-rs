@@ -104,9 +104,17 @@ needs to know, so it can start without this conversation:
 - kyu's FEATURES W2 (unprotected mode) and the kit's FEATURES W6 note both
   need a dated amendment in the same commit as the change (FORM_PROTOCOL §5.4).
 
-## Correction forms drafted for Kenny (live-found faults, rule 29)
+## Report + correction forms CF-4/CF-5 — answered 2026-09-06 (00:50)
 
-### CF-4 · a Dutch coinage slipped through the lint ("pomplussen")
+RP-1 (kit 1.3.0), RP-2 (http-switchboard D-H1), RP-3 (Almanac D-A1):
+**Akkoord**. RP-4 (D-K1 handover for the kyu session): **Klopt**. CF-4 and
+CF-5: all nine fields **Klopt** — both correction forms are closed; their
+measurements are queued below (CF-4 at the Phase 10 retro form, CF-5 at the
+next kit release). Phase 9 is closed; Phase 10 (retrospective) starts.
+
+## Correction forms CF-4 and CF-5 — ratified 2026-09-06, all fields Klopt
+
+### CF-4 · a Dutch coinage slipped through the lint ("pomplussen") — **ratified, measurement open**
 
 1. **What went wrong** — the explanation of the four migrations (Claude,
    2026-09-05 evening) called kyu-runner's route loops "pomplussen"; the code
@@ -138,7 +146,7 @@ needs to know, so it can start without this conversation:
    backticked identifier in the source paragraph appears in the Dutch text).
 9. **Review** — Phase 10 retro.
 
-### CF-5 · a blocked commit went unnoticed; tag and release landed on the wrong commit
+### CF-5 · a blocked commit went unnoticed; tag and release landed on the wrong commit — **ratified, measurement open**
 
 1. **What went wrong** — kit 1.3.0: `git commit` was blocked by the
    pre-commit gate (the version bump left `Cargo.lock` modified and
@@ -445,6 +453,8 @@ them. The first 3.x release must be signed with `scripts/sign-release.sh`
 | C2 | Broken-release drill in both modes | Before the 1.0 release, on CT 118 | waits for a release signed with the ecosystem key (Kenny) |
 | CF-3 | After an autonomous rollback the same version is never reinstalled (skip list in the state root) | The first autonomous-mode drill after the fix on CT 118: install → crash → revert → the next check reports `Held` ("rolled back earlier"), zero further restarts in the following interval | **CLOSED 2026-09-05: measured at 14:21 UTC on CT 118 (one install/crash/revert, then Held twice across the next interval, NRestarts=3) and ratified the same evening — all nine fields Klopt** |
 | CF-2 | Text read on its own (consequence lines, pill labels, card subtitles) describes actions as "Claude doet…" / "Kenny doet…" — never a bare ik/jij | The Phase 7 hardening form of this project: Claude counts bare pronouns in those surfaces AFTER writing it by habit and BEFORE sending, reports the raw count, then fixes; Kenny finds none | **measured 2026-09-05 at the Phase 7 form: 26 consequence boxes, 104 pills, raw count = 1 bare "jij" (H17), fixed before sending.** Field 8 (fallback) therefore applies: from now on every form of this project is written to a file, run through the pronoun/coinage/gloss count and rendered only at 0 (the lint), and consequence lines start with Claude / Kenny / an article. Kenny's own reading of the Phase 7 form is the second half of the measurement. **CLOSED 2026-09-05 (evening): the combined ratification form ran through the lint (28 items, 196 loose text lines, 0 bare pronouns, 0 Dutch coinages) and Kenny answered CF-2.M Klopt — the fallback lint is this project's working method from here on.** |
+| CF-4 | A Dutch sentence that names a code concept uses the code's English word, glossed on first use; the lint word list grows with each find | The Phase 10 retrospective form of this project: Kenny finds no coinage in its Dutch explanations; Claude checks each code concept carries its English identifier before sending | **open** — ratified 2026-09-06 |
+| CF-5 | Kit releases only through `chassis release`; every hand-run commit step guarded by a HEAD-changed check; a tag only from a verified `origin/main` SHA whose `git show --stat` lists the feature files | The next kit release (1.3.1 or 1.4.0): it runs through `chassis release`, and the tag's commit is checked before the GitHub release exists | **open** — ratified 2026-09-06 |
 
 ### CF-2 · correction form, answered 2026-09-05
 

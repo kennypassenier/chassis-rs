@@ -15,9 +15,9 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | 9 · Release — closed with 1.3.0 (`on_update_event`, D-A1). D-H1 landed in http-switchboard, Almanac wired; D-K1 handed to a kyu session (PENDING §D-K1 handover). Next: Phase 10 retrospective, with CF-4 and CF-5 to ratify first. |
-| Last completed gate | Combined ratification AFK run 2 (2026-09-05 evening): R7, R9, MIG-1…4 Akkoord; R8.1–R8.6 Goedkeuren; CF-3 (9 fields), H16, HL-1, HL-2, CF-2.M Klopt; D-K1, D-H1, D-A1 Opnemen |
-| Next gate | Report + correction forms CF-4/CF-5 (end of the 2026-09-05 evening turn), then Phase 10 retrospective |
+| Current phase | 10 · Retrospective — opened 2026-09-06 after the RP/CF-4/CF-5 form. Phase 9 closed with 1.3.0. Migration branches ratified, none released or deployed (Kenny signs). |
+| Last completed gate | Report RP-1…4 + CF-4 + CF-5 (2026-09-06): all Akkoord/Klopt |
+| Next gate | Phase 10 retrospective form (also the CF-4 measurement point) |
 | AFK mode | **off** since Kenny returned 2026-09-05 evening. Standing rule 7a (a session touches only its own project) is back in force: D-K1 (kyu dashboard adoption), D-H1 (http-switchboard log stream) and Almanac's half of D-A1 belong in sessions opened in those repositories. |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 
