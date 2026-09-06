@@ -996,3 +996,40 @@ this is what every service on chassis-rs will look like.
 - Q8 kp-themes vendored at v3.1.0.
 - Q9 Hooks: fmt + clippy (-D warnings) + full suite + clean-tree check per
   commit, IDs in the message, `--no-verify` forbidden, cargo-deny in CI.
+
+## Kit batch 3 (F1–F8) — forms of 2026-09-06 23:50 and 2026-09-07 (AFK)
+
+**Forms.** F1–F8 weighing (Kenny: F1, F2, F4–F8 Onmisbaar; F3 "meer
+info nodig, is dat niks dat homelab zou moeten doen? is dit wel binnen de
+scope van dit project? geef voorbeelden"; remark: "kunnen we daar taken
+parallel van developen? Ik heb nog veel tokens over"). Deep-dive form:
+F3 Later (the homelab's `stacks/<stack>/service.yml` already holds the
+measured facts; the read variant is K33), P1 Parallel in worktrees, A1 AFK
+Aan, R1 Eigen antwoord "zie ik zelf nog wel" (release timing is Kenny's).
+
+**Groups and branches** (worktrees under `.claude/worktrees/`, all cut
+from `main` `04ecbeb`):
+
+| Group | Branch | IDs | Scope |
+|---|---|---|---|
+| G1 | `kit-f1-testing` | K25 | `chassis::testing` harness behind a `testing` feature; the kit's in-process suites moved onto it |
+| G2 | `kit-f4f5-dashboard` | K28, K29 | vocabulary + row/section actions |
+| G3 | `kit-f6-clients-cli` | K30 | `chassis clients` subcommand |
+| G4 | `kit-f2f7-kit-docs` | K27, K31 | knob docs + `--knobs` + `docs/KIT.md` from sync |
+| G5 | `kit-f8-sync-drift` | K32 | sync drift: kit tag, kp_themes, protection checks (`--remote`) |
+
+**Merge order** G1, G5, G4, G3, G2 (least shared files first; G4 and G5
+both touch the CLI's `main.rs`, G2 touches the templates alone). Claude
+resolves the overlaps, runs the full gates on the merged tree, composes
+the CHANGELOG `[Unreleased]` from the groups' reports, then presents one
+report form.
+
+**Deliberately not done in this batch:** K33 (Later); the kp-themes
+adoption (waits for the kp-themes release — the Unblock item stands);
+any release (R1: Kenny decides when 1.8.0 goes out); adoption in the four
+projects (rule 7a, their own sessions, after kp-themes).
+
+**Discipline-only measures suspended for the AFK run (rule 7h):** the
+"drill a new test red once and note it in a comment" habit is asked of
+every subagent in its brief and reported per group; Claude spot-checks it
+at merge instead of trusting the report.

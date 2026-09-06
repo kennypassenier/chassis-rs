@@ -78,3 +78,28 @@ function.
 Essential 27 (K1–K26, W1; W3 folded into K7) · Desired 2 (W2, W4) · Later 1 (W5) · Don't do 3 (W6–W8).
 
 Freeze: ratified in R2.
+
+## Round 3 — kit candidates after the migrations (F1–F8, weighed 2026-09-06)
+
+Proposed by Claude after the four migrations (chassis-rs first, then
+Almanac, kyu, kyu-runner, http-switchboard), each grounded in something
+that pinched that day; weighed by Kenny in the F1–F8 form (seven
+Essential, F3 sent to a deep-dive and then rated Later). The deep-dive
+found that the homelab already records what F3 wanted to measure
+(`stacks/<stack>/service.yml` in the homelab repo), so the ssh variant is
+out of scope (G4) and the read variant is registered under F3 for later.
+Built as **batch 3** (REALIZATION_PLAN L9) in five parallel worktrees;
+release timing is Kenny's call (form R1, 2026-09-07: "zie ik zelf nog wel").
+
+| ID | Form | Rating | Feature | Test bar |
+|---|---|---|---|---|
+| K25 (realized) | F1 | Essential | **`chassis::testing` harness.** `TestApp` starts an `App` on port 0 with generated secrets in a temp state dir; `login()`, `issue_client(name, fields)`, `bearer()`, `page()`, `json()`, and `as_browser()` (Chrome's form-post fingerprint from CF-7) so a project tests its dashboard forms like a browser does. | The kit's own in-process suites use only the harness; each helper has a test that goes red without the behaviour it wraps. |
+| K27 | F2 | Essential | **Generated kit documentation per project.** `chassis sync` renders a kit-owned `docs/KIT.md` with the project's name and prefix filled in: the door and the tokens, the dashboard pages, `/healthz` and `/metrics`, self-update and the drills, notifications, and the knob table (K31). Project docs point at it instead of retelling it. | Scaffold E2E: a new project has `docs/KIT.md`; a unit test asserts every knob key appears in it. |
+| K28 | F4 | Essential | **Vocabulary per project.** `App::vocabulary(singular, plural)` (default `client`/`clients`) reaches every kit text about clients: headings, explanations, empty state, buttons, error messages, the curl hint. `clients_label` keeps naming the nav entry. | Rendering the clients page with `source`/`sources` leaves no "client" in the visible text (attributes and API paths excepted). |
+| K29 | F5 | Essential | **Project actions on rows and sections.** `ClientAction { label, route with {id}, method, destructive, confirm }` registered via `App::client_action`; `StatusSection::actions()` (default empty) puts buttons under a status section. The kit renders them through the existing `data-post` mechanism with arm-before-act and busy state (rule 31); a refusal from the project route is shown to the user. | A registered action sits on every active row and posts to the substituted route with the client id; a destructive one carries the confirm attributes; a section action renders on `/`; a refusing route's remedy is visible. |
+| K30 | F6 | Essential | **`chassis clients` — tokens without a browser.** `chassis clients list\|issue\|reissue\|revoke\|delete --url <base> --token-env <VAR> [--field k=v] [--json]` drives the same clients API a dashboard uses, with the admin token from the environment, never argv. Serves the headless services (http-switchboard, kyu-runner). | E2E against an in-process app: issue via the CLI → the token works on an API route → revoke via the CLI → 401. |
+| K31 | F7 | Essential | **Knob table from the spec.** Every `Knob` carries its meaning; `AppSpec::knobs_markdown()` renders name, env var, flag, default, meaning, secret; `<name> --knobs` prints it; K27's KIT.md embeds it. | The rendered table names every key `knobs()` knows; the scaffold E2E compares it with the generated document. |
+| K32 | F8 | Essential | **`chassis sync` reports non-file drift.** The kit tag in Cargo.toml vs `chassis_tag`; `kp_themes` vs what the CLI's kit vendors; with `--remote`, the branch protection's required checks vs the CI job names (`--protect` repairs). Each difference is one line with its remedy. | Unit tests per comparison; a fresh project reports "in sync". |
+| K33 | F3 | Later | **Deploy knobs from the homelab's stack file.** `homelab_stack = "<stack>"` in `.chassis.toml`; sync derives `state_dir`, `env_file`, `latch`, `latch_env`, `vmid` from `stacks/<stack>/service.yml` in the homelab repo and reports drift; `--write` adopts. Kenny 2026-09-07: Later. | — |
+
+Tally after round 3: Essential 34 · Desired 2 · Later 2 (W5, K33) · Don't do 3.
