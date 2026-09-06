@@ -7,7 +7,7 @@
   This dashboard is protected by the service's login token — the value of
   <code>{{ prefix }}_TOKEN</code> in its environment file. Paste it here once;
   the browser then keeps a session cookie. Programs that call the API do not
-  log in: each gets its own client token on the Clients page.
+  log in: each gets its own {{ vocab.singular }} token on the {{ clients_label }} page.
 </p>
 {% if error %}
 <div class="kp-alert kp-alert--destructive" role="alert">{{ error }}</div>

@@ -658,6 +658,10 @@ pub struct DashboardRegistry {
     pub problems: Option<Arc<dyn Fn() -> Vec<crate::shell::dashboard::Problem> + Send + Sync>>,
     pub update: Option<Arc<dyn Fn() -> crate::shell::dashboard::UpdateView + Send + Sync>>,
     pub clients_label: Option<String>,
+    /// K28: what this service calls a client; `None` keeps `client`/`clients`.
+    pub vocabulary: Option<crate::shell::dashboard::Vocabulary>,
+    /// K29: the project's buttons on every active client row.
+    pub client_actions: Vec<crate::shell::dashboard::ClientAction>,
 }
 
 /// A started service: its address and the handle to stop it.
@@ -1381,10 +1385,31 @@ impl App {
     }
 
     /// What the clients page is called in this service ("Sources" for
-    /// Almanac); code and URL stay `clients` (E1).
+    /// Almanac); code and URL stay `clients` (E1). Without it the heading
+    /// and nav label are the vocabulary's capitalised plural.
     #[cfg(feature = "dashboard")]
     pub fn clients_label(&mut self, label: &str) -> &mut Self {
         self.dash.clients_label = Some(label.to_string());
+        self
+    }
+
+    /// What this service calls a client (K28), lower case: Almanac says
+    /// `vocabulary("source", "sources")`. Every kit sentence and every
+    /// clients-API message then uses that word; URLs, JSON keys, cookies,
+    /// metrics and log fields keep saying `client`.
+    #[cfg(feature = "dashboard")]
+    pub fn vocabulary(&mut self, singular: &str, plural: &str) -> &mut Self {
+        self.dash.vocabulary = Some(crate::shell::dashboard::Vocabulary::new(singular, plural));
+        self
+    }
+
+    /// A button on every active client row (K29): `{id}` in the route is
+    /// the client's id; the route is the project's own, registered with
+    /// `dashboard_routes`. Several may be registered; they render in this
+    /// order.
+    #[cfg(feature = "dashboard")]
+    pub fn client_action(&mut self, action: crate::shell::dashboard::ClientAction) -> &mut Self {
+        self.dash.client_actions.push(action);
         self
     }
 

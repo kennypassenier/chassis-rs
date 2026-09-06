@@ -14,7 +14,7 @@ use axum::extract::State;
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use chassis::shell::clients_api::ClientView;
-use chassis::shell::dashboard::{ClientColumn, Section, StatusSection};
+use chassis::shell::dashboard::{ClientColumn, Section, SectionAction, StatusSection};
 use chassis::shell::notify::Notifier;
 use chassis::{App, AppSpec, Caller};
 
@@ -47,6 +47,16 @@ impl StatusSection for MessagesSection {
             rows,
             html: None,
         }
+    }
+
+    /// K29: one button under the section; its route is inbox's own,
+    /// registered with `dashboard_routes` below.
+    fn actions(&self) -> Vec<SectionAction> {
+        vec![
+            SectionAction::post("Clear messages", "/messages/clear")
+                .destructive("Clear every message? They are kept nowhere else.")
+                .busy_label("Clearing…"),
+        ]
     }
 }
 
@@ -120,6 +130,13 @@ async fn messages_page(
     )
 }
 
+/// The section action's route (K29): behind the admin login like every
+/// `dashboard_routes` handler; a 204 makes the button reload the page.
+async fn clear_messages(State(messages): State<Messages>) -> axum::http::StatusCode {
+    messages.lock().expect("messages lock").clear();
+    axum::http::StatusCode::NO_CONTENT
+}
+
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
     let spec = AppSpec {
@@ -161,6 +178,7 @@ async fn main() -> std::process::ExitCode {
     app.dashboard_routes(
         Router::new()
             .route("/messages", get(messages_page))
+            .route("/messages/clear", post(clear_messages))
             .with_state(messages.clone()),
     );
     // K21: before a binary swap, the kit asks for a consistent copy of the state.

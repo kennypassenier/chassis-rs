@@ -50,6 +50,160 @@ pub struct Section {
 /// What a project implements to put a section on the status page.
 pub trait StatusSection: Send + Sync {
     fn render(&self) -> Section;
+
+    /// Buttons under the section's rows (K29): each one POSTs to a route
+    /// the project registered with `dashboard_routes`. A default so every
+    /// existing section keeps compiling; Almanac's "Reload profiles from
+    /// disk" form becomes one `SectionAction`.
+    fn actions(&self) -> Vec<SectionAction> {
+        Vec::new()
+    }
+}
+
+/// What this service calls a client (K28): Almanac says `source` /
+/// `sources`. Presentation only — routes, JSON keys, cookies, metrics and
+/// log fields keep saying `client`. The capitalised forms exist for
+/// sentence starts and headings.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Vocabulary {
+    pub singular: String,
+    pub plural: String,
+    pub singular_cap: String,
+    pub plural_cap: String,
+}
+
+impl Vocabulary {
+    pub fn new(singular: &str, plural: &str) -> Self {
+        Self {
+            singular: singular.to_string(),
+            plural: plural.to_string(),
+            singular_cap: capitalise(singular),
+            plural_cap: capitalise(plural),
+        }
+    }
+}
+
+impl Default for Vocabulary {
+    fn default() -> Self {
+        Self::new("client", "clients")
+    }
+}
+
+fn capitalise(word: &str) -> String {
+    let mut chars = word.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
+/// A button the project puts on the dashboard (K29): on a client row
+/// (`ClientAction`, `{id}` in the route becomes the client's id) or under
+/// a status section (`SectionAction`). The kit renders it through the
+/// same `[data-post]` mechanism as its own Re-issue/Revoke/Delete buttons
+/// (rule 31: busy while in flight; destructive ones arm on the first
+/// click and act on the second). A 2xx reloads the page; a refusal's
+/// `error` and `remedy` are shown on the button.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Action {
+    pub label: String,
+    /// The project's own route, registered with `dashboard_routes`. May
+    /// contain `{id}` on a client row.
+    pub route: String,
+    /// `POST` (default) or `DELETE`.
+    pub method: String,
+    pub destructive: bool,
+    /// The arm-before-act phrase; a destructive action without one gets
+    /// `DEFAULT_CONFIRM` at render time, because kp-themes refuses a
+    /// destructive control that offers neither confirm nor undo.
+    pub confirm: Option<String>,
+    /// What the button says while the request is in flight (rule 31).
+    pub busy_label: Option<String>,
+}
+
+/// The five characters that can break out of a double-quoted attribute.
+fn attr_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#39;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+pub type ClientAction = Action;
+pub type SectionAction = Action;
+
+/// The confirm phrase a destructive action gets when it names none.
+pub const DEFAULT_CONFIRM: &str = "Are you sure? This cannot be undone.";
+
+impl Action {
+    /// A plain POST button.
+    pub fn post(label: &str, route: &str) -> Self {
+        Self {
+            label: label.to_string(),
+            route: route.to_string(),
+            method: "POST".to_string(),
+            destructive: false,
+            confirm: None,
+            busy_label: None,
+        }
+    }
+
+    /// Mark the action destructive with the phrase the armed button shows.
+    pub fn destructive(mut self, confirm: &str) -> Self {
+        self.destructive = true;
+        self.confirm = Some(confirm.to_string());
+        self
+    }
+
+    /// `DELETE` instead of `POST`.
+    pub fn method(mut self, method: &str) -> Self {
+        self.method = method.to_string();
+        self
+    }
+
+    pub fn busy_label(mut self, label: &str) -> Self {
+        self.busy_label = Some(label.to_string());
+        self
+    }
+
+    /// What the template renders: the route with `{id}` filled in and a
+    /// confirm phrase whenever the action is destructive. The route is
+    /// attribute-escaped here and rendered `|safe`, because minijinja's
+    /// auto-escape turns every `/` into `&#x2f;` — correct for a browser,
+    /// unreadable for a person and for a consumer's test that asserts
+    /// `data-post="/sources/<id>/sync"`.
+    fn view(&self, id: Option<&str>) -> serde_json::Value {
+        let route = match id {
+            Some(id) => self.route.replace("{id}", id),
+            None => self.route.clone(),
+        };
+        let route = attr_escape(&route);
+        let confirm = if self.destructive {
+            Some(
+                self.confirm
+                    .clone()
+                    .unwrap_or_else(|| DEFAULT_CONFIRM.to_string()),
+            )
+        } else {
+            None
+        };
+        serde_json::json!({
+            "label": self.label,
+            "route": route,
+            "method": self.method,
+            "destructive": self.destructive,
+            "confirm": confirm,
+            "busy_label": self.busy_label,
+        })
+    }
 }
 
 /// An extra column on the clients table (K16). `cell` returns HTML the
@@ -213,6 +367,11 @@ pub struct Dashboard {
     pub sections: Arc<Vec<Arc<dyn StatusSection>>>,
     pub columns: Arc<Vec<Arc<dyn ClientColumn>>>,
     pub form_fields: Arc<Vec<ClientFormField>>,
+    /// K29: the project's buttons on every active client row, in
+    /// registration order.
+    pub client_actions: Arc<Vec<ClientAction>>,
+    /// K28: what this service calls a client.
+    pub vocab: Vocabulary,
     pub problems: Arc<dyn Fn() -> Vec<Problem> + Send + Sync>,
     pub update: Arc<dyn Fn() -> UpdateView + Send + Sync>,
     pub health: Health,
@@ -291,6 +450,9 @@ impl Dashboard {
         env.add_global("nav", minijinja::Value::from_serialize(&kit_nav));
         env.add_global("chassis_version", crate::VERSION);
         env.add_global("kp_themes_version", KP_THEMES_VERSION);
+        env.add_global("clients_label", clients_label.clone());
+        let vocab = Vocabulary::default();
+        env.add_global("vocab", minijinja::Value::from_serialize(&vocab));
         Ok(Self {
             app_name,
             version,
@@ -309,6 +471,8 @@ impl Dashboard {
             sections: Arc::new(sections),
             columns: Arc::new(columns),
             form_fields: Arc::new(form_fields),
+            client_actions: Arc::new(Vec::new()),
+            vocab,
             problems,
             update,
             health,
@@ -317,6 +481,22 @@ impl Dashboard {
             open,
             env: Arc::new(env),
         })
+    }
+
+    /// K28: what this service calls a client, for every template
+    /// (`vocab.singular`, `vocab.plural`, `vocab.singular_cap`,
+    /// `vocab.plural_cap`) and for the clients API's messages. Set once at
+    /// mount, before any handler holds a clone.
+    pub fn with_vocabulary(mut self, vocab: Vocabulary) -> Self {
+        Arc::make_mut(&mut self.env).add_global("vocab", minijinja::Value::from_serialize(&vocab));
+        self.vocab = vocab;
+        self
+    }
+
+    /// K29: the project's buttons on every active client row.
+    pub fn with_client_actions(mut self, actions: Vec<ClientAction>) -> Self {
+        self.client_actions = Arc::new(actions);
+        self
     }
 
     /// Render a project's own page inside the kit's layout (K16): the
@@ -452,10 +632,27 @@ pub async fn login_post(
     }
 }
 
+/// A `Section` as the template sees it: the project's fields plus its
+/// actions (K29). Kept apart from `Section` because projects build that
+/// one as a struct literal, so a new field there would break them.
+#[derive(Serialize)]
+struct SectionView {
+    #[serde(flatten)]
+    section: Section,
+    actions: Vec<serde_json::Value>,
+}
+
 /// `GET /` — the status page (K17).
 pub async fn status_page(State(d): State<Dashboard>) -> Result<Html<String>, Error> {
     let health = d.health.report().await;
-    let sections: Vec<Section> = d.sections.iter().map(|s| s.render()).collect();
+    let sections: Vec<SectionView> = d
+        .sections
+        .iter()
+        .map(|s| SectionView {
+            section: s.render(),
+            actions: s.actions().iter().map(|a| a.view(None)).collect(),
+        })
+        .collect();
     let problems = (d.problems)();
     let update = (d.update)();
     d.render(
@@ -479,6 +676,10 @@ struct ClientRow {
     #[serde(flatten)]
     view: ClientView,
     extra: Vec<String>,
+    /// K29: the project's buttons, routes with this client's id filled in.
+    /// Empty on a revoked row — an action on a client that no longer has a
+    /// token has nothing to act on.
+    actions: Vec<serde_json::Value>,
 }
 
 /// `GET /clients` — the clients page (K12, K13, K14).
@@ -490,7 +691,19 @@ pub async fn clients_page(State(d): State<Dashboard>) -> Result<Html<String>, Er
         .map(|c| {
             let view = ClientView::from(c);
             let extra = d.columns.iter().map(|col| col.cell(&view)).collect();
-            ClientRow { view, extra }
+            let actions = if view.active {
+                d.client_actions
+                    .iter()
+                    .map(|a| a.view(Some(&view.id)))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            ClientRow {
+                view,
+                extra,
+                actions,
+            }
         })
         .collect();
     let columns: Vec<serde_json::Value> = d
@@ -503,7 +716,6 @@ pub async fn clients_page(State(d): State<Dashboard>) -> Result<Html<String>, Er
         context! {
             logged_in => true,
             active_nav => "/clients",
-            clients_label => d.clients_label,
             clients => rows,
             extra_columns => columns,
             form_fields => d.form_fields.iter().map(|f| f.view()).collect::<Vec<_>>(),

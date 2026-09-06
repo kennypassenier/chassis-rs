@@ -30,7 +30,10 @@ pub use core::error::{Error, IntoKitError, Kind};
 #[cfg(feature = "dashboard")]
 pub use shell::auth::Caller;
 #[cfg(feature = "dashboard")]
-pub use shell::dashboard::{ClientColumn, Dashboard, NavEntry, Problem, Section, StatusSection};
+pub use shell::dashboard::{
+    Action, ClientAction, ClientColumn, Dashboard, NavEntry, Problem, Section, SectionAction,
+    StatusSection, Vocabulary,
+};
 pub use shell::health::{Subsystem, SubsystemStatus};
 pub use shell::metrics::ScrapeSource;
 #[cfg(feature = "self-update")]

@@ -55,7 +55,10 @@ behind a nav entry.
 | `status_section(impl StatusSection)` | `fn render(&self) -> Section` with `title`, `explain`, `rows: Vec<(String, String)>` (rendered escaped) and optional `html` (rendered raw: you vouch for it). | Status page, under the kit's cards. |
 | `client_column(impl ClientColumn)` | `fn title(&self) -> String` and `fn cell(&self, client: &ClientView) -> String`. The cell is **raw HTML**; escape it yourself. | An extra column on every client row. |
 | `problems(Fn() -> Vec<Problem>)` | `Problem { what, why, remedy }` for configuration the service saw but cannot use. | The Problems card, merged with the kit's own entries (e.g. untrusted proxy headers). |
-| `clients_label(label)` | The page title and nav label (Almanac would say `Sources`). URL and code stay `/clients`. | Nav and the Clients page heading. |
+| `clients_label(label)` | The page title and nav label (Almanac would say `Sources`). URL and code stay `/clients`. Without it the heading is the vocabulary's capitalised plural. | Nav and the Clients page heading. |
+| `vocabulary(singular, plural)` | What this service calls a client, lower case (`"source", "sources"`). Every kit sentence and every clients-API refusal uses it; URLs, JSON, cookies, metrics and logs do not (K28, 1.8.0). | Every page, the API's error messages. |
+| `client_action(ClientAction)` | A button on every active client row that POSTs (or DELETEs) to a project route; `{id}` in the route becomes the client's id (K29, 1.8.0). | The actions cell of the Clients page. |
+| `StatusSection::actions()` | Buttons under a status section, same shape (`SectionAction`), a default method so existing sections need nothing (K29, 1.8.0). | Under the section's rows on `/`. |
 | `test_route(method, path, content_type, body)` | Where **Send test** posts, with what body. Without it the button is absent. | Clients page rows; the `command` string of Reveal. |
 
 `Dashboard::render_project(active_nav, source, ctx)` renders a project
@@ -216,10 +219,13 @@ How the two controls behave, per `crates/chassis/static/chassis.js`:
 - **Sync now** carries `data-post`, which chassis.js drives: on click
   the button gets `aria-busy="true"`, is disabled, and shows its
   `data-busy-label` (`Syncing…`) until the `fetch` POST returns; a 2xx
-  reloads the page, anything else flashes the response's `remedy` on the
-  button for three seconds. Add `data-method="DELETE"` for a delete, and
-  `data-kp-destructive data-kp-confirm="…"` to make it arm on the first
-  click and act on the second (kp-themes' `attachConfirmations`).
+  reloads the page, anything else shows the response's `error` and
+  `remedy` on the button for five seconds. Add `data-method="DELETE"` for
+  a delete, and `data-kp-destructive data-kp-confirm="…"` to make it arm
+  on the first click and act on the second (kp-themes'
+  `attachConfirmations`). On the kit's own Clients page the same button
+  needs no template at all: register a `ClientAction` (see "Actions"
+  below) and the kit renders it on every source's row.
 
 Two things the scaffold's `Cargo.toml` does not enable and this example
 needs: axum's `form` feature (for `Form`) and `serde` with `derive`.
@@ -243,6 +249,145 @@ the page shows the kit's error with your remedy. A duplicate name is refused
 before the issue hook runs. `POST /api/clients` takes
 the fields as extra JSON keys next to `name`; the page's form sends every
 control it has.
+
+## Vocabulary (K28, 1.8.0)
+
+Almanac's clients are sources; kyu's are callers; the kit's word for them
+is `client`, and until 1.7 every sentence on the Clients page said so,
+under a heading `clients_label` had renamed to "Sources". One call fixes
+the words everywhere:
+
+```rust
+app.vocabulary("source", "sources");
+```
+
+Every kit sentence that names the thing now uses it: the explain
+paragraphs ("Every source listed here is one program that calls this
+service, with its own token…"), the "Add a source" card, "No sources yet.
+Add one above.", the Delete button's confirm phrase ("Delete this source
+and its history?"), the login page's aside about API callers, and every
+refusal from the clients API (`a source named `job-tracker` already has
+a token`, `no source with id …`, `source … is revoked; it has no token`).
+The heading and nav label default to the capitalised plural, `Sources`,
+so `clients_label` is only needed when the page should be called
+something the vocabulary is not (`clients_label("Feeds")` with
+`vocabulary("source", "sources")` gives a Feeds page whose sentences say
+source). Without a vocabulary everything reads as before: `client`,
+`clients`, `Clients`.
+
+Vocabulary is presentation only. `/clients`, `/api/clients/{id}/…`, the
+JSON keys, the cookie name, the metric names and the log fields keep
+saying `client` — a monitoring query or a curl line written against 1.7
+still works.
+
+Every template sees `vocab.singular`, `vocab.plural`,
+`vocab.singular_cap`, `vocab.plural_cap` and `clients_label` as globals,
+so a project page rendered with `render_project` can use the same words:
+`<p class="explain">Each {{ vocab.singular }} writes into one calendar.</p>`.
+
+Proven by `tests/vocabulary_and_actions.rs`:
+`k28_the_pages_speak_the_vocabulary_and_never_say_client` (login, empty
+and filled Clients page and status page, visible text stripped of tags,
+no whole word `client`/`clients` left; API paths unchanged),
+`k28_without_vocabulary_the_pages_still_say_client`,
+`k28_clients_label_still_names_the_page_when_set`,
+`k28_api_refusals_speak_the_vocabulary`.
+
+## Actions (K29, 1.8.0)
+
+A project's button on a kit page, without a page of its own. Two places:
+a client's row, and a status section. Both use one type, `chassis::Action`,
+under the names `ClientAction` and `SectionAction`:
+
+```rust
+pub struct Action {
+    pub label: String,
+    pub route: String,        // the project's own, `{id}` allowed on a row
+    pub method: String,       // "POST" (default) or "DELETE"
+    pub destructive: bool,
+    pub confirm: Option<String>,
+    pub busy_label: Option<String>,
+}
+Action::post(label, route)   // then .destructive(confirm) .method("DELETE") .busy_label("…")
+```
+
+**Row actions.** Almanac's "Sync now" on a source:
+
+```rust
+app.client_action(ClientAction::post("Sync now", "/sources/{id}/sync").busy_label("Syncing…"));
+app.client_action(
+    ClientAction::post("Purge events", "/sources/{id}/events")
+        .method("DELETE")
+        .destructive("Purge every event of this source?"),
+);
+app.dashboard_routes(
+    Router::new()
+        .route("/sources/{id}/sync", post(sync_now))
+        .route("/sources/{id}/events", delete(purge_events))
+        .with_state(sources),
+);
+```
+
+The kit renders one button per registered action on every **active** row
+(a revoked source has nothing to sync), in registration order, in the
+actions cell next to Re-issue and Revoke, with `{id}` replaced by the
+row's client id:
+
+```html
+<button type="button" class="kp-button" data-post="/sources/3f1…/sync" data-method="POST" data-busy-label="Syncing…">Sync now</button>
+<button type="button" class="kp-button kp-button--destructive" data-post="/sources/3f1…/events" data-method="DELETE" data-kp-destructive data-kp-confirm="Purge every event of this source?">Purge events</button>
+```
+
+**Section actions.** Almanac's stand-alone "Reload profiles from disk"
+form becomes a button under its Profiles section: implement the trait's
+`actions` method (a default method, so a section without buttons changes
+nothing):
+
+```rust
+impl StatusSection for Profiles {
+    fn render(&self) -> Section { /* as before */ }
+    fn actions(&self) -> Vec<SectionAction> {
+        vec![SectionAction::post("Reload profiles from disk", "/calendars/reload").busy_label("Reloading…")]
+    }
+}
+// and the route, behind the admin login like every dashboard route:
+app.dashboard_routes(Router::new().route("/calendars/reload", post(reload_profiles)).with_state(profiles));
+```
+
+On `/` the buttons render in one `<div class="actions section-actions">`
+under the section's rows (and its `html`, if any); a section whose
+`actions` is empty renders no block at all.
+
+**What the button does** is the kit's `[data-post]` mechanism, the same
+one behind Re-issue, Revoke and Delete (`crates/chassis/static/chassis.js`):
+on click the button gets `aria-busy="true"`, is disabled and shows its
+`busy_label` (rule 31); the fetch sends the method to the route with the
+session cookie and `Accept: application/json`; a 2xx reloads the page; a
+refusal shows the response's `error` and `remedy` on the button for five
+seconds. A destructive action carries `data-kp-destructive` and
+`data-kp-confirm="…"`, so kp-themes' `attachConfirmations` turns the first
+click into the confirm phrase and lets only the second through; a
+destructive action registered without a phrase gets `Are you sure? This
+cannot be undone.` (kp-themes refuses a destructive control without a
+confirm or an undo).
+
+Your route is an ordinary `dashboard_routes` handler: return
+`StatusCode::NO_CONTENT` (or any 2xx) to reload, or a `chassis::Error`
+to refuse — its `error` and `remedy` are what the person sees. Found while
+wiring this and fixed in chassis.js: a remedy flashed on a `[data-post]`
+button during its busy spell was overwritten the same tick by the busy
+restore, so no refusal on Re-issue, Revoke or Delete had ever been
+visible; the flash now outlives the busy spell.
+
+Proven by `tests/vocabulary_and_actions.rs`:
+`k29_row_actions_render_on_active_rows_and_post_to_the_project_route`
+(both buttons on the active row with the id filled in, in order, none on
+the revoked row, the destructive attributes, a 204 from the project's
+route with the cookie, a refusal as JSON with `remedy`, 303 without the
+cookie) and `k29_section_actions_render_under_the_section_and_none_without`
+(one block for the one section with actions, placed between its heading
+and the next); and inbox's "Clear messages" section action in
+`dashboard_pages_render_with_layout_and_assets`.
 
 ## What the kit guarantees around a project page
 

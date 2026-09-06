@@ -5,12 +5,17 @@
 //! All routes sit behind `require_admin`. The token itself appears in
 //! exactly one response: `GET /clients/{id}/token`, fetched by the reveal
 //! and copy buttons on click (K12) — never in the list.
+//!
+//! K28: every refusal names the thing in the project's vocabulary
+//! (`source` for Almanac), which arrives as an axum `Extension` set at
+//! mount — the store underneath keeps saying `client`, and its own guards
+//! only speak when a request races past the checks here.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
@@ -18,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use crate::core::clients::{Client, TOKEN_BYTES};
 use crate::core::error::{Error, Kind};
 use crate::shell::captures::Captures;
+use crate::shell::dashboard::Vocabulary;
 use crate::shell::store::Clients;
 use crate::shell::time::{now_rfc3339, random_hex};
 
@@ -45,6 +51,37 @@ impl From<&Client> for ClientView {
             uses: c.uses,
         }
     }
+}
+
+/// The client `id` names, or the refusal in the project's words (K28);
+/// with `active` a revoked row is refused too. The store's own guards
+/// stay underneath for a request that races a delete.
+fn lookup(api: &ClientsApi, vocab: &Vocabulary, id: &str, active: bool) -> Result<Client, Error> {
+    let snap = api.clients.snapshot();
+    let client = snap.get(id).cloned().ok_or_else(|| {
+        Error::new(
+            Kind::NotFound,
+            format!("no {} with id {id}", vocab.singular),
+            format!(
+                "the list on the {} page is current; the id may have been deleted",
+                vocab.plural
+            ),
+        )
+    })?;
+    if active && client.revoked_at.is_some() {
+        return Err(revoked(vocab, id));
+    }
+    Ok(client)
+}
+
+fn revoked(vocab: &Vocabulary, id: &str) -> Error {
+    Error::invalid(
+        format!("{} {id} is revoked; it has no token", vocab.singular),
+        format!(
+            "issue a new {} with that name instead; a revoked row is history",
+            vocab.singular
+        ),
+    )
 }
 
 /// What the test button needs to know (K14): where to send, and with
@@ -92,28 +129,40 @@ pub async fn list(State(api): State<ClientsApi>) -> Json<Vec<ClientView>> {
 
 pub async fn issue(
     State(api): State<ClientsApi>,
+    Extension(vocab): Extension<Vocabulary>,
     Json(form): Json<IssueForm>,
 ) -> Result<Response, Error> {
     let id = uuid::Uuid::new_v4().to_string();
     let token = random_hex(TOKEN_BYTES)?;
     let now = now_rfc3339();
     let name = form.name.clone();
+    // Checked here, before the store and before the project's hook: the
+    // hook must not see a name the store would refuse, and the refusal
+    // must speak the project's vocabulary.
+    crate::core::clients::validate_name(&name).map_err(|e| {
+        Error::invalid(
+            format!("{} name `{name}` is not allowed", vocab.singular),
+            e.remedy,
+        )
+    })?;
+    if api
+        .clients
+        .snapshot()
+        .clients
+        .iter()
+        .any(|c| c.name == name && c.token.is_some())
+    {
+        return Err(Error::invalid(
+            format!("a {} named `{name}` already has a token", vocab.singular),
+            format!(
+                "re-issue that {}'s token instead, or revoke it first to free the name",
+                vocab.singular
+            ),
+        ));
+    }
     // The project's hook runs before the token exists, so a refusal issues
-    // nothing — and it must not see a name the store would refuse anyway.
+    // nothing.
     if let Some(hook) = &api.on_issued {
-        crate::core::clients::validate_name(&name)?;
-        if api
-            .clients
-            .snapshot()
-            .clients
-            .iter()
-            .any(|c| c.name == name && c.token.is_some())
-        {
-            return Err(Error::invalid(
-                format!("a client named `{name}` already has a token"),
-                "re-issue that client's token instead, or revoke it first to free the name",
-            ));
-        }
         let provisional = ClientView {
             id: id.clone(),
             name: name.clone(),
@@ -134,8 +183,10 @@ pub async fn issue(
 
 pub async fn reissue(
     State(api): State<ClientsApi>,
+    Extension(vocab): Extension<Vocabulary>,
     Path(id): Path<String>,
 ) -> Result<Json<ClientView>, Error> {
+    lookup(&api, &vocab, &id, true)?;
     let token = random_hex(TOKEN_BYTES)?;
     let now = now_rfc3339();
     let client = api
@@ -147,8 +198,10 @@ pub async fn reissue(
 
 pub async fn revoke(
     State(api): State<ClientsApi>,
+    Extension(vocab): Extension<Vocabulary>,
     Path(id): Path<String>,
 ) -> Result<Json<ClientView>, Error> {
+    lookup(&api, &vocab, &id, true)?;
     let now = now_rfc3339();
     let client = api.clients.update(&mut |f| f.revoke(&id, &now).cloned())?;
     tracing::info!(client = %client.name, id = %client.id, "client token revoked");
@@ -157,18 +210,12 @@ pub async fn revoke(
 
 pub async fn delete(
     State(api): State<ClientsApi>,
+    Extension(vocab): Extension<Vocabulary>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, Error> {
+    let client = lookup(&api, &vocab, &id, false)?;
     if let Some(hook) = &api.on_deleted {
-        let snap = api.clients.snapshot();
-        let Some(client) = snap.clients.iter().find(|c| c.id == id) else {
-            return Err(Error::new(
-                crate::core::error::Kind::NotFound,
-                format!("no client with id {id}"),
-                "the list on the clients page is current",
-            ));
-        };
-        hook(&ClientView::from(client))?;
+        hook(&ClientView::from(&client))?;
     }
     let client = api.clients.update(&mut |f| f.delete(&id))?;
     api.captures.forget(&id);
@@ -186,22 +233,11 @@ pub struct TokenReveal {
 /// The one place the token leaves the store (K12).
 pub async fn reveal(
     State(api): State<ClientsApi>,
+    Extension(vocab): Extension<Vocabulary>,
     Path(id): Path<String>,
 ) -> Result<Json<TokenReveal>, Error> {
-    let snap = api.clients.snapshot();
-    let client = snap.get(&id).ok_or_else(|| {
-        Error::new(
-            Kind::NotFound,
-            format!("no client with id {id}"),
-            "list the clients on /clients",
-        )
-    })?;
-    let token = client.token.clone().ok_or_else(|| {
-        Error::invalid(
-            format!("client `{}` is revoked; it has no token", client.name),
-            "issue a new client instead",
-        )
-    })?;
+    let client = lookup(&api, &vocab, &id, true)?;
+    let token = client.token.clone().ok_or_else(|| revoked(&vocab, &id))?;
     let path = api
         .test_route
         .as_ref()
@@ -232,6 +268,7 @@ pub struct TestResult {
 /// test route (K14). Never leaves the process: it targets our own address.
 pub async fn send_test(
     State(api): State<ClientsApi>,
+    Extension(vocab): Extension<Vocabulary>,
     Path(id): Path<String>,
 ) -> Result<Json<TestResult>, Error> {
     let route = api.test_route.as_ref().ok_or_else(|| {
@@ -240,14 +277,9 @@ pub async fn send_test(
             "the project can register one with App::test_route",
         )
     })?;
-    let snap = api.clients.snapshot();
-    let token = snap.get(&id).and_then(|c| c.token.clone()).ok_or_else(|| {
-        Error::new(
-            Kind::NotFound,
-            format!("no active client {id}"),
-            "issue or re-issue first",
-        )
-    })?;
+    let token = lookup(&api, &vocab, &id, true)?
+        .token
+        .ok_or_else(|| revoked(&vocab, &id))?;
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()

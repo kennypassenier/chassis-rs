@@ -567,6 +567,16 @@ fn dashboard_pages_render_with_layout_and_assets() {
     );
     assert!(html.contains("aria-current=\"page\""), "active nav entry");
     assert!(html.contains("Log out"));
+    // K29: the project's section action is a button under its section, and
+    // its route answers the admin session. Drilled red once by removing the
+    // `actions` override in main.rs (the button vanished).
+    assert!(
+        html.contains("data-post=\"/messages/clear\"")
+            && html.contains("data-kp-confirm=\"Clear every message?"),
+        "the section action (K29): {html}"
+    );
+    let res = http.post(format!("{base}/messages/clear")).send().unwrap();
+    assert_eq!(res.status(), 204);
 
     // Clients page: issue one via the API, then the row carries the buttons.
     http.post(format!("{base}/api/clients"))

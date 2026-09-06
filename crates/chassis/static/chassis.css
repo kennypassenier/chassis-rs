@@ -66,6 +66,8 @@ pre.snippet {
 .requests pre { margin: 0; max-height: 12rem; overflow: auto; }
 .actions { display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap; }
 .actions form { margin: 0; }
+/* K29: a project's buttons under a status section sit with the text, not at the right edge. */
+.section-actions { justify-content: flex-start; margin: 0.75rem 0 1.5rem; }
 
 /* rule 31: a button that started something slow says so. */
 button[aria-busy="true"] { opacity: 0.7; cursor: progress; }

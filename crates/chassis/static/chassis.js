@@ -55,11 +55,26 @@ function copyText(text) {
   return Promise.resolve(copyLegacy(text));
 }
 
+// The label a button goes back to after a busy spell or a flash. Saved
+// on the button the first time either needs it; the reveal button moves
+// it between Reveal and Hide itself.
+function restLabel(button) {
+  if (button.dataset.label === undefined) button.dataset.label = button.textContent;
+  return button.dataset.label;
+}
+
+// Show a message on the button for a moment, then its rest label. Safe to
+// call from inside `busy`: the flash outlives the busy spell (K29, found
+// while wiring project actions — a remedy flashed during `busy` was
+// overwritten the same tick by busy's own restore, so no [data-post]
+// refusal was ever visible, and the button then came back wearing its
+// busy label).
 function flash(button, message, ms = 1500) {
-  const original = button.dataset.label || button.textContent;
-  button.dataset.label = original;
+  restLabel(button);
   button.textContent = message;
-  window.setTimeout(() => {
+  window.clearTimeout(button.flashTimer);
+  button.flashTimer = window.setTimeout(() => {
+    button.flashTimer = 0;
     button.textContent = button.dataset.label;
   }, ms);
 }
@@ -68,7 +83,7 @@ function flash(button, message, ms = 1500) {
 // cannot become a second action.
 async function busy(button, work) {
   if (button.getAttribute('aria-busy') === 'true') return;
-  const label = button.textContent;
+  restLabel(button);
   button.setAttribute('aria-busy', 'true');
   button.disabled = true;
   button.textContent = button.dataset.busyLabel || 'Working…';
@@ -77,8 +92,17 @@ async function busy(button, work) {
   } finally {
     button.removeAttribute('aria-busy');
     button.disabled = false;
-    button.textContent = label;
+    // A flash raised by `work` stays on screen; the timer restores the label.
+    if (!button.flashTimer) button.textContent = button.dataset.label;
   }
+}
+
+// The one line a refusal becomes on a button: the kit's error and its
+// remedy when the body carries them (project routes answer the same shape
+// through chassis::Error), the bare status otherwise.
+function refusal(res, body) {
+  if (body.error && body.remedy) return `${body.error}. ${body.remedy}`;
+  return body.remedy || body.error || `HTTP ${res.status}`;
 }
 
 async function fetchToken(id) {
@@ -160,7 +184,7 @@ document.addEventListener('click', (event) => {
     busy(test, async () => {
       const res = await fetch(`/api/clients/${id}/test`, { method: 'POST', headers: { accept: 'application/json' } });
       const body = await res.json().catch(() => ({}));
-      flash(test, res.ok ? `Sent → ${body.status}` : body.remedy || `HTTP ${res.status}`, 3000);
+      flash(test, res.ok ? `Sent → ${body.status}` : refusal(res, body), 3000);
       const panel = document.getElementById(`requests-${id}`);
       if (panel && !panel.hidden) await loadRequests(id, panel);
     });
@@ -185,6 +209,8 @@ document.addEventListener('click', (event) => {
   const post = event.target.closest('[data-post]');
   // Destructive buttons carry data-kp-confirm; components.js arms them on
   // the first click and lets the second through, which is the click we see.
+  // The same path serves the kit's own buttons and a project's row or
+  // section actions (K29): the route is whatever data-post says.
   if (post && !post.hasAttribute('data-kp-armed-pending')) {
     busy(post, async () => {
       const res = await fetch(post.dataset.post, { method: post.dataset.method || 'POST', headers: { accept: 'application/json' } });
@@ -192,7 +218,7 @@ document.addEventListener('click', (event) => {
         window.location.reload();
       } else {
         const body = await res.json().catch(() => ({}));
-        flash(post, body.remedy || `HTTP ${res.status}`, 3000);
+        flash(post, refusal(res, body), 5000);
       }
     });
   }

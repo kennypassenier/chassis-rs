@@ -185,12 +185,18 @@ pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
     let update = registry
         .update
         .unwrap_or_else(|| Arc::new(UpdateView::default));
+    // K28: an explicit label wins; otherwise the page is named after the
+    // vocabulary ("Sources"), which is "Clients" by default.
+    let vocab = registry.vocabulary.unwrap_or_default();
+    let clients_label = registry
+        .clients_label
+        .or_else(|| Some(vocab.plural_cap.clone()));
     let dash = Dashboard::new(
         spec.name,
         spec.version,
         prefix.clone(),
         addr.to_string(),
-        registry.clients_label,
+        clients_label,
         crate::shell::time::reveal_seconds(loaded),
         limits.capture_body_bytes,
         limits.capture_ttl.as_secs() / 60,
@@ -208,7 +214,9 @@ pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
         clients,
         auth.clone(),
         open,
-    )?;
+    )?
+    .with_vocabulary(vocab.clone())
+    .with_client_actions(registry.client_actions);
 
     let pages_public = Router::new()
         .route("/login", get(dashboard::login_get))
@@ -240,6 +248,8 @@ pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
         .route("/api/clients/{id}/requests", get(clients_api::requests))
         .route("/api/clients/{id}/test", post(clients_api::send_test))
         .with_state(api)
+        // K28: the handlers word their refusals in the project's vocabulary.
+        .layer(axum::Extension(vocab))
         .layer(from_fn_with_state(auth.clone(), require_admin));
 
     #[cfg(feature = "passkeys")]
