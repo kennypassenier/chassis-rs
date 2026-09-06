@@ -690,6 +690,23 @@ fn passkeys_exist_only_over_https_from_a_trusted_proxy() {
         start["options"]["publicKey"]["rp"]["id"],
         "inbox.example.lan"
     );
+    // S6 (1.4.0): the public ceremony start sits behind the /login IP
+    // limiter — a burst from one address is answered 429 before it can
+    // fill anyone's share of the ceremony table. Last in this test on
+    // purpose: the limiter is per IP and shared with /login above.
+    let mut statuses = Vec::new();
+    for _ in 0..15 {
+        let res = http
+            .post(format!("{base2}/passkeys/login/start"))
+            .header("x-forwarded-proto", "https")
+            .send()
+            .unwrap();
+        statuses.push(res.status().as_u16());
+    }
+    assert!(
+        statuses.contains(&429),
+        "a burst of ceremony starts must hit the IP limiter: {statuses:?}"
+    );
     let page = admin
         .get(format!("{base2}/passkeys"))
         .header("x-forwarded-proto", "https")

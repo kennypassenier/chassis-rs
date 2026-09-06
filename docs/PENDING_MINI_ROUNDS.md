@@ -112,6 +112,58 @@ CF-5: all nine fields **Klopt** — both correction forms are closed; their
 measurements are queued below (CF-4 at the Phase 10 retro form, CF-5 at the
 next kit release). Phase 9 is closed; Phase 10 (retrospective) starts.
 
+## Closing form after Phase 10 — answered 2026-09-06 (01:50)
+
+**S6 Dichten**, **A2 Opnemen** (Almanac step 2, handover below), **A3
+Opnemen** (kit 1.4.0: `update_notify_after_failures`), **A4 "Claude merget
+drie nu, kyu wacht op stap 2"**. Kit 1.4.0 therefore carries S6 + A3 and
+is the CF-5 measurement release. Before the merges, CI on two branch heads
+turned out red (found by the fresh CI check A4 asked for, before any merge):
+kyu-runner's cargo-deny refused the git source of the kit, two licenses its
+rustls stack brings, and the version-less git dependency; http-switchboard's
+container smoke test found the config under `/etc` while the kit looked in
+`/var/lib`. Both fixed on the branches, through their gates, before the
+fast-forwards.
+
+### A2 · handover for the Almanac step-2 session (kit dashboard)
+
+Almanac takes the kit's dashboard as a second migration step, in a session
+opened in `~/Projects/almanac`. What that session needs, without this
+conversation:
+
+- Branch `chassis-migration` is at 3.0.0 on kit `v1.4.0` after this
+  session's bump; `main` is fast-forwarded to it (A4).
+- Read `docs/MIGRATION.md` §§4–6 in chassis-rs first: the `/` ownership
+  rule, assembling `main.rs` with `dashboard_routes`, and `ClientStore` for
+  a project that keeps its own client table — Almanac's per-source ingest
+  tokens live in `tokens.json` (sealed, XChaCha20) together with sessions;
+  a `ClientStore` over that store avoids re-issuing every source's token
+  (the alternative, `clients.json.enc`, means every source on the LAN
+  reconfigures). **That choice is a form item for Kenny in that session.**
+- Enable the `dashboard` feature. Collisions: Almanac's `/` (303),
+  `/login`, `/logout`, nine explicit `/static/*` routes and `/dashboard/*`
+  → kit-owned `/`, `/login`, `/logout`, `/static/*`; `/dashboard/sources`
+  is the kit's `/clients` (`clients_label("Sources")`); `/dashboard`,
+  `/dashboard/calendars`, `/dashboard/captures` become `dashboard_routes`
+  project pages in minijinja (the current pages are Rust string-built
+  Bootstrap HTML, 1 600 lines — a rewrite, not a port); `bootstrap.min.css`
+  and `theme-bridge.css` go away with it (kit layout + kp-themes).
+- Auth: `ALMANAC_BOOTSTRAP_TOKEN` (login AND admin bearer) splits into the
+  kit's `ALMANAC_TOKEN` (login) and client tokens; the admin endpoints
+  (`/v1/debug/*`) decide whether they take the login token as bearer (the
+  kit allows it) or a client token. `ALMANAC_SECRET_KEY` maps 1:1. The
+  capture-only token (S2) and `POST /v1/debug/capture/{label}` have no kit
+  equivalent — keep them as project routes under the kit's client-token
+  layer or as a public route with the own check; decide in that session.
+- Tests to expect red: `tests/dashboard_http.rs` (49, asserts Bootstrap
+  markup and the nine static routes), `tests/admin_http.rs` bearer shapes;
+  `tests/ingest_http.rs` should stay green.
+- FEATURES M12 (dashboard as built) and M11 (capture endpoint) need dated
+  amendments in the same commit; the ECOSYSTEM entry's "How to integrate"
+  (source id + token from the dashboard) stays true.
+- The update notifications are wired via `on_update_event` (D-A1); the kit
+  dashboard's update card then shows the same events.
+
 ## Correction forms CF-4 and CF-5 — ratified 2026-09-06, all fields Klopt
 
 ### CF-4 · a Dutch coinage slipped through the lint ("pomplussen") — **ratified, measurement open**

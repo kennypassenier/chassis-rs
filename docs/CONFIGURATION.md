@@ -137,6 +137,9 @@ the parser accepts; below it is a configuration error naming the knob.
 | `capture_redact` | `` | — | Extra header names shown as `***`; `authorization`, `cookie`, `set-cookie`, `x-api-key` always are. |
 | `clients_persist_secs` | `30` | 1 | How often `last_used_at`/`uses` are written to disk (also at shutdown). |
 | `reveal_seconds` | `10` | — | How long the Reveal button shows a token in the browser. Not validated; unparsable values fall back to 10. |
+| `passkey_ceremony_cap` | `64` | 1 | Pending passkey ceremonies kept in memory; at the cap the oldest makes room (S6, 1.4.0 — until then the table refused). |
+| `passkey_ceremony_ttl_secs` | `300` | 1 | A started ceremony must finish within this; expired ones are swept. |
+| `passkey_ceremonies_per_ip` | `8` | 1 | One client IP's share of the table; at its share its own oldest goes, nobody else's. The `/login` IP limiter (`rate_limit_login_*`) also covers `/passkeys/login/*`. |
 | `public_url` | — | — | The `https://` origin the dashboard is reached at; required at `--check`/start when `passkeys` is compiled in. |
 
 ### Self-update (K18–K21; read only with the `self-update` feature)
@@ -159,6 +162,7 @@ the parser accepts; below it is a configuration error naming the knob.
 | `update_pubkey` | compiled-in key | — | A minisign public key (base64 line) replacing the ecosystem key. Refused if not a minisign key; logged and shown on the card when set. |
 | `update_allow_insecure` | `false` | — | Allow an `http://` release host. `true/false/1/0/yes/no/on/off`. |
 | `update_max_download_bytes` | `268435456` | 1 | An asset above this is refused before it is read in full. |
+| `update_notify_after_failures` | `3` | 1 | `update.failed` is emitted once, on the N-th consecutive failed release check (unreachable host, refused signature, bad hash), and `update.ok` once when checks succeed again — not every interval (A3, 1.4.0; Almanac's AR24). `1` reports every first failure. |
 
 ### Notifications (K22; read only with the `notify` feature)
 

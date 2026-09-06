@@ -150,6 +150,10 @@ impl AppSpec {
             k("reveal_seconds", Some("10")),
             // K9 — the https origin the dashboard is reached at (passkeys)
             k("public_url", None),
+            // S6 — the bounds on pending passkey ceremonies (1.4.0)
+            k("passkey_ceremony_cap", Some("64")),
+            k("passkey_ceremony_ttl_secs", Some("300")),
+            k("passkey_ceremonies_per_ip", Some("8")),
             // L5 — self-update (K18–K21)
             k("update_mode", Some("off")),
             k("update_url", None),
@@ -167,6 +171,8 @@ impl AppSpec {
             k("update_pubkey", None),
             k("update_allow_insecure", Some("false")),
             k("update_max_download_bytes", Some("268435456")),
+            // A3 (1.4.0) — say it once, after N consecutive failed checks
+            k("update_notify_after_failures", Some("3")),
             k("timeout_stop_secs", None),
             // L5 — notifications (K22)
             k("notify_timeout_secs", Some("10")),
@@ -223,6 +229,9 @@ pub struct Limits {
     pub capture_redact: Vec<String>,
     pub clients_persist: Duration,
     pub public_url: Option<String>,
+    pub passkey_ceremony_cap: usize,
+    pub passkey_ceremony_ttl: Duration,
+    pub passkey_ceremonies_per_ip: usize,
     pub update: UpdateKnobs,
     pub notify: NotifyKnobs,
 }
@@ -247,6 +256,9 @@ pub struct UpdateKnobs {
     pub pubkey: Option<String>,
     pub allow_insecure: bool,
     pub max_download_bytes: u64,
+    /// `update.failed` fires on the N-th consecutive failed check, once;
+    /// `update.ok` when checks succeed again (A3, 1.4.0).
+    pub notify_after_failures: u32,
 }
 
 /// The notifier knobs as parsed (AR3); used only with `notify`.
@@ -607,6 +619,13 @@ impl App {
                 .collect(),
             clients_persist: Duration::from_secs(parse_u64(&loaded, "clients_persist_secs", 1)?),
             public_url: loaded.get("public_url").map(|s| s.to_string()),
+            passkey_ceremony_cap: parse_u64(&loaded, "passkey_ceremony_cap", 1)? as usize,
+            passkey_ceremony_ttl: Duration::from_secs(parse_u64(
+                &loaded,
+                "passkey_ceremony_ttl_secs",
+                1,
+            )?),
+            passkey_ceremonies_per_ip: parse_u64(&loaded, "passkey_ceremonies_per_ip", 1)? as usize,
             update: UpdateKnobs {
                 mode: loaded.get("update_mode").unwrap_or("off").to_string(),
                 url: loaded.get("update_url").map(|s| s.to_string()),
@@ -643,6 +662,8 @@ impl App {
                     .filter(|s| !s.is_empty()),
                 allow_insecure: parse_bool(&loaded, "update_allow_insecure")?,
                 max_download_bytes: parse_u64(&loaded, "update_max_download_bytes", 1)?,
+                notify_after_failures: parse_u64(&loaded, "update_notify_after_failures", 1)?
+                    as u32,
             },
             notify: NotifyKnobs {
                 timeout: Duration::from_secs(parse_u64(&loaded, "notify_timeout_secs", 1)?),
@@ -880,6 +901,7 @@ impl App {
                 repo: self.spec.repository.map(|r| r.to_string()),
                 allow_insecure: k.allow_insecure,
                 max_download_bytes: k.max_download_bytes,
+                notify_after_failures: k.notify_after_failures,
                 copies_dir,
                 gate: self.update_gate.clone(),
             },
@@ -1597,6 +1619,9 @@ impl Limits {
             capture_redact: Vec::new(),
             clients_persist: Duration::from_secs(1),
             public_url: None,
+            passkey_ceremony_cap: 64,
+            passkey_ceremony_ttl: Duration::from_secs(300),
+            passkey_ceremonies_per_ip: 8,
             update: UpdateKnobs {
                 mode: "off".into(),
                 url: None,
@@ -1604,6 +1629,7 @@ impl Limits {
                 pubkey: None,
                 allow_insecure: false,
                 max_download_bytes: 268_435_456,
+                notify_after_failures: 3,
                 interval: Duration::from_secs(60),
                 startup_delay: Duration::from_secs(0),
                 healthy_after: Duration::from_secs(1),

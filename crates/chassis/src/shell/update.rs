@@ -75,6 +75,8 @@ pub type UpdateGate = Arc<dyn Fn() -> Option<String> + Send + Sync>;
 pub struct UpdateConfig {
     /// The project's veto on an autonomous check, if it registered one.
     pub gate: Option<UpdateGate>,
+    /// `update.failed` on the N-th consecutive failed check (A3, 1.4.0).
+    pub notify_after_failures: u32,
     pub mode: Mode,
     /// Base URL holding `VERSION`, `SHA256SUMS`, `SHA256SUMS.minisig` and the binary.
     pub url: String,
@@ -127,6 +129,21 @@ pub struct LastCheck {
     pub latest: Option<String>,
     pub outcome: Option<String>,
     pub error: Option<String>,
+    /// Failed checks in a row; drives the A3 threshold.
+    pub consecutive_failures: u32,
+}
+
+/// The A3 threshold (1.4.0, Almanac's AR24): a failed check is reported
+/// once, on the N-th in a row — not every six hours while a release host
+/// is down — and recovery is reported once. Pure, so the table is testable.
+pub fn failure_transition(before: u32, ok: bool, threshold: u32) -> (u32, Option<&'static str>) {
+    let threshold = threshold.max(1);
+    if ok {
+        (0, (before >= threshold).then_some("update.ok"))
+    } else {
+        let after = before.saturating_add(1);
+        (after, (after == threshold).then_some("update.failed"))
+    }
 }
 
 pub struct Updater {
@@ -335,21 +352,42 @@ impl Updater {
     /// decides what an `Installed` means in its mode.
     pub async fn check_once(&self) -> Result<Outcome, Error> {
         let result = self.check_inner().await;
-        let mut last = self.last.lock().expect("last lock");
-        last.at = Some(now_rfc3339());
-        match &result {
-            Ok(o) => {
-                last.error = None;
-                last.outcome = Some(format!("{o:?}"));
-                last.latest = match o {
-                    Outcome::Current { latest } | Outcome::Held { latest } => {
-                        Some(latest.to_string())
-                    }
-                    Outcome::Installed { to, .. } => Some(to.to_string()),
-                    Outcome::Blocked { .. } => last.latest.clone(),
-                };
+        let event = {
+            let mut last = self.last.lock().expect("last lock");
+            last.at = Some(now_rfc3339());
+            let (failures, kind) = failure_transition(
+                last.consecutive_failures,
+                result.is_ok(),
+                self.cfg.notify_after_failures,
+            );
+            let streak = last.consecutive_failures;
+            last.consecutive_failures = failures;
+            match &result {
+                Ok(o) => {
+                    last.error = None;
+                    last.outcome = Some(format!("{o:?}"));
+                    last.latest = match o {
+                        Outcome::Current { latest } | Outcome::Held { latest } => {
+                            Some(latest.to_string())
+                        }
+                        Outcome::Installed { to, .. } => Some(to.to_string()),
+                        Outcome::Blocked { .. } => last.latest.clone(),
+                    };
+                }
+                Err(e) => last.error = Some(e.to_string()),
             }
-            Err(e) => last.error = Some(e.to_string()),
+            kind.map(|kind| Event {
+                kind,
+                version: self.running.to_string(),
+                detail: match &result {
+                    Ok(_) => format!("release checks succeed again after {streak} failures"),
+                    Err(e) => format!("{failures} consecutive release checks failed; last: {e}"),
+                },
+            })
+        };
+        // Outside the lock: the sink may be a project's hook.
+        if let Some(event) = event {
+            (self.notify)(event);
         }
         result
     }
@@ -888,6 +926,7 @@ mod tests {
             max_download_bytes: 64 * 1024 * 1024,
             copies_dir,
             gate: None,
+            notify_after_failures: 3,
         }
     }
 
@@ -1381,6 +1420,70 @@ mod tests {
     /// K18 / Almanac's lesson: the loop's FIRST tick comes after the startup
     /// delay, not after startup delay + interval; later ticks follow the
     /// interval. Paused clock: hours pass in milliseconds.
+    /// A3 (1.4.0): the threshold table, exhaustively.
+    #[test]
+    fn failed_checks_are_reported_once_at_the_threshold_and_recovery_once() {
+        assert_eq!(failure_transition(0, false, 3), (1, None));
+        assert_eq!(failure_transition(1, false, 3), (2, None));
+        assert_eq!(failure_transition(2, false, 3), (3, Some("update.failed")));
+        assert_eq!(
+            failure_transition(3, false, 3),
+            (4, None),
+            "said once, not every tick"
+        );
+        assert_eq!(
+            failure_transition(4, true, 3),
+            (0, Some("update.ok")),
+            "recovery, once"
+        );
+        assert_eq!(
+            failure_transition(1, true, 3),
+            (0, None),
+            "a short blip is silent"
+        );
+        assert_eq!(
+            failure_transition(0, false, 1),
+            (1, Some("update.failed")),
+            "threshold 1 = the old behaviour"
+        );
+        assert_eq!(
+            failure_transition(0, false, 0),
+            (1, Some("update.failed")),
+            "0 is clamped to 1"
+        );
+    }
+
+    /// A3 (1.4.0): against an unreachable release host the updater says
+    /// `update.failed` exactly once, on the N-th failed check.
+    #[tokio::test]
+    async fn an_unreachable_host_is_reported_once_after_n_failed_checks() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = installed(dir.path(), GOOD_BINARY);
+        let release = fake_release("1.0.0", GOOD_BINARY, "svc").await;
+        let mut c = cfg(&release, Mode::Autonomous, dir.path().join("c"));
+        c.url = "http://127.0.0.1:1/".to_string();
+        c.notify_after_failures = 2;
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink_events = events.clone();
+        let up = Updater::new(
+            c,
+            bin,
+            dir.path().join("s"),
+            Version::parse("1.0.0").unwrap(),
+            Arc::new(move |e: Event| sink_events.lock().unwrap().push(e.kind)),
+            None,
+        )
+        .unwrap();
+        for _ in 0..3 {
+            assert!(up.check_once().await.is_err());
+        }
+        assert_eq!(
+            *events.lock().unwrap(),
+            vec!["update.failed"],
+            "one event on the second failure, none on the first or third"
+        );
+    }
+
     /// 1.3.0: a project's `on_update_event` hook sees every event the kit
     /// emits, and the kit's own handling still runs.
     #[test]

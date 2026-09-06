@@ -204,6 +204,20 @@ Proven by: `autonomous_writes_state_and_startup_reverts_after_the_attempts`,
 reads as "nothing pending" with an error line, not as a refusal to
 start).
 
+## Failed checks: said once, not every six hours
+
+A release host that is down, a signature that does not verify, a manifest
+whose hash is off — every one of those fails the check and the loop tries
+again next interval. Since 1.4.0 the event `update.failed` is emitted once,
+on the N-th consecutive failure (`update_notify_after_failures`, default 3,
+Almanac's AR24 value), and `update.ok` once when a check succeeds again;
+every tick still logs its own warning line (rule 23). With the default
+interval that is one notification after eighteen hours of a broken host
+instead of four a day. `1` restores "report the first failure". A project's
+`on_update_event` hook and the `notify` feature both see only those two
+events; the `--print-config`/status card still shows the last error at
+every tick.
+
 ## Hold: pin or skip
 
 `update_hold` = `1.4.0` or `pin:1.4.0` installs **only** 1.4.0 (and not

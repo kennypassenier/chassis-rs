@@ -111,7 +111,7 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
     let kit_guards = guards.clone();
     let token_limit =
         crate::shell::auth::token_limit(guards.clone(), limits.token_per_sec, limits.token_burst)?;
-    let login_limit = login_limit(guards, limits.login_per_min, limits.login_burst)?;
+    let login_limit = login_limit(guards.clone(), limits.login_per_min, limits.login_burst)?;
 
     // Client usage (K13) is kept in memory and persisted debounced (#13).
     let persist_every = limits.clients_persist;
@@ -176,7 +176,7 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
         .with_state(dash.clone());
     let login = Router::new()
         .route("/login", post(dashboard::login_post))
-        .layer(from_fn_with_state(login_limit, ip_rate_limit))
+        .layer(from_fn_with_state(login_limit.clone(), ip_rate_limit))
         .with_state(dash.clone());
     let logout = Router::new()
         .route("/logout", post(logout_handler))
@@ -213,12 +213,21 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
                 auth.secrets.key.clone(),
                 "passkeys store",
             ),
+            passkeys::CeremonyLimits {
+                cap: limits.passkey_ceremony_cap,
+                ttl: limits.passkey_ceremony_ttl,
+                per_ip: limits.passkey_ceremonies_per_ip,
+            },
+            guards.clone(),
         )?;
+        // S6: the same per-IP limiter as /login — an unauthenticated peer
+        // gets login_burst ceremonies at once and login_per_min after that.
         let public = Router::new()
             .route("/passkeys/login/start", post(passkeys::login_start))
             .route("/passkeys/login/finish", post(passkeys::login_finish))
             .layer(from_fn_with_state(pk.clone(), passkeys::require_https))
-            .with_state(pk.clone());
+            .with_state(pk.clone())
+            .layer(from_fn_with_state(login_limit.clone(), ip_rate_limit));
         let admin_api = Router::new()
             .route("/passkeys/register/start", post(passkeys::register_start))
             .route("/passkeys/register/finish", post(passkeys::register_finish))

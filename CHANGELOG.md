@@ -9,6 +9,33 @@ scaffold writes. A breaking change in either is a major and carries a
 
 _Nothing yet._
 
+## [1.4.0] - 2026-09-06
+
+The two items Kenny put on the table after the Phase 10 retrospective.
+
+### Added
+- `update_notify_after_failures` (default 3): `update.failed` is emitted
+  once, on the N-th consecutive failed release check, and `update.ok` once
+  on recovery — not at every interval while a release host is down. This
+  is Almanac's AR24 ("three strikes before notifying"), lost in its
+  migration and now the kit's for every consumer. Until now a failed check
+  emitted no event at all, only a log line.
+- `passkey_ceremony_cap` (64), `passkey_ceremony_ttl_secs` (300) and
+  `passkey_ceremonies_per_ip` (8): the pending-ceremony table's bounds are
+  knobs (rule 27).
+
+### Security
+- **S6 closed.** The passkey ceremony table no longer refuses when full:
+  the oldest ceremony makes room, one client IP can evict only its own
+  share, and `/passkeys/login/*` sits behind the same per-IP limiter as
+  `/login`. Before, one unauthenticated machine could start 64 ceremonies
+  and block passkey login and registration for everyone for five minutes.
+
+### Changed
+- `scripts/release-kit.sh`: the kit's own verified publish chain (standing
+  rule 36) — every step asserts its postcondition, the tag is cut from the
+  verified `origin/main` SHA, the GitHub release comes last.
+
 ## [1.3.0] - 2026-09-05
 
 Asked for by the Almanac migration and ratified as D-A1.

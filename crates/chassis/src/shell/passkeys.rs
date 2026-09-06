@@ -15,7 +15,7 @@
 //! deriving them from the `Host` header would let a client choose them.
 
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -37,6 +37,7 @@ use crate::shell::time::{now_epoch, now_rfc3339, random_hex};
 pub const PASSKEYS_FORMAT: u32 = 1;
 
 /// How long a started ceremony may wait for its finish.
+/// Default of `passkey_ceremony_ttl_secs`; the live value is a knob (S6).
 pub const CEREMONY_TTL: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,6 +69,78 @@ enum Pending {
     Login(PasskeyAuthentication),
 }
 
+/// The three bounds on pending ceremonies (S6, knobs `passkey_ceremony_cap`,
+/// `passkey_ceremony_ttl_secs`, `passkey_ceremonies_per_ip`).
+#[derive(Debug, Clone, Copy)]
+pub struct CeremonyLimits {
+    pub cap: usize,
+    pub ttl: Duration,
+    pub per_ip: usize,
+}
+
+/// Pending ceremonies, bounded three ways (S6): a TTL, a global cap and a
+/// per-IP cap. "Full" never means "refuse" — the oldest ceremony makes
+/// room — so an unauthenticated peer can evict its OWN ceremonies at will
+/// and nobody else's beyond the per-IP share, while the IP limiter on the
+/// login routes bounds how fast it can even do that. Until 1.4.0 the table
+/// simply refused at 64, which let one machine block passkey login and
+/// registration for everyone for five minutes.
+pub struct Ceremonies<P> {
+    map: HashMap<String, (Instant, IpAddr, P)>,
+    limits: CeremonyLimits,
+}
+
+impl<P> Ceremonies<P> {
+    pub fn new(limits: CeremonyLimits) -> Self {
+        Self {
+            map: HashMap::new(),
+            limits,
+        }
+    }
+
+    /// Admit a ceremony, evicting what must go: expired ones first, then
+    /// this IP's oldest when the IP is at its share, then the oldest of all
+    /// when the table is at its cap.
+    pub fn put(&mut self, now: Instant, ip: IpAddr, id: String, p: P) {
+        let ttl = self.limits.ttl;
+        self.map.retain(|_, (t, _, _)| now.duration_since(*t) < ttl);
+        let mine = self.map.values().filter(|(_, i, _)| *i == ip).count();
+        if mine >= self.limits.per_ip {
+            self.evict_oldest(|i| i == ip);
+        }
+        if self.map.len() >= self.limits.cap {
+            self.evict_oldest(|_| true);
+        }
+        self.map.insert(id, (now, ip, p));
+    }
+
+    /// Take a ceremony out; `None` when unknown or expired.
+    pub fn take(&mut self, id: &str, now: Instant) -> Option<P> {
+        let (t, _, p) = self.map.remove(id)?;
+        (now.duration_since(t) < self.limits.ttl).then_some(p)
+    }
+
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+
+    fn evict_oldest(&mut self, of: impl Fn(IpAddr) -> bool) {
+        let oldest = self
+            .map
+            .iter()
+            .filter(|(_, (_, i, _))| of(*i))
+            .min_by_key(|(_, (t, _, _))| *t)
+            .map(|(id, _)| id.clone());
+        if let Some(id) = oldest {
+            self.map.remove(&id);
+        }
+    }
+}
+
 /// Router state for the passkey routes.
 #[derive(Clone)]
 pub struct PasskeyState {
@@ -75,7 +148,9 @@ pub struct PasskeyState {
     pub auth: AuthState,
     file: EncryptedFile,
     store: Arc<Mutex<PasskeysFile>>,
-    pending: Arc<Mutex<HashMap<String, (Instant, Pending)>>>,
+    pending: Arc<Mutex<Ceremonies<Pending>>>,
+    /// For the client IP behind a trusted proxy (the per-IP share).
+    guards: crate::shell::guards::Guards,
 }
 
 /// Parse `<P>_PUBLIC_URL` into the relying party.
@@ -119,7 +194,13 @@ pub fn build_webauthn(
 }
 
 impl PasskeyState {
-    pub fn open(webauthn: Webauthn, auth: AuthState, file: EncryptedFile) -> Result<Self, Error> {
+    pub fn open(
+        webauthn: Webauthn,
+        auth: AuthState,
+        file: EncryptedFile,
+        limits: CeremonyLimits,
+        guards: crate::shell::guards::Guards,
+    ) -> Result<Self, Error> {
         let loaded: PasskeysFile = file.load()?.unwrap_or_default();
         if loaded.v != PASSKEYS_FORMAT {
             return Err(Error::config(
@@ -135,7 +216,8 @@ impl PasskeyState {
             auth,
             file,
             store: Arc::new(Mutex::new(loaded)),
-            pending: Arc::new(Mutex::new(HashMap::new())),
+            pending: Arc::new(Mutex::new(Ceremonies::new(limits))),
+            guards,
         })
     }
 
@@ -144,30 +226,26 @@ impl PasskeyState {
         self.file.save(&snapshot)
     }
 
-    fn put_pending(&self, p: Pending) -> Result<String, Error> {
+    fn put_pending(
+        &self,
+        peer: SocketAddr,
+        headers: &HeaderMap,
+        p: Pending,
+    ) -> Result<String, Error> {
         let id = random_hex(16)?;
-        let mut map = self.pending.lock().expect("pending lock");
-        let now = Instant::now();
-        map.retain(|_, (t, _)| now.duration_since(*t) < CEREMONY_TTL);
-        if map.len() >= 64 {
-            return Err(Error::new(
-                Kind::Overloaded,
-                "too many passkey ceremonies in flight",
-                "wait a moment and try again",
-            ));
-        }
-        map.insert(id.clone(), (now, p));
+        let ip = crate::shell::guards::client_ip(peer, headers, &self.guards.trusted_proxies);
+        self.pending
+            .lock()
+            .expect("pending lock")
+            .put(Instant::now(), ip, id.clone(), p);
         Ok(id)
     }
 
     fn take_pending(&self, id: &str) -> Option<Pending> {
-        let mut map = self.pending.lock().expect("pending lock");
-        let (t, p) = map.remove(id)?;
-        if t.elapsed() < CEREMONY_TTL {
-            Some(p)
-        } else {
-            None
-        }
+        self.pending
+            .lock()
+            .expect("pending lock")
+            .take(id, Instant::now())
     }
 
     pub fn list(&self) -> Vec<PasskeyView> {
@@ -222,6 +300,8 @@ pub struct StartResponse<T: Serialize> {
 /// `POST /passkeys/register/start` (admin): a challenge for a new passkey.
 pub async fn register_start(
     State(s): State<PasskeyState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
 ) -> Result<Json<StartResponse<CreationChallengeResponse>>, Error> {
     let exclude: Vec<CredentialID> = s
         .store
@@ -241,7 +321,7 @@ pub async fn register_start(
             Some(exclude),
         )
         .map_err(webauthn_error)?;
-    let ceremony = s.put_pending(Pending::Register(reg))?;
+    let ceremony = s.put_pending(peer, &headers, Pending::Register(reg))?;
     Ok(Json(StartResponse { ceremony, options }))
 }
 
@@ -295,6 +375,8 @@ pub async fn register_finish(
 /// every stored passkey.
 pub async fn login_start(
     State(s): State<PasskeyState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
 ) -> Result<Json<StartResponse<RequestChallengeResponse>>, Error> {
     let creds: Vec<Passkey> = s
         .store
@@ -315,7 +397,7 @@ pub async fn login_start(
         .webauthn
         .start_passkey_authentication(&creds)
         .map_err(webauthn_error)?;
-    let ceremony = s.put_pending(Pending::Login(auth))?;
+    let ceremony = s.put_pending(peer, &headers, Pending::Login(auth))?;
     Ok(Json(StartResponse { ceremony, options }))
 }
 
@@ -451,8 +533,23 @@ mod tests {
                 untrusted_proxy_warned: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             },
         };
-        let state = PasskeyState::open(webauthn, auth, file).unwrap();
-        let Json(start) = register_start(State(state.clone())).await.unwrap();
+        let guards = auth.guards.clone();
+        let state = PasskeyState::open(
+            webauthn,
+            auth,
+            file,
+            CeremonyLimits {
+                cap: 64,
+                ttl: CEREMONY_TTL,
+                per_ip: 8,
+            },
+            guards,
+        )
+        .unwrap();
+        let peer: SocketAddr = "127.0.0.1:1".parse().unwrap();
+        let Json(start) = register_start(State(state.clone()), ConnectInfo(peer), HeaderMap::new())
+            .await
+            .unwrap();
         assert_eq!(start.ceremony.len(), 32);
         assert!(!start.options.public_key.challenge.is_empty());
         // Unknown ceremony id.
@@ -474,7 +571,7 @@ mod tests {
         .unwrap_err();
         assert!(err.remedy.contains("start again"));
         // No passkeys yet → login start says so with a remedy.
-        let err = login_start(State(state))
+        let err = login_start(State(state), ConnectInfo(peer), HeaderMap::new())
             .await
             .err()
             .expect("no passkeys yet is an error");
@@ -483,5 +580,94 @@ mod tests {
             !dir.path().join("passkeys.json.enc").exists(),
             "no passkey was saved, so no store file may exist yet"
         );
+    }
+}
+
+#[cfg(test)]
+mod ceremony_tests {
+    use super::*;
+    use std::net::Ipv4Addr;
+
+    fn limits(cap: usize, per_ip: usize) -> CeremonyLimits {
+        CeremonyLimits {
+            cap,
+            ttl: Duration::from_secs(300),
+            per_ip,
+        }
+    }
+    fn ip(n: u8) -> IpAddr {
+        IpAddr::V4(Ipv4Addr::new(10, 0, 0, n))
+    }
+
+    /// S6: one machine can never block the table for the others — at its
+    /// share its own oldest ceremony goes, the table stays at the share.
+    #[test]
+    fn one_ip_evicts_only_its_own_oldest_at_its_share() {
+        let mut c = Ceremonies::new(limits(64, 3));
+        let t0 = Instant::now();
+        for i in 0..3 {
+            c.put(
+                t0 + Duration::from_millis(i),
+                ip(1),
+                format!("a{i}"),
+                i as u32,
+            );
+        }
+        c.put(t0 + Duration::from_millis(9), ip(2), "b0".into(), 100);
+        c.put(t0 + Duration::from_millis(10), ip(1), "a3".into(), 3);
+        assert_eq!(c.len(), 4, "the share holds, nothing refused");
+        assert!(
+            c.take("a0", t0 + Duration::from_millis(11)).is_none(),
+            "ip 1's oldest went"
+        );
+        assert_eq!(
+            c.take("b0", t0 + Duration::from_millis(11)),
+            Some(100),
+            "ip 2 untouched"
+        );
+        assert_eq!(c.take("a3", t0 + Duration::from_millis(11)), Some(3));
+    }
+
+    /// S6: at the global cap the oldest of all makes room — full is never
+    /// a refusal.
+    #[test]
+    fn at_the_cap_the_oldest_of_all_goes_instead_of_refusing() {
+        let mut c = Ceremonies::new(limits(4, 8));
+        let t0 = Instant::now();
+        for i in 0..4u8 {
+            c.put(
+                t0 + Duration::from_millis(i as u64),
+                ip(i),
+                format!("c{i}"),
+                i as u32,
+            );
+        }
+        c.put(t0 + Duration::from_millis(50), ip(9), "new".into(), 9);
+        assert_eq!(c.len(), 4);
+        assert!(
+            c.take("c0", t0 + Duration::from_millis(51)).is_none(),
+            "the oldest went"
+        );
+        assert_eq!(c.take("new", t0 + Duration::from_millis(51)), Some(9));
+    }
+
+    /// Expired ceremonies are gone on the next put and on take.
+    #[test]
+    fn expiry_frees_slots_and_refuses_stale_takes() {
+        let mut c = Ceremonies::new(CeremonyLimits {
+            cap: 2,
+            ttl: Duration::from_secs(1),
+            per_ip: 8,
+        });
+        let t0 = Instant::now();
+        c.put(t0, ip(1), "old".into(), 1);
+        assert!(
+            c.take("old", t0 + Duration::from_secs(2)).is_none(),
+            "stale take is refused"
+        );
+        c.put(t0, ip(1), "old2".into(), 1);
+        c.put(t0 + Duration::from_secs(2), ip(1), "fresh".into(), 2);
+        assert_eq!(c.len(), 1, "the expired one was swept by the put");
+        assert_eq!(c.take("fresh", t0 + Duration::from_secs(2)), Some(2));
     }
 }
