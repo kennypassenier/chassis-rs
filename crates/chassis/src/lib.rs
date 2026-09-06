@@ -29,6 +29,8 @@ pub use shell::auth::Caller;
 pub use shell::dashboard::{ClientColumn, Dashboard, NavEntry, Problem, Section, StatusSection};
 pub use shell::health::{Subsystem, SubsystemStatus};
 pub use shell::metrics::ScrapeSource;
+#[cfg(feature = "self-update")]
+pub use shell::update::Event as UpdateEvent;
 
 /// The kit's own version, as compiled in. A service reports its OWN
 /// version in `/healthz` (K6); this one is for `--print-config` and the

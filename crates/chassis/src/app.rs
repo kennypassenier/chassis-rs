@@ -292,6 +292,8 @@ pub struct App {
     state_copy: Option<crate::shell::update::StateCopy>,
     #[cfg(feature = "self-update")]
     update_gate: Option<crate::shell::update::UpdateGate>,
+    #[cfg(feature = "self-update")]
+    update_hook: Option<crate::shell::update::UpdateHook>,
     #[cfg(feature = "notify")]
     notifier: crate::shell::notify::Notifier,
     #[cfg(feature = "notify")]
@@ -401,6 +403,8 @@ impl App {
             state_copy: None,
             #[cfg(feature = "self-update")]
             update_gate: None,
+            #[cfg(feature = "self-update")]
+            update_hook: None,
             #[cfg(feature = "notify")]
             notifier: crate::shell::notify::Notifier::logging_only(spec_name),
             #[cfg(feature = "notify")]
@@ -746,6 +750,8 @@ impl App {
             state_copy: None,
             #[cfg(feature = "self-update")]
             update_gate: None,
+            #[cfg(feature = "self-update")]
+            update_hook: None,
             #[cfg(feature = "notify")]
             notifier,
             #[cfg(feature = "notify")]
@@ -775,6 +781,21 @@ impl App {
         f: impl Fn() -> Option<String> + Send + Sync + 'static,
     ) -> &mut Self {
         self.update_gate = Some(Arc::new(f));
+        self
+    }
+
+    /// Listen to the update events (1.3.0): `update.installed`, `update.ok`,
+    /// `update.failed`, `update.rolled_back`, `update.held`, whichever loop
+    /// or subcommand produced them. The kit still handles the event itself
+    /// (the `notify` feature's webhooks, or a log line); the hook runs
+    /// alongside, so a project can speak its own vocabulary to its own
+    /// notifier — Almanac's `almanac-update` / `-reverted` / `-unverified`.
+    #[cfg(feature = "self-update")]
+    pub fn on_update_event(
+        &mut self,
+        f: impl Fn(&crate::shell::update::Event) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.update_hook = Some(Arc::new(f));
         self
     }
 
@@ -829,6 +850,7 @@ impl App {
         let sink: crate::shell::update::EventSink = Arc::new(
             |e: crate::shell::update::Event| tracing::info!(event = e.kind, version = %e.version, detail = %e.detail, "event"),
         );
+        let sink = crate::shell::update::compose_sink(sink, self.update_hook.clone());
         let updater = Updater::new(
             UpdateConfig {
                 mode,

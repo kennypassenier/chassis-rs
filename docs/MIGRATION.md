@@ -260,3 +260,25 @@ let config = Config::from_table(&app.loaded.as_ref().unwrap().file_table, &app.s
   (Instrument Sans, Fraunces, Share Tech Mono, Chakra Petch).
   Enable the `assets` feature for this (`dashboard` implies it):
   `features = ["core", "self-update", "assets"]`.
+
+## 1.3.0 additions
+
+- **`on_update_event`.** A project that already has a notifier keeps it and
+  listens to the kit's update events:
+
+  ```rust
+  let notifier = my_notifier.clone();
+  app.on_update_event(move |event| {
+      let name = match event.kind {
+          "update.installed" => "my-service-update",
+          "update.rolled_back" => "my-service-reverted",
+          "update.failed" => "my-service-unverified",
+          _ => return, // `update.ok` and `update.held` are routine
+      };
+      notifier.fire(name, &event.version, &event.detail);
+  });
+  ```
+
+  The hook runs on the updater's task; keep it cheap (spawn if it does I/O).
+  It fires for every event the kit emits, whichever loop or subcommand
+  produced it, and the kit's own handling of the event is unchanged.

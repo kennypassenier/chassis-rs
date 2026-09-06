@@ -9,6 +9,21 @@ scaffold writes. A breaking change in either is a major and carries a
 
 _Nothing yet._
 
+## [1.3.0] - 2026-09-05
+
+Asked for by the Almanac migration and ratified as D-A1.
+
+### Added
+- `App::on_update_event(|event| …)`: a project's listener on the kit's
+  update events (`update.installed`, `update.ok`, `update.failed`,
+  `update.rolled_back`, `update.held`), from the autonomous loop, the
+  read-only watch and the `update` subcommand alike. The kit still handles
+  each event itself (the `notify` feature's webhooks, or a log line); the
+  hook runs alongside, so a project without a config file can speak its own
+  vocabulary to its own notifier — Almanac's `almanac-update`, `-reverted`
+  and `-unverified` to Home Assistant. `chassis::UpdateEvent` is the event
+  type (`kind`, `version`, `detail`).
+
 ## [1.2.0] - 2026-09-05
 
 Found while migrating kyu-runner, http-switchboard and kyu (AFK round 2, A2).

@@ -51,6 +51,20 @@ pub struct Event {
 }
 
 pub type EventSink = Arc<dyn Fn(Event) + Send + Sync>;
+/// A project's listener on the update events (1.3.0): it runs after the
+/// kit's own handling (notify or log) and sees every event, whichever loop
+/// or subcommand produced it.
+pub type UpdateHook = Arc<dyn Fn(&Event) + Send + Sync>;
+
+/// The kit's own sink followed by the project's hook, if any (1.3.0).
+pub fn compose_sink(default: EventSink, hook: Option<UpdateHook>) -> EventSink {
+    Arc::new(move |event: Event| {
+        if let Some(hook) = &hook {
+            hook(&event);
+        }
+        default(event);
+    })
+}
 pub type StateCopy = Arc<dyn Fn(&Path) -> Result<(), Error> + Send + Sync>;
 
 /// "Not now" for the autonomous loop (1.2.0): `Some(reason)` defers a check.
@@ -1367,6 +1381,54 @@ mod tests {
     /// K18 / Almanac's lesson: the loop's FIRST tick comes after the startup
     /// delay, not after startup delay + interval; later ticks follow the
     /// interval. Paused clock: hours pass in milliseconds.
+    /// 1.3.0: a project's `on_update_event` hook sees every event the kit
+    /// emits, and the kit's own handling still runs.
+    #[test]
+    fn the_project_hook_sees_every_event_and_the_kit_still_handles_it() {
+        let seen_by_kit = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let seen_by_hook = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let kit = seen_by_kit.clone();
+        let hook = seen_by_hook.clone();
+        let sink = compose_sink(
+            Arc::new(move |e: Event| kit.lock().unwrap().push(e.kind)),
+            Some(Arc::new(move |e: &Event| {
+                hook.lock()
+                    .unwrap()
+                    .push(format!("{} {} {}", e.kind, e.version, e.detail))
+            })),
+        );
+        for (kind, version) in [
+            ("update.installed", "1.2.0"),
+            ("update.rolled_back", "1.2.0"),
+            ("update.held", "1.2.0"),
+        ] {
+            sink(Event {
+                kind,
+                version: version.to_string(),
+                detail: "test".to_string(),
+            });
+        }
+        assert_eq!(
+            *seen_by_kit.lock().unwrap(),
+            vec!["update.installed", "update.rolled_back", "update.held"]
+        );
+        assert_eq!(
+            *seen_by_hook.lock().unwrap(),
+            vec![
+                "update.installed 1.2.0 test",
+                "update.rolled_back 1.2.0 test",
+                "update.held 1.2.0 test"
+            ]
+        );
+        // Without a hook the kit's handling is untouched.
+        let only_kit = compose_sink(Arc::new(|_| {}), None);
+        only_kit(Event {
+            kind: "update.ok",
+            version: "1.0.0".to_string(),
+            detail: String::new(),
+        });
+    }
+
     /// 1.2.0: a project's gate defers a check to the next interval instead of
     /// restarting under an investigation (Almanac's captures, AR25).
     #[tokio::test(start_paused = true)]
