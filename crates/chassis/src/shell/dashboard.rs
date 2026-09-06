@@ -211,6 +211,8 @@ impl Dashboard {
             .map_err(template_error)?;
         env.add_template("clients.html", include_str!("../../templates/clients.html"))
             .map_err(template_error)?;
+        env.add_template("error.html", include_str!("../../templates/error.html"))
+            .map_err(template_error)?;
         env.add_template(
             "passkeys.html",
             include_str!("../../templates/passkeys.html"),
@@ -274,6 +276,25 @@ impl Dashboard {
             ..own
         };
         Ok(Html(tmpl.render(full).map_err(template_error)?))
+    }
+
+    /// CF-7: a refusal shown to a browser as a page in the layout — the
+    /// kit's error and remedy, with the navigation around it and a way
+    /// back — instead of a JSON document on its own tab.
+    pub fn render_error(&self, status: StatusCode, message: &str, remedy: &str) -> Option<String> {
+        self.render(
+            "error.html",
+            context! {
+                logged_in => false,
+                active_nav => "",
+                status => status.as_u16(),
+                reason => status.canonical_reason().unwrap_or(""),
+                message => message,
+                remedy => remedy,
+            },
+        )
+        .ok()
+        .map(|h| h.0)
     }
 
     fn render(&self, name: &str, ctx: minijinja::Value) -> Result<Html<String>, Error> {
@@ -457,6 +478,7 @@ mod tests {
             ("login.html", include_str!("../../templates/login.html")),
             ("status.html", include_str!("../../templates/status.html")),
             ("clients.html", include_str!("../../templates/clients.html")),
+            ("error.html", include_str!("../../templates/error.html")),
             (
                 "passkeys.html",
                 include_str!("../../templates/passkeys.html"),

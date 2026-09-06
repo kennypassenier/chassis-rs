@@ -1525,9 +1525,15 @@ impl App {
         #[allow(unused_mut)]
         let mut router = self.router.merge(kit_routes);
 
+        // CF-7: with a dashboard, refusals to browser navigations render in
+        // its layout; without one every error stays JSON.
+        #[cfg(not(feature = "dashboard"))]
+        let html_errors: Option<crate::shell::http::HtmlErrorRenderer> = None;
+        #[cfg(feature = "dashboard")]
+        let html_errors: Option<crate::shell::http::HtmlErrorRenderer>;
         #[cfg(feature = "dashboard")]
         {
-            let (protected, flush) =
+            let (protected, flush, html) =
                 crate::app_dashboard::mount(crate::app_dashboard::MountInput {
                     spec: &self.spec,
                     loaded,
@@ -1544,6 +1550,7 @@ impl App {
                 .await?;
             router = router.merge(protected);
             flushes.push(flush);
+            html_errors = Some(html);
         }
         #[cfg(not(feature = "dashboard"))]
         {
@@ -1553,7 +1560,13 @@ impl App {
         if let Some(f) = self.flush {
             flushes.push(f);
         }
-        let router = with_kit_layers(router, guards, access, self.limits.max_body_bytes);
+        let router = with_kit_layers(
+            router,
+            guards,
+            access,
+            self.limits.max_body_bytes,
+            html_errors,
+        );
 
         let (stop_tx, stop_rx) = oneshot::channel::<()>();
         let task = tokio::spawn(async move {

@@ -107,7 +107,9 @@ error` plus the remedy). Proven by:
 |---|---|---|
 | 401 | API route without a valid token | `{"error":"missing or invalid credentials","remedy":"send Authorization: Bearer <client token>, or log in on /login"}` |
 | 303 → `/login` | Admin page without a session | (browsers never get a 401 popup) |
-| 403 | POST/PUT/… with an `Origin` that is not this `Host` | `{"error":"cross-origin request from http://evil.example refused","remedy":"call this endpoint from the dashboard itself, or from a script without an Origin header"}` |
+| 403 | POST/PUT/… from a browser with `Sec-Fetch-Site: cross-site` or `same-site` | `{"error":"cross-site request (Sec-Fetch-Site: cross-site) refused","remedy":"call this endpoint from the dashboard itself, or from a script without browser fetch metadata"}` |
+| 403 | POST/PUT/… without `Sec-Fetch-Site` and with an `Origin` that is not this `Host` | `{"error":"cross-origin request from http://evil.example refused","remedy":"call this endpoint from the dashboard itself, or from a script without an Origin header"}` |
+| any 4xx/5xx to a browser navigation | `Sec-Fetch-Mode: navigate` or `Accept: text/html` on the request, and a dashboard is mounted | the same error and remedy rendered as a page in the dashboard layout (`text/html`), status unchanged — never a bare JSON tab (CF-7) |
 | 408 | Request longer than `request_timeout_secs` (30) on a non-exempt path | `request to <path> exceeded 30 s` |
 | 413 | Body above `max_body_bytes` (1 MiB), declared or streamed | `{"error":"the request body is larger than this service accepts","remedy":"send a body within max_body_bytes (the knob <PREFIX>_MAX_BODY_BYTES sets it)"}` |
 | 429 | `/login`: more than `rate_limit_login_per_min` (10) per client IP, burst 5 | `too many attempts from this address`, `Retry-After: 5` |

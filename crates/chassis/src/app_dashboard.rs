@@ -46,7 +46,16 @@ pub struct MountInput<'a> {
 
 /// Build everything the dashboard feature adds to the router. Returns the
 /// routes to merge and the flush hook that persists client usage at stop.
-pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + Send>), Error> {
+/// What mounting the dashboard hands back: the protected router, the
+/// flush hook for the stores, and the renderer that turns a kit error into
+/// a page in the layout (CF-7).
+pub type Mounted = (
+    Router,
+    Box<dyn FnOnce() + Send>,
+    crate::shell::http::HtmlErrorRenderer,
+);
+
+pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
     let MountInput {
         spec,
         loaded,
@@ -318,5 +327,9 @@ pub async fn mount(input: MountInput<'_>) -> Result<(Router, Box<dyn FnOnce() + 
     {
         all = all.merge(passkey_routes);
     }
-    Ok((all, flush))
+    let renderer_dash = dash.clone();
+    let html: crate::shell::http::HtmlErrorRenderer = Arc::new(move |status, message, remedy| {
+        renderer_dash.render_error(status, message, remedy)
+    });
+    Ok((all, flush, html))
 }

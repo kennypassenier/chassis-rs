@@ -228,9 +228,21 @@ needs: axum's `form` feature (for `Form`) and `serde` with `derive`.
 
 - **Admin login.** The whole `dashboard_routes` router sits behind
   `require_admin`: 303 to `/login` for a browser without a session.
-- **CSRF.** A state-changing request with an `Origin` header must match
-  `Host` or it is refused with 403 `cross-origin request from … refused`;
-  requests without `Origin` (curl) pass. GET/HEAD/OPTIONS always pass.
+- **CSRF.** A state-changing request from a browser must come from this
+  dashboard. `Sec-Fetch-Site` decides first (every modern browser sends it
+  and no referrer policy blanks it): `same-origin` and `none` pass,
+  `cross-site` and `same-site` are refused with 403 `cross-site request
+  (Sec-Fetch-Site: …) refused`. Without that header the `Origin` must
+  match `Host` or it is refused with 403 `cross-origin request from …
+  refused`; requests without `Origin` (curl) pass. GET/HEAD/OPTIONS always
+  pass. (CF-7, 2026-09-06: the `Origin`-only rule refused every form from
+  Chrome, because under the former `no-referrer` policy a form submit
+  carries `Origin: null`.)
+- **Errors as pages.** A refusal answered to a browser navigation
+  (`Sec-Fetch-Mode: navigate`, or an `Accept` asking for HTML) renders in
+  the layout — the kit's error and remedy, with a way back — through
+  `templates/error.html`; scripts and API callers get the JSON shape
+  (OPERATIONS.md §Error shapes).
 - **Layout.** Nav, theme picker, Log out and the skip link come from
   `layout.html`; the project fills `content`.
 - **Explain block.** Every kit page opens with `<p class="explain">`, and
@@ -243,7 +255,9 @@ needs: axum's `form` feature (for `Form`) and `serde` with `derive`.
   style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src
   'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none';
   form-action 'self'`, plus `x-content-type-options: nosniff`,
-  `x-frame-options: DENY`, `referrer-policy: no-referrer`. The fonts are
+  `x-frame-options: DENY`, `referrer-policy: same-origin` (the referrer
+  stays inside this host and is blanked towards any other; `no-referrer`
+  would blank the browser's `Origin` on our own forms too). The fonts are
   vendored under `/static/fonts/…`; nothing loads from a CDN. The kit has
   no hook for project static files (`ASSETS` in `shell/assets.rs` is a
   fixed list), so a project page's interactivity is plain forms plus the

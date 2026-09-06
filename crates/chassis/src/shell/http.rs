@@ -45,15 +45,86 @@ pub struct AccessState {
     pub requests_total: String,
 }
 
+/// Renders a kit error as a page in the dashboard layout: `(status,
+/// message, remedy)` → HTML. Supplied by the dashboard when it is mounted;
+/// `None` without one, and every error stays JSON.
+pub type HtmlErrorRenderer =
+    std::sync::Arc<dyn Fn(StatusCode, &str, &str) -> Option<String> + Send + Sync>;
+
+/// Whether the request is a browser navigation — a page load or a form
+/// submit — as opposed to a script or API call: `Sec-Fetch-Mode: navigate`
+/// (every modern browser), else an `Accept` that asks for HTML.
+pub fn is_navigation(headers: &axum::http::HeaderMap) -> bool {
+    let mode = headers
+        .get("sec-fetch-mode")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if !mode.is_empty() {
+        return mode.eq_ignore_ascii_case("navigate");
+    }
+    headers
+        .get(axum::http::header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|a| a.contains("text/html"))
+}
+
+/// CF-7 (2026-09-06): a refusal answered to a browser navigation renders
+/// inside the dashboard layout — the same error and remedy, as a page with
+/// a way back — never as a bare JSON document on its own tab. Scripts and
+/// API callers keep the JSON shape (AR4). Sits outside the guards, so
+/// their refusals pass through it too.
+pub async fn html_errors(
+    State(render): State<Option<HtmlErrorRenderer>>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let wants_page = render.is_some() && is_navigation(req.headers());
+    let res = next.run(req).await;
+    let Some(render) = render else { return res };
+    if !wants_page || !res.status().is_client_error() && !res.status().is_server_error() {
+        return res;
+    }
+    let is_json = res
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|ct| ct.starts_with("application/json"));
+    if !is_json {
+        return res;
+    }
+    let (mut parts, body) = res.into_parts();
+    // Kit errors are two short strings; anything larger is not one.
+    let bytes = match axum::body::to_bytes(body, 64 * 1024).await {
+        Ok(b) => b,
+        Err(_) => return Response::from_parts(parts, Body::empty()),
+    };
+    let parsed: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or_default();
+    let message = parsed["error"].as_str().unwrap_or("request refused");
+    let remedy = parsed["remedy"].as_str().unwrap_or("");
+    match render(parts.status, message, remedy) {
+        Some(html) => {
+            parts.headers.remove(axum::http::header::CONTENT_LENGTH);
+            parts.headers.insert(
+                axum::http::header::CONTENT_TYPE,
+                HeaderValue::from_static("text/html; charset=utf-8"),
+            );
+            Response::from_parts(parts, Body::from(html))
+        }
+        None => Response::from_parts(parts, Body::from(bytes)),
+    }
+}
+
 /// Wrap a router with the kit's layers. Order, outermost first as a
 /// request sees them: request-id set → access log (+ request counter) →
-/// body-size cap → in-flight cap → CSRF rule → request timeout → the
-/// routes; the id is propagated onto the response on the way out.
+/// HTML errors for navigations → body-size cap → in-flight cap → CSRF
+/// rule → request timeout → the routes; the id is propagated onto the
+/// response on the way out.
 pub fn with_kit_layers(
     router: Router,
     guards: Guards,
     access: AccessState,
     max_body_bytes: usize,
+    html: Option<HtmlErrorRenderer>,
 ) -> Router {
     router
         .layer(middleware::from_fn_with_state(
@@ -72,6 +143,8 @@ pub fn with_kit_layers(
         .layer(RequestBodyLimitLayer::new(max_body_bytes))
         // Outside the limit layer, so its bare 413 passes through here.
         .layer(middleware::from_fn(json_413))
+        // Outside every guard: their JSON refusals become pages for browsers.
+        .layer(middleware::from_fn_with_state(html, html_errors))
         .layer(middleware::from_fn_with_state(access, access_log))
         .layer(PropagateRequestIdLayer::new(X_REQUEST_ID.clone()))
         .layer(SetRequestIdLayer::new(X_REQUEST_ID.clone(), MakeUuid))
@@ -97,7 +170,12 @@ pub async fn security_headers(req: Request, next: Next) -> Response {
     );
     put(h, "x-content-type-options", "nosniff");
     put(h, "x-frame-options", "DENY");
-    put(h, "referrer-policy", "no-referrer");
+    // CF-7 (2026-09-06): `same-origin`, not `no-referrer`. Under
+    // `no-referrer` a browser sends `Origin: null` on every form submit (a
+    // navigation, per the Fetch standard) and the CSRF rule refused every
+    // dashboard form — login included — from Chrome. `same-origin` keeps
+    // the referrer inside this host and still blanks it towards others.
+    put(h, "referrer-policy", "same-origin");
     res
 }
 
@@ -306,5 +384,66 @@ mod tests {
         let text = String::from_utf8(bytes.to_vec()).unwrap();
         assert!(!text.contains("/var/lib"));
         assert!(text.contains("retry"));
+    }
+
+    /// CF-7: a browser navigation gets the refusal as a page, a script the JSON.
+    #[tokio::test]
+    async fn navigations_get_errors_as_pages_and_scripts_get_json() {
+        let render: HtmlErrorRenderer = std::sync::Arc::new(|status, msg, remedy| {
+            Some(format!(
+                "<html>{} · {msg} · {remedy}</html>",
+                status.as_u16()
+            ))
+        });
+        let app = Router::new()
+            .route(
+                "/act",
+                axum::routing::post(|| async {
+                    (
+                        StatusCode::FORBIDDEN,
+                        axum::Json(serde_json::json!({
+                            "error": "cross-site request refused",
+                            "remedy": "use the dashboard"
+                        })),
+                    )
+                }),
+            )
+            .layer(middleware::from_fn_with_state(Some(render), html_errors));
+        let nav = Request::builder()
+            .method("POST")
+            .uri("/act")
+            .header("sec-fetch-mode", "navigate")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(nav).await.unwrap();
+        assert_eq!(res.status(), StatusCode::FORBIDDEN, "the status is kept");
+        assert!(
+            res.headers()[axum::http::header::CONTENT_TYPE]
+                .to_str()
+                .unwrap()
+                .starts_with("text/html")
+        );
+        let body = axum::body::to_bytes(res.into_body(), 4096).await.unwrap();
+        let body = String::from_utf8(body.to_vec()).unwrap();
+        assert!(
+            body.contains("403 · cross-site request refused · use the dashboard"),
+            "{body}"
+        );
+
+        let script = Request::builder()
+            .method("POST")
+            .uri("/act")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.oneshot(script).await.unwrap();
+        assert!(
+            res.headers()[axum::http::header::CONTENT_TYPE]
+                .to_str()
+                .unwrap()
+                .starts_with("application/json"),
+            "a script keeps the JSON shape"
+        );
+        let body = axum::body::to_bytes(res.into_body(), 4096).await.unwrap();
+        assert!(String::from_utf8_lossy(&body).contains("\"remedy\""));
     }
 }

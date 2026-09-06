@@ -8,6 +8,18 @@ scaffold writes. A breaking change in either is a major and carries a
 ## [Unreleased]
 
 ### Fixed
+- **Dashboard forms were refused from Chrome** (CF-7, found live on
+  CT 112 with Almanac 3.0.0): under `referrer-policy: no-referrer` a
+  browser sends `Origin: null` on every form submit, and the CSRF rule
+  refused it — login included. The CSRF guard now reads `Sec-Fetch-Site`
+  first (`same-origin`/`none` pass, `cross-site`/`same-site` refused) and
+  falls back to `Origin` vs `Host` only without it; the header is
+  `referrer-policy: same-origin`. `tests/browser_forms.rs` sends what
+  Chrome sends.
+- A refusal answered to a browser navigation renders as a page in the
+  dashboard layout (`templates/error.html`, same status, error and
+  remedy, a way back) instead of a bare JSON document; scripts and API
+  callers keep the JSON shape.
 - `chassis release` (also `--dry-run`) refuses a repository whose
   `release.yml` builds a container image but has no `Dockerfile`, with the
   `chassis sync --write` remedy — kyu-runner's first v0.2.0 Release run

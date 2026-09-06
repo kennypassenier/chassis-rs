@@ -44,6 +44,7 @@ and coverage (informational) on every branch; `main` requires both checks.
 | broken-after-ready under the homelab's supervision | unit (drill kind parsed) | — | **live 2026-09-05 14:24 UTC** after `homelab adopt` (CT 118 = stack `inbox`, hostname `118-app-inbox`): `homelab update-native inbox` ran the contract (`.homelab-prev` kept, supervised install exit 0, restart), the new 0.1.4 sent READY and exited 1 five seconds later exactly as the drill says — and the homelab declared "healthy" at once: the installed `homelab` v3.48.0 (built 05:33) predates the F300 fix (commit 1ed72e3, 08:39) that watches the window and `NRestarts`. The kit's half is proven; the homelab's half is announced for a re-run with the rebuilt binary (drill files ready: `dist/drill-0.1.4`, env `INBOX_UPDATE_DRILL=broken-after-ready`) | n/a |
 | release workflow (tag → binary, image, GitHub release) | — | **never run** (no tag yet; A5 gives the go after Phase 8) | — | — |
 | `chassis new` remote + `sync --protect` (live gh) | E2E `--no-remote` | E2E (`--no-remote`; the missing git identity of a runner was live-found and fixed) | — | — |
+| a browser form submit passes the CSRF rule; cross-site refused as a page, scripts as JSON | E2E `browser_forms.rs` with Chrome's exact headers (`Origin: null` + `Sec-Fetch-*`); unit tests on the guard and the HTML-error layer | gates | **drill before every dashboard-touching kit release** (CF-7): one login and one form action in Chrome against the inbox on CT 118, noted in the release entry — discipline-enforced. First measurement: the almanac 4.0.1 install on CT 112 (Kenny logs in from Chrome and deletes calendar `almanac-test`) | — |
 | passkeys: gating, ceremony start, table cap | unit + E2E `passkeys_exist_only_over_https…` | gates | — | — |
 | passkeys: successful register/login | **not covered, by decision** (H7 Later: the live Bitwarden test behind Traefik comes first) | | | |
 
@@ -88,6 +89,13 @@ the constants they read.
   protection on `main` set by `sync --protect` and read back through the API
   (three required checks, strict, enforce_admins), repository deleted. The
   first attempt (CLI 1.4.0) was red on cargo-deny — fixed in 1.4.1.
+- **Browser forms (CF-7 rule, from kit 1.5.1):** before every kit release
+  that touches the dashboard, one login and one form action in Chrome
+  against the inbox on CT 118, noted in the release entry of
+  REALIZATION_PLAN.md. Discipline-enforced; reviewed with CF-6/CF-7 at the
+  first project retro on the kit. Why: no browser had ever submitted a
+  kit form before 2026-09-06, and the one environment the suite skipped
+  was the one the dashboard exists for.
 - **C2 with the ecosystem key** (2026-09-06, CT 118, `drill-release.sh 0.1.4`
   signed by Kenny, no pubkey override): supervised swap 0.1.3→0.1.4 via
   `systemd-run` (exit 0, `.prev` kept, restart NRestarts=0, healthcheck

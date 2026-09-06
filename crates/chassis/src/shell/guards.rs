@@ -148,8 +148,36 @@ pub fn is_https(peer: SocketAddr, headers: &HeaderMap, trusted: &[IpAddr]) -> bo
 /// `Origin` header must come from this host. Requests without `Origin`
 /// (curl, scripts) pass — they are not browsers and CSRF is a browser
 /// problem. GET/HEAD/OPTIONS always pass.
+///
+/// CF-7 (2026-09-06): `Sec-Fetch-Site` is consulted first. Every modern
+/// browser sets it on every request and no referrer policy blanks it,
+/// whereas `Origin` becomes `null` on a same-origin form submit under
+/// `no-referrer` — which refused every dashboard form from Chrome on
+/// CT 112. `same-origin` and `none` (a typed address, a bookmark) pass;
+/// `cross-site` and `same-site` are refused whatever `Origin` says; without
+/// the header the `Origin`-against-`Host` rule decides, and `null` stays
+/// refused there (a sandboxed frame or a cross-origin redirect sends it).
 pub async fn csrf_guard(req: Request<Body>, next: Next) -> Response {
     let safe = matches!(*req.method(), Method::GET | Method::HEAD | Method::OPTIONS);
+    let site = req
+        .headers()
+        .get("sec-fetch-site")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.trim().to_ascii_lowercase());
+    match site.as_deref() {
+        _ if safe => {}
+        Some("same-origin") | Some("none") => return next.run(req).await,
+        Some(other @ ("cross-site" | "same-site")) => {
+            return Error::new(
+                Kind::Unauthorized,
+                format!("cross-site request (Sec-Fetch-Site: {other}) refused"),
+                "call this endpoint from the dashboard itself, or from a script without browser fetch metadata",
+            )
+            .into_response()
+            .with_status(StatusCode::FORBIDDEN);
+        }
+        _ => {}
+    }
     if !safe
         && let Some(origin) = req
             .headers()
@@ -406,6 +434,63 @@ mod tests {
             .body(Body::empty())
             .unwrap();
         assert_eq!(app.oneshot(script).await.unwrap().status(), StatusCode::OK);
+    }
+
+    /// CF-7 (2026-09-06, live on CT 112): a browser submitting a dashboard
+    /// form is a navigation, and under `referrer-policy: no-referrer` the
+    /// Fetch standard makes it send `Origin: null` — which the host
+    /// comparison refused, login included. Modern browsers also send
+    /// `Sec-Fetch-Site`, which says what the Origin cannot after a policy
+    /// blanked it. This is exactly what Chrome sent.
+    #[tokio::test]
+    async fn csrf_passes_a_same_origin_browser_form_post_and_refuses_cross_site() {
+        let app = Router::new()
+            .route("/act", post(|| async { "did" }))
+            .layer(axum::middleware::from_fn(csrf_guard));
+        let chrome = |site: &'static str, origin: &'static str| {
+            Request::builder()
+                .method("POST")
+                .uri("/act")
+                .header("host", "almanac.kp-soft.dev")
+                .header("origin", origin)
+                .header("sec-fetch-site", site)
+                .header("sec-fetch-mode", "navigate")
+                .body(Body::empty())
+                .unwrap()
+        };
+        assert_eq!(
+            app.clone()
+                .oneshot(chrome("same-origin", "null"))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK,
+            "a same-origin form submit under no-referrer carries Origin: null and must pass"
+        );
+        for site in ["cross-site", "same-site"] {
+            assert_eq!(
+                app.clone()
+                    .oneshot(chrome(site, "https://almanac.kp-soft.dev"))
+                    .await
+                    .unwrap()
+                    .status(),
+                StatusCode::FORBIDDEN,
+                "{site}: Sec-Fetch-Site wins over a matching Origin"
+            );
+        }
+        // Without Sec-Fetch-Site (an older browser) `null` stays refused:
+        // it is also what a sandboxed iframe or a cross-origin redirect sends.
+        let bare_null = Request::builder()
+            .method("POST")
+            .uri("/act")
+            .header("host", "almanac.kp-soft.dev")
+            .header("origin", "null")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            app.oneshot(bare_null).await.unwrap().status(),
+            StatusCode::FORBIDDEN
+        );
     }
 
     #[tokio::test]

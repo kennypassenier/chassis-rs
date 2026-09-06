@@ -1,0 +1,8 @@
+{% extends "layout.html" %}
+{% block title %}{{ status }} {{ reason }} · {{ app_name }}{% endblock %}
+{% block content %}
+<h1>{{ status }} · {{ reason }}</h1>
+<p class="explain">The request was refused before it reached the page you were on. Nothing was changed. The same error and remedy that a script would receive as JSON:</p>
+<div class="kp-alert kp-alert--danger" role="alert"><strong>{{ message }}</strong>{% if remedy %}<br>{{ remedy }}{% endif %}</div>
+<p><a class="kp-button" href="/">Back to the dashboard</a> <span class="text-secondary">— or use the browser's back button to return to the form.</span></p>
+{% endblock %}
