@@ -16,8 +16,8 @@ gates hold from any session or terminal. After a fresh clone, run:
 | Field | Value |
 |---|---|
 | Current phase | 10 · Retrospective — done 2026-09-06. Phases 0–10 complete; the kit is at **1.7.0** (issue-form fields + on_client_issued/on_client_deleted hooks, deny_ignore knob, explicit STATE_DIR in the units). Kenny's order: chassis-rs first, then almanac (4.0.2 released to the signature), kyu (needs .chassis.toml), kyu-runner, http-switchboard |
-| Last completed gate | S1/S2 form 2026-09-06 21:30: fields + hooks (kit 1.7.0, released), no schema column; kit 1.7.0 first, then one Almanac 4.0.2 |
-| Next gate | Kenny's CF-8 measurement on almanac 4.0.2 (live on CT 112 19:01 UTC): from Chrome, one Sources page with the calendar column, Calendars page with the id toggle, no horizontal scroll; then the report form (kit 1.6.0/1.7.0, almanac 4.0.2). Theming/spacing/dialog with Kenny in kp-themes. Then kyu 3.0.0 (.chassis.toml first), kyu-runner, http-switchboard step 2 |
+| Last completed gate | Report form 2026-09-06 21:35: R1 kit 1.6.0/1.7.0 Akkoord, R2 almanac 4.0.2 live + CF-8 closed Akkoord, K1 kyu's turn in this session (rule 7a lifted) |
+| Next gate | kyu's turn: `.chassis.toml` with CT 109's measured paths, kit 1.4.1 → 1.7.0, scaffold sync (SQL guard into gates.project.sh), dry-run, 3.0.0 release to Kenny's signature; report item. Then kyu-runner, http-switchboard step 2. Deploys via the Homelab Rust session (V6) |
 | AFK mode | **off** since Kenny returned 2026-09-05 evening. Standing rule 7a (a session touches only its own project) is back in force: D-K1 (kyu dashboard adoption), D-H1 (http-switchboard log stream) and Almanac's half of D-A1 belong in sessions opened in those repositories. |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 

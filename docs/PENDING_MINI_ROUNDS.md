@@ -208,6 +208,14 @@ contradicting option. Both go to the next form (CF-7 + the A2-2 revisit).
 release) — **not installed**: it carries the same fault (kit 1.5.0). The
 CT 112 install waits for almanac 4.0.1 on kit 1.5.1, in almanac's turn.
 
+## Report form kit 1.6.0/1.7.0 + almanac 4.0.2 — answered 2026-09-06 (21:35 local)
+
+R1 kit 1.6.0/1.7.0 **Akkoord** · R2 almanac 4.0.2 live + CF-8 closed
+**Akkoord** · **K1** kyu's turn *in this session, rule 7a lifted for kyu*
+(the third lift today: V7, V8, now kyu's release turn). Almanac's turn is
+closed; its open items live in almanac's PENDING (`backoff`, `latch push`,
+kp-themes).
+
 ## Almanac 4.0.2 — signed and live on CT 112 2026-09-06 (19:01 UTC)
 
 Kenny signed v4.0.2; assets verified locally (minisign, SHA256SUMS,
