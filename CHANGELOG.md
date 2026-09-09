@@ -68,19 +68,20 @@ consumer must change.
 
 ### Changed
 - **kp-themes 5.0.0** (K15): the kit vendors the new release under the
-  package's own paths — `/static/kp/css/…`, `/static/kp/js/…`,
-  `/static/kp/fonts/…` — with 25 themes (`topo` → `forest`, `tazhib` →
-  `lapis`, `nishiki` → `woodblock`; a stored old name is migrated by
-  `theme-boot.js`; `cyberpunk` is a different theme under the same name),
-  `layout.css` and `utilities.css` (the templates' inline layout styles are
-  gone), all 25 theme registers (loaded for the active theme only), and
-  kp-themes' own fonts (73 faces, 5 MB in the binary, fetched per theme).
-  Confirmations on Re-issue / Revoke / Delete and on project actions are
-  kp-themes' native `<dialog>` (default since kp-themes 4.0.0). Assets
-  reached without the `?v=` hash (fonts, registers) are cached a day
-  instead of a year. `js/effects.js` and the minified `dist/` twins are
-  deliberately not vendored (docs/DASHBOARD.md says why). A project that
-  linked `/static/themes.css` or `/static/fonts/…` itself moves to the
+  package's own paths — `/static/kp/dist/kp-themes.css` (the release's own
+  bundle: 25 themes, components, layout and utility classes, every theme's
+  register), `/static/kp/css/fonts.css` + `/static/kp/fonts/…` (kp-themes'
+  own fonts, 73 faces, 5 MB in the binary, fetched per theme), and seven
+  JavaScript modules including `js/effects.js` (the terminal theme's block
+  cursor, the themes' arrivals). Themes renamed: `topo` → `forest`,
+  `tazhib` → `lapis`, `nishiki` → `woodblock` (a stored old name is migrated
+  by `theme-boot.js`); `cyberpunk` is a different theme under the same
+  name. The templates' inline layout styles are gone. Confirmations on
+  Re-issue / Revoke / Delete and on project actions are kp-themes' native
+  `<dialog>` (default since kp-themes 4.0.0). Fonts reached without the
+  `?v=` hash are cached a day instead of a year. The minified `dist/` twins
+  are deliberately not vendored (docs/DASHBOARD.md says why). A project
+  that linked `/static/themes.css` or `/static/fonts/…` itself moves to the
   `kp/` paths; a project on the kit's layout changes nothing.
 
 ### Fixed

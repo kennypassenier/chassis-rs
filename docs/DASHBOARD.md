@@ -16,9 +16,9 @@ E2E tests `dashboard_pages_render_with_layout_and_assets` and
 
 ## The model in one paragraph
 
-`layout.html` owns the document: fonts, the kp-themes stylesheets
-(`themes.css`, `components.css`, `layout.css`, `utilities.css`), the
-theme picker (25 themes, parsed from the vendored `theme-registry.js`,
+`layout.html` owns the document: fonts, the kp-themes bundle
+(`dist/kp-themes.css`: themes, components, layout, utilities and the 25
+registers), the theme picker (25 themes, parsed from the vendored `theme-registry.js`,
 rendered server-side), the top navigation, a skip link, and the Log out
 button. It defines four blocks a page may fill: `title`, `head`,
 `nav_extra`, `content`. Every template sees these globals: `app_name`,
@@ -39,7 +39,7 @@ project's entries in registration order.
 | `GET /clients` | admin | The clients table with the row controls below. |
 | `GET/POST /api/clients`, `/api/clients/{id}/{reissue,revoke,token,requests,test}`, `DELETE /api/clients/{id}` | admin | The JSON the buttons call. |
 | `GET /passkeys`, `/passkeys/*`, `/api/passkeys*` | admin (login/start+finish: anyone) | Only over HTTPS via a trusted proxy; else 404 with a remedy. |
-| `GET /static/{*name}` | anyone | Embedded assets: `Cache-Control: public, max-age=31536000, immutable` when the URL carries the `?v=<hash>` the layout adds, `public, max-age=86400` for a font or register reached without it. |
+| `GET /static/{*name}` | anyone | Embedded assets: `Cache-Control: public, max-age=31536000, immutable` when the URL carries the `?v=<hash>` the layout adds, `public, max-age=86400` for a font reached from `fonts.css` without it. |
 
 An anonymous browser on an admin route is redirected to `/login` (303);
 a **client token** on an admin route gets a JSON 401 `a client token
@@ -469,23 +469,24 @@ HTML), `core::clients::tests::issue_reissue_revoke_delete_lifecycle`.
 ## kp-themes 5.0.0: what the kit vendors, and what it leaves
 
 Since 1.8.0 the kit carries kp-themes 5.0.0 under the package's own
-paths — `/static/kp/css/…`, `/static/kp/js/…`, `/static/kp/fonts/…` — so
-`fonts.css`'s relative `url('../fonts/…')` and the modules' `./strings.js`
-imports resolve unchanged and every file is the byte-for-byte copy the
-manifest `static/kp/KP_THEMES.sha256` names (the gate test compares all
-142 of them, fonts and licences included).
+paths — `/static/kp/dist/…`, `/static/kp/css/…`, `/static/kp/js/…`,
+`/static/kp/fonts/…` — so `fonts.css`'s relative `url('../fonts/…')` and
+the modules' `./strings.js` imports resolve unchanged and every file is the
+byte-for-byte copy the manifest `static/kp/KP_THEMES.sha256` names (the
+gate test compares all 115 of them, fonts and licences included).
 
-- **Stylesheets:** `themes.css` (the palettes, 25 themes), `components.css`,
-  `layout.css` and `utilities.css` (the layout classes kp-themes wrote after
-  measuring this kit's 28 inline styles — `.kp-page`, `.kp-row`,
-  `.kp-autogrid`, `.kp-m-0`, `.kp-fw-medium` and friends; the templates now
-  carry two inline styles, both CSS anchor positioning for the theme menu).
-- **Registers:** every theme's `css/<name>-register.css`, its character on
-  top of the palette. A register is a stylesheet the consumer includes, and
-  loading all 25 on every page would be a megabyte for one theme's sake, so
-  `theme-boot.js` links the active theme's register before first paint and
-  `chassis.js` links the register of every theme picked afterwards
-  (`kp-theme-change`). A register is inert unless its theme is active.
+- **One stylesheet:** the release's own bundle `dist/kp-themes.css`
+  (1.3 MB, cached a year per content hash) — the palettes of the 25
+  themes, `components.css`, `layout.css` and `utilities.css` (the layout
+  classes kp-themes wrote after measuring this kit's 28 inline styles:
+  `.kp-page`, `.kp-row`, `.kp-autogrid`, `.kp-m-0`, `.kp-fw-medium` and
+  friends; the templates now carry two inline styles, both CSS anchor
+  positioning for the theme menu), and every theme's register
+  (`css/<name>-register.css`, its character on top of the palette), each
+  scoped to `[data-theme='<name>']` and therefore inert for the other 24.
+  A theme switch is one attribute; nothing loads afterwards. The kit first
+  served the registers one by one and linked the active one at runtime;
+  kp-themes pointed at the bundle and the loader went (D2, 2026-09-09).
 - **Fonts:** kp-themes' `fonts.css` (73 faces, 32 families, all OFL) and the
   woff2 files behind it — 5 MB in the binary, fetched by the browser only
   for the active theme's faces. Without them the themes still read (the
@@ -494,19 +495,26 @@ manifest `static/kp/KP_THEMES.sha256` names (the gate test compares all
 - **JavaScript:** the six modules whose import closure is closed
   (`no-flash`, `theme-registry`, `theme-core`, `theme-picker`, `strings`,
   `components`) — the set kp-themes' own `gates/check-closure.mjs` protects
-  for this consumer. **Not vendored:** `js/effects.js` (marquee, reveals,
-  the `<mark>` redaction, dividers, the terminal caret): no kit page uses
-  those hooks, and every reveal has a rest state that holds without the
-  script. A project that wants them adds the file and the hooks itself.
+  for this consumer — plus `js/effects.js` (R2-b, 2026-09-09): on the kit's
+  pages it does the terminal theme's block cursor inside a focused field
+  (the register paints the cell, the module writes the column) and the
+  themes' arrivals (terminal boots once per browser session per page, with
+  a Skip button; reduced motion resolves it at once). The kit's pages carry
+  no reveal hooks, so headlines do not type and marks do not clear; a
+  project page may use the hooks. `chassis.js` attaches the module at load
+  and once more the first time a caret theme becomes active, because
+  `detach()` does not forget the fields it bound (measured; asked of
+  kp-themes). A gate test (`vendored_javascript_imports_only_vendored_modules`)
+  keeps the import graph closed.
 - **Renamed themes:** `topo` → `forest`, `tazhib` → `lapis`, `nishiki` →
   `woodblock`. `theme-boot.js` maps a stored old name once and writes the
   new one back, so a visitor keeps their theme instead of falling back to
   `formal`. `cyberpunk` is a different theme under the same name (signal
   yellow instead of neon-on-violet).
-- **Left aside, on purpose:** the minified twins under `dist/css/` (45 %
-  smaller, but the kit serves once per content hash to a LAN and the
-  authored files stay readable and diffable); `dist/kp-themes.css` (one
-  file with every register, which would load all 25 for one).
+- **Left aside, on purpose:** the minified twins (`dist/kp-themes.min.css`,
+  45 % smaller) — they reference a source map the kit does not serve, and
+  the authored bundle is verified the same way; the accessibility floors
+  (advice at kp-themes since 2026-09-09; the kit adds no contrast gate).
 
 ## The status page
 

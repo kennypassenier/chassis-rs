@@ -4,39 +4,12 @@
 # relative url('../fonts/…') references and the JS import closure stay valid.
 # Checked by a unit test, so the gate holds offline: these hashes say "our copies
 # are unmodified AND are the tag we claim". Bumping kp-themes means re-copying the
-# files AND refreshing this file. The six js/ modules are the closure kp-themes'
-# own gates/check-closure.mjs protects for this consumer; js/effects.js is
-# deliberately not vendored (see docs/DASHBOARD.md).
-12a7e2cf60c96fff311f75e56d8212feadf765ba5c59efc08cf4aca5c8aa9396  css/themes.css
-d51478c4d8100244cb9c73af814c718d5f75ccbb7b3ea69f29cc97ec98a72651  css/components.css
-98acf330a5980848d44636ba8e993d91716570fecd075d9a5fa24b3b5e26e3b5  css/layout.css
-55bf71dd2dcb3a43f44706a4be321b08ae80706cf0f26ee312ccd3b50bf5c78d  css/utilities.css
+# files AND refreshing this file. The seven js/ modules are the closure kp-themes'
+# own gates/check-closure.mjs protects for this consumer (six) plus js/effects.js (R2-b);
+# dist/kp-themes.css is the release's own bundle of themes, components, layout,
+# utilities and all 25 registers (D2, 2026-09-09) — see docs/DASHBOARD.md.
+85bd28ef664e316070ff73056e14bd71edfa666b905c6fe3d18ef95809ceb9a3  dist/kp-themes.css
 e6fefb73281d78b4a77347c2e08e6cd615ebb1324609530934dbf19dbf958da0  css/fonts.css
-95b4800bc2b484993b512998d08bc8a9fa4ff675a410a4cc7a8ab8af0a261af2  css/academia-register.css
-6979874a4fe3ae30c5c1a2c3be0ebe50781b3c1045c2feabf6b4e378cdcb9014  css/blueprint-register.css
-3dfb1b833928939b3f92fff535cab0fd44f6bfd13b08e02026aa9d58cdd48378  css/brutalism-register.css
-e8b727ff4589af432ad291f48f16dcdfbc63615097871fa93b157ae230f17032  css/cyberpunk-register.css
-86d69029c9fa22eecd0a8fb9cb78077e3b4b524a7035fb60939c8b631e91d5dc  css/dark-register.css
-8cbf8c8442198c6f83650a36574723baa783079deaf7413c805864412936a164  css/deco-register.css
-683faceabaf06c3d60a38f6f60d2cf596152658d3d52258e1523a25c097b809a  css/forest-register.css
-5aee2623d951edc471b36c40a2937250e9974d19d3a5a400692259d1f074e2a5  css/formal-register.css
-7a35853e1ee3c11a95c21160f240c5ffc8e778776d14b175a863b4898e730f07  css/grotesk-register.css
-63c985b06cb727ae697db41c7487ac875338ab3f70e0b40087ee11824eb071d5  css/high-contrast-register.css
-277ce4b5107ef07615e5f7a36f05d3e09bc920542c7f8a76a5d97d3671cb4593  css/lapis-register.css
-502146bb627278a60182debb24f87ca9fe00deb4229e1c787b031138ac553166  css/light-register.css
-d71e25414344a70b4cf8d5d603491e26ac878de25810436321bb0d4f70ed61c4  css/mono-register.css
-00fe2ac21bd585c3406ab5c72f0cb36f45028438429f070ed138bdd4de060d66  css/nostromo-register.css
-da8fc11ac44de15237036db04ab36055e3a5815590b25ec461bd0b831350cc0e  css/pastel-register.css
-b72955b9531295e6487569e97c746dd45622feba4d5748e85ea2f5b49bd14afe  css/phantom-register.css
-dc12d181beb3acf800593375fc62844e504914186e2d776383b1787b75428b33  css/retro-register.css
-5af5682aa7bb9ac3187b229b42cbd3ff0eda27b43cb725752c85ef769bebe5c7  css/sepia-register.css
-68f946c317643eb5dec49e25653c362014d3e66138921ff87979f09c718ebb68  css/shade-dark-register.css
-43036c4b63fa07b938b566b97df80cd70f48d93dc208c59b03b004386e513d8f  css/shade-light-register.css
-a616d2df205ab1670f97807652c8917b10cbec682fb798f951cf52000a93c80a  css/solstice-register.css
-57c884fbe3b7ab83a98c433d16d0ad5b11076fd6e62dd977d8e3f424481a9a91  css/synthwave-register.css
-e586bc87cfd7ca1be446f5e17347e3e48aa79acf7e9c5f3cd038bc17ecc32df5  css/terminal-register.css
-f9f04977260cbaef343cec7e7dfe53602064bc35f5c728c724be0f5e125d9913  css/ticker-register.css
-f131bb1d2820187b7c979274b05386e976cded6ebadb072bdcfe3d07a140e3a6  css/woodblock-register.css
 c3c741edf8b8f066ab1581cbfe066cd69d663f28cc2a4e093261fb9faed07299  js/no-flash.js
 86b5abaf6d49201b14ff1266dcc54dc0b654480283b91b8f43fe7064f9436cd3  js/theme-registry.js
 a568abea8e1d9d1f877dc6faaa75e62657a6b4125a676a562ff1eea71c6df384  js/theme-core.js
@@ -149,3 +122,4 @@ ab609b0e110d622435ff337cdf233288556e011bbf9bd0550be98846c0630819  fonts/orbitron
 4beeecbe997c3915f85cd4753677a0595bb74bdff269468bcad5d62bc9cede42  fonts/orbitron/orbitron-variable.woff2
 27d9af34210253e7ca1251fbace86c6f65b40031d6ce1a75493a1b2093631298  fonts/vt323/LICENSE
 4c7f789b458041be15b3fd86c3388e6c1beee6ab572d34afe9e5c3e25d65e84d  fonts/vt323/vt323-regular.woff2
+cd5ba9ca6fe8e0af9ee9771b7ce275138615455dd67a8ca05c09d14cf62a51dc  js/effects.js

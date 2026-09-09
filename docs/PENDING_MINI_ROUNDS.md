@@ -1137,3 +1137,40 @@ reads the console clean for the Clients page.
 **For the report form:** the live look on CT 118 (rule 39) before the
 release-go; the 1.8.0 release now carries batch 3 and kp-themes 5.0.0
 together (R1: Kenny's word).
+
+**Report form answered 2026-09-09:** R1 Akkoord (taken), R3 Akkoord (two
+asks for kp-themes: a consumer bake asset; a documented per-theme register
+loader), L1 Akkoord (Kenny looked at http://10.10.10.18:8080 — nothing
+blocks 1.8.0, rule 39 satisfied), CF-11 Klopt (record in
+docs/CORRECTIONS.md), D1 Alle fonts houden (73 faces stay in the binary).
+R2 came back as a question — "the terminal caret is used on active fields,
+isn't it?" — measured (effects.js prototyped locally: `--kp-col` written,
+block cell painted; binding only at load, terminal shows a once-per-session
+BIOS arrival) and put to Kenny as deep-dive R2-b.
+
+**R2-b (2026-09-09): Opnemen met her-attach.** `js/effects.js` is vendored;
+`chassis.js` attaches it at load and once more the first time a caret theme
+becomes active (measured: `detach()` keeps its bound fields in a WeakSet, so
+detach-and-reattach cannot rebind). Gate test
+`vendored_javascript_imports_only_vendored_modules` keeps the seven-module
+import graph closed (drilled red once).
+
+**kp-themes' answer to R3, relayed by Kenny:** (1) the release-asset gap is
+real (their count 33, ours 36) — the ask stands; (2) `dist/kp-themes.css`, a
+release asset, already carries all 25 registers scoped per theme, so a
+theme switch needs no loading — the kit had built machinery for a problem
+the package solves and does not document; (3) `dist/kp-themes.js` exports
+only `attachAll`, which is why a consumer that bakes modules had to pluck
+them — not our concern. Measured on our side: the per-theme loader also had
+a race (`--kp-caret` unknown at `kp-theme-change` until the register
+loaded), which broke R2-b's re-attach.
+
+**D2 (2026-09-09): Bundel dist/kp-themes.css.** The 30 stylesheets are
+replaced by the release bundle (1.3 MB, one file, a year cached per hash);
+the register loader is gone from `theme-boot.js` and `chassis.js`; the
+manifest lists 115 files. Asks for kp-themes now: (a) a consumer bake asset
+(or the modules and registers as release assets); (b) document
+`dist/kp-themes.css` as the consumer path for the registers; (c)
+`detach()` should forget the fields it bound (or the caret binding should
+re-evaluate `--kp-caret` on focus), and `effects.js` belongs in
+`check-closure.mjs`'s VENDORED list for this consumer.

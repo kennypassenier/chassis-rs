@@ -1,14 +1,16 @@
-//! Static assets (K15): the vendored @kp-soft/themes tree — stylesheets,
-//! the six JavaScript modules, the twenty-five theme registers and the
-//! package's own fonts (S8: nothing loads from a third party) — plus the
-//! kit's own CSS/JS, embedded with `include_bytes!` and served under a
-//! content-hash query so browsers may cache them for a year.
+//! Static assets (K15): the vendored @kp-soft/themes tree — the release's
+//! own bundle `dist/kp-themes.css` (themes, components, layout, utilities
+//! and all twenty-five theme registers, each scoped to its theme), the
+//! fonts stylesheet and the woff2 files behind it (S8: nothing loads from
+//! a third party), seven JavaScript modules — plus the kit's own CSS/JS,
+//! embedded with `include_bytes!` and served under a content-hash query so
+//! browsers may cache them for a year.
 //!
 //! The vendored files are byte-for-byte copies of the kp-themes release
 //! named in `static/kp/KP_THEMES.sha256`, kept under the package's own
-//! paths (`kp/css/…`, `kp/js/…`, `kp/fonts/…`) so `fonts.css`'s relative
-//! `url('../fonts/…')` and the modules' `./strings.js` imports resolve
-//! unchanged. A test below compares every copy against that manifest, so
+//! paths (`kp/dist/…`, `kp/css/…`, `kp/js/…`, `kp/fonts/…`) so
+//! `fonts.css`'s relative `url('../fonts/…')` and the modules'
+//! `./strings.js` imports resolve unchanged. A test below compares every copy against that manifest, so
 //! a stray edit or a half-done bump fails the gates offline (kyu's rule).
 //! Bumping kp-themes = re-copy the tree, refresh the manifest, run the
 //! tests.
@@ -24,154 +26,14 @@ pub const KP_THEMES_VERSION: &str = "5.0.0";
 /// traversal-proof shape).
 pub const ASSETS: &[(&str, &str, &[u8])] = &[
     (
-        "kp/css/themes.css",
+        "kp/dist/kp-themes.css",
         "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/themes.css"),
-    ),
-    (
-        "kp/css/components.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/components.css"),
-    ),
-    (
-        "kp/css/layout.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/layout.css"),
-    ),
-    (
-        "kp/css/utilities.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/utilities.css"),
+        include_bytes!("../../static/kp/dist/kp-themes.css"),
     ),
     (
         "kp/css/fonts.css",
         "text/css; charset=utf-8",
         include_bytes!("../../static/kp/css/fonts.css"),
-    ),
-    (
-        "kp/css/academia-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/academia-register.css"),
-    ),
-    (
-        "kp/css/blueprint-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/blueprint-register.css"),
-    ),
-    (
-        "kp/css/brutalism-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/brutalism-register.css"),
-    ),
-    (
-        "kp/css/cyberpunk-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/cyberpunk-register.css"),
-    ),
-    (
-        "kp/css/dark-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/dark-register.css"),
-    ),
-    (
-        "kp/css/deco-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/deco-register.css"),
-    ),
-    (
-        "kp/css/forest-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/forest-register.css"),
-    ),
-    (
-        "kp/css/formal-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/formal-register.css"),
-    ),
-    (
-        "kp/css/grotesk-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/grotesk-register.css"),
-    ),
-    (
-        "kp/css/high-contrast-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/high-contrast-register.css"),
-    ),
-    (
-        "kp/css/lapis-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/lapis-register.css"),
-    ),
-    (
-        "kp/css/light-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/light-register.css"),
-    ),
-    (
-        "kp/css/mono-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/mono-register.css"),
-    ),
-    (
-        "kp/css/nostromo-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/nostromo-register.css"),
-    ),
-    (
-        "kp/css/pastel-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/pastel-register.css"),
-    ),
-    (
-        "kp/css/phantom-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/phantom-register.css"),
-    ),
-    (
-        "kp/css/retro-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/retro-register.css"),
-    ),
-    (
-        "kp/css/sepia-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/sepia-register.css"),
-    ),
-    (
-        "kp/css/shade-dark-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/shade-dark-register.css"),
-    ),
-    (
-        "kp/css/shade-light-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/shade-light-register.css"),
-    ),
-    (
-        "kp/css/solstice-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/solstice-register.css"),
-    ),
-    (
-        "kp/css/synthwave-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/synthwave-register.css"),
-    ),
-    (
-        "kp/css/terminal-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/terminal-register.css"),
-    ),
-    (
-        "kp/css/ticker-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/ticker-register.css"),
-    ),
-    (
-        "kp/css/woodblock-register.css",
-        "text/css; charset=utf-8",
-        include_bytes!("../../static/kp/css/woodblock-register.css"),
     ),
     (
         "kp/js/no-flash.js",
@@ -202,6 +64,11 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/components.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/components.js"),
+    ),
+    (
+        "kp/js/effects.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/effects.js"),
     ),
     (
         "kp/fonts/archivo/archivo-italic-variable.woff2",
@@ -634,9 +501,9 @@ pub fn fnv_version<'a>(parts: impl Iterator<Item = (&'a str, &'a [u8])>) -> Stri
 /// `GET /static/{name}`.
 pub async fn serve(Path(name): Path<String>, RawQuery(query): RawQuery) -> Response {
     // The layout links every asset with `?v=<content hash>`, so those URLs
-    // may be cached for a year. Fonts and registers are reached from inside
-    // a stylesheet or by theme-boot without the hash; a kp-themes bump can
-    // change them under the same name, so those get a day.
+    // may be cached for a year. Fonts are reached from inside fonts.css
+    // without the hash; a kp-themes bump can change them under the same
+    // name, so those get a day.
     let versioned = query.as_deref().is_some_and(|q| q.contains("v="));
     let cache = if versioned {
         "public, max-age=31536000, immutable"
@@ -714,6 +581,54 @@ mod tests {
                 .next()
                 .is_some_and(|l| l.contains(&format!("v{KP_THEMES_VERSION}"))),
             "the manifest's first line names the vendored version (the CLI reads it there)"
+        );
+    }
+
+    /// K15: the vendored JavaScript is a closed import graph. One `import`
+    /// pointing at a module the binary does not carry is a 404 that takes
+    /// the whole module graph down — picker, confirmations, skip links.
+    /// kp-themes' own `gates/check-closure.mjs` guards the six modules it
+    /// knows this consumer bakes; this guards whatever the kit bakes,
+    /// effects.js included. Drilled red once by dropping `kp/js/strings.js`
+    /// from ASSETS: failed, restored.
+    #[test]
+    fn vendored_javascript_imports_only_vendored_modules() {
+        let js: Vec<(&str, &str)> = ASSETS
+            .iter()
+            .filter(|(n, _, _)| n.ends_with(".js"))
+            .map(|(n, _, b)| (*n, std::str::from_utf8(b).expect("utf-8")))
+            .collect();
+        assert!(js.iter().any(|(n, _)| *n == "kp/js/effects.js"));
+        let mut checked = 0;
+        for (name, body) in &js {
+            let dir = name.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
+            for line in body.lines() {
+                let line = line.trim();
+                if !line.starts_with("import ") && !line.starts_with("export ") {
+                    continue;
+                }
+                let Some(from) = line.split(" from ").nth(1) else {
+                    continue;
+                };
+                let target = from.trim().trim_end_matches(';').trim_matches(['\'', '"']);
+                let Some(rel) = target.strip_prefix("./") else {
+                    panic!("{name} imports {target}: only ./ imports are servable");
+                };
+                let key = if dir.is_empty() {
+                    rel.to_string()
+                } else {
+                    format!("{dir}/{rel}")
+                };
+                assert!(
+                    ASSETS.iter().any(|(n, _, _)| *n == key),
+                    "{name} imports {target}, which the binary does not serve"
+                );
+                checked += 1;
+            }
+        }
+        assert!(
+            checked >= 8,
+            "the module graph has imports to check ({checked})"
         );
     }
 

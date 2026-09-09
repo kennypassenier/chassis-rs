@@ -307,8 +307,8 @@ Nothing is required. What a project can adopt, each on its own:
   `forest`/`lapis`/`woodblock` on the next page load, and destructive
   buttons confirm in a dialog. Own templates that linked `/static/themes.css`,
   `/static/components.css` or `/static/fonts/…` directly move to
-  `/static/kp/css/…` and `/static/kp/fonts/…`; a test that asserted the old
-  path does the same. `chassis sync --write` corrects `kp_themes` in
+  `/static/kp/dist/kp-themes.css`, `/static/kp/css/fonts.css` and
+  `/static/kp/fonts/…`; a test that asserted the old path does the same. `chassis sync --write` corrects `kp_themes` in
   `.chassis.toml` to `5.0.0` (K32).
 - **Drift:** `chassis sync` now also reports a kit tag in Cargo.toml that
   differs from `chassis_tag`, a stale `kp_themes`, and with `--remote` a branch

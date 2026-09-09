@@ -24,26 +24,37 @@
 
 import { attachThemePickers } from './kp/js/theme-picker.js';
 import { enforceContracts, attachConfirmations, attachSkipLinks } from './kp/js/components.js';
+import { attachEffects } from './kp/js/effects.js';
 
 attachThemePickers();
 enforceContracts();
 attachConfirmations();
-
-// K15, kp-themes 5.0.0: a theme's register is a stylesheet the consumer
-// includes itself. theme-boot.js loads the one for first paint; this loads
-// the register of every theme picked afterwards (once each — the kit serves
-// all twenty-five, and a register is inert unless its theme is active).
-document.addEventListener('kp-theme-change', (event) => {
-  const theme = event.detail?.theme || document.documentElement.getAttribute('data-theme');
-  if (!theme || document.head.querySelector(`link[data-kp-register="${theme}"]`)) return;
-  const boot = document.querySelector('script[src*="/static/theme-boot.js"]');
-  const version = boot && boot.src.includes('?') ? boot.src.slice(boot.src.indexOf('?')) : '';
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = `/static/kp/css/${encodeURIComponent(theme)}-register.css${version}`;
-  link.setAttribute('data-kp-register', theme);
-  document.head.appendChild(link);
+// K15, kp-themes 5.0.0 (R2-b, 2026-09-09): js/effects.js performs what a
+// stylesheet cannot — the terminal theme's block cursor inside a focused
+// field (the register paints the cell, the module writes the column), the
+// themes' arrivals and reveals. The kit's own pages carry no reveal hooks,
+// so on them the module does the caret and the arrival only.
+//
+// The caret is bound at attach time and only if the theme active at that
+// moment answers `--kp-caret: block`; a page loaded in formal and switched
+// to terminal would keep the browser's caret. Measured 2026-09-09: detach()
+// does not forget the fields it bound (a module-level WeakSet), so
+// detach-and-reattach cannot rebind them — instead the kit attaches once
+// more, the first time a caret theme becomes active after load. Bound
+// fields stay bound; whether the cell is painted is the register's call.
+// This works because every register is already in dist/kp-themes.css: the
+// knob is readable the moment the theme attribute changes (D2).
+let effects = attachEffects(document);
+let caretAttached = caretTheme();
+function caretTheme() {
+  return getComputedStyle(document.documentElement).getPropertyValue('--kp-caret').trim() === 'block';
+}
+document.addEventListener('kp-theme-change', () => {
+  if (caretAttached || !caretTheme()) return;
+  caretAttached = true;
+  effects = attachEffects(document);
 });
+
 attachSkipLinks();
 
 function copyLegacy(text) {

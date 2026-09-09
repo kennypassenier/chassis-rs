@@ -518,7 +518,7 @@ fn dashboard_pages_render_with_layout_and_assets() {
     );
     let asset_url = html
         .split('"')
-        .find(|s| s.starts_with("/static/kp/css/themes.css?v="))
+        .find(|s| s.starts_with("/static/kp/dist/kp-themes.css?v="))
         .expect("versioned asset link")
         .to_string();
     let res = http.get(format!("{base}{asset_url}")).send().unwrap();
@@ -1743,8 +1743,8 @@ fn project_page_renders_inside_the_layout_with_security_headers() {
     }
     for asset in [
         "/static/kp/css/fonts.css",
-        "/static/kp/css/layout.css",
-        "/static/kp/css/formal-register.css",
+        "/static/kp/dist/kp-themes.css",
+        "/static/kp/js/effects.js",
         "/static/theme-boot.js",
         "/static/kp/fonts/instrumentsans/instrumentsans-variable.woff2",
     ] {
