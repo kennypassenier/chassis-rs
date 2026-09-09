@@ -59,3 +59,11 @@ pre.snippet {
 .requests pre { margin: 0; max-height: 12rem; overflow: auto; }
 /* K29: a project's buttons under a status section sit with the text, not at the right edge. */
 .section-actions { margin: 0.75rem 0 1.5rem; }
+
+/* ask-1 (2026-09-10): kp-themes puts `overflow-wrap: anywhere` on .kp-badge,
+   which breaks a one-word state label mid-word ("acti / ve") when the column
+   is narrow — found in http-switchboard's browser drill. A badge holds a
+   label, never a long value, so there is nothing to break. Relayed to the
+   kp-themes session with the measurement; remove this rule once their
+   component no longer needs it. */
+.kp-badge { overflow-wrap: normal; word-break: keep-all; white-space: nowrap; }
