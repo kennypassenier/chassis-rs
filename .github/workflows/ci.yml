@@ -5,7 +5,7 @@ name: CI
 # merged without a pull request.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
