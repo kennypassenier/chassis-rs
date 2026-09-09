@@ -1341,6 +1341,27 @@ asset is named `<name>` with no architecture or libc suffix (AR16 calls the four
 asset names a contract), so nothing about the download says what it links
 against.
 
+**Three facts that arrived after the first record, and that the mini-round
+needs.** All three came back from the Homelab Rust session once it had this
+project's measurement:
+
+1. **Debian 12 left ordinary support on 11 July 2026 and is in LTS.** That is
+   an argument against pinning the build base to bookworm forever: it buys the
+   whole fleet today, and it ties the kit to a base that is already on its way
+   out. Whatever is chosen, the decision text says how long the base is meant
+   to hold and what triggers moving it.
+2. **A partial answer does not fix CT 109.** kyu-runner and http-switchboard
+   need no passkeys and could build musl today, as T8's own escape hatch says
+   — but the three services share CT 109 and kyu, which does have the door, is
+   the reason the container exists. So "musl for the headless ones" leaves the
+   blocking case untouched.
+3. **The homelab wants a glibc floor it can check against.** That session is
+   adding a deploy-side refusal: `objdump -T` on a staged binary before it is
+   installed, rather than discovering the mismatch through a restart loop. It
+   can only compare against a number the kit publishes. That makes the second
+   gap above (no stated minimum, no libc in the asset name) a dependency of
+   somebody else's gate, not only a tidiness point.
+
 **Status: nothing changed here.** T8 is frozen, so this needs a mini-round, and
 the direction is Kenny's — he has a form open in the Homelab Rust session with
 three of them (static build, older build base, or move the container to Debian
