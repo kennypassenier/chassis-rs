@@ -1293,6 +1293,13 @@ Rust session worked around it in its own copy, Almanac fixed its checked-in
 `deploy/service.yml`, and `chassis sync` reported no drift before that fix —
 because the template's output was what it expected.
 
+The shape Almanac already runs with (its commit `346ce21`), relayed so the
+kit's fix does not diverge from it: one `--property=Environment=KEY=VALUE`
+per line the unit declares, in the same order as the unit's own
+`Environment=` lines, between `--property=WorkingDirectory=…` and the binary
+path. Homelab Rust's workaround on CT 112 is that session's own copy and was
+not compared; ask there if the wording matters.
+
 This is a live-found fault in a kit artefact, so it needs a correction form
 (rule 29) with the fix beside it: the two `Environment=` lines the unit
 template declares must be reproduced as `--property=Environment=…`, and the
