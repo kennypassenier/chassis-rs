@@ -7,7 +7,19 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+- **`chassis::testing` reads the environment the app actually starts with**
+  (K25, CF-12). `TestApp::token()` (and with it `login()` and
+  `session_cookie()`) and `TestApp::state_dir()` captured the harness's own
+  generated token and temporary directory *before* the `extra_env` overlay
+  was applied, so a test that pinned `<PREFIX>_TOKEN` or
+  `<PREFIX>_STATE_DIR` to a known value ran the app on that value while the
+  harness kept logging in with the one it had generated
+  ("login as the admin failed"). Both are now read from the assembled
+  environment after the overlay, which is what `start_with_env`'s
+  documentation always promised. Reported independently by kyu and by
+  Almanac on 1.8.0; both worked around it in their own suites and can drop
+  the workaround.
 
 ## [1.8.0] - 2026-09-09
 

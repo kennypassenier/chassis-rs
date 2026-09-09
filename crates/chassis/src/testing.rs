@@ -27,7 +27,7 @@
 
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use axum::Router;
@@ -57,7 +57,12 @@ pub const CROSS_SITE_ORIGIN: &str = "https://evil.example";
 /// what is on disk after a stop, for instance.
 pub struct TestApp {
     addr: SocketAddr,
-    dir: tempfile::TempDir,
+    /// The harness's own temporary directory, held only so it is removed
+    /// on drop.
+    _dir: tempfile::TempDir,
+    /// The state directory the app actually runs with: the harness's own,
+    /// unless `extra_env` named another `<PREFIX>_STATE_DIR`.
+    state_dir: PathBuf,
     /// `None` for an app started with [`TestApp::start_open`]: an open
     /// dashboard has no login token.
     token: Option<String>,
@@ -159,10 +164,8 @@ impl TestApp {
         })?;
         let prefix = spec.prefix();
         let mut env: BTreeMap<String, String> = BTreeMap::new();
-        env.insert(
-            format!("{prefix}_STATE_DIR"),
-            dir.path().display().to_string(),
-        );
+        let state_key = format!("{prefix}_STATE_DIR");
+        env.insert(state_key.clone(), dir.path().display().to_string());
         // Port 0: the kernel picks a free port and `Running::addr` reports
         // it, so two suites never collide (K11).
         env.insert(format!("{prefix}_LISTEN"), "127.0.0.1:0".into());
@@ -173,19 +176,25 @@ impl TestApp {
             format!("{prefix}_PUBLIC_URL"),
             format!("https://{}.example.lan", spec.name),
         );
-        let token = if with_secrets {
+        let token_key = format!("{prefix}_TOKEN");
+        if with_secrets {
             // The same shapes `gen-secret` prints: a long random token and a
             // 32-byte hex key, fresh per app so no test depends on a value.
-            let token = random_hex(32)?;
-            env.insert(format!("{prefix}_TOKEN"), token.clone());
+            env.insert(token_key.clone(), random_hex(32)?);
             env.insert(format!("{prefix}_SECRET_KEY"), random_hex(32)?);
-            Some(token)
-        } else {
-            None
-        };
+        }
         for (key, value) in extra_env {
             env.insert((*key).to_string(), (*value).to_string());
         }
+        // The token the app actually starts with: read AFTER the overlay, so
+        // an `extra_env` entry that names `<PREFIX>_TOKEN` is what `token()`
+        // and `login()` use (live-found by kyu on 1.8.0: the harness logged
+        // in with the token it had generated, not the one it was given).
+        let token = env.get(&token_key).cloned();
+        let state_dir = env
+            .get(&state_key)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| dir.path().to_path_buf());
         let mut app =
             App::from_args_with_env(spec.clone(), vec![spec.name.to_string()], env, router)?;
         configure(&mut app);
@@ -203,7 +212,8 @@ impl TestApp {
             })?;
         Ok(TestApp {
             addr: running.addr,
-            dir,
+            _dir: dir,
+            state_dir,
             token,
             session: None,
             running: Some(running),
@@ -227,10 +237,12 @@ impl TestApp {
         format!("{}{path}", self.base_url())
     }
 
-    /// The temporary state directory the app writes its stores to. It is
-    /// removed when the `TestApp` is dropped.
+    /// The state directory the app writes its stores to: the harness's
+    /// temporary directory (removed when the `TestApp` is dropped), or the
+    /// `<PREFIX>_STATE_DIR` an `extra_env` entry named instead (which the
+    /// test then owns).
     pub fn state_dir(&self) -> &Path {
-        self.dir.path()
+        &self.state_dir
     }
 
     /// The admin login token (`<PREFIX>_TOKEN`), for a test that logs in by

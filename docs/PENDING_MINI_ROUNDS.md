@@ -873,6 +873,7 @@ them. The first 3.x release must be signed with `scripts/sign-release.sh`
 | CF-6 | (a) scaffold E2E runs cargo-deny on the generated project, (b) `chassis release --dry-run` checks Dockerfile/`.chassis.toml`/Migration, (c) migration closing check, (d) measure target paths first | (a) first CI run of the next fresh remote project; (b) the next release of kyu/kyu-runner/http-switchboard/almanac; (c, d) http-switchboard's step 2 | **built, kit 1.5.1 released 2026-09-06** (`149d4fa`); **(b) measured 2026-09-06 at kyu 3.0.0**: `chassis release --dry-run` ran before the tag and reported the three checks green; (c, d) measured at kyu-runner's and http-switchboard's turns (paths measured on CT 109 before the deploy files were written); (a) still open until the next fresh remote project |
 | CF-8 | Dashboard layout: calendar names instead of ids, ids behind a toggle, one Sources page (S1), the look-drill before dashboard releases; layout affordances (spacing) with kp-themes | the almanac 4.0.2 install on CT 112: Kenny opens the pages from Chrome | **CLOSED 2026-09-06 21:15 (local)** — Kenny on almanac 4.0.2 live: "alles lijkt hier te werken"; Claude's look-drill beforehand on the local 4.0.2 (one Sources in the nav, name + calendar on the issue form, no horizontal scroll) |
 | CF-7 | CSRF guard reads `Sec-Fetch-Site` first, `referrer-policy: same-origin`, refusals to navigations render in the layout, browser-fingerprint tests, Chrome drill before dashboard-touching kit releases (TEST_PLAN §5) | the almanac 4.0.1 install on CT 112: Kenny logs in from Chrome and deletes calendar `almanac-test`; Claude measures the same beforehand with the fingerprint tests and the Chrome drill on CT 118 | **CLOSED 2026-09-06 20:40** — Claude's half 16:53 UTC on CT 112 (Chrome-header form → 200, cross-site → 403 page, script → 403 JSON); Kenny's half the same evening: logged in from Chrome on almanac.kp-soft.dev and deleted calendar `almanac-test` |
+| CF-12 | `TestApp` reads token and state directory from the environment the app actually starts with (the `extra_env` overlay wins, as `start_with_env` documents) | The moment kyu adopts the kit version with this fix: kyu's 2.x import scenario drops its hand-written login POST for `TestApp::login()` and is green; Almanac pins `<PREFIX>_TOKEN` instead of reading `app.token()` back. Both report from their own sessions (rule 7a) | open — fix on main 2026-09-09, full record in `docs/CORRECTIONS.md` |
 | CF-5 | Kit releases only through `chassis release`; every hand-run commit step guarded by a HEAD-changed check; a tag only from a verified `origin/main` SHA whose `git show --stat` lists the feature files | The next kit release (1.3.1 or 1.4.0): it runs through `chassis release`, and the tag's commit is checked before the GitHub release exists | **closed** — measured 2026-09-06 at kit 1.4.0: released through `scripts/release-kit.sh` (rule 36 chain), tag `v1.4.0` → `3e0a41e` verified against `origin/main` before the GitHub release existed |
 
 ### CF-2 · correction form, answered 2026-09-05
@@ -1184,3 +1185,50 @@ kp-themes 5.0.0 (bundle, fonts, effects.js, dialog confirmations, CF-11 fix,
 D1 exit code). Kenny received one adoption prompt for kyu, kyu-runner,
 almanac and http-switchboard (their own sessions, rule 7a). Open here: K34
 (batch 4), the retro of batch 3, and the kp-themes asks (PENDING §D2).
+
+## Consumer feedback on 1.8.0 (2026-09-09, three sessions)
+
+kyu, Almanac and kyu-runner adopted 1.8.0 the day it was released and each
+relayed findings through Kenny. Recorded here so nothing is lost between
+sessions; the decisions Kenny took on them are noted per item.
+
+**Landed the same day.** kyu and Almanac independently hit the same
+`TestApp` fault (the harness ignored an `extra_env` override of
+`<PREFIX>_TOKEN`). Kenny answered D1 **Opnemen** and CF-12 **Klopt**: fix and
+two tests on main, record in `docs/CORRECTIONS.md`, measurement queued above.
+
+**Open, weighed in the form of 2026-09-09 (evening).** kyu-runner is the
+first headless consumer to go through a kit batch (`default-features = false`,
+features `core` + `self-update`; measured on the running binary: `/healthz`
+200, `/metrics` 200, `/login` 404, `/clients` 404, `/api/clients` 404) and
+reported four points; kyu reported one retro question. See the round below.
+
+- **HK1** — generated `docs/KIT.md` is titled "What <project> gets from
+  chassis" but describes the whole kit, including a dashboard a headless
+  consumer does not build. kyu-runner wrote the disclaimer into its own
+  handbook by hand because `chassis sync` overwrites the generated file.
+- **HK2** — `--knobs` prints the full table, including dashboard and passkey
+  knobs the binary does not carry.
+- **HK3** — `docs/MIGRATION.md` tells every project to rebuild
+  `tests/common/mod.rs` on `TestApp`; for kyu-runner that was not possible
+  (feature `testing` implies `dashboard`, and 45 assertions read the child
+  process's log, signal it, or check its exit code). Adopting it literally
+  would have cost 29 tests; Kenny decided against it and the reason is fixed
+  in kyu-runner's `docs/TEST_PLAN.md`. Measured reassurance from that
+  session: the dev-dependency does not leak into the built binary (`/login`
+  and `/clients` stayed 404).
+- **HK4** — no library equivalent of `chassis clients issue` against an
+  *external* service: kyu-runner hand-wrote ~30 lines (POST `/api/clients`,
+  then GET the reveal) to get a token from a real kyu hub in its E2E suite.
+- **HK5** (kyu, for the batch 3 retro) — a kit migration changes observable
+  facts in files the kit does not own (kyu's README still named the
+  pre-3.0.0 workflow `release-image.yml`, its runbook still claimed kyu ships
+  no self-updating binary, both false since 3.0.0 and undetected for months).
+  `chassis sync` only tracks drift in files it renders. Question: does
+  `docs/MIGRATION.md` carry a per-version "check these claims in your own
+  docs" list, or is that squarely each project's own Phase 8 honesty pass?
+
+kyu-runner also reported what worked: `chassis sync` as a drift detector
+(sharp `kp_themes` line, the `gates.sh` fix carried along, second run "in
+sync") and `chassis release --dry-run` printing the whole chain with a reason
+per step before anything happened.

@@ -432,3 +432,54 @@ async fn k25_worked_example_from_docs_testing_md_runs_as_written() {
 
     app.shutdown().await;
 }
+
+// Live-found by kyu on 1.8.0 (standing rule 8): a project that starts the
+// app with a KNOWN `<PREFIX>_TOKEN` through `extra_env` — its 2.x
+// app-token import scenario pre-writes a legacy file with that key — got a
+// harness whose `token()` and `login()` still used the token the harness
+// had generated and the app no longer knew. Red before the fix: `token()`
+// returned the random value (kyu saw `login()` panic with "login as the
+// admin failed").
+#[tokio::test]
+async fn k25_extra_env_overrides_the_harness_token_and_login_uses_it() {
+    let known = "known-token-chosen-by-the-project-0001";
+    let mut app = TestApp::start_with_env(
+        spec("k25tok"),
+        Router::new(),
+        &[("K25TOK_TOKEN", known)],
+        |_| {},
+    )
+    .await;
+    assert_eq!(
+        app.token(),
+        known,
+        "token() reports the token the app actually runs with, not the one the harness generated"
+    );
+    app.login().await;
+    assert!(
+        app.session_cookie().is_some(),
+        "login() logged in with the overridden token"
+    );
+    app.shutdown().await;
+}
+
+// Same fault, second instance (measured while correcting the token one):
+// `state_dir()` reported the harness's temporary directory even when
+// `extra_env` pointed the app at another `<PREFIX>_STATE_DIR`.
+#[tokio::test]
+async fn k25_extra_env_overrides_the_harness_state_dir_and_state_dir_reports_it() {
+    let own = tempfile::tempdir().expect("a temporary directory for the test");
+    let mut app = TestApp::start_with_env(
+        spec("k25dir"),
+        Router::new(),
+        &[("K25DIR_STATE_DIR", &own.path().display().to_string())],
+        |_| {},
+    )
+    .await;
+    assert_eq!(
+        app.state_dir(),
+        own.path(),
+        "state_dir() reports the directory the app actually runs with"
+    );
+    app.shutdown().await;
+}
