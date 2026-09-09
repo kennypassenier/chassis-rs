@@ -1174,3 +1174,13 @@ manifest lists 115 files. Asks for kp-themes now: (a) a consumer bake asset
 `detach()` should forget the fields it bound (or the caret binding should
 re-evaluate `--kp-caret` on focus), and `effects.js` belongs in
 `check-closure.mjs`'s VENDORED list for this consumer.
+
+## Release 1.8.0 (2026-09-09)
+
+Kenny's go in chat after his look at CT 118 (L1 Akkoord, rule 39). Released
+through `scripts/release-kit.sh 1.8.0` — tag `v1.8.0` = `b067f65`,
+https://github.com/kennypassenier/chassis-rs/releases/tag/v1.8.0. Contents: batch 3 (K25 harness, K27–K32) and
+kp-themes 5.0.0 (bundle, fonts, effects.js, dialog confirmations, CF-11 fix,
+D1 exit code). Kenny received one adoption prompt for kyu, kyu-runner,
+almanac and http-switchboard (their own sessions, rule 7a). Open here: K34
+(batch 4), the retro of batch 3, and the kp-themes asks (PENDING §D2).

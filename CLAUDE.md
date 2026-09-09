@@ -15,9 +15,9 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | **6 · Development loop — kp-themes 5.0.0 adopted** (2026-09-09). Release bundle `dist/kp-themes.css` + fonts + seven JS modules (effects.js since R2-b) under `/static/kp/`; dialog confirmations; CF-11 fixed. Kit at **1.7.1**; `[Unreleased]` holds batch 3 + kp-themes 5.0.0 — 1.8.0 waits for Kenny's word (R1); Kenny looked at CT 118 (L1 Akkoord). Next build: K34 (batch 4)
-| Last completed gate | Mini-round D2 2026-09-09 (register bundle) after deep-dive R2-b (effects.js) and the adoption report (R1/R3/L1 Akkoord, CF-11 Klopt, D1 alle fonts) |
-| Next gate | Kenny's word for 1.8.0 (`scripts/release-kit.sh 1.8.0`, Phase 9 report; his look at CT 118 is in); then K34 (batch 4) and the batch-3 retro with the four candidates in PENDING |
+| Current phase | **9 · Release — 1.8.0 released 2026-09-09** (tag `v1.8.0` = `b067f65`, batch 3 + kp-themes 5.0.0, no signing: library + CLI via git tag). The four consumers adopt in their own sessions (rule 7a) with the prompt Kenny received; kit CLI 1.8.0 installed locally. Next build: K34 (batch 4); then the retro of batch 3 with the four candidates in PENDING
+| Last completed gate | Release go for 1.8.0 (Kenny, 2026-09-09, after his look at CT 118 — rule 39) → `scripts/release-kit.sh 1.8.0` (CF-5 chain: gated commit, checks by SHA, fast-forward, tag, GitHub release) |
+| Next gate | Consumers' adoption reports live in their sessions; here: K34 (batch 4) as the next Phase 6 milestone, then the Phase 10 retro of batch 3 (four candidates in PENDING §Kit batch 3) |
 | AFK mode | **off** since 2026-09-07 (batch 3 reported). Rule 7a in force: the four consumer projects are touched only in their own sessions |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 
