@@ -64,15 +64,19 @@ pub enum KitDependency {
     Missing,
 }
 
-/// Reads the `chassis` dependency out of a `Cargo.toml`.
-pub fn kit_dependency(cargo_toml: &str) -> Result<KitDependency, Error> {
-    let table: toml::Table = cargo_toml.parse().map_err(|e| {
+fn parse_cargo(cargo_toml: &str) -> Result<toml::Table, Error> {
+    cargo_toml.parse().map_err(|e| {
         Error::config(
             format!("Cargo.toml does not parse: {e}"),
             "fix the file; `cargo metadata` reports the same error with a line number",
         )
-    })?;
-    let dep = table
+    })
+}
+
+/// The `chassis` entry of `[dependencies]`, or of `[workspace.dependencies]`
+/// when the project keeps its versions there.
+fn chassis_dep(table: &toml::Table) -> Option<&toml::Value> {
+    table
         .get("dependencies")
         .and_then(|d| d.get("chassis"))
         .or_else(|| {
@@ -80,7 +84,83 @@ pub fn kit_dependency(cargo_toml: &str) -> Result<KitDependency, Error> {
                 .get("workspace")
                 .and_then(|w| w.get("dependencies"))
                 .and_then(|d| d.get("chassis"))
-        });
+        })
+}
+
+/// Every kit feature, in the order a document lists them. `assets` sits
+/// after `dashboard` because that is what pulls it in.
+pub const KIT_FEATURES: [&str; 6] = [
+    "core",
+    "dashboard",
+    "assets",
+    "passkeys",
+    "self-update",
+    "notify",
+];
+
+/// What one feature switches on besides itself, mirroring `[features]` in
+/// the kit's own `Cargo.toml`. `testing` is a dev-dependency feature: a
+/// project's tests get the harness, its binary does not get a dashboard
+/// from it, so it resolves to nothing here.
+fn implied(feature: &str) -> &'static [&'static str] {
+    match feature {
+        "dashboard" => &["core", "assets"],
+        "assets" => &["core"],
+        "passkeys" => &["dashboard", "assets", "core"],
+        "self-update" | "notify" => &["core"],
+        _ => &[],
+    }
+}
+
+/// The kit features a project's binary is built with (K35), resolved from
+/// the `chassis` dependency in its `Cargo.toml`: what it lists, what those
+/// imply, and `core` from the kit's default feature unless the project set
+/// `default-features = false`.
+///
+/// `None` when the file names no `chassis` dependency at all — the caller
+/// decides what a document should then say, since "no features" and "we
+/// could not tell" are different answers (rule 30).
+pub fn kit_features(cargo_toml: &str) -> Result<Option<Vec<String>>, Error> {
+    let table = parse_cargo(cargo_toml)?;
+    let Some(dep) = chassis_dep(&table) else {
+        return Ok(None);
+    };
+    let mut on: Vec<&str> = Vec::new();
+    match dep {
+        // `chassis = "1.8.0"`: default features, nothing added.
+        toml::Value::String(_) => on.push("core"),
+        toml::Value::Table(t) => {
+            let defaults_on = t
+                .get("default-features")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            if defaults_on {
+                on.push("core");
+            }
+            if let Some(list) = t.get("features").and_then(|v| v.as_array()) {
+                for f in list.iter().filter_map(|v| v.as_str()) {
+                    if let Some(known) = KIT_FEATURES.iter().find(|k| **k == f) {
+                        on.push(known);
+                    }
+                    on.extend(implied(f).iter().copied());
+                }
+            }
+        }
+        _ => return Ok(None),
+    }
+    Ok(Some(
+        KIT_FEATURES
+            .iter()
+            .filter(|f| on.contains(*f))
+            .map(|f| (*f).to_string())
+            .collect(),
+    ))
+}
+
+/// Reads the `chassis` dependency out of a `Cargo.toml`.
+pub fn kit_dependency(cargo_toml: &str) -> Result<KitDependency, Error> {
+    let table = parse_cargo(cargo_toml)?;
+    let dep = chassis_dep(&table);
     let string_of =
         |t: &toml::Table, key: &str| t.get(key).and_then(|v| v.as_str()).map(str::to_string);
     Ok(match dep {
@@ -406,6 +486,49 @@ pub fn remote_drift(repo: &str) -> Result<Vec<Drift>, Error> {
 
 #[cfg(test)]
 mod tests {
+
+    /// K35: what a project lists is what its documentation describes, plus
+    /// what the kit's own `[features]` pulls in behind it. Drilled red by
+    /// dropping the `implied` expansion: `passkeys` alone then reported no
+    /// dashboard, and a dashboard section would have vanished from a
+    /// project that has one.
+    #[test]
+    fn k35_features_resolve_what_the_project_lists_and_what_it_implies() {
+        let dep = |line: &str| format!("[dependencies]\n{line}\n");
+        let features = |line: &str| kit_features(&dep(line)).unwrap().unwrap();
+
+        assert_eq!(
+            features(
+                r#"chassis = { git = "g", tag = "v1", features = ["dashboard", "self-update"] }"#
+            ),
+            ["core", "dashboard", "assets", "self-update"],
+        );
+        assert_eq!(
+            features(r#"chassis = { git = "g", tag = "v1", features = ["passkeys"] }"#),
+            ["core", "dashboard", "assets", "passkeys"],
+            "passkeys brings the dashboard it lives on"
+        );
+        assert_eq!(
+            features(
+                r#"chassis = { git = "g", tag = "v1", default-features = false, features = ["core", "self-update"] }"#
+            ),
+            ["core", "self-update"],
+            "the headless shape: kyu-runner and http-switchboard"
+        );
+        assert_eq!(
+            features(r#"chassis = "1.8.0""#),
+            ["core"],
+            "a bare version string is the kit's default feature"
+        );
+    }
+
+    /// K35: no dependency to read is not the same answer as no features
+    /// (rule 30), so the caller gets `None` rather than an empty list.
+    #[test]
+    fn k35_a_cargo_toml_without_the_kit_reports_that_it_could_not_tell() {
+        let none = kit_features("[dependencies]\nserde = \"1\"\n").unwrap();
+        assert_eq!(none, None);
+    }
     use super::*;
 
     const GIT_DEP: &str = r#"

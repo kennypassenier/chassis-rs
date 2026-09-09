@@ -11,6 +11,13 @@ the same way in every service built on it. What {{ name }} does itself —
 its routes, its pages, its own configuration — is described in the
 project's own README and `docs/`.
 
+**This binary is built with: {{ features_sentence }}.** The kit can do
+more than this document describes; what a feature this project does not
+build would have added is left out here rather than explained as though it
+were there.
+
+{%- if "dashboard" in features %}
+
 ## The door: how callers get in
 
 Every request to a protected route carries a **client token**:
@@ -27,6 +34,7 @@ A client token is issued per caller, on the dashboard's **Clients** page
 can be revealed, copied, re-issued or revoked at any time; revoking locks
 the caller out the same second. A request without a valid token is
 answered with HTTP 401 and a JSON body that says what to send.
+
 
 Two secrets belong to the operator, not to callers, and live only in the
 environment file (`{{ env_file }}`), never in a flag or a config file:
@@ -45,6 +53,24 @@ secret never lands in a log):
 
 Paste the two lines it prints into `{{ env_file }}`. Without both, a
 service with a dashboard refuses to start and `--check` tells you so.
+{%- else %}
+
+## The door: how callers get in
+
+The kit's door — client tokens, the admin token, the sealed client store —
+comes with the `dashboard` feature, which {{ name }} is not built with. The
+kit adds no authentication of its own here: every route this binary serves
+is one the project registered itself, and whatever protects it is the
+project's own. `{{ prefix }}_SECRET_KEY` and `{{ prefix }}_TOKEN` are not
+read, and `gen-secret` is not part of this binary.
+
+To get a token FROM another service built on the kit (a hub this service
+calls), use `chassis clients issue <name> --url <base> --token-env <VAR>`
+on the machine that runs it; that command talks to the other service's
+API, not to this one.
+{%- endif %}
+
+{%- if "dashboard" in features %}
 
 ## The dashboard (`dashboard` feature)
 
@@ -61,6 +87,7 @@ A server-rendered set of pages behind the admin login:
 The layout, the navigation and the **theme picker** (kp-themes
 {{ kp_themes }}) come from the kit; a chosen theme is remembered by the
 browser.
+{%- endif %}
 
 ## Health and metrics
 
@@ -80,6 +107,8 @@ route and status, build info, uptime, and whatever {{ name }} appends.
 the command line (the container `HEALTHCHECK` and the systemd unit use it)
 and exits 0 when a well-formed report came back — degraded still counts
 as alive; dead does not.
+
+{%- if "self-update" in features %}
 
 ## Self-update (`self-update` feature)
 
@@ -106,6 +135,10 @@ does not verify is refused with nothing installed.
 drill only. Before an update the kit keeps a copy of the state under
 `{{ state_dir }}-pre-update/<version>/`.
 
+{%- endif %}
+
+{%- if "notify" in features %}
+
 ## Notifications (`notify` feature)
 
 The kit emits events and posts each to the webhooks that subscribe to it:
@@ -126,6 +159,7 @@ headers = { "Authorization" = "Bearer ${{ '{' }}{{ prefix }}_HOOK_TOKEN}" }
 `${VAR}` in a URL or header is read from the environment when the service
 starts, so a secret stays out of the file. Delivery retries with backoff
 and never blocks a request.
+{%- endif %}
 
 ## Command-line controls
 
@@ -136,8 +170,12 @@ and never blocks a request.
 | `{{ name }} --print-config` | Every knob with its effective value and where it came from (flag, env, file, default); secrets masked. |
 | `{{ name }} --knobs` | The table below, for the version of the kit this binary was built with. |
 | `{{ name }} --healthcheck [URL]` | Probes `/healthz` of the running instance; exit 0 when alive. |
+{%- if "dashboard" in features %}
 | `{{ name }} gen-secret` | Prints a fresh `{{ prefix }}_TOKEN` and `{{ prefix }}_SECRET_KEY` (terminal only). |
+{%- endif %}
+{%- if "self-update" in features %}
 | `{{ name }} update` | One supervised update attempt; exit 0 when current or installed. |
+{%- endif %}
 | `{{ name }} --help` | Every flag, including one per knob. |
 
 ## Configuration knobs
@@ -154,13 +192,15 @@ ignored.
 ## Where things live
 
 - **State**: `{{ prefix }}_STATE_DIR`, default `{{ state_dir }}`. The
-  config file, the sealed stores and the update state all live under this
-  one directory; nothing is written anywhere else.
+  config file{% if "dashboard" in features %}, the sealed stores{% endif %} and the update state all live under
+  this one directory; nothing is written anywhere else.
 - **Environment file**: `{{ env_file }}`, read by the systemd unit
-  (`EnvironmentFile=`). It holds the two secrets and any knob you set as
+  (`EnvironmentFile=`). It holds {% if "dashboard" in features %}the two secrets and {% endif %}any knob you set as
   an environment variable.
+{%- if "self-update" in features %}
 - **Pre-update copies**: `{{ state_dir }}-pre-update/`, beside the state
   root, not under it.
+{%- endif %}
 
 Everything specific to {{ name }} — its API, its pages, its own settings
 and its deployment history — is in this repository's README and the rest

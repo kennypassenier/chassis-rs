@@ -89,7 +89,10 @@ impl Recorded {
         }
     }
 
-    fn context(&self) -> minijinja::Value {
+    /// `features` names the kit features the project's binary is built
+    /// with (K35): `new` writes them into the Cargo.toml it generates,
+    /// `sync` reads them back from the project's own.
+    fn context(&self, features: &[String]) -> minijinja::Value {
         let prefix = self.name.to_ascii_uppercase().replace('-', "_");
         let owner = self.repo.split('/').next().unwrap_or("").to_string();
         minijinja::context! {
@@ -113,8 +116,17 @@ impl Recorded {
             vmid => self.vmid,
             stack => self.name,
             // K27/K31: pre-rendered so docs/KIT.md always carries the
-            // table of the kit this `chassis` was built with.
-            knobs_table => kit_docs::knobs_markdown(&self.name),
+            // kit's own table, and K35: only the rows this project's
+            // binary can act on.
+            knobs_table => kit_docs::knobs_markdown(&self.name, features),
+            features => features.to_vec(),
+            features_sentence => features.join(", "),
+            chassis_features_literal => features
+                .iter()
+                .filter(|f| *f != "core" && *f != "assets")
+                .map(|f| format!("\"{f}\""))
+                .collect::<Vec<_>>()
+                .join(", "),
         }
     }
 }
@@ -122,6 +134,24 @@ impl Recorded {
 /// Mirrors `chassis::shell::update::RELEASE_PUBKEY` (the shell module is
 /// behind a feature the CLI does not enable); a test keeps the two equal.
 const RELEASE_PUBKEY: &str = "RWQWCzzUBquIHGkS3YERMkuqEm4C3vBArnlb9rySbr8z5ytgVYuji3bS";
+
+/// What `chassis new` puts on the kit dependency it writes (K35): the
+/// generated Cargo.toml and the generated documentation are rendered from
+/// this one list, so a new project cannot start out with a document that
+/// describes other features than it builds.
+fn scaffold_features() -> Vec<String> {
+    [
+        "core",
+        "dashboard",
+        "assets",
+        "passkeys",
+        "self-update",
+        "notify",
+    ]
+    .iter()
+    .map(|f| (*f).to_string())
+    .collect()
+}
 const TOOLCHAIN: &str = "1.97";
 const KP_THEMES: &str = "5.0.0";
 const CHASSIS_REPO: &str = "https://github.com/kennypassenier/chassis-rs";
@@ -259,8 +289,11 @@ fn main() -> ExitCode {
 // ───────────────────────── rendering ─────────────────────────
 
 /// Every file the scaffold produces for `rec`, as (path, bytes, executable).
-fn render_all(rec: &Recorded) -> Result<Vec<(String, String, bool, bool)>, Error> {
-    let ctx = rec.context();
+fn render_all(
+    rec: &Recorded,
+    features: &[String],
+) -> Result<Vec<(String, String, bool, bool)>, Error> {
+    let ctx = rec.context(features);
     let mut out = Vec::new();
     for e in templates::ENTRIES {
         if e.path.contains("latch") && !rec.latch {
@@ -392,7 +425,7 @@ fn cmd_new(
         description,
         latch,
     };
-    for (rel, body, exec, _) in render_all(&rec)? {
+    for (rel, body, exec, _) in render_all(&rec, &scaffold_features())? {
         let body = if rel == "Cargo.toml" {
             with_chassis_path(&body, &rec)
         } else {
@@ -639,8 +672,34 @@ fn cmd_sync(
             rec.kp_themes = vendored.to_string();
         }
     }
+    // K35: the project's own Cargo.toml decides which features the
+    // generated documentation describes, so it is read BEFORE anything is
+    // rendered — the same ordering lesson as kp_themes above.
+    let cargo_path = dir.join("Cargo.toml");
+    let cargo = std::fs::read_to_string(&cargo_path).map_err(|e| {
+        Error::config(
+            format!("cannot read {}: {e}", cargo_path.display()),
+            "run `chassis sync` in the project root, next to .chassis.toml",
+        )
+    })?;
+    let features = match drift::kit_features(&cargo)? {
+        Some(features) => features,
+        None => {
+            // No chassis dependency to read: `kit_tag_drift` below reports
+            // that with its remedy. Describing every feature is the honest
+            // answer here — narrowing the document on a guess would hide
+            // knobs the project may well have (rule 30).
+            println!(
+                "~ Cargo.toml: no chassis dependency, so docs/KIT.md is rendered for every kit feature"
+            );
+            drift::KIT_FEATURES
+                .iter()
+                .map(|f| (*f).to_string())
+                .collect()
+        }
+    };
     let mut changed = false;
-    for (rel, body, exec, owned) in render_all(&rec)? {
+    for (rel, body, exec, owned) in render_all(&rec, &features)? {
         let current = std::fs::read_to_string(dir.join(&rel)).unwrap_or_default();
         let body = if rel == "Cargo.toml" {
             with_chassis_path(&body, &rec)
@@ -671,13 +730,6 @@ fn cmd_sync(
         }
     }
     // K32: the remaining drift that is not a file, after the diffs and in one shape.
-    let cargo_path = dir.join("Cargo.toml");
-    let cargo = std::fs::read_to_string(&cargo_path).map_err(|e| {
-        Error::config(
-            format!("cannot read {}: {e}", cargo_path.display()),
-            "run `chassis sync` in the project root, next to .chassis.toml",
-        )
-    })?;
     let dep = drift::kit_dependency(&cargo)?;
     if let drift::KitDependency::Path(path) = &dep {
         println!(
@@ -1215,7 +1267,7 @@ mod tests {
     fn latch_unit_has_notify_access_all_and_checks_under_latch() {
         let mut r = rec();
         r.latch = true;
-        let files = render_all(&r).unwrap();
+        let files = render_all(&r, &scaffold_features()).unwrap();
         let unit = files
             .iter()
             .find(|(p, ..)| p == "deploy/demo-svc-latch.service")
@@ -1246,7 +1298,7 @@ mod tests {
 
     #[test]
     fn every_template_renders_and_substitutes() {
-        let files = render_all(&rec()).unwrap();
+        let files = render_all(&rec(), &scaffold_features()).unwrap();
         let expected = templates::ENTRIES
             .iter()
             .filter(|e| !e.path.contains("latch"))
@@ -1301,10 +1353,13 @@ mod tests {
             !files.iter().any(|(p, ..)| p.contains("latch")),
             "latch unit only on request"
         );
-        let files = render_all(&Recorded {
-            latch: true,
-            ..rec()
-        })
+        let files = render_all(
+            &Recorded {
+                latch: true,
+                ..rec()
+            },
+            &scaffold_features(),
+        )
         .unwrap();
         assert!(
             files
@@ -1326,7 +1381,7 @@ mod tests {
     // Drilled red once (dropped `container build` from the expected list): failed, restored.
     #[test]
     fn k32_required_checks_are_the_scaffold_ci_job_names() {
-        let ci = render_all(&rec())
+        let ci = render_all(&rec(), &scaffold_features())
             .unwrap()
             .into_iter()
             .find(|(p, ..)| p == ".github/workflows/ci.yml")
@@ -1357,9 +1412,55 @@ mod tests {
     /// version and the tag it matches), carries the project's prefix, every
     /// knob key, and no template variable that escaped rendering. Drilled
     /// red once by dropping `knobs_table` from the template context.
+    /// K35: the document a headless service carries describes a headless
+    /// service. Standing rule 43 (kyu-runner, 2026-09-09): the title
+    /// carries the project's name, so every section under it reads as a
+    /// promise about that project. Drilled red by rendering with
+    /// `scaffold_features()` instead: the dashboard section came back and
+    /// the assertion fired.
+    #[test]
+    fn k35_kit_md_leaves_out_what_this_project_does_not_build() {
+        let headless: Vec<String> = ["core", "self-update"]
+            .iter()
+            .map(|f| (*f).to_string())
+            .collect();
+        let files = render_all(&rec(), &headless).unwrap();
+        let (_, kit_md, ..) = files
+            .iter()
+            .find(|(p, ..)| p == "docs/KIT.md")
+            .expect("docs/KIT.md rendered");
+        assert!(
+            kit_md.contains("This binary is built with: core, self-update."),
+            "the document says which part of the kit this is:\n{kit_md}"
+        );
+        for absent in [
+            "## The dashboard",
+            "## Notifications",
+            // The command row and the knob, not the bare words: the
+            // headless door section names `gen-secret` and the secret key
+            // precisely to say they are NOT part of this binary.
+            "`demo-svc gen-secret`",
+            "| `DEMO_SVC_TOKEN` |",
+            "| `DEMO_SVC_PUBLIC_URL` |",
+        ] {
+            assert!(
+                !kit_md.contains(absent),
+                "{absent} is not part of this service:\n{kit_md}"
+            );
+        }
+        assert!(
+            kit_md.contains("## Self-update") && kit_md.contains("| `DEMO_SVC_UPDATE_URL` |"),
+            "what it does build stays:\n{kit_md}"
+        );
+        assert!(
+            kit_md.contains("## Health and metrics") && kit_md.contains("| `DEMO_SVC_LISTEN` |"),
+            "core stays:\n{kit_md}"
+        );
+    }
+
     #[test]
     fn k27_kit_md_carries_every_knob_and_the_project_prefix() {
-        let files = render_all(&rec()).unwrap();
+        let files = render_all(&rec(), &scaffold_features()).unwrap();
         let (_, kit_md, exec, owned) = files
             .iter()
             .find(|(p, ..)| p == "docs/KIT.md")
@@ -1428,7 +1529,7 @@ mod tests {
         // cargo-deny's `wildcards = "deny"` flags a git dependency without a
         // version requirement; the first remote `chassis new` was red on it
         // (2026-09-06), as kyu-runner's migration had already found by hand.
-        let cargo = render_all(&rec())
+        let cargo = render_all(&rec(), &scaffold_features())
             .unwrap()
             .into_iter()
             .find(|(p, ..)| p == "Cargo.toml")
@@ -1442,7 +1543,7 @@ mod tests {
 
     #[test]
     fn chassis_path_replaces_the_git_dependency() {
-        let cargo = render_all(&rec())
+        let cargo = render_all(&rec(), &scaffold_features())
             .unwrap()
             .into_iter()
             .find(|(p, ..)| p == "Cargo.toml")
@@ -1690,7 +1791,7 @@ mod tests {
         r.latch = true;
         r.env_file = Some("/appdata/demo-svc/demo-svc-config/latch.env".into());
         r.latch_env = Some(String::new());
-        let files = render_all(&r).unwrap();
+        let files = render_all(&r, &scaffold_features()).unwrap();
         let unit = &files
             .iter()
             .find(|(p, ..)| p == "deploy/demo-svc-latch.service")
@@ -1705,7 +1806,7 @@ mod tests {
             "{unit}"
         );
         r.vmid = 112;
-        let files = render_all(&r).unwrap();
+        let files = render_all(&r, &scaffold_features()).unwrap();
         let stack = &files
             .iter()
             .find(|(p, ..)| p == "deploy/service.yml")
@@ -1725,7 +1826,7 @@ mod tests {
             "{stack}"
         );
         // The defaults are what a fresh project always got.
-        let fresh = render_all(&rec()).unwrap();
+        let fresh = render_all(&rec(), &scaffold_features()).unwrap();
         let unit = &fresh
             .iter()
             .find(|(p, ..)| p == "deploy/demo-svc.service")
@@ -1756,13 +1857,13 @@ mod tests {
     fn deny_ignore_reaches_the_rendered_deny_toml() {
         let mut r = rec();
         r.deny_ignore = vec!["RUSTSEC-2023-0071".into(), "RUSTSEC-2025-0012".into()];
-        let files = render_all(&r).unwrap();
+        let files = render_all(&r, &scaffold_features()).unwrap();
         let deny = &files.iter().find(|(p, ..)| p == "deny.toml").unwrap().1;
         assert!(
             deny.contains("ignore = [\"RUSTSEC-2023-0071\", \"RUSTSEC-2025-0012\"]"),
             "{deny}"
         );
-        let fresh = render_all(&rec()).unwrap();
+        let fresh = render_all(&rec(), &scaffold_features()).unwrap();
         let deny = &fresh.iter().find(|(p, ..)| p == "deny.toml").unwrap().1;
         assert!(deny.contains("ignore = []"), "{deny}");
     }

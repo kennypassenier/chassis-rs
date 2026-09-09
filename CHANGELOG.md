@@ -7,6 +7,29 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+- **The generated `docs/KIT.md` describes the features the project builds**
+  (K35). `chassis sync` reads the feature list off the `chassis` dependency
+  in the project's `Cargo.toml` (implications expanded, `default-features =
+  false` honoured), names it in one line under the title, and leaves out the
+  sections for features this binary does not carry. A headless service is no
+  longer handed a document about a login page that answers 404 there
+  (standing rule 43). `chassis new` renders the same list into the
+  `Cargo.toml` it writes, so a new project's document and its features have
+  one source.
+- **`--knobs` lists the knobs this binary can act on** (K36).
+  `AppSpec::knobs_markdown` now filters on the compiled features, and
+  `AppSpec::knobs_markdown_for(features)` renders the table for a named set
+  (what `chassis sync` uses from outside the service). `knobs()` and
+  `knob_keys()` are unchanged: a knob of a feature the binary lacks is still
+  accepted and ignored in the config file, exactly as `docs/KIT.md` says.
+
+### Changed
+- **`docs/MIGRATION.md` says the test harness is for services with a
+  dashboard** (K37) and carries a per-version list of claims a kit upgrade
+  may have made false in a project's own README and runbook (HK5). Both come
+  from consumer sessions on 1.8.0.
+
 ### Fixed
 - **`chassis::testing` reads the environment the app actually starts with**
   (K25, CF-12). `TestApp::token()` (and with it `login()` and

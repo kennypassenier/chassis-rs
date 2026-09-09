@@ -284,10 +284,23 @@ let config = Config::from_table(&app.loaded.as_ref().unwrap().file_table, &app.s
 
 Nothing is required. What a project can adopt, each on its own:
 
-- **Tests:** add `chassis = { …, features = ["dashboard", "testing"] }` to
+- **Tests, for a service WITH a dashboard:** add
+  `chassis = { …, features = ["dashboard", "testing"] }` to
   `[dev-dependencies]` and replace the hand-written `tests/common/mod.rs`
   harness with `chassis::testing::TestApp` (docs/TESTING.md). kyu, Almanac and
   the inbox example each carry such a copy today.
+
+  **A headless service does not adopt this** (K37, measured in kyu-runner,
+  2026-09-09). Two reasons, both of which only show up once the work has
+  started: the `testing` feature implies `dashboard`, which is exactly what
+  such a service leaves out, and `TestApp` runs the service in the test
+  process, so a suite that reads the service's log file, sends it a signal
+  or checks its exit code has nothing to assert against. kyu-runner measured
+  the cost of taking it literally at 29 tests including its whole resilience
+  suite, and kept its own harness; the reason is recorded in that project's
+  `docs/TEST_PLAN.md`. What it did take is `chassis clients` below. (What
+  the harness does NOT do is leak into the built binary: with the
+  dev-dependency in place, `/login` and `/clients` still answered 404 there.)
 - **Vocabulary:** Almanac replaces `clients_label("Sources")` with
   `vocabulary("source", "sources")` (keep `clients_label` only when the
   heading should differ from the capitalised plural).
@@ -313,6 +326,30 @@ Nothing is required. What a project can adopt, each on its own:
 - **Drift:** `chassis sync` now also reports a kit tag in Cargo.toml that
   differs from `chassis_tag`, a stale `kp_themes`, and with `--remote` a branch
   protection that names other checks than the CI does.
+
+### Claims in your own documents that this version may have made false
+
+A kit upgrade changes facts the kit does not own: a project's README and
+runbook describe workflows, commands and capabilities that the migration
+moved. `chassis sync` compares only the files it renders, so nothing
+mechanical looks at this — Phase 8's honesty pass is where it belongs
+(STANDING_RULES 11a/11b), and this list says where to point it (HK5, kyu,
+2026-09-09: kyu's README named a workflow file replaced at 3.0.0 and its
+runbook still said kyu ships no self-updating binary, both false for
+months).
+
+For 1.8.0, check your own documents for:
+
+- a hand-written table of kit knobs, or a passage explaining kit behaviour
+  that `docs/KIT.md` now states (point at it instead of retelling it);
+- a sentence saying client tokens need the dashboard, or a browser
+  (`chassis clients` is the headless way since this version);
+- a test-harness section describing a hand-written `tests/common`, if the
+  project adopted `chassis::testing`;
+- a stylesheet path under `/static/` that kp-themes 5.0.0 moved, quoted in
+  a document rather than in code;
+- a claim about what `chassis sync` does NOT report: it now also reports
+  the kit tag, `kp_themes` and, with `--remote`, branch protection.
 
 ## 1.7.0 additions
 

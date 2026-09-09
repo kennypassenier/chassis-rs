@@ -4,20 +4,25 @@
 //! table — is computed here from the same `AppSpec::knobs()` the parser
 //! reads (K31), so the document can never disagree with the binary.
 
-/// The knob table for a service called `name`, as Markdown.
+/// The knob table for a service called `name` built with `features`, as
+/// Markdown (K31, filtered per K35).
 ///
 /// `AppSpec.name` is `&'static str` because a running service's name is
 /// a literal; the CLI knows the name only at run time, from
 /// `.chassis.toml`, so it is leaked once per invocation. `chassis` is a
 /// short-lived command and the table is rendered once, so the leak is a
 /// handful of bytes and not a change to the kit's API.
-pub fn knobs_markdown(name: &str) -> String {
+///
+/// The features come from the project, never from this command: `chassis`
+/// is built with `core` alone and its own feature set says nothing about
+/// the service it is documenting.
+pub fn knobs_markdown(name: &str, features: &[String]) -> String {
     let name: &'static str = Box::leak(name.to_string().into_boxed_str());
     chassis::AppSpec {
         name,
         ..Default::default()
     }
-    .knobs_markdown()
+    .knobs_markdown_for(features)
 }
 
 #[cfg(test)]
@@ -29,10 +34,27 @@ mod tests {
     /// name does not produce.
     #[test]
     fn k27_knob_table_uses_the_project_prefix_and_every_key() {
-        let table = knobs_markdown("demo-svc");
+        let all: Vec<String> = crate::drift::KIT_FEATURES
+            .iter()
+            .map(|f| (*f).to_string())
+            .collect();
+        let table = knobs_markdown("demo-svc", &all);
         assert!(table.contains("| `DEMO_SVC_LISTEN` |"), "{table}");
         for key in chassis::AppSpec::default().knob_keys() {
             assert!(table.contains(&format!("| `{key}` |")), "{key} missing");
         }
+    }
+
+    /// K35: the table describes the project's binary, so a service built
+    /// without the dashboard is not told about the dashboard's knobs.
+    /// Drilled red by passing `KIT_FEATURES` here instead of core alone.
+    #[test]
+    fn k35_the_knob_table_follows_the_project_feature_list() {
+        let core_only = knobs_markdown("demo-svc", &["core".to_string()]);
+        assert!(core_only.contains("| `DEMO_SVC_LISTEN` |"), "{core_only}");
+        assert!(
+            !core_only.contains("| `DEMO_SVC_TOKEN` |"),
+            "a headless service has no admin token to set:\n{core_only}"
+        );
     }
 }

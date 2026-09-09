@@ -475,17 +475,36 @@ impl AppSpec {
         ]
     }
 
-    /// The knob table as Markdown (K31): one row per knob in `knobs()`
-    /// order, with the three names, the default (`—` when there is none,
-    /// `(secret)` for the two secrets, whose value never appears anywhere),
-    /// the feature that reads it and its one-sentence meaning. Printed by
-    /// `--knobs`; `chassis sync` renders it into `docs/KIT.md`.
+    /// The knob table as Markdown (K31) for the features this binary was
+    /// built with (K36): one row per knob in `knobs()` order, with the
+    /// three names, the default (`—` when there is none, `(secret)` for the
+    /// two secrets, whose value never appears anywhere), the feature that
+    /// reads it and its one-sentence meaning. Printed by `--knobs`.
     pub fn knobs_markdown(&self) -> String {
+        self.knobs_markdown_for(compiled_features())
+    }
+
+    /// [`AppSpec::knobs_markdown`] for a named set of features instead of
+    /// this binary's own (K36). `chassis sync` renders `docs/KIT.md` from
+    /// outside the service, so it passes the feature list it read from the
+    /// project's `Cargo.toml`; the `chassis` command's own features are
+    /// those of a scaffold tool and say nothing about the project.
+    ///
+    /// A knob whose `feature` is `None` is core and always listed. Note
+    /// that this filters the DOCUMENT, not [`AppSpec::knobs`] or
+    /// [`AppSpec::knob_keys`]: a knob of a feature the binary lacks is
+    /// still accepted and ignored in the config file, which is what
+    /// `docs/KIT.md` promises.
+    pub fn knobs_markdown_for<S: AsRef<str>>(&self, features: &[S]) -> String {
+        let built = |feature: Option<&str>| match feature {
+            None => true,
+            Some(f) => features.iter().any(|s| s.as_ref() == f),
+        };
         let prefix = self.prefix();
         let mut out = String::from(
             "| Key | Env | Flag | Default | Feature | Meaning |\n|---|---|---|---|---|---|\n",
         );
-        for k in self.knobs() {
+        for k in self.knobs().into_iter().filter(|k| built(k.feature)) {
             let default = if k.secret {
                 "(secret)".to_string()
             } else {
@@ -512,6 +531,23 @@ impl AppSpec {
         }
         out
     }
+}
+
+/// The kit features this binary was compiled with, `core` first (K36).
+/// `assets` is left out: it carries no knob and no page of its own, it is
+/// what `dashboard` pulls in.
+pub fn compiled_features() -> &'static [&'static str] {
+    &[
+        "core",
+        #[cfg(feature = "dashboard")]
+        "dashboard",
+        #[cfg(feature = "passkeys")]
+        "passkeys",
+        #[cfg(feature = "self-update")]
+        "self-update",
+        #[cfg(feature = "notify")]
+        "notify",
+    ]
 }
 
 /// A control command the command line asked for; answered by `run`.
@@ -2177,13 +2213,18 @@ mod tests {
         assert_eq!(app.control().await.unwrap(), Some(ExitCode::SUCCESS));
     }
 
+    /// Every feature a knob can name; `core` knobs carry `None`.
+    const ALL_FEATURES: [&str; 4] = ["dashboard", "passkeys", "self-update", "notify"];
+
     /// K31: the table has one row per knob, in `knobs()` order, and the
     /// two secrets show `(secret)` where a default would be — never a
     /// value, never a flag. Drilled red once by adding a duplicate row.
     #[test]
     fn k31_knob_table_lists_every_knob_once_and_no_secret_default() {
         let spec = spec();
-        let table = spec.knobs_markdown();
+        // The shape assertions want every row, so they ask for every
+        // feature; the filtering itself is K36's own test below.
+        let table = spec.knobs_markdown_for(&ALL_FEATURES);
         let rows: Vec<&str> = table
             .lines()
             .skip(2)
@@ -2218,6 +2259,65 @@ mod tests {
     /// K31: every knob carries a meaning — a whole sentence, so the table
     /// never shows an empty cell or a fragment. Drilled red once by
     /// blanking one doc.
+    /// K36: the document names what the binary can actually be told.
+    /// Drilled red by dropping the filter from `knobs_markdown_for`: the
+    /// core-only table then carried `T_APP_TOKEN` and the assertion fired.
+    #[test]
+    fn k36_the_knob_table_lists_only_the_features_it_is_asked_for() {
+        let spec = spec();
+        let core_only = spec.knobs_markdown_for(&["core"]);
+        assert!(
+            core_only.contains("| `T_APP_LISTEN` |"),
+            "a core knob is always listed:\n{core_only}"
+        );
+        for absent in ["T_APP_TOKEN", "T_APP_SESSION_TTL_SECS", "T_APP_PUBLIC_URL"] {
+            assert!(
+                !core_only.contains(&format!("| `{absent}` |")),
+                "{absent} belongs to a feature this binary does not have:\n{core_only}"
+            );
+        }
+        let with_dashboard = spec.knobs_markdown_for(&["core", "dashboard"]);
+        assert!(
+            with_dashboard.contains("| `T_APP_TOKEN` |"),
+            "a dashboard knob is listed once the dashboard is asked for:\n{with_dashboard}"
+        );
+        assert!(
+            !with_dashboard.contains("| `T_APP_PUBLIC_URL` |"),
+            "passkeys is a feature of its own:\n{with_dashboard}"
+        );
+    }
+
+    /// K36: the filter is on the DOCUMENT only. A knob of a feature the
+    /// binary lacks stays parseable, which is what `docs/KIT.md` promises
+    /// ("accepted and ignored") and what a project's own config parser
+    /// strips with `knob_keys`. Drilled red by filtering `knobs()` itself.
+    #[test]
+    fn k36_filtering_the_table_leaves_the_parsed_knob_keys_whole() {
+        let spec = spec();
+        for key in ["token", "session_ttl_secs", "public_url"] {
+            assert!(
+                spec.knob_keys().contains(&key),
+                "{key} stays a key the kit owns whatever the binary was built with"
+            );
+        }
+    }
+
+    /// K36: `--knobs` answers for the binary that prints it, so the
+    /// unparameterised table is the compiled feature set's.
+    #[test]
+    fn k36_knobs_markdown_is_the_table_of_the_compiled_features() {
+        let spec = spec();
+        assert_eq!(
+            spec.knobs_markdown(),
+            spec.knobs_markdown_for(compiled_features()),
+            "--knobs describes this binary"
+        );
+        assert!(
+            compiled_features().contains(&"core"),
+            "core is always compiled in"
+        );
+    }
+
     #[test]
     fn k31_every_knob_has_a_doc_sentence() {
         for k in spec().knobs() {
