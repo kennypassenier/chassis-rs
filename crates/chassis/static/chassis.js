@@ -22,12 +22,28 @@
 // execCommand fallback runs; it works only inside a real click, which is
 // exactly where these buttons live. (kyu's finding, kept.)
 
-import { attachThemePickers } from './theme-picker.js';
-import { enforceContracts, attachConfirmations, attachSkipLinks } from './components.js';
+import { attachThemePickers } from './kp/js/theme-picker.js';
+import { enforceContracts, attachConfirmations, attachSkipLinks } from './kp/js/components.js';
 
 attachThemePickers();
 enforceContracts();
 attachConfirmations();
+
+// K15, kp-themes 5.0.0: a theme's register is a stylesheet the consumer
+// includes itself. theme-boot.js loads the one for first paint; this loads
+// the register of every theme picked afterwards (once each — the kit serves
+// all twenty-five, and a register is inert unless its theme is active).
+document.addEventListener('kp-theme-change', (event) => {
+  const theme = event.detail?.theme || document.documentElement.getAttribute('data-theme');
+  if (!theme || document.head.querySelector(`link[data-kp-register="${theme}"]`)) return;
+  const boot = document.querySelector('script[src*="/static/theme-boot.js"]');
+  const version = boot && boot.src.includes('?') ? boot.src.slice(boot.src.indexOf('?')) : '';
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `/static/kp/css/${encodeURIComponent(theme)}-register.css${version}`;
+  link.setAttribute('data-kp-register', theme);
+  document.head.appendChild(link);
+});
 attachSkipLinks();
 
 function copyLegacy(text) {

@@ -1108,3 +1108,32 @@ an overwritten scratch file (the brief gives each agent its own subdirectory).
 then `scripts/release-kit.sh 1.8.0`); K34 (batch 4); the `Clock` trait of
 K25 (open, unrated); the kp-themes adoption (Unblock item); deferred form
 items R1 (three turns), D6 (kyu-runner 0.2.1), H1 (http-switchboard door).
+
+## kp-themes 5.0.0 adopted (Unblock clicked 2026-09-09)
+
+Kenny relayed the kp-themes release brief and clicked Unblock. Built the same
+morning on `main`: the kit vendors kp-themes 5.0.0 under the package's own
+paths (`/static/kp/{css,js,fonts}/`) — 25 themes, `layout.css` +
+`utilities.css` (the templates' 28 inline layout styles are gone; two
+remain, both CSS anchor positioning), all 25 registers loaded per active
+theme by `theme-boot.js`/`chassis.js`, kp-themes' fonts (73 faces, 5 MB),
+the six-module JS closure; `js/effects.js` and the minified `dist/` twins
+left aside (why: docs/DASHBOARD.md). Stored `topo`/`tazhib`/`nishiki` are
+migrated to `forest`/`lapis`/`woodblock` before first paint. Assets without
+the `?v=` hash are cached a day, not a year. Confirmations are kp-themes'
+native `<dialog>`.
+
+**Browser drill (local inbox, Chromium):** login, status (autogrid cards,
+"kp-themes 5.0.0"), the "Clear messages" dialog, theme picker with 25
+themes, cyberpunk (Rajdhani / Big Shoulders loaded from `/static/kp/fonts`),
+the register list `formal, woodblock, cyberpunk` growing per pick, `topo` →
+`forest` on reload, clients page on forest, a client issued, the Delete
+dialog; no 404 in the network log. **Live-found:** the client-name `pattern`
+invalid under the `v` flag → CF-11 (docs/CORRECTIONS.md), fixed test-first.
+
+**Open measurement (CF-11.7):** the next browser drill of the dashboard
+reads the console clean for the Clients page.
+
+**For the report form:** the live look on CT 118 (rule 39) before the
+release-go; the 1.8.0 release now carries batch 3 and kp-themes 5.0.0
+together (R1: Kenny's word).

@@ -12,20 +12,20 @@
 {% if error %}
 <div class="kp-alert kp-alert--destructive" role="alert">{{ error }}</div>
 {% endif %}
-<div class="kp-card" style="max-width: 28rem">
+<div class="kp-card kp-max-w-center">
   <form method="post" action="/login">
     <div class="kp-field">
       <label class="kp-field__label" for="token">Login token</label>
       <input class="kp-field__input" type="password" id="token" name="token" required autocomplete="current-password" autofocus>
     </div>
-    <label class="kp-checkbox" style="display: flex; gap: 0.5rem; align-items: center; margin: 0.75rem 0">
+    <label class="kp-checkbox kp-row kp-mt-md kp-mb-md">
       <input type="checkbox" name="remember" value="1"> Keep me logged in on this browser for {{ remember_me_days }} days
     </label>
     <button type="submit" class="kp-button kp-button--primary" data-busy-label="Logging in…">Log in</button>
   </form>
   {% if passkeys %}
-  <hr style="margin: 1rem 0; border: 0; border-top: 1px solid var(--border)">
-  <p class="explain" style="margin: 0 0 0.5rem">Or use a passkey from your password manager:</p>
+  <hr class="divider">
+  <p class="explain kp-m-0 kp-mb-sm">Or use a passkey from your password manager:</p>
   <button type="button" class="kp-button" data-passkey-login data-status="passkey-status">Log in with a passkey</button>
   <p id="passkey-status" class="kp-field__help" hidden></p>
   {% endif %}

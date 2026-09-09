@@ -5,15 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}{{ app_name }}{% endblock %}</title>
 <script src="/static/theme-boot.js?v={{ assets }}"></script>
-<link rel="stylesheet" href="/static/fonts.css?v={{ assets }}">
-<link rel="stylesheet" href="/static/themes.css?v={{ assets }}">
-<link rel="stylesheet" href="/static/components.css?v={{ assets }}">
+<link rel="stylesheet" href="/static/kp/css/fonts.css?v={{ assets }}">
+<link rel="stylesheet" href="/static/kp/css/themes.css?v={{ assets }}">
+<link rel="stylesheet" href="/static/kp/css/components.css?v={{ assets }}">
+<link rel="stylesheet" href="/static/kp/css/layout.css?v={{ assets }}">
+<link rel="stylesheet" href="/static/kp/css/utilities.css?v={{ assets }}">
 <link rel="stylesheet" href="/static/chassis.css?v={{ assets }}">
 <script type="module" src="/static/chassis.js?v={{ assets }}"></script>
 {% block head %}{% endblock %}
 </head>
 <body>
 <a class="kp-skip-link" href="#main">Skip to content</a>
+<!-- kp-themes 4.0.0: .kp-nav needs this wrapper for its container query, or
+     the narrow form never kicks in. The skip link stays outside it. -->
+<div class="kp-nav-wrap">
 <nav class="kp-nav">
   <a class="kp-nav__brand" href="/">{{ app_name }}</a>
   <ul class="kp-nav__links">
@@ -47,15 +52,16 @@
       </ul>
     </div>
   </span>
-  <p style="margin: 0" data-kp-theme-status hidden></p>
+  <p class="kp-m-0" data-kp-theme-status hidden></p>
   {% if logged_in and not open_dashboard %}
-  <form method="post" action="/logout" style="margin: 0">
+  <form method="post" action="/logout" class="kp-m-0">
     <button type="submit" class="kp-button">Log out</button>
   </form>
   {% endif %}
 </nav>
+</div>
 
-<main id="main">
+<main id="main" class="kp-page">
 {% if open_dashboard %}
 <div class="kp-alert kp-alert--warning" role="alert">
   <div>

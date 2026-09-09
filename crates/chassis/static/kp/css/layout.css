@@ -1,0 +1,176 @@
+@layer kp.layout {
+    /* @kp-soft/themes — css/layout.css
+       The layout layer [TH90, TH91, S22].
+
+       Sixteen classes, and the reason they exist is measured rather than
+       assumed: the chassis kit wrote 71 lines of its own layout glue plus
+       28 inline style attributes, and its stylesheet header said in so many
+       words that this is "layout glue and the few utilities @kp-soft/themes
+       deliberately does not ship". These are those.
+
+       Every class reads a knob with the scale as its default, so a page or
+       a theme retunes it without rewriting the rule (KT6). Nothing here
+       paints a colour that is not a token (DI9).
+
+       The layer matters: kp.layout sits after kp.components, so adding
+       .kp-stack to a component that sets its own gap wins — which is what
+       someone reaching for a layout class means (AR17). */
+
+    /* ── Containers ─────────────────────────────────────────────────── */
+
+    /* The page itself: a measure to read within, centred, with margins that
+       shrink on a phone instead of stepping at a breakpoint. */
+    .kp-page {
+        max-inline-size: var(--kp-page-max, 64rem);
+        margin-inline: auto;
+        padding-inline: var(--kp-page-pad, clamp(var(--kp-space-md), 3vw, var(--kp-space-xl)));
+        padding-block: var(--kp-page-pad-block, var(--kp-space-xl));
+    }
+
+    /* Vertical rhythm. This is the fault the round started from: two fields
+       and a button touched because a field has no vertical margin and
+       nothing above it supplied one. */
+    .kp-stack {
+        display: flex;
+        flex-direction: column;
+        gap: var(--kp-stack-gap, var(--kp-space-md));
+    }
+
+    /* A row that wraps rather than overflowing, aligned on the centre by
+       default because that is what a row of controls wants. --end aligns on
+       the baseline of the tallest control, which is what a field beside a
+       button wants. */
+    .kp-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--kp-row-gap, var(--kp-space-sm));
+        align-items: var(--kp-row-align, center);
+    }
+
+    .kp-row--end {
+        --kp-row-align: flex-end;
+    }
+
+    .kp-row--start {
+        --kp-row-align: flex-start;
+    }
+
+    .kp-row--between {
+        justify-content: space-between;
+    }
+
+    .kp-row--nowrap {
+        flex-wrap: nowrap;
+    }
+
+    /* A grid that picks its own column count from the space it has. The
+       minimum track is the knob: a card wants 16rem, a tile less. */
+    .kp-autogrid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(var(--kp-autogrid-min, 16rem), 1fr));
+        gap: var(--kp-autogrid-gap, var(--kp-space-lg));
+        /* A little air on all four sides, so the first column's text never
+           sits against whatever edge the grid happens to land on (Kenny,
+           2026-09-08). The gap keeps the columns apart; this keeps the
+           grid off its own container's edge, and it is a knob like every
+           other length here [KT6]. */
+        padding: var(--kp-autogrid-pad, var(--kp-space-sm));
+    }
+    /* A tighter minimum, for a grid that must keep its columns on a phone
+       (three footer columns at 320px; the concept demo, round six). */
+    .kp-autogrid--tight {
+        --kp-autogrid-min: 10rem;
+    }
+    /* A page that uses the whole viewport: two frames side by side need
+       the width more than the measure (the compare page, round six). */
+    .kp-page--full {
+        max-inline-size: none;
+    }
+
+    /* Content with a side column that drops below when there is no room for
+       both — no media query, so it behaves the same inside a narrow
+       container as it does in a narrow window. */
+    .kp-sidebar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--kp-sidebar-gap, var(--kp-space-lg));
+    }
+
+    .kp-sidebar > .kp-sidebar__aside {
+        flex-basis: var(--kp-sidebar-width, 16rem);
+        flex-grow: 1;
+    }
+
+    .kp-sidebar > .kp-sidebar__main {
+        flex-basis: 0;
+        flex-grow: 999;
+        min-inline-size: var(--kp-sidebar-break, 50%);
+    }
+
+    /* A section of a page: space above it, and nothing else. The heading
+       inside keeps whatever the theme gives it. */
+    .kp-section {
+        margin-block-start: var(--kp-section-gap, var(--kp-space-2xl));
+    }
+
+    .kp-section:first-child {
+        margin-block-start: 0;
+    }
+
+    /* A box with a ceiling, centred — the login card, the empty state, the
+       one-column form. */
+    .kp-center {
+        margin-inline: auto;
+        max-inline-size: var(--kp-center-max, 28rem);
+    }
+
+    /* ── Text and content ───────────────────────────────────────────── */
+
+    /* Running text stops at a readable measure. ch rather than rem, because
+       the measure is about characters per line and the themes ship faces of
+       very different widths. */
+    .kp-prose {
+        max-inline-size: var(--kp-prose-max, 65ch);
+    }
+
+    .kp-text-muted {
+        color: var(--muted-foreground);
+    }
+
+    .kp-text-end {
+        text-align: end;
+    }
+
+    .kp-text-center {
+        text-align: center;
+    }
+
+    .kp-mono {
+        font-family: var(--kp-mono-face, var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace));
+        font-size: var(--kp-mono-size, 0.9em);
+    }
+
+    /* A block of code that breaks rather than widening the page. A key or a
+       token has no spaces to break at, which is why anywhere and not
+       break-word. */
+    .kp-code-block {
+        background: var(--card);
+        color: var(--card-foreground);
+        border: 1px solid var(--border);
+        border-radius: var(--radius, 0.5rem);
+        padding: var(--kp-space-md) var(--kp-space-lg);
+        font-family: var(--kp-mono-face, var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace));
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+    }
+
+    /* ── State ──────────────────────────────────────────────────────── */
+
+    /* Standing rule 31 says a button that starts something slow shows it.
+       The behaviour was already in the package and the styling was not, so
+       the chassis kit wrote this rule itself. It belongs here. */
+    [aria-busy='true'] {
+        opacity: var(--kp-busy-opacity, 0.7);
+        cursor: progress;
+    }
+}

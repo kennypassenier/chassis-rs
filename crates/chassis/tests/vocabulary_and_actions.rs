@@ -452,7 +452,7 @@ async fn k29_section_actions_render_under_the_section_and_none_without() {
     let cookie = login(addr).await;
     let (_, _, page) = http(addr, "GET", "/", &[("Cookie", &cookie)], "").await;
     assert_eq!(
-        page.matches("class=\"actions section-actions\"").count(),
+        page.matches("class=\"kp-row section-actions\"").count(),
         1,
         "one block, for the one section that has actions: {page}"
     );

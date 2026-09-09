@@ -1,0 +1,1329 @@
+@layer kp.register {
+    /* @kp-soft/themes — css/terminal-register.css
+   The terminal register, 5.0.0 [S48, LIFT_PLAN row 4]: the phosphor CRT.
+   Scoped to [data-theme='terminal'] and inert elsewhere; opt-in, imported
+   after themes.css. The approved concept demo ("Green Phosphor",
+   2026-09-08) is the reference for every value here, and
+   docs/RESEARCH_2026-09.md §6 is where each mechanism was measured: the
+   block cursor of one character cell (Measham, dottxt.ai), the sweep band
+   resting eight of ten seconds (ekeijl, a transform), the bezel by
+   border-image (ekeijl, a gradient instead of the reference's image), the
+   bitmap display without anti-aliasing (dottxt.ai), the static raster.
+
+   What this file does, in order: the knobs; the glass — the bezel and the
+   sweep on the root's own pseudo-elements; the type; the hooks of S45 —
+   the headline that types itself with a block caret riding the last
+   glyph, the mark as inverse video, the dashed rule that types itself
+   out, the dashes with a plus at each end as divider; the shell line as
+   navbar; the buttons as brackets and plates; the wells with the block
+   cursor inside the box (R6-Q7); and one answer per component root
+   (TH124). The reveals have their rest state here and their motion in
+   js/effects.js; without the script every one of them stands at rest.
+
+   Colour discipline (DI9): nothing here names a colour. One hue at 120°,
+   the sanctioned red for danger, the yellow-green accent — the whole set
+   (the anatomy). A phosphor brightens under pressure rather than stepping
+   toward the ground: that is this theme's DI3 opt-out, written down.
+
+   The only loops are the sweep (a transform, one pass per ten seconds,
+   resting eight of them) and the caret (one opposing change per second
+   over one character cell) — both rated in TIMINGS. The reference's
+   flicker at .15s infinite was measured and refused (DI5); the raster
+   never moves. */
+
+    [data-theme='terminal'] {
+        /* The configuration surface [AR43], the demo's values as defaults. */
+        --kp-reveal-threshold: 0.5;
+        --kp-reveal-stagger: 320ms;
+        --kp-redact-stagger: 200ms;
+        --kp-classified-delay: 260ms;
+        --kp-decipher-cps: 29.41;
+        --kp-decipher-lead: 0;
+        --kp-lift: 640ms;
+        --kp-rule: 900ms;
+        --kp-sweep: 10000ms;
+        --kp-tube-off: 420ms;
+        --kp-bezel: clamp(6px, 1.6vw, 18px);
+        --kp-caret-inset: 0.625rem;
+        /* The reveals this theme performs [S45]: js/effects.js reads these
+           and leaves a theme that declares none at rest. */
+        --kp-reveal-headline: type;
+        --kp-reveal-emphasis: inverse;
+        --kp-reveal-rule: dashes;
+        --kp-arrival: boot;
+        /* The block cursor in the box [TM2, R6-Q7]: the module writes the
+           column, this file paints the cell. */
+        --kp-caret: block;
+        /* The bloom on the titles, and the brighter phosphor under pressure. */
+        --kp-bloom: 0 0 0.4em hsl(from var(--primary) h s l / 0.28);
+        --kp-bloom-accent: 0 0 0.4em hsl(from var(--accent) h s l / 0.25);
+        /* One hot phosphor for text and plate alike, and one for the
+           alarm — the flat pair the approved demo measured [S49, A9],
+           carried by the token contract so DI9 keeps its rule. */
+        --kp-hot: var(--fx-hot);
+        --kp-hot-plate: var(--fx-hot);
+        --kp-hot-alarm: var(--fx-hot-alarm);
+        /* The dashes of a rule and the character cells of a redaction. */
+        --kp-dash: repeating-linear-gradient(90deg, var(--border-strong) 0 8px, transparent 8px 14px);
+        --kp-cells: repeating-linear-gradient(90deg, var(--foreground) 0 calc(1ch - 1px), transparent calc(1ch - 1px) 1ch);
+    }
+
+    /* ── The glass: the bezel and the sweep, on the root's own pseudo-elements ── */
+
+    /* ekeijl's bezel, drawn with a gradient (no image assets): fixed, so
+       it costs no layout, above everything and under the pointer's reach
+       of nothing. Both assume the theme on the document root, which is how
+       the package applies it. */
+    [data-theme='terminal']::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        z-index: var(--kp-z-bezel, 55);
+        pointer-events: none;
+        border: var(--kp-bezel) solid transparent;
+        border-image-source: linear-gradient(
+            160deg,
+            hsl(from var(--foreground) h 10% 17%) 0%,
+            hsl(from var(--foreground) h 10% 7%) 28%,
+            hsl(from var(--foreground) h 10% 3%) 55%,
+            hsl(from var(--foreground) h 10% 11%) 78%,
+            hsl(from var(--foreground) h 10% 21%) 100%
+        );
+        border-image-slice: 1;
+        box-shadow:
+            inset 0 0 2px 1px hsl(from var(--background) h s 0% / 0.9),
+            inset 0 0 60px 8px hsl(from var(--background) h s 0% / 0.55);
+    }
+
+    /* The sweep band: one pass every ten seconds, resting eight of them,
+       transform-only; at rest it sits above the viewport. */
+    [data-theme='terminal']::after {
+        content: '';
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: -140px;
+        height: 140px;
+        z-index: var(--kp-z-sweep, 51);
+        pointer-events: none;
+        background: linear-gradient(
+            180deg,
+            transparent 0%,
+            hsl(from var(--foreground) h s l / 0.09) 55%,
+            hsl(from var(--foreground) h s l / 0.03) 82%,
+            transparent 100%
+        );
+    }
+
+    /* ── Type: one face, no smoothing on the display ──────────────────── */
+
+    [data-theme='terminal'] h1,
+    [data-theme='terminal'] h2,
+    [data-theme='terminal'] h3 {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+        letter-spacing: 0.02em;
+        line-height: 1.15;
+        color: var(--primary);
+        text-shadow: var(--kp-bloom);
+        -webkit-font-smoothing: none;
+    }
+
+    [data-theme='terminal'] [data-kp-surface] h1 {
+        font-size: var(--kp-text-display);
+        line-height: 1.06;
+        letter-spacing: 0.01em;
+        margin-block: 0 0.35em;
+        min-block-size: 2.2em;
+        overflow-wrap: anywhere;
+    }
+
+    /* The typing caret the module appends: one character cell, riding
+       the last glyph, gone when the line lands. */
+    [data-theme='terminal'] [data-kp-reveal='headline'] [data-caret] {
+        display: inline-block;
+        inline-size: 1ch;
+        block-size: 0.92em;
+        vertical-align: -0.06em;
+        background: var(--primary);
+        box-shadow: var(--kp-bloom);
+    }
+
+    /* Microlabels: a shell prompt. */
+    [data-theme='terminal'] .microlabel {
+        font-family: var(--theme-font-mono);
+        font-size: 0.9rem;
+        letter-spacing: 0.08em;
+        color: var(--muted-foreground);
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+    }
+
+    [data-theme='terminal'] .microlabel::before {
+        content: '$ ';
+        color: var(--primary);
+    }
+
+    /* ── The hooks [S45]: the mark, the rule, the divider ─────────────── */
+
+    /* The mark: emphasis is inverse video, the only highlight a terminal
+       has. At rest the words are inverted; with the script armed they
+       stand in phosphor inside a dim frame until the line lands, then
+       switch over in one step — no colour in between (KT8). */
+    [data-theme='terminal'] mark {
+        background: var(--foreground);
+        color: var(--background);
+        padding: 0 0.15em;
+        white-space: nowrap;
+    }
+
+    [data-theme='terminal'][data-kp-effects] mark:not(.is-cleared) {
+        background: transparent;
+        color: var(--foreground);
+        box-shadow: inset 0 0 0 1px var(--border-strong);
+    }
+
+    /* The rule: a dashed line that types itself out, left to right, in
+       twelve steps when the heading enters the viewport. */
+    [data-theme='terminal'] [data-kp-reveal='rule']::after {
+        content: '';
+        display: block;
+        block-size: 1px;
+        margin-block-start: 0.6rem;
+        background: var(--kp-dash);
+        transform: scaleX(1);
+        transform-origin: left center;
+    }
+
+    [data-theme='terminal'][data-kp-effects] [data-kp-reveal='rule']:not(.is-in)::after {
+        transform: scaleX(0);
+    }
+
+    /* The divider: a rule of dashes with a plus at each end; the second
+       one doubles the line. */
+    [data-theme='terminal'] [data-kp-divider] {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        block-size: 2.4rem;
+        padding-inline: 0.2rem;
+        color: var(--border-strong);
+        font-family: var(--theme-font-mono);
+        font-size: 0.9rem;
+        line-height: 1;
+        background: var(--kp-dash) center / 100% 1px no-repeat;
+    }
+
+    [data-theme='terminal'] [data-kp-divider]::before,
+    [data-theme='terminal'] [data-kp-divider]::after {
+        content: '+';
+        background: var(--background);
+        padding-inline: 0.2rem;
+    }
+
+    [data-theme='terminal'] [data-kp-divider='alt'] {
+        block-size: 3rem;
+        background:
+            var(--kp-dash) center calc(50% - 1px) / 100% 1px no-repeat,
+            var(--kp-dash) center calc(50% + 1px) / 100% 1px no-repeat;
+    }
+
+    /* ── The hero: the void, nothing added ────────────────────────────── */
+
+    [data-theme='terminal'] [data-kp-surface='hero'] {
+        position: relative;
+        padding-block: 2.4rem 3.2rem;
+    }
+
+    [data-theme='terminal'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+        grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+        gap: 2.5rem;
+        align-items: end;
+    }
+
+    @container (max-width: 60rem) {
+        [data-theme='terminal'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ── The navbar: a shell line, not a bar ──────────────────────────── */
+
+    [data-theme='terminal'] .kp-nav-wrap {
+        background: var(--background);
+    }
+
+    [data-theme='terminal'] .kp-nav {
+        background: var(--background);
+        border-bottom: 1px solid var(--border);
+        padding-block: 1rem 0.6rem;
+        position: relative;
+        z-index: var(--kp-z-nav, 30);
+    }
+
+    [data-theme='terminal'] .kp-nav__brand {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+        font-size: 1.25rem;
+        letter-spacing: 0.02em;
+        color: var(--primary);
+        text-shadow: var(--kp-bloom);
+        -webkit-font-smoothing: none;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+    [data-theme='terminal'] .kp-nav__links {
+        gap: 0;
+        align-items: stretch;
+    }
+
+    [data-theme='terminal'] .kp-nav__link {
+        display: block;
+        padding: 0.35rem 0.7rem;
+        font-size: 0.9rem;
+        letter-spacing: 0.06em;
+        color: var(--foreground);
+        border-radius: 0;
+        background: none;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+    /* Hover and current are inverse video. */
+    [data-theme='terminal'] .kp-nav__link:hover,
+    [data-theme='terminal'] .kp-nav__link:focus-visible,
+    [data-theme='terminal'] .kp-nav__link[aria-current],
+    [data-theme='terminal'] .kp-nav__links > li:focus-within > .kp-nav__link {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        text-shadow: none;
+    }
+
+    [data-theme='terminal'] .kp-nav__link[aria-haspopup]::after {
+        content: ' ▾';
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='terminal'] .kp-nav__link:hover[aria-haspopup]::after,
+    [data-theme='terminal'] .kp-nav__links > li:focus-within > .kp-nav__link[aria-haspopup]::after {
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='terminal'] .kp-nav__link--lang {
+        margin-inline-start: 0.3rem;
+        border-inline-start: 1px solid var(--border);
+        padding-inline-start: 0.7rem;
+        text-transform: uppercase;
+    }
+
+    /* The call to action is a bracketed command in the accent. */
+    [data-theme='terminal'] .kp-nav__link--cta {
+        color: var(--accent);
+        text-shadow: var(--kp-bloom-accent);
+    }
+
+    [data-theme='terminal'] .kp-nav__link--cta::before {
+        content: '[ ';
+    }
+
+    [data-theme='terminal'] .kp-nav__link--cta::after {
+        content: ' ]';
+    }
+
+    [data-theme='terminal'] .kp-nav__link--cta:hover,
+    [data-theme='terminal'] .kp-nav__link--cta:focus-visible {
+        background: var(--accent);
+        color: var(--accent-foreground);
+        text-shadow: none;
+    }
+
+    /* The dropdown: a TUI panel, one boundary in a dimmer phosphor (DI1),
+       the pointer a prompt. */
+    [data-theme='terminal'] .kp-nav__menu {
+        background: var(--secondary);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: none;
+        padding: 0.3rem 0;
+        min-width: 12rem;
+    }
+
+    [data-theme='terminal'] .kp-nav__menu a {
+        display: block;
+        padding: 0.3rem 0.8rem;
+        font-size: 0.85rem;
+        color: var(--foreground);
+        text-decoration: none;
+        border-radius: 0;
+    }
+
+    [data-theme='terminal'] .kp-nav__menu a::before {
+        content: '  ';
+        white-space: pre;
+    }
+
+    [data-theme='terminal'] .kp-nav__menu a:hover,
+    [data-theme='terminal'] .kp-nav__menu a:focus-visible {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='terminal'] .kp-nav__menu a:hover::before,
+    [data-theme='terminal'] .kp-nav__menu a:focus-visible::before {
+        content: '> ';
+    }
+
+    /* ── Buttons: brackets and plates; no radius, a cell has no corner ── */
+
+    [data-theme='terminal'] .kp-button {
+        font-family: var(--theme-font-mono);
+        font-weight: 400;
+        letter-spacing: 0.08em;
+        color: var(--foreground);
+        background: transparent;
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        position: relative;
+    }
+
+    /* The size the demo drew, and the two the package owes beside it
+       [S49, A4 + TH111's amendment]: one height for all three, and the
+       type and the padding are what tell them apart. */
+    [data-theme='terminal'] .kp-button:not(.kp-button--sm):not(.kp-button--lg) {
+        font-size: 0.9rem;
+        padding-inline: 1.4rem;
+    }
+
+    [data-theme='terminal'] .kp-button--sm {
+        font-size: 0.78rem;
+        padding-inline: 0.9rem;
+    }
+
+    [data-theme='terminal'] .kp-button--lg {
+        font-size: 1.05rem;
+        padding-inline: 1.9rem;
+    }
+
+    /* A phosphor brightens under pressure; it does not step toward the
+       ground (DI3 opt-out, anatomy.md). */
+    [data-theme='terminal'] .kp-button:hover,
+    [data-theme='terminal'] .kp-button:focus-visible {
+        background: transparent;
+        border-color: var(--foreground);
+        color: var(--kp-hot);
+    }
+
+    [data-theme='terminal'] .kp-button:active {
+        background: var(--secondary);
+    }
+
+    /* The demo's height, on every button [S49, A4 of 2026-09-08]. TH111's
+       amendment of the same day: the sizes separate in padding and type
+       where a theme pins one height, and tests/button.spec.mjs measures
+       that rather than height alone. */
+    [data-theme='terminal'] .kp-button {
+        min-block-size: 2.9rem;
+    }
+
+    [data-theme='terminal'] [data-kp-surface='hero'] .kp-row > .kp-button {
+        min-width: min(11rem, 100%);
+        min-height: 2.9rem;
+    }
+
+    [data-theme='terminal'] .kp-button--primary,
+    [data-theme='terminal'] .kp-button--primary:hover,
+    [data-theme='terminal'] .kp-button--primary:focus-visible {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='terminal'] .kp-button--primary:hover,
+    [data-theme='terminal'] .kp-button--primary:focus-visible {
+        background: var(--kp-hot-plate);
+        border-color: var(--kp-hot-plate);
+    }
+
+    [data-theme='terminal'] .kp-button--destructive,
+    [data-theme='terminal'] .kp-button--destructive:hover,
+    [data-theme='terminal'] .kp-button--destructive:focus-visible {
+        background: transparent;
+        border-color: var(--destructive);
+        color: var(--destructive);
+    }
+
+    [data-theme='terminal'] .kp-button--destructive:hover,
+    [data-theme='terminal'] .kp-button--destructive:focus-visible {
+        color: var(--kp-hot-alarm);
+    }
+
+    /* Ghost: a command whose brackets appear under the pointer. */
+    [data-theme='terminal'] .kp-button--ghost {
+        border-color: transparent;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='terminal'] .kp-button--ghost::before,
+    [data-theme='terminal'] .kp-button--ghost::after {
+        position: absolute;
+        opacity: 0;
+    }
+
+    [data-theme='terminal'] .kp-button--ghost::before {
+        content: '[';
+        inset-inline-start: 0.45rem;
+    }
+
+    [data-theme='terminal'] .kp-button--ghost::after {
+        content: ']';
+        inset-inline-end: 0.45rem;
+    }
+
+    [data-theme='terminal'] .kp-button--ghost:hover,
+    [data-theme='terminal'] .kp-button--ghost:focus-visible {
+        border-color: transparent;
+        color: var(--foreground);
+    }
+
+    [data-theme='terminal'] .kp-button--ghost:hover::before,
+    [data-theme='terminal'] .kp-button--ghost:hover::after,
+    [data-theme='terminal'] .kp-button--ghost:focus-visible::before,
+    [data-theme='terminal'] .kp-button--ghost:focus-visible::after {
+        opacity: 1;
+    }
+
+    [data-theme='terminal'] .kp-button:disabled {
+        color: var(--muted-foreground);
+        border-color: var(--border);
+        background: transparent;
+    }
+
+    [data-theme='terminal'] .kp-icon-button {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        background: transparent;
+        color: var(--foreground);
+    }
+
+    [data-theme='terminal'] .kp-icon-button:hover {
+        border-color: var(--foreground);
+        color: var(--kp-hot);
+    }
+
+    /* ── Fields: wells, and the block cursor inside the box [R6-Q7] ───── */
+
+    [data-theme='terminal'] .kp-field__label {
+        font-size: 0.85rem;
+        letter-spacing: 0.08em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='terminal'] .kp-field__label::after {
+        content: ':';
+    }
+
+    [data-theme='terminal'] .kp-field__input,
+    [data-theme='terminal'] .kp-datatable__search,
+    [data-theme='terminal'] .kp-combobox__input,
+    [data-theme='terminal'] .kp-palette__input {
+        background: var(--secondary);
+        color: var(--foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        caret-color: var(--primary);
+        padding-inline: var(--kp-caret-inset);
+    }
+
+    [data-theme='terminal'] .kp-field__input:focus-visible,
+    [data-theme='terminal'] .kp-datatable__search:focus-visible,
+    [data-theme='terminal'] .kp-combobox__input:focus-visible,
+    [data-theme='terminal'] .kp-palette__input:focus-visible {
+        border-color: var(--primary);
+    }
+
+    /* The cursor in the box: a block of one character cell painted as a
+       background layer of the field itself, at the column the module
+       writes (`--kp-col`, in the field's own ch), so it lives in the box
+       at the caret and never after the label — Kenny's reading of
+       2026-09-08, R6-Q7. The native caret steps aside while the block is
+       there; a textarea keeps the browser's own. */
+    [data-theme='terminal'] input.kp-field__input:focus {
+        caret-color: transparent;
+        background-image: linear-gradient(var(--primary), var(--primary));
+        background-repeat: no-repeat;
+        background-size: 1ch 1.15em;
+        background-position: calc(var(--kp-caret-inset) + var(--kp-col, 0) * 1ch) center;
+    }
+
+    [data-theme='terminal'] .kp-field__help {
+        font-size: 0.8rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='terminal'] .kp-field__help::before {
+        content: '# ';
+    }
+
+    [data-theme='terminal'] .kp-field--invalid .kp-field__input {
+        border-color: var(--destructive);
+        box-shadow: inset 0 0 0 1px var(--destructive);
+    }
+
+    [data-theme='terminal'] .kp-field__error {
+        color: var(--destructive);
+    }
+
+    [data-theme='terminal'] .kp-field__error::before {
+        content: '!! ';
+    }
+
+    /* The checkbox is [ ] and [x]. */
+    [data-theme='terminal'] .kp-field__check {
+        appearance: none;
+        inline-size: 3ch;
+        block-size: 1.45em;
+        margin: 0;
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        position: relative;
+        display: inline-block;
+    }
+
+    [data-theme='terminal'] .kp-field__check::before {
+        content: '[ ]';
+        position: absolute;
+        inset: 0;
+        white-space: pre;
+        font-family: var(--theme-font-mono);
+        font-size: 1rem;
+        line-height: 1.45;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='terminal'] .kp-field__check:checked {
+        background: transparent;
+        border: 0;
+    }
+
+    [data-theme='terminal'] .kp-field__check:checked::before {
+        content: '[x]';
+        color: var(--primary);
+        text-shadow: var(--kp-bloom);
+    }
+
+    [data-theme='terminal'] select.kp-field__input::picker-icon {
+        color: var(--primary);
+    }
+
+    [data-theme='terminal'] .kp-fieldset {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='terminal'] .kp-form__summary {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    /* ── Cards and the dossier: a file with redactions that repaint ──── */
+
+    [data-theme='terminal'] .kp-card {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    [data-theme='terminal'] .kp-card__title {
+        font-size: 1.15rem;
+        letter-spacing: 0.06em;
+    }
+
+    [data-theme='terminal'] .kp-card[data-kp-reveal='emphasis'] {
+        position: relative;
+    }
+
+    /* The stamp: a bracketed label in the accent. */
+    [data-theme='terminal'] .kp-card[data-kp-label]::before {
+        content: '[ ' attr(data-kp-label) ' ]';
+        position: absolute;
+        inset-block-start: 0.8rem;
+        inset-inline-end: 1.1rem;
+        font-family: var(--theme-font-mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent);
+        border: 1px solid var(--accent);
+        padding: 0 0.35rem;
+    }
+
+    /* The redactions: a run of character cells over the words, cleared
+       left to right in nine steps when the file is opened — the way a
+       screen repaints a line, not the way a curtain opens. */
+    [data-theme='terminal'] .kp-card[data-kp-reveal='emphasis'] mark {
+        position: relative;
+        background: none;
+        color: var(--card-foreground);
+        padding: 0;
+        box-shadow: none;
+    }
+
+    [data-theme='terminal'] .kp-card[data-kp-reveal='emphasis'] mark::after {
+        content: '';
+        position: absolute;
+        inset: -0.06em -0.1em;
+        background: var(--kp-cells);
+        transform: scaleX(0);
+        transform-origin: left center;
+        pointer-events: none;
+    }
+
+    [data-theme='terminal'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark:not(.is-cleared) {
+        color: transparent;
+    }
+
+    [data-theme='terminal'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark:not(.is-cleared)::after {
+        transform: scaleX(1);
+    }
+
+    /* Panels: one boundary in a dimmer phosphor, nothing floats. */
+    [data-theme='terminal'] .kp-dialog,
+    [data-theme='terminal'] .kp-popover,
+    [data-theme='terminal'] .kp-menu,
+    [data-theme='terminal'] .kp-toast,
+    [data-theme='terminal'] .kp-tooltip,
+    [data-theme='terminal'] .kp-confirm,
+    [data-theme='terminal'] .kp-datepicker__panel,
+    [data-theme='terminal'] .kp-combobox__list,
+    [data-theme='terminal'] .kp-palette,
+    [data-theme='terminal'] .kp-theme-menu {
+        background: var(--secondary);
+        color: var(--foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    [data-theme='terminal'] .kp-toasts {
+        gap: 0.4rem;
+    }
+
+    [data-theme='terminal'] .kp-dialog__title {
+        letter-spacing: 0.06em;
+    }
+
+    [data-theme='terminal'] .kp-menu__item:hover {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='terminal'] .kp-alert {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='terminal'] .kp-alert__label {
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='terminal'] .kp-grid__tile,
+    [data-theme='terminal'] .kp-split__pane {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='terminal'] .kp-grid {
+        gap: 1ch;
+    }
+
+    [data-theme='terminal'] .kp-split {
+        gap: 0;
+    }
+
+    [data-theme='terminal'] .kp-split__separator {
+        background: var(--border-strong);
+        inline-size: 1px;
+    }
+
+    /* The footer: one step down from the void. */
+    [data-theme='terminal'] .kp-footer {
+        background: var(--sidebar-background);
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='terminal'] .kp-footer h4 {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+        font-size: 0.85rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--foreground);
+        text-shadow: none;
+    }
+
+    [data-theme='terminal'] .kp-footer a {
+        color: var(--muted-foreground);
+        font-size: 0.9rem;
+        text-decoration: none;
+    }
+
+    [data-theme='terminal'] .kp-footer a:hover,
+    [data-theme='terminal'] .kp-footer a:focus-visible {
+        color: var(--primary);
+        text-shadow: var(--kp-bloom);
+    }
+
+    /* ── Badges, tags, status: bracketed cells ────────────────────────── */
+
+    [data-theme='terminal'] .kp-badge,
+    [data-theme='terminal'] .kp-tag {
+        border-radius: 0;
+        border: 1px solid var(--border-strong);
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='terminal'] .kp-health {
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='terminal'] .kp-health__dot {
+        border-radius: 0;
+    }
+
+    [data-theme='terminal'] .kp-skeleton {
+        background: repeating-linear-gradient(90deg, var(--border) 0 calc(1ch - 1px), transparent calc(1ch - 1px) 1ch);
+        border-radius: 0;
+    }
+
+    /* The progress bar is a run of cells. */
+    [data-theme='terminal'] .kp-progress {
+        background: var(--background);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        padding: 1px;
+    }
+
+    [data-theme='terminal'] .kp-progress__value {
+        background: repeating-linear-gradient(90deg, var(--primary) 0 calc(1ch - 1px), transparent calc(1ch - 1px) 1ch);
+    }
+
+    [data-theme='terminal'] .kp-spinner {
+        border-color: var(--border-strong);
+        border-top-color: var(--primary);
+        border-radius: 0;
+    }
+
+    [data-theme='terminal'] .kp-empty {
+        border: 1px dashed var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='terminal'] .kp-empty__title {
+        letter-spacing: 0.06em;
+    }
+
+    [data-theme='terminal'] .kp-error {
+        color: var(--destructive);
+    }
+
+    [data-theme='terminal'] .kp-error::before {
+        content: '!! ';
+    }
+
+    /* ── Text shapes ──────────────────────────────────────────────────── */
+
+    [data-theme='terminal'] .kp-id,
+    [data-theme='terminal'] .kp-url,
+    [data-theme='terminal'] .kp-numeric,
+    [data-theme='terminal'] .kp-timestamp,
+    [data-theme='terminal'] .kp-masked,
+    [data-theme='terminal'] .kp-copyable,
+    [data-theme='terminal'] .kp-truncate,
+    [data-theme='terminal'] .kp-cell-break,
+    [data-theme='terminal'] .kp-cell-truncate {
+        letter-spacing: 0.02em;
+    }
+
+    [data-theme='terminal'] .kp-timestamp,
+    [data-theme='terminal'] .kp-id {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='terminal'] .kp-copyable__button {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        background: transparent;
+    }
+
+    /* ── Data ─────────────────────────────────────────────────────────── */
+
+    [data-theme='terminal'] .kp-table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    [data-theme='terminal'] .kp-table th {
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-weight: 400;
+        color: var(--muted-foreground);
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='terminal'] .kp-table td {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='terminal'] .kp-table tbody tr:hover {
+        background: var(--card);
+    }
+
+    [data-theme='terminal'] .kp-datatable {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='terminal'] .kp-datatable__bar {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='terminal'] .kp-datatable__sort[aria-sort] {
+        color: var(--primary);
+    }
+
+    [data-theme='terminal'] .kp-datatable__status,
+    [data-theme='terminal'] .kp-datatable__page {
+        letter-spacing: 0.06em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='terminal'] .kp-diff {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='terminal'] .kp-diff__line {
+        letter-spacing: 0.02em;
+    }
+
+    [data-theme='terminal'] .kp-timeline {
+        border-inline-start: 1px dashed var(--border-strong);
+    }
+
+    [data-theme='terminal'] .kp-timeline__marker {
+        background: var(--primary);
+        border-radius: 0;
+        box-shadow: var(--kp-bloom);
+    }
+
+    [data-theme='terminal'] .kp-timeline__when {
+        color: var(--muted-foreground);
+        letter-spacing: 0.06em;
+    }
+
+    [data-theme='terminal'] .kp-tree {
+        letter-spacing: 0.02em;
+    }
+
+    [data-theme='terminal'] .kp-reorder {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    /* ── Navigation and steps: inverse video marks the current one ────── */
+
+    [data-theme='terminal'] .kp-tab {
+        border-radius: 0;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='terminal'] .kp-tab[aria-selected='true'] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='terminal'] .kp-tabs__list {
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='terminal'] .kp-breadcrumb,
+    [data-theme='terminal'] .kp-pagination {
+        letter-spacing: 0.06em;
+    }
+
+    [data-theme='terminal'] .kp-pagination a[aria-current],
+    [data-theme='terminal'] .kp-pagination [aria-current] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: 0;
+    }
+
+    [data-theme='terminal'] .kp-wizard {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        background: var(--card);
+    }
+
+    [data-theme='terminal'] .kp-wizard__steps {
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    /* ── Pickers and palettes ─────────────────────────────────────────── */
+
+    [data-theme='terminal'] .kp-datepicker__day[aria-selected='true'] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: 0;
+    }
+
+    [data-theme='terminal'] .kp-datepicker__weekday,
+    [data-theme='terminal'] .kp-datepicker__title {
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='terminal'] .kp-colorpicker__swatch {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='terminal'] .kp-colorpicker__value {
+        letter-spacing: 0.04em;
+    }
+
+    [data-theme='terminal'] .kp-shortcuts__row kbd {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        background: transparent;
+        display: inline-block;
+        padding: 0 0.4em;
+    }
+
+    [data-theme='terminal'] .kp-shortcuts__group-label,
+    [data-theme='terminal'] .kp-palette__group-label {
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='terminal'] .kp-theme-menu__status,
+    [data-theme='terminal'] .kp-palette__status,
+    [data-theme='terminal'] .kp-combobox__status {
+        letter-spacing: 0.06em;
+        color: var(--muted-foreground);
+    }
+
+    /* ── The roots the rules above reach only by their parts ──────────── */
+
+    [data-theme='terminal'] .kp-field {
+        gap: 0.3rem;
+    }
+
+    [data-theme='terminal'] .kp-form {
+        gap: 1rem;
+    }
+
+    [data-theme='terminal'] .kp-combobox,
+    [data-theme='terminal'] .kp-datepicker,
+    [data-theme='terminal'] .kp-colorpicker,
+    [data-theme='terminal'] .kp-shortcuts,
+    [data-theme='terminal'] .kp-tabs {
+        border-radius: 0;
+    }
+
+    /* ── The scrollbar joins the theme ────────────────────────────────── */
+
+    [data-theme='terminal'] {
+        scrollbar-color: var(--border-strong) var(--background);
+    }
+
+    /* ── The demo's own pieces [S46] ──────────────────────────────────── */
+
+    /* The side note: a status line in the margin, with the REC dot. */
+    [data-theme='terminal'] .kp-side-note {
+        position: absolute;
+        inset-inline-end: 0.4rem;
+        inset-block-start: 2.5rem;
+        writing-mode: vertical-rl;
+        font-family: var(--theme-font-mono);
+        font-size: 0.8rem;
+        letter-spacing: 0.26em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='terminal'] .kp-side-note::before {
+        content: '● ';
+        color: var(--destructive);
+        filter: drop-shadow(0 0 0.18em hsl(from var(--destructive) h s l / 0.5));
+    }
+
+    /* The laurels are a status line: three fields of a screen's bottom
+       row, the first in inverse video. */
+    [data-theme='terminal'] .kp-laurels {
+        gap: 0;
+        border: 1px solid var(--border-strong);
+        font-size: 0.82rem;
+        color: var(--muted-foreground);
+        letter-spacing: 0.04em;
+    }
+
+    [data-theme='terminal'] .kp-laurels li {
+        padding: 0.35rem 0.9rem;
+        border-inline-end: 1px solid var(--border-strong);
+    }
+
+    [data-theme='terminal'] .kp-laurels li:last-child {
+        border-inline-end: 0;
+    }
+
+    [data-theme='terminal'] .kp-laurels li:first-child {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='terminal'] .kp-laurels b {
+        font-weight: 400;
+        color: var(--foreground);
+    }
+
+    [data-theme='terminal'] .kp-laurels li:first-child b {
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='terminal'] .kp-lede {
+        max-width: 36rem;
+        font-size: 1.02rem;
+    }
+
+    [data-theme='terminal'] .kp-platforms {
+        margin-block-start: 1.8rem;
+        gap: 0.2rem 1.4rem;
+        font-size: 0.85rem;
+        letter-spacing: 0.06em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='terminal'] .kp-platforms span::before {
+        content: '· ';
+        color: var(--primary);
+    }
+
+    /* The spec sheet is a man page. */
+    [data-theme='terminal'] .kp-spec {
+        background: var(--card);
+        color: var(--card-foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        padding: 1.1rem 1.2rem 1.3rem;
+        font-family: var(--theme-font-mono);
+        font-size: 0.82rem;
+        line-height: 1.7;
+    }
+
+    [data-theme='terminal'] .kp-spec dt {
+        color: var(--accent);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='terminal'] .kp-spec__swatch {
+        inline-size: 1ch;
+        block-size: 1em;
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='terminal'] .kp-spec__font {
+        font-family: var(--theme-font-display);
+        -webkit-font-smoothing: none;
+    }
+
+    /* ── The arrival [S45, TM2]: the POST, then the tube collapses ────── */
+
+    [data-theme='terminal'] .kp-boot {
+        position: fixed;
+        inset: 0;
+        z-index: var(--kp-z-boot, 100);
+        background: var(--background);
+        color: var(--foreground);
+        display: grid;
+        place-items: center;
+        font-family: var(--theme-font-mono);
+        font-size: clamp(0.8rem, 2.4vw, 1.05rem);
+        line-height: 1.7;
+        text-shadow: var(--kp-bloom);
+        transform-origin: center;
+    }
+
+    [data-theme='terminal'] .kp-boot__line {
+        margin: 0;
+        font: inherit;
+        white-space: pre-wrap;
+        min-width: min(34ch, 90vw);
+    }
+
+    [data-theme='terminal'] .kp-boot__skip {
+        position: absolute;
+        inset-inline-end: 1.6rem;
+        inset-block-end: 1.6rem;
+        font: inherit;
+        font-size: 0.85rem;
+        letter-spacing: 0.1em;
+        color: var(--muted-foreground);
+        background: none;
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        padding: 0.3rem 0.8rem;
+        cursor: pointer;
+        text-shadow: none;
+    }
+
+    [data-theme='terminal'] .kp-boot__skip:hover,
+    [data-theme='terminal'] .kp-boot__skip:focus-visible {
+        color: var(--foreground);
+        border-color: var(--foreground);
+    }
+
+    [data-theme='terminal'] .kp-boot.is-off {
+        pointer-events: none;
+    }
+
+    /* ── Motion, guarded [DI7] ────────────────────────────────────────── */
+
+    /* Every animation and transition of this register lives here, inside
+       the no-preference guard, so a reader who asked for reduced motion
+       never receives one: the rest states above are what they get. The
+       durations are literal because check-motion.mjs computes DI5's rate
+       from them; the matching --kp-* knobs are what js/effects.js reads. A
+       terminal does not ease: every timing function here steps. */
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='terminal']::after {
+            animation: kp-sweep 10000ms linear infinite;
+        }
+
+        [data-theme='terminal'] [data-kp-reveal='rule'].is-in::after {
+            animation: kp-rule-in 900ms steps(12, end) 1 both;
+        }
+
+        [data-theme='terminal'] .kp-card[data-kp-reveal='emphasis'] mark::after {
+            transition: transform 640ms steps(9, end);
+        }
+
+        [data-theme='terminal'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(2)::after {
+            transition-delay: var(--kp-redact-stagger);
+        }
+
+        [data-theme='terminal'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(3)::after {
+            transition-delay: calc(2 * var(--kp-redact-stagger));
+        }
+
+        /* The cursor in the box blinks once per second — a tenth of what
+           DI5 allows, over one character cell. */
+        [data-theme='terminal'] input.kp-field__input:focus {
+            animation: kp-caret 1000ms steps(1, end) infinite;
+        }
+
+        [data-theme='terminal'] .kp-boot.is-off {
+            animation: kp-tube-off 420ms steps(4, end) 1 forwards;
+        }
+    }
+
+    /* ── Motion [DI5, DI7] ────────────────────────────────────────────── */
+
+    /* Every keyframe here has its row in TIMINGS (js/effects.js); kp-rule-in
+       is the base layer's. */
+    @keyframes kp-sweep {
+        0%,
+        80% {
+            transform: translateY(0);
+        }
+
+        100% {
+            transform: translateY(calc(100vh + 140px));
+        }
+    }
+
+    @keyframes kp-caret {
+        0%,
+        49% {
+            background-size: 1ch 1.15em;
+        }
+
+        50%,
+        100% {
+            background-size: 0 0;
+        }
+    }
+
+    /* Transform and opacity only: the reference's brightness spike is left
+       out, so nothing on the page ever flashes. */
+    @keyframes kp-tube-off {
+        0% {
+            transform: scaleY(1);
+            opacity: 1;
+        }
+
+        70% {
+            transform: scaleY(0.02);
+            opacity: 1;
+        }
+
+        100% {
+            transform: scaleY(0.02) scaleX(0);
+            opacity: 0;
+        }
+    }
+
+    /* The tty the shell line is attached to [S49, A3]. */
+    [data-theme='terminal'] .kp-nav__brand-tag {
+        color: var(--muted-foreground);
+        letter-spacing: 0.18em;
+    }
+
+    /* The demo's own arrow [S49, A12]: two triangles in the bright
+       phosphor, with the platform list behind them. KT8's exception for
+       this theme is recorded in tests/fixtures.spec.mjs. */
+    [data-theme='terminal'] select.kp-field__input {
+        appearance: none;
+        padding-inline-end: 2rem;
+        background-image: linear-gradient(45deg, transparent 50%, var(--primary) 50%), linear-gradient(135deg, var(--primary) 50%, transparent 50%);
+        background-repeat: no-repeat;
+        background-size:
+            7px 7px,
+            7px 7px;
+        background-position:
+            right 19px center,
+            right 13px center;
+    }
+    /* The band [M1, M4]: Kenny picked this theme's own version over the
+       shared one on 2026-09-08 — phosphor between dashed rules. */
+    [data-theme='terminal'] .kp-marquee {
+        background: var(--background);
+        color: var(--primary);
+        border-block: 1px dashed color-mix(in srgb, var(--primary) 50%, transparent);
+        font-family: var(--theme-font-mono);
+        --kp-marquee: 30000ms;
+    }
+
+    /* The menu's caption [M3]: the same choice, for the line a consumer
+       may put above a dropdown's items. */
+    [data-theme='terminal'] .kp-nav__menu[data-kp-menu-label]::before {
+        color: var(--primary);
+        font-family: var(--theme-font-mono);
+        border-block-end: 1px dashed currentColor;
+    }
+}

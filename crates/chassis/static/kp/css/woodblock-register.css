@@ -1,0 +1,1178 @@
+@layer kp.register {
+    /* @kp-soft/themes — css/woodblock-register.css
+   The woodblock register, 5.0.0 [S48, LIFT_PLAN row 20]: the woodblock pull.
+   Scoped to [data-theme='woodblock'] and inert elsewhere; opt-in, imported
+   after themes.css. The approved concept demo is "The Woodblock Pull"
+   (v2, 2026-09-08) — <scratchpad>/woodblock-demo-v2.html — reworked from
+   "Beni & Bero" on Kenny's own note that the first pass "did not... read
+   as a woodblock print at all"; v2 adds the physical vocabulary of a
+   hand-pulled print rather than only its palette. <scratchpad>/
+   woodblock-research.md holds the round-one measurements; the v2 sources —
+   Encyclopedia of Woodblock Printmaking's "Kento Stains"/"Kento
+   Registration", Wikipedia's "Baren (printing tool)", Jackson's Art Blog
+   and Linda Germain's printmaking notes — are cited in the demo's own
+   header comment.
+
+   What this file does, in order: the knobs; the type; the hooks of S45 —
+   the kentō headline whose two ghost plates converge and settle
+   slightly out of register (not through js/effects.js: the mechanism is
+   a static CSS convergence gated only by prefers-reduced-motion, so the
+   theme declares no --kp-reveal-headline and js/effects.js does nothing
+   beyond setting data-kp-text, which it does unconditionally for every
+   [data-kp-reveal='headline'] element regardless of routine); the mark
+   as an ink tint drawn in from the left ("tint"); the carved key line
+   under a heading ("carve"); the deckle-edge tear and the toji-stitch
+   tear as dividers; the hero's seigaiha wave and its kentō corner marks;
+   the navbar with its carved bottom edge and its own kentō mark on the
+   dropdown; the buttons as baren-burnished plates with the mirrored
+   ghost impression; the fields as ink-bordered wells; the dossier with
+   its kentō mark and its sumi-nuri redaction wipe; and one answer per
+   component root (TH124). The reveals have their rest state here and,
+   where they use the module (the rule and the loose marks), their motion
+   in js/effects.js; without the script every one of them stands at rest.
+
+   Colour discipline (DI9): nothing here names a colour. Every plate,
+   mark and mottle is a token or a relative colour of one — the mark tint
+   is beni (--accent) at 22% over whatever sits behind it, computed live
+   rather than the demo's own literal blend; the baren mottle is
+   --foreground at two alpha steps, always darkening a plate, never
+   lightening it, so no baren-mottled pair can measure under its own flat
+   figure (the demo's own contrast table, §4, checks this for every
+   pair this file paints).
+
+   Nothing here loops. The two ghost plates converge once; the redaction
+   bars wipe once each, staggered; the dividers, the spec-sheet grain and
+   the seigaiha wave are static — a print is pulled once, it does not
+   move again. */
+
+    [data-theme='woodblock'] {
+        /* The configuration surface [AR43], the demo's values as defaults. */
+        --kp-reveal-threshold: 0.6;
+        --kp-reveal-stagger: 140ms;
+        --kp-redact-stagger: 170ms;
+        --kp-classified-delay: 460ms;
+        --kp-reveal-duration: 700ms;
+        --kp-reveal-ease: cubic-bezier(0.19, 1, 0.22, 1);
+        /* The reveals this theme performs [S45]: js/effects.js reads these
+           and leaves a theme that declares none at rest. No headline entry:
+           the kentō convergence is a static CSS mechanism (see the header
+           comment), so the module treats the headline as quiet and only
+           the rule and the loose marks use its staggering. */
+        --kp-reveal-emphasis: tint;
+        --kp-reveal-rule: carve;
+        --kp-mono: var(--theme-font-mono);
+
+        /* The hand-cut key line: an irregular top edge, flat foot — the
+           demo's own --carved-edge, unchanged (a clip-path carries no
+           colour, so DI9 has no claim on it). Reused for the nav-wrap's
+           bottom border, the h2 rule, and the dossier stamp's corners. */
+        --kp-carved-edge: polygon(
+            0% 100%,
+            0% 22%,
+            5% 46%,
+            11% 10%,
+            18% 34%,
+            26% 6%,
+            34% 38%,
+            43% 14%,
+            52% 40%,
+            61% 8%,
+            70% 30%,
+            78% 12%,
+            86% 36%,
+            93% 6%,
+            100% 24%,
+            100% 100%
+        );
+        --kp-stamp-clip: polygon(14% 0%, 100% 0%, 100% 86%, 86% 100%, 0% 100%, 0% 14%);
+
+        /* The mark tint: beni at ~22% over whatever it sits on — a relative
+           colour of --accent, computed live rather than the demo's own
+           literal pre-blended swatch, which is one specific mixture with
+           washi and cannot be a token itself [DI9]. */
+        --kp-mark-tint: hsl(from var(--accent) h s l / 0.22);
+
+        /* Baren burnish [v2]: a baren is rubbed by hand, so every plate it
+           pulls carries a soft, uneven density. Two low-alpha ink radials,
+           --foreground at the demo's own two alpha steps (0x24, 0x18),
+           always darkening a plate, never lightening it — the demo's own
+           worst-case check (§4) is what makes that safe. */
+        --kp-baren:
+            radial-gradient(ellipse 55% 60% at 24% 20%, hsl(from var(--foreground) h s l / 0.141) 0%, transparent 58%),
+            radial-gradient(ellipse 50% 55% at 76% 78%, hsl(from var(--foreground) h s l / 0.094) 0%, transparent 55%);
+    }
+
+    /* ── Type ──────────────────────────────────────────────────────────── */
+
+    [data-theme='woodblock'] h1,
+    [data-theme='woodblock'] h2,
+    [data-theme='woodblock'] h3,
+    [data-theme='woodblock'] h4 {
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    [data-theme='woodblock'] [data-kp-surface] h1 {
+        font-size: var(--kp-text-display);
+        font-weight: 700;
+        line-height: 1.06;
+        margin-block: 0 0.35em;
+        text-wrap: balance;
+    }
+
+    /* Microlabels: the shop's own hand, no glyph of its own — the demo's
+       microlabel carries no prefix, unlike phantom's tick or terminal's
+       prompt. */
+    [data-theme='woodblock'] .microlabel {
+        font-family: var(--kp-mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    /* ── The hooks [S45]: the mark, the rule, the divider ─────────────── */
+
+    /* The mark: an ink tint drawn in behind the phrase, left to right. At
+       rest (no script) the tint is drawn — AR34's "clear marks" — and with
+       the module armed it stands undrawn until the loose-mark stagger
+       clears it (js/effects.js's clearInSteps, unrelated to the routine
+       name). */
+    [data-theme='woodblock'] mark {
+        background: transparent;
+        color: inherit;
+        position: relative;
+        font-weight: 600;
+        z-index: 0;
+    }
+
+    [data-theme='woodblock'] mark::after {
+        content: '';
+        position: absolute;
+        inset: -0.02em -0.05em 0.08em;
+        background: var(--kp-mark-tint);
+        z-index: -1;
+        transform-origin: left center;
+        transform: scaleX(1);
+    }
+
+    [data-theme='woodblock'][data-kp-effects] mark:not(.is-cleared)::after {
+        transform: scaleX(0);
+    }
+
+    /* The rule: the carved key line, hand-cut rather than machine-straight,
+       drawn left to right once when the heading it sits under enters the
+       viewport (js/effects.js's IntersectionObserver, any non-quiet
+       routine). Reuses the base layer's own kp-rule-in keyframe. */
+    [data-theme='woodblock'] [data-kp-reveal='rule']::after {
+        content: '';
+        display: block;
+        inline-size: 100%;
+        block-size: 5px;
+        margin-block-start: 0.55rem;
+        background: var(--foreground);
+        clip-path: var(--kp-carved-edge);
+        transform-origin: left center;
+        transform: scaleX(1);
+    }
+
+    [data-theme='woodblock'][data-kp-effects] [data-kp-reveal='rule']:not(.is-in)::after {
+        transform: scaleX(0);
+    }
+
+    /* The divider: the deckle edge — the torn edge of handmade washi, two
+       offset zig-zag tooth layers so the tear reads as uneven rather than
+       a printed chevron, plus a fibre wisp confined to the strip itself
+       (DI9: local to one element, not a page texture). */
+    [data-theme='woodblock'] [data-kp-divider] {
+        position: relative;
+        display: block;
+        block-size: 16px;
+        background-image:
+            linear-gradient(135deg, var(--foreground) 25%, transparent 25.5%), linear-gradient(225deg, var(--foreground) 25%, transparent 25.5%),
+            linear-gradient(135deg, var(--foreground) 25%, transparent 25.5%), linear-gradient(225deg, var(--foreground) 25%, transparent 25.5%);
+        background-position:
+            0 0,
+            9px 0,
+            4px -1px,
+            13px -1px;
+        background-size:
+            18px 16px,
+            18px 16px,
+            18px 15px,
+            18px 15px;
+        background-repeat: repeat-x;
+        background-color: transparent;
+        opacity: 0.9;
+    }
+
+    [data-theme='woodblock'] [data-kp-divider]::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.05;
+        mix-blend-mode: multiply;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9 0.15' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+    }
+
+    /* The toji tear: the stab-binding stitch of a Japanese book, the second
+       divider, in beni. */
+    [data-theme='woodblock'] [data-kp-divider='alt'] {
+        block-size: 16px;
+        background-image: repeating-linear-gradient(115deg, var(--accent) 0 6px, transparent 6px 15px);
+        background-color: transparent;
+        opacity: 0.85;
+    }
+
+    /* ── The hero: the seigaiha wave and the kentō corner marks ────────── */
+
+    [data-theme='woodblock'] [data-kp-surface='hero'] {
+        position: relative;
+        overflow: hidden;
+        isolation: isolate;
+        padding-block: 2.4rem 3.4rem;
+    }
+
+    /* The seigaiha-class wave texture — css-pattern.com's "Waves" recipe,
+       measured verbatim in the demo and recoloured to ink-on-washi here.
+       Hero-scoped like phantom's own denser hero halftone, and NOT the
+       same slot as the page-wide --fx-texture (TH69's washi fibre, which
+       already reaches the hero since it is a fixed full-viewport layer —
+       see the anatomy's closing section for why the demo's own separate
+       hero fibre layer is not duplicated here). */
+    [data-theme='woodblock'] [data-kp-surface='hero']::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        --_s: 37.5% 12.5% at 62.5%;
+        --_g: 34% 99%, transparent 101%;
+        background:
+            radial-gradient(var(--_s) 100%, transparent 32%, var(--foreground) var(--_g)),
+            radial-gradient(var(--_s) 0, transparent 32%, var(--foreground) var(--_g)) 0 calc(3 * 26px),
+            radial-gradient(var(--_s) 100%, transparent 32%, var(--primary) var(--_g)) 26px calc(3 * 26px),
+            radial-gradient(var(--_s) 0, transparent 32%, var(--primary) var(--_g)) 26px calc(6 * 26px),
+            radial-gradient(var(--_s) 100%, transparent 32%, var(--foreground) var(--_g)) calc(2 * 26px) calc(6 * 26px),
+            radial-gradient(var(--_s) 0, transparent 32%, var(--foreground) var(--_g)) calc(2 * 26px) calc(9 * 26px),
+            radial-gradient(var(--_s) 100%, transparent 32%, var(--primary) var(--_g)) calc(3 * 26px) calc(9 * 26px),
+            radial-gradient(var(--_s) 0, transparent 32%, var(--primary) var(--_g)) calc(3 * 26px) 0;
+        background-size: calc(4 * 26px) calc(12 * 26px);
+        opacity: 0.05;
+    }
+
+    /* kentō (見当): the carved registration marks of a real block — a kagi
+       (L-shaped corner notch, top-left) and a hikitsuke (a straight edge
+       mark, bottom-right). Page furniture, static, two solid ink bars
+       each, drawn as flat-colour gradient layers rather than borders so
+       they sit as one paint operation. */
+    [data-theme='woodblock'] [data-kp-surface='hero']::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        background-image:
+            linear-gradient(var(--foreground), var(--foreground)), linear-gradient(var(--foreground), var(--foreground)),
+            linear-gradient(var(--foreground), var(--foreground));
+        background-repeat: no-repeat;
+        background-size:
+            13px 2px,
+            2px 13px,
+            20px 2px;
+        background-position:
+            10px 10px,
+            10px 10px,
+            right 10px bottom 10px;
+    }
+
+    [data-theme='woodblock'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+        gap: 2.5rem;
+        align-items: start;
+    }
+
+    @container (max-width: 55rem) {
+        [data-theme='woodblock'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ── The headline: kentō, two ghost plates converging, once ────────── */
+
+    [data-theme='woodblock'] [data-kp-reveal='headline'] {
+        position: relative;
+        isolation: isolate;
+    }
+
+    [data-theme='woodblock'] [data-kp-reveal='headline']::before,
+    [data-theme='woodblock'] [data-kp-reveal='headline']::after {
+        content: attr(data-kp-text);
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        mix-blend-mode: multiply;
+    }
+
+    [data-theme='woodblock'] [data-kp-reveal='headline']::before {
+        color: var(--primary);
+    }
+
+    [data-theme='woodblock'] [data-kp-reveal='headline']::after {
+        color: var(--accent);
+    }
+
+    /* v2: the plates converge but do not land at 0,0 — a real pull is
+       never perfectly registered. The rest state (both media blocks below)
+       keeps a 1-2px fringe of bero and beni either side of the black key
+       line, visible under every motion preference, not only mid-reveal
+       [Kenny, 2026-09-08: the mechanism needed to read as kentō rather
+       than a generic wipe]. */
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='woodblock'] [data-kp-reveal='headline']::before {
+            animation: kp-kento-blue var(--kp-reveal-duration) var(--kp-reveal-ease) both;
+        }
+
+        [data-theme='woodblock'] [data-kp-reveal='headline']::after {
+            animation: kp-kento-red var(--kp-reveal-duration) var(--kp-reveal-ease) both;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        [data-theme='woodblock'] [data-kp-reveal='headline']::before {
+            translate: -1.5px -1px;
+        }
+
+        [data-theme='woodblock'] [data-kp-reveal='headline']::after {
+            translate: 1.5px 1px;
+        }
+    }
+
+    @keyframes kp-kento-blue {
+        from {
+            translate: -7px -5px;
+        }
+
+        to {
+            translate: -1.5px -1px;
+        }
+    }
+
+    @keyframes kp-kento-red {
+        from {
+            translate: 7px 5px;
+        }
+
+        to {
+            translate: 1.5px 1px;
+        }
+    }
+
+    /* ── The navbar: the printed strip, its carved bottom edge ─────────── */
+
+    [data-theme='woodblock'] .kp-nav-wrap {
+        position: relative;
+        background: var(--card);
+        padding-block-end: 4px;
+    }
+
+    [data-theme='woodblock'] .kp-nav-wrap::after {
+        content: '';
+        position: absolute;
+        inset-inline: 0;
+        inset-block-end: 0;
+        inline-size: 100%;
+        block-size: 4px;
+        background: var(--foreground);
+        clip-path: var(--kp-carved-edge);
+        pointer-events: none;
+    }
+
+    [data-theme='woodblock'] .kp-nav {
+        background: var(--card);
+        position: relative;
+        z-index: var(--kp-z-nav, 30);
+    }
+
+    [data-theme='woodblock'] .kp-nav__brand {
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+        font-size: 1.1rem;
+        letter-spacing: 0.02em;
+        color: var(--foreground);
+        text-decoration: none;
+    }
+
+    [data-theme='woodblock'] .kp-nav__link {
+        color: var(--foreground);
+        background: none;
+        text-decoration: none;
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-nav__link:hover,
+    [data-theme='woodblock'] .kp-nav__link:focus-visible,
+    [data-theme='woodblock'] .kp-nav__link[aria-current],
+    [data-theme='woodblock'] .kp-nav__links > li:focus-within > .kp-nav__link {
+        background: var(--muted);
+    }
+
+    [data-theme='woodblock'] .kp-nav__link[aria-haspopup]::after {
+        content: ' ▾';
+        font-size: 0.65em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='woodblock'] .kp-nav__link--lang {
+        font-family: var(--kp-mono);
+        letter-spacing: 0.05em;
+    }
+
+    /* The call to action: a beni plate with the baren mottle, the ink key
+       line as its border. */
+    [data-theme='woodblock'] .kp-nav__link--cta {
+        background: var(--kp-baren), var(--accent);
+        color: var(--accent-foreground);
+        border: 1px solid var(--foreground);
+    }
+
+    [data-theme='woodblock'] .kp-nav__link--cta:hover,
+    [data-theme='woodblock'] .kp-nav__link--cta:focus-visible {
+        background: var(--kp-baren), var(--accent-hover, var(--accent));
+    }
+
+    /* The dropdown: a printed panel — the existing ink border is its key
+       line, and its own kentō is a kagi mark in the corner (KT14). */
+    [data-theme='woodblock'] .kp-nav__menu {
+        position: relative;
+        background: var(--popover);
+        border: 1px solid var(--foreground);
+        border-radius: var(--radius);
+        box-shadow: none;
+    }
+
+    [data-theme='woodblock'] .kp-nav__menu::before {
+        content: '';
+        position: absolute;
+        inset-block-start: 3px;
+        inset-inline-start: 3px;
+        inline-size: 7px;
+        block-size: 7px;
+        background-image: linear-gradient(var(--foreground), var(--foreground)), linear-gradient(var(--foreground), var(--foreground));
+        background-repeat: no-repeat;
+        background-size:
+            7px 1.5px,
+            1.5px 7px;
+        background-position:
+            0 0,
+            0 0;
+        pointer-events: none;
+    }
+
+    [data-theme='woodblock'] .kp-nav__menu a {
+        color: var(--foreground);
+        text-decoration: none;
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-nav__menu a:hover,
+    [data-theme='woodblock'] .kp-nav__menu a:focus-visible {
+        background: var(--muted);
+    }
+
+    /* ── Buttons: baren-burnished plates, the mirrored impression ──────── */
+
+    [data-theme='woodblock'] .kp-button {
+        position: relative;
+        font-weight: 600;
+        background: var(--secondary);
+        color: var(--foreground);
+        border: 1px solid var(--foreground);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-button:hover:not(:disabled) {
+        background: var(--muted);
+    }
+
+    [data-theme='woodblock'] .kp-button--primary {
+        background: var(--kp-baren), var(--primary);
+        color: var(--primary-foreground);
+        border-color: var(--primary);
+    }
+
+    [data-theme='woodblock'] .kp-button--primary:hover:not(:disabled),
+    [data-theme='woodblock'] .kp-button--primary:focus-visible {
+        background: var(--kp-baren), var(--primary-hover, var(--primary));
+        border-color: var(--primary-hover, var(--primary));
+    }
+
+    [data-theme='woodblock'] .kp-button--destructive {
+        background: var(--kp-baren), var(--destructive);
+        color: var(--destructive-foreground);
+        border-color: var(--destructive);
+    }
+
+    [data-theme='woodblock'] .kp-button--destructive:hover:not(:disabled),
+    [data-theme='woodblock'] .kp-button--destructive:focus-visible {
+        background: var(--kp-baren), var(--destructive-hover, var(--destructive));
+        border-color: var(--destructive-hover, var(--destructive));
+    }
+
+    [data-theme='woodblock'] .kp-button--ghost {
+        background: transparent;
+        border-color: var(--border);
+        color: var(--foreground);
+    }
+
+    [data-theme='woodblock'] .kp-button--ghost:hover:not(:disabled) {
+        border-color: var(--foreground);
+    }
+
+    /* "mirror" — a second, offset impression printed behind the button, the
+       way a misregistered pull leaves a ghost plate; a solid fill, never a
+       blurred shadow (the anatomy's own rule: "a print has none"). */
+    [data-theme='woodblock'] .kp-button--mirror {
+        margin-inline-end: 4px;
+        margin-block-start: 4px;
+    }
+
+    [data-theme='woodblock'] .kp-button--mirror::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: var(--foreground);
+        translate: 4px -4px;
+        z-index: -1;
+        border-radius: inherit;
+    }
+
+    [data-theme='woodblock'] .kp-icon-button {
+        border: 1px solid var(--foreground);
+        border-radius: var(--radius);
+        background: var(--secondary);
+    }
+
+    [data-theme='woodblock'] .kp-icon-button:hover {
+        background: var(--muted);
+    }
+
+    /* ── Fields: ink-bordered wells on washi ───────────────────────────── */
+
+    [data-theme='woodblock'] .kp-field__label {
+        font-weight: 600;
+    }
+
+    [data-theme='woodblock'] .kp-field__input,
+    [data-theme='woodblock'] .kp-datatable__search,
+    [data-theme='woodblock'] .kp-combobox__input,
+    [data-theme='woodblock'] .kp-palette__input {
+        background: var(--background);
+        color: var(--foreground);
+        border: 1px solid var(--foreground);
+        border-radius: var(--radius);
+        caret-color: var(--primary);
+    }
+
+    [data-theme='woodblock'] .kp-field__input:focus-visible,
+    [data-theme='woodblock'] .kp-datatable__search:focus-visible,
+    [data-theme='woodblock'] .kp-combobox__input:focus-visible,
+    [data-theme='woodblock'] .kp-palette__input:focus-visible {
+        border-color: var(--primary);
+    }
+
+    [data-theme='woodblock'] select.kp-field__input::picker-icon {
+        color: var(--primary);
+    }
+
+    [data-theme='woodblock'] .kp-field__help {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='woodblock'] .kp-field--invalid .kp-field__input {
+        border-color: var(--destructive);
+    }
+
+    [data-theme='woodblock'] .kp-field__error {
+        color: var(--destructive);
+    }
+
+    [data-theme='woodblock'] .kp-field__check {
+        accent-color: var(--primary);
+    }
+
+    [data-theme='woodblock'] .kp-fieldset {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-form__summary {
+        border: 1px solid var(--foreground);
+        border-radius: var(--radius);
+        background: var(--card);
+    }
+
+    /* ── Cards, surfaces and the dossier ───────────────────────────────── */
+
+    [data-theme='woodblock'] .kp-card {
+        border: 1px solid var(--foreground);
+        border-radius: var(--radius);
+        background: var(--background);
+        box-shadow: none;
+    }
+
+    [data-theme='woodblock'] .kp-card[data-kp-reveal='emphasis'] {
+        position: relative;
+    }
+
+    /* The stamp: the hand-cut key line as a four-corner-nicked chip. */
+    [data-theme='woodblock'] .kp-card[data-kp-label]::before {
+        content: attr(data-kp-label);
+        position: absolute;
+        inset-block-start: -1px;
+        inset-inline-end: -1px;
+        background: var(--kp-baren), var(--accent);
+        color: var(--accent-foreground);
+        font-family: var(--kp-mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 0.22rem 0.6rem 0.18rem 0.65rem;
+        border: 1px solid var(--foreground);
+        clip-path: var(--kp-stamp-clip);
+    }
+
+    /* The stamp changes when the file opens, as the demo's redactions do
+       [S49, A11]. */
+    [data-theme='woodblock'] .kp-card[data-kp-open][data-kp-label-open]::before {
+        content: attr(data-kp-label-open);
+        background: var(--kp-baren), var(--primary);
+        color: var(--primary-foreground);
+        border-color: var(--primary);
+    }
+
+    /* The dossier's own kentō — top-left, since the stamp already owns the
+       top-right corner. */
+    [data-theme='woodblock'] .kp-card[data-kp-reveal='emphasis']::after {
+        content: '';
+        position: absolute;
+        inset-block-start: 6px;
+        inset-inline-start: 6px;
+        z-index: 2;
+        pointer-events: none;
+        background-image: linear-gradient(var(--foreground), var(--foreground)), linear-gradient(var(--foreground), var(--foreground));
+        background-repeat: no-repeat;
+        background-size:
+            10px 1.5px,
+            1.5px 10px;
+        background-position:
+            0 0,
+            0 0;
+        inline-size: 10px;
+        block-size: 10px;
+    }
+
+    /* Sumi-nuri redaction: an opaque ink bar wipes away from a <mark>, once
+       each, staggered. At rest (no script) the bar stands undrawn — AR34's
+       "clear marks" — and shows drawn (covering the phrase) only while the
+       module has armed it and the file has not yet been opened. */
+    [data-theme='woodblock'] .kp-card[data-kp-reveal='emphasis'] mark {
+        position: relative;
+        background: none;
+        color: var(--card-foreground);
+        padding-inline: 0;
+        z-index: 0;
+    }
+
+    [data-theme='woodblock'] .kp-card[data-kp-reveal='emphasis'] mark::before {
+        content: '';
+        position: absolute;
+        inset: -0.05em -0.15em;
+        background: var(--foreground);
+        transform-origin: right center;
+        transform: scaleX(0);
+        z-index: 1;
+    }
+
+    [data-theme='woodblock'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark:not(.is-cleared) {
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='woodblock'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark:not(.is-cleared)::before {
+        transform: scaleX(1);
+    }
+
+    [data-theme='woodblock'] .kp-dialog,
+    [data-theme='woodblock'] .kp-popover,
+    [data-theme='woodblock'] .kp-menu,
+    [data-theme='woodblock'] .kp-toast,
+    [data-theme='woodblock'] .kp-tooltip,
+    [data-theme='woodblock'] .kp-confirm,
+    [data-theme='woodblock'] .kp-datepicker__panel,
+    [data-theme='woodblock'] .kp-combobox__list,
+    [data-theme='woodblock'] .kp-palette,
+    [data-theme='woodblock'] .kp-theme-menu {
+        background: var(--card);
+        border: 1px solid var(--foreground);
+        border-radius: var(--radius);
+        box-shadow: none;
+    }
+
+    [data-theme='woodblock'] .kp-menu__item:hover,
+    [data-theme='woodblock'] .kp-combobox__option[aria-selected='true'],
+    [data-theme='woodblock'] .kp-palette__option[aria-selected='true'] {
+        background: var(--muted);
+    }
+
+    [data-theme='woodblock'] .kp-alert {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-inline-start: 4px solid var(--accent);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-alert--destructive {
+        border-inline-start-color: var(--destructive);
+    }
+
+    [data-theme='woodblock'] .kp-alert--warning {
+        border-inline-start-color: var(--warning);
+    }
+
+    [data-theme='woodblock'] .kp-alert--success {
+        border-inline-start-color: var(--success);
+    }
+
+    [data-theme='woodblock'] .kp-grid__tile,
+    [data-theme='woodblock'] .kp-split__pane {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-split__separator {
+        background: var(--foreground);
+    }
+
+    /* ── The footer: the ink ground, the cream ink ─────────────────────── */
+
+    [data-theme='woodblock'] .kp-footer {
+        background: var(--foreground);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='woodblock'] .kp-footer h4 {
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='woodblock'] .kp-footer p {
+        color: hsl(from var(--primary-foreground) h s calc(l - 15%));
+    }
+
+    [data-theme='woodblock'] .kp-footer a {
+        color: hsl(from var(--primary-foreground) h s calc(l - 10%));
+        text-decoration: none;
+    }
+
+    [data-theme='woodblock'] .kp-footer a:hover {
+        color: var(--primary-foreground);
+        text-decoration: underline;
+    }
+
+    /* The footer's fine print: the demo's own microlabel, dimmer, ruled off. */
+    [data-theme='woodblock'] .kp-footer .microlabel {
+        color: hsl(from var(--primary-foreground) h s calc(l - 25%));
+        border-block-start: 1px solid hsl(from var(--primary-foreground) h s l / 0.18);
+        padding-block-start: 0.6rem;
+        display: block;
+    }
+
+    /* ── Badges, tags, status ──────────────────────────────────────────── */
+
+    [data-theme='woodblock'] .kp-badge,
+    [data-theme='woodblock'] .kp-tag {
+        border-radius: var(--radius);
+        font-family: var(--kp-mono);
+        letter-spacing: 0.04em;
+    }
+
+    [data-theme='woodblock'] .kp-skeleton {
+        background: repeating-linear-gradient(-16deg, var(--muted) 0 8px, var(--card) 8px 16px);
+    }
+
+    [data-theme='woodblock'] .kp-progress {
+        background: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-progress__value {
+        background: var(--primary);
+    }
+
+    [data-theme='woodblock'] .kp-spinner {
+        border-color: var(--border);
+        border-top-color: var(--primary);
+    }
+
+    [data-theme='woodblock'] .kp-empty {
+        border: 1px dashed var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-error {
+        color: var(--destructive);
+    }
+
+    /* ── Text shapes ──────────────────────────────────────────────────── */
+
+    [data-theme='woodblock'] .kp-id,
+    [data-theme='woodblock'] .kp-url,
+    [data-theme='woodblock'] .kp-numeric,
+    [data-theme='woodblock'] .kp-timestamp,
+    [data-theme='woodblock'] .kp-masked,
+    [data-theme='woodblock'] .kp-copyable,
+    [data-theme='woodblock'] .kp-truncate,
+    [data-theme='woodblock'] .kp-cell-break,
+    [data-theme='woodblock'] .kp-cell-truncate {
+        font-family: var(--kp-mono);
+    }
+
+    [data-theme='woodblock'] .kp-timestamp,
+    [data-theme='woodblock'] .kp-id {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='woodblock'] .kp-copyable__button {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    /* ── Data ─────────────────────────────────────────────────────────── */
+
+    [data-theme='woodblock'] .kp-table th {
+        border-block-end: 2px solid var(--foreground);
+    }
+
+    [data-theme='woodblock'] .kp-table td {
+        border-block-end: 1px solid var(--border);
+    }
+
+    [data-theme='woodblock'] .kp-table tbody tr:hover {
+        background: var(--muted);
+    }
+
+    [data-theme='woodblock'] .kp-datatable {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-datatable__sort[aria-sort] {
+        color: var(--primary);
+    }
+
+    [data-theme='woodblock'] .kp-diff {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-diff__line {
+        font-family: var(--kp-mono);
+    }
+
+    [data-theme='woodblock'] .kp-timeline {
+        border-inline-start: 2px solid var(--foreground);
+    }
+
+    [data-theme='woodblock'] .kp-timeline__marker {
+        background: var(--primary);
+    }
+
+    [data-theme='woodblock'] .kp-timeline__when {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='woodblock'] .kp-tree {
+        font-family: var(--kp-mono);
+    }
+
+    [data-theme='woodblock'] .kp-reorder {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    /* ── Navigation and steps ─────────────────────────────────────────── */
+
+    [data-theme='woodblock'] .kp-tab {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-tab[aria-selected='true'] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='woodblock'] .kp-tabs__list {
+        border-block-end: 1px solid var(--border);
+    }
+
+    [data-theme='woodblock'] .kp-pagination a[aria-current],
+    [data-theme='woodblock'] .kp-pagination [aria-current] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-wizard {
+        border: 1px solid var(--foreground);
+        border-radius: var(--radius);
+        background: var(--card);
+    }
+
+    /* ── Pickers and palettes ─────────────────────────────────────────── */
+
+    [data-theme='woodblock'] .kp-combobox__input,
+    [data-theme='woodblock'] .kp-palette__input,
+    [data-theme='woodblock'] .kp-datatable__search {
+        background: var(--background);
+        border: 1px solid var(--foreground);
+        border-radius: var(--radius);
+        caret-color: var(--primary);
+    }
+
+    [data-theme='woodblock'] .kp-datepicker__day[aria-selected='true'] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-colorpicker__swatch {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-colorpicker__value {
+        font-family: var(--kp-mono);
+    }
+
+    [data-theme='woodblock'] .kp-shortcuts__row kbd {
+        font-family: var(--kp-mono);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    /* ── The roots the rules above reach only by their parts ──────────── */
+
+    [data-theme='woodblock'] .kp-combobox,
+    [data-theme='woodblock'] .kp-datepicker,
+    [data-theme='woodblock'] .kp-colorpicker,
+    [data-theme='woodblock'] .kp-shortcuts,
+    [data-theme='woodblock'] .kp-tabs {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='woodblock'] .kp-field,
+    [data-theme='woodblock'] .kp-form {
+        gap: var(--kp-space-sm);
+    }
+
+    [data-theme='woodblock'] .kp-form {
+        gap: var(--kp-space-lg);
+    }
+
+    [data-theme='woodblock'] .kp-grid,
+    [data-theme='woodblock'] .kp-split {
+        gap: var(--kp-space-lg);
+    }
+
+    [data-theme='woodblock'] .kp-toasts {
+        gap: var(--kp-space-sm);
+    }
+
+    [data-theme='woodblock'] .kp-table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    [data-theme='woodblock'] .kp-breadcrumb,
+    [data-theme='woodblock'] .kp-pagination {
+        font-family: var(--kp-mono);
+        letter-spacing: 0.02em;
+    }
+
+    [data-theme='woodblock'] .kp-health {
+        font-family: var(--kp-mono);
+        letter-spacing: 0.02em;
+    }
+
+    [data-theme='woodblock'] .kp-datatable__bar {
+        border-block-end: 1px solid var(--border);
+    }
+
+    /* ── The scrollbar joins the theme ────────────────────────────────── */
+
+    [data-theme='woodblock'] {
+        scrollbar-color: var(--foreground) var(--background);
+    }
+
+    /* ── The demo's own pieces [S46] ──────────────────────────────────── */
+
+    [data-theme='woodblock'] .kp-side-note {
+        position: absolute;
+        inset-inline-end: 0.5rem;
+        inset-block-start: 1.4rem;
+        writing-mode: vertical-rl;
+        font-family: var(--kp-mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.2em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='woodblock'] .kp-laurels {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='woodblock'] .kp-laurels b {
+        color: var(--foreground);
+        font-family: var(--kp-mono);
+    }
+
+    [data-theme='woodblock'] .kp-lede {
+        max-width: 36rem;
+        font-size: 1.05rem;
+    }
+
+    [data-theme='woodblock'] .kp-platforms {
+        font-family: var(--kp-mono);
+        color: var(--muted-foreground);
+    }
+
+    /* The spec sheet: the block itself — one irregular-banded grain layer
+       (ink only, no new hue) at up to 10.2% alpha, plus a carved inset
+       bevel and its own kentō mark. Stronger than DI9's page-texture
+       ceiling on purpose: this is the visible material of one object, not
+       a wash over the whole page, so it is a plain background pattern
+       rather than a --fx-texture declaration — see the anatomy's closing
+       section for why this is not measured by check-texture.mjs, and why
+       that is the right outcome rather than an evasion of it. */
+    [data-theme='woodblock'] .kp-spec {
+        position: relative;
+        border: 1px solid var(--foreground);
+        background:
+            repeating-linear-gradient(
+                178deg,
+                transparent 0 5px,
+                hsl(from var(--foreground) h s l / 0.039) 5px 6px,
+                transparent 6px 13px,
+                hsl(from var(--foreground) h s l / 0.102) 13px 14px,
+                transparent 14px 22px,
+                hsl(from var(--foreground) h s l / 0.039) 22px 23px,
+                transparent 23px 33px,
+                hsl(from var(--foreground) h s l / 0.102) 33px 35px,
+                transparent 35px 41px,
+                hsl(from var(--foreground) h s l / 0.039) 41px 42px,
+                transparent 42px 53px
+            ),
+            var(--card);
+        box-shadow:
+            inset 0 0 0 1px var(--foreground),
+            inset 0 3px 5px hsl(from var(--foreground) h s l / 0.094),
+            inset 0 -2px 4px hsl(from var(--foreground) h s l / 0.039);
+        overflow: hidden;
+    }
+
+    [data-theme='woodblock'] .kp-spec::before {
+        content: '';
+        position: absolute;
+        inset-block-start: 6px;
+        inset-inline-start: 6px;
+        inline-size: 10px;
+        block-size: 10px;
+        background-image: linear-gradient(var(--foreground), var(--foreground)), linear-gradient(var(--foreground), var(--foreground));
+        background-repeat: no-repeat;
+        background-size:
+            10px 1.5px,
+            1.5px 10px;
+        background-position:
+            0 0,
+            0 0;
+        pointer-events: none;
+    }
+
+    [data-theme='woodblock'] .kp-spec dt {
+        color: var(--muted-foreground);
+        font-family: var(--kp-mono);
+        text-transform: uppercase;
+    }
+
+    [data-theme='woodblock'] .kp-spec__swatch {
+        border: 1px solid var(--foreground);
+        border-radius: 2px;
+    }
+
+    [data-theme='woodblock'] .kp-spec__font {
+        font-family: var(--theme-font-body);
+    }
+
+    [data-theme='woodblock'] .kp-spec__font[data-font='display'] {
+        font-family: var(--theme-font-display);
+    }
+
+    [data-theme='woodblock'] .kp-spec__font[data-font='mono'] {
+        font-family: var(--kp-mono);
+    }
+
+    /* ── Motion, guarded [DI7] ────────────────────────────────────────── */
+
+    /* Every animation and transition of this register — other than the
+       kentō ghosts above, which carry their own explicit reduced-motion
+       pair by design (v2: the misregistration stays visible at rest under
+       every motion preference, not only when this guard is active) —
+       lives here, so a reader who asked for reduced motion never receives
+       one: the rest states above are what they get. */
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='woodblock'] [data-kp-reveal='rule'].is-in::after {
+            animation: kp-rule-in var(--kp-reveal-duration) var(--kp-reveal-ease) both;
+        }
+
+        [data-theme='woodblock'] mark::after {
+            transition: transform var(--kp-reveal-duration) var(--kp-reveal-ease);
+        }
+
+        [data-theme='woodblock'] mark:nth-of-type(2)::after {
+            transition-delay: var(--kp-reveal-stagger);
+        }
+
+        [data-theme='woodblock'] .kp-card[data-kp-reveal='emphasis'] mark::before {
+            transition: transform 460ms var(--kp-reveal-ease);
+        }
+
+        [data-theme='woodblock'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(2)::before {
+            transition-delay: var(--kp-redact-stagger);
+        }
+
+        [data-theme='woodblock'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(3)::before {
+            transition-delay: calc(2 * var(--kp-redact-stagger));
+        }
+    }
+    /* The band [M1, M4]: Kenny picked this theme's own version over the
+       shared one on 2026-09-08 — paper with a beni border, in the display face. */
+    [data-theme='woodblock'] .kp-marquee {
+        background: color-mix(in srgb, var(--primary) 8%, var(--background));
+        border-block: 1px solid var(--primary);
+        font-family: var(--theme-font-display);
+        --kp-marquee: 52000ms;
+    }
+
+    /* The menu's caption [M3]: the same choice, for the line a consumer
+       may put above a dropdown's items. */
+    [data-theme='woodblock'] .kp-nav__menu[data-kp-menu-label]::before {
+        color: var(--primary);
+        font-family: var(--theme-font-display);
+        border-block-end: 1px solid var(--primary);
+    }
+}

@@ -1,0 +1,1707 @@
+@layer kp.register {
+    /* @kp-soft/themes — css/retro-register.css
+   The retro register, 5.0.0 [S48, LIFT_PLAN row 3]: the 1995 desktop.
+   Scoped to [data-theme='retro'] and inert elsewhere; opt-in, imported
+   after themes.css. The approved concept demo ("Bevel 95", 2026-09-08) is
+   the reference for every value here, and docs/RESEARCH_2026-09.md §21 is
+   where each mechanism was measured: 98.css (the four-inset bevel, its
+   inversion with the label stepping one pixel, the sunken well, the
+   title-bar ramp, the tab that lifts, the checkerboard scrollbar track),
+   Win95 SGJ (the two-line bevel on the strip), 2bit.chat (the shell groove
+   and image-rendering: pixelated), the NW pixelated page transition (the
+   dither, here as four densities in discrete steps).
+
+   3.1.0 shipped the raised, sunken and pressed bevel on the component
+   roots [TH87]; this file keeps those rules and adds the rest of the
+   desktop: the groove as divider and as the rule under a heading, the
+   dither the headline clears out of and the boot screen leaves through,
+   the selection bar as emphasis, the navy bevel on the default button,
+   the lifting tab, the Notepad window as dossier, the BIOS as arrival,
+   and one answer per component root (TH124). The reveals have their rest
+   state here and their motion in js/effects.js; without the script every
+   one of them stands at rest.
+
+   The bevel is decoration AROUND the boundary, never instead of it: every
+   control keeps its --border-strong edge, which check-invariants holds at
+   3:1, and the two-tone bevel sits inside that edge as inset shadows. The
+   original's mid-grey-on-light-grey bevel measured 2.17:1 and was the
+   whole reason the boundary could not be the bevel (docs/THEME_CANDIDATES.md,
+   C7). The dotted focus rectangle of the original is forbidden by DI2; the
+   two-channel ring is composed in front of the bevel, never instead of it.
+
+   Colour discipline (DI9): nothing here names a colour. Nothing here
+   eases (--fx-duration is 0 ms), nothing loops and nothing blinks: every
+   effect runs once and every step is monotone — the dither only clears,
+   the selection only fills, the groove only draws — so DI5 counts zero
+   opposing changes anywhere. */
+
+    [data-theme='retro'] {
+        /* The configuration surface [AR43], the demo's values as defaults. */
+        --kp-reveal-threshold: 0.6;
+        --kp-reveal-stagger: 320ms;
+        --kp-redact-stagger: 140ms;
+        --kp-classified-delay: 760ms;
+        --kp-dither: 640ms;
+        --kp-dither-out: 520ms;
+        --kp-select: 360ms;
+        --kp-lift: 400ms;
+        --kp-groove: 480ms;
+        --kp-dither-cell: 6px;
+        /* The reveals this theme performs [S45]: js/effects.js reads these
+           and leaves a theme that declares none at rest. */
+        --kp-reveal-headline: dissolve;
+        --kp-reveal-emphasis: select;
+        --kp-reveal-rule: groove;
+        --kp-arrival: boot;
+        /* The DOS voice: VT323 (shipped with synthwave, no Reserved Font
+           Name) for labels, help and status; the body stays Instrument Sans
+           and the headings Pixelify Sans (the anatomy: no pixel body text). */
+        --kp-dos: 'VT323', var(--theme-font-mono);
+        /* The teal as ink: the desktop teal is a ground (2.62 on the chrome)
+           and the accent token clears 3:1 as a plate; a label in it needs the
+           deeper tint the demo measured at 5.32. */
+        --kp-teal-ink: hsl(from var(--accent) h s 15%);
+        /* The four-inset bevel of 98.css as three reusable stacks: the
+           popover as the highlight, the ink as the deep edge, the card and
+           the mid border as the second pair. */
+        --kp-raised:
+            inset 1px 1px 0 var(--popover), inset -1px -1px 0 var(--foreground), inset 2px 2px 0 var(--card), inset -2px -2px 0 var(--border);
+        --kp-pressed:
+            inset 1px 1px 0 var(--foreground), inset -1px -1px 0 var(--popover), inset 2px 2px 0 var(--border), inset -2px -2px 0 var(--card);
+        --kp-sunken:
+            inset 1px 1px 0 var(--border), inset -1px -1px 0 var(--popover), inset 2px 2px 0 var(--foreground), inset -2px -2px 0 var(--card);
+        /* The same bevel in navy for the default button — the next level. */
+        --kp-navy-hi: hsl(from var(--primary) h s 60%);
+        --kp-navy-mid: var(--sidebar-border);
+        --kp-navy-low: hsl(from var(--primary) h s 19%);
+        --kp-navy-deep: hsl(from var(--primary) h s 12%);
+        --kp-raised-navy:
+            inset 1px 1px 0 var(--kp-navy-hi), inset -1px -1px 0 var(--kp-navy-deep), inset 2px 2px 0 var(--kp-navy-mid),
+            inset -2px -2px 0 var(--kp-navy-low);
+        --kp-pressed-navy:
+            inset 1px 1px 0 var(--kp-navy-deep), inset -1px -1px 0 var(--kp-navy-hi), inset 2px 2px 0 var(--kp-navy-low),
+            inset -2px -2px 0 var(--kp-navy-mid);
+        /* The title-bar ramp: navy to the sidebar's lit navy. The reference
+           ramp ended on a blue where white measured 4.01 (S42: reported); this
+           one ends on a token white clears. */
+        --kp-ramp: linear-gradient(90deg, var(--primary), var(--sidebar-accent));
+        /* The groove: 2bit.chat's shell groove, a dark line over a light one. */
+        --kp-groove-line: linear-gradient(to bottom, var(--border) 0 1px, var(--popover) 1px 2px);
+        /* The hard shadow of a window and a menu. */
+        --kp-drop: 3px 3px 0 hsl(from var(--foreground) h s l / 0.3);
+        /* The desktop the window sits on, and the window's own hard drop
+           [S49, A2]: the demo's desktop is the accent teal at 25%. */
+        --kp-desktop: hsl(from var(--accent) h s 25%);
+        --kp-drop-hard: 4px 4px 0 0 hsl(from var(--foreground) h s l / 0.35);
+        /* The POST counts along a segmented bar. */
+        --kp-arrival-bar: block;
+        --kp-arrival-count: 640;
+        /* The dither ladder: four densities of a checkerboard in the ground's
+           own colour, for the dissolve; and the same four as masks for the
+           boot screen (a mask reads alpha, so the ink serves). */
+        --kp-dd-100: linear-gradient(var(--background), var(--background));
+        --kp-dd-75: conic-gradient(var(--background) 0 270deg, transparent 0);
+        --kp-dd-50: conic-gradient(var(--background) 0 90deg, transparent 0 180deg, var(--background) 0 270deg, transparent 0);
+        --kp-dd-25: conic-gradient(var(--background) 0 90deg, transparent 0);
+        --kp-dm-100: linear-gradient(var(--foreground), var(--foreground));
+        --kp-dm-75: conic-gradient(var(--foreground) 0 270deg, transparent 0);
+        --kp-dm-50: conic-gradient(var(--foreground) 0 90deg, transparent 0 180deg, var(--foreground) 0 270deg, transparent 0);
+        --kp-dm-25: conic-gradient(var(--foreground) 0 90deg, transparent 0);
+        /* The 50% dither brush of a disabled control, for the redactions. */
+        --kp-brush: conic-gradient(var(--foreground) 0 90deg, transparent 0 180deg, var(--foreground) 0 270deg, transparent 0);
+    }
+
+    /* ── The ring, in the demo's order [S49, A5 of 2026-09-08] ────────────
+       The base layer puts the contrast colour outside and the ring colour
+       against the element; this theme's approved demo does it the other
+       way round, and DI2's promise holds either way — two channels, one
+       of which always clears 3:1 on the surface behind it. The broad rule
+       sits here, before the register's own component rules, so a control
+       that composes its own shadow stack still wins. */
+    [data-theme='retro'] :focus-visible {
+        outline-color: var(--focus-ring);
+        box-shadow: 0 0 0 var(--kp-focus-ring-inner-width, 2px) var(--focus-ring-contrast);
+    }
+
+    /* ── Type ──────────────────────────────────────────────────────────── */
+
+    [data-theme='retro'] h1,
+    [data-theme='retro'] h2,
+    [data-theme='retro'] h3 {
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+        line-height: 1.1;
+    }
+
+    /* The base layer paints a title bar behind every h1 (the 3.x theme);
+       on a surface the register takes the demo's reading instead — ink on
+       the chrome with a hard white shadow, the way a 1995 dialog set its
+       heading — and keeps the ramp for the brand and the windows. */
+    [data-theme='retro'] [data-kp-surface] h1 {
+        display: block;
+        padding: 0;
+        background: none;
+        color: var(--foreground);
+        font-size: var(--kp-text-display);
+        line-height: 1.05;
+        margin-block: 0 0.35em;
+        text-wrap: balance;
+        text-shadow: 2px 2px 0 var(--popover);
+    }
+
+    [data-theme='retro'] [data-kp-surface] h2 {
+        text-shadow: 1px 1px 0 var(--popover);
+    }
+
+    /* Microlabels: the DOS prompt, a static block cursor after it. */
+    [data-theme='retro'] .microlabel {
+        font-family: var(--kp-dos);
+        font-size: 1.05rem;
+        letter-spacing: 0.04em;
+        line-height: 1.2;
+        color: var(--kp-teal-ink);
+    }
+
+    [data-theme='retro'] .microlabel::before {
+        content: '> ';
+        color: var(--foreground);
+    }
+
+    [data-theme='retro'] .microlabel::after {
+        content: '';
+        display: inline-block;
+        inline-size: 0.5em;
+        block-size: 1em;
+        margin-inline-start: 0.3em;
+        vertical-align: -0.12em;
+        background: var(--accent);
+    }
+
+    /* ── The hooks [S45]: the headline, the mark, the rule, the divider ── */
+
+    /* The headline reveal: the pixel dissolve. A dither in the ground's
+       own colour lies over the text; the module arms it and runs the four
+       densities in discrete steps, once; without the script the dither is
+       not there. */
+    [data-theme='retro'] [data-kp-reveal='headline'] {
+        position: relative;
+    }
+
+    [data-theme='retro'] [data-kp-reveal='headline']::after {
+        content: '';
+        position: absolute;
+        inset: -0.08em -0.12em;
+        background-size: var(--kp-dither-cell) var(--kp-dither-cell);
+        background-repeat: repeat;
+        image-rendering: pixelated;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    [data-theme='retro'][data-kp-effects] [data-kp-reveal='headline']:not(.is-deciphered)::after {
+        opacity: 1;
+        background-image: var(--kp-dd-100);
+    }
+
+    /* The rule: the groove ruling itself in under a heading, left to right,
+       in twelve steps when the heading enters the viewport. Without the
+       script it stands drawn. */
+    [data-theme='retro'] [data-kp-reveal='rule']::after {
+        content: '';
+        display: block;
+        block-size: 2px;
+        margin-block-start: 0.6rem;
+        background: var(--kp-groove-line);
+        transform: scaleX(1);
+        transform-origin: left center;
+    }
+
+    [data-theme='retro'][data-kp-effects] [data-kp-reveal='rule']:not(.is-in)::after {
+        transform: scaleX(0);
+    }
+
+    /* The mark: emphasis is the selection — the navy bar with white text,
+       the way 1995 emphasised anything. At rest the words are selected;
+       with the script armed they stand in ink until the bar drags across
+       them in eight steps. The bar is painted on the element itself so
+       what measures a text against its ground finds the navy. The plate
+       on ::before is the bar in motion: it drags over the ink text and
+       returns to nothing the moment the element's own bar switches on. */
+    [data-theme='retro'] mark {
+        position: relative;
+        z-index: 0;
+        background: linear-gradient(var(--primary), var(--primary)) left / 100% 100% no-repeat;
+        color: var(--primary-foreground);
+        font-weight: 600;
+        padding: 0.05em 0.15em;
+        white-space: nowrap;
+    }
+
+    /* The bar in motion, with the words it has already covered [S49,
+       A11]: the demo drags white text in with the bar, so the plate
+       carries a copy of the element's own text — the module writes it to
+       data-kp-text, the same attribute a headline carries — and the
+       clip-path that sweeps the bar sweeps the words with it. */
+    [data-theme='retro'] mark::before {
+        content: attr(data-kp-text);
+        position: absolute;
+        inset: 0;
+        padding: inherit;
+        background: var(--primary);
+        color: var(--primary-foreground);
+        clip-path: inset(0 100% 0 0);
+        white-space: nowrap;
+        z-index: 1;
+        pointer-events: none;
+    }
+
+    [data-theme='retro'][data-kp-effects] mark:not(.is-cleared) {
+        background-size: 0 100%;
+        color: var(--foreground);
+    }
+
+    /* The divider: the shell groove. The first one is the wide groove with
+       the dithered band between its two lines; the second is the plain
+       two-line groove. */
+    [data-theme='retro'] [data-kp-divider] {
+        display: block;
+        block-size: 8px;
+        background:
+            var(--kp-groove-line) top / 100% 2px no-repeat,
+            var(--kp-groove-line) bottom / 100% 2px no-repeat,
+            conic-gradient(var(--border) 0 90deg, transparent 0 180deg, var(--border) 0 270deg, transparent 0) center / 2px 2px;
+        image-rendering: pixelated;
+    }
+
+    [data-theme='retro'] [data-kp-divider='alt'] {
+        block-size: 2px;
+        background: var(--kp-groove-line);
+    }
+
+    /* ── The hero: the window's client area ───────────────────────────── */
+
+    [data-theme='retro'] [data-kp-surface='hero'] {
+        position: relative;
+        padding-block: 1.6rem 2.4rem;
+    }
+
+    [data-theme='retro'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+        grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+        gap: 2.5rem;
+        align-items: start;
+    }
+
+    @container (max-width: 62rem) {
+        [data-theme='retro'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ── The window on the desktop [S49, A2] ──────────────────────────────
+       The approved demo puts the whole page inside one application window
+       on the teal desktop, and that window is what makes the theme read as
+       1995 rather than as grey. The page carries no wrapper element for
+       it and may not grow one (the concept page's structure is the same
+       for every theme, S46), so the root is the desktop and the body is
+       the window: the same two boxes, drawn on the two elements every
+       document already has. */
+
+    [data-theme='retro'] {
+        background: var(--kp-desktop);
+    }
+
+    [data-theme='retro'] body {
+        max-inline-size: 84rem;
+        margin: clamp(0.4rem, 1.6vw, 1.4rem) auto;
+        padding: 3px;
+        background: var(--background);
+        border: 1px solid var(--border-strong);
+        box-shadow: var(--kp-raised), var(--kp-drop-hard);
+    }
+
+    /* ── The navbar: the title bar and the menu strip in one row ──────── */
+
+    [data-theme='retro'] .kp-nav-wrap {
+        background: var(--background);
+        border-bottom: 1px solid var(--border);
+        box-shadow: 0 1px 0 var(--popover);
+    }
+
+    [data-theme='retro'] .kp-nav {
+        background: var(--background);
+        padding-block: 3px;
+        gap: 0.5rem;
+        position: relative;
+        z-index: var(--kp-z-nav, 30);
+    }
+
+    /* The three window controls the demo's title bar ends on [S49, A2]:
+       minimise, maximise, close. Drawn rather than typed — a glyph in
+       `content` is copy (KT5) and its own metrics would decide where the
+       boxes fall, where gradients put every edge exactly where the box
+       is. Three 20×18 faces on a 24px pitch, each with the bevel the rest
+       of the theme wears, and the three marks over them. */
+    [data-theme='retro'] .kp-nav::after {
+        content: '';
+        margin-inline-start: auto;
+        align-self: center;
+        flex: none;
+        inline-size: 68px;
+        block-size: 18px;
+        background-image:
+            linear-gradient(45deg, transparent 46%, var(--foreground) 46% 54%, transparent 54%),
+            linear-gradient(-45deg, transparent 46%, var(--foreground) 46% 54%, transparent 54%),
+            linear-gradient(0deg, var(--foreground) 0 1px, transparent 1px), linear-gradient(180deg, var(--foreground) 0 1px, transparent 1px),
+            linear-gradient(90deg, var(--foreground) 0 1px, transparent 1px), linear-gradient(270deg, var(--foreground) 0 1px, transparent 1px),
+            linear-gradient(0deg, var(--foreground) 0 2px, transparent 2px),
+            repeating-linear-gradient(90deg, var(--popover) 0 2px, transparent 2px 20px, transparent 20px 24px),
+            repeating-linear-gradient(90deg, transparent 0 18px, var(--border-strong) 18px 20px, transparent 20px 24px),
+            repeating-linear-gradient(90deg, var(--card) 0 20px, transparent 20px 24px);
+        background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat-x, repeat-x, repeat-x;
+        background-size:
+            8px 8px,
+            8px 8px,
+            8px 8px,
+            8px 8px,
+            8px 8px,
+            8px 8px,
+            8px 6px,
+            24px 18px,
+            24px 18px,
+            24px 18px;
+        background-position:
+            54px center,
+            54px center,
+            30px center,
+            30px center,
+            30px center,
+            30px center,
+            6px center,
+            0 0,
+            0 0,
+            0 0;
+    }
+
+    /* The brand is the title bar: the measured ramp, white pixel type. */
+    [data-theme='retro'] .kp-nav__brand {
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+        font-size: 1.05rem;
+        letter-spacing: 0.02em;
+        line-height: 1.6;
+        color: var(--primary-foreground);
+        background: var(--kp-ramp);
+        padding: 0.15rem 0.7rem 0.15rem 0.5rem;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+    [data-theme='retro'] .kp-nav__links {
+        gap: 0;
+        align-items: stretch;
+    }
+
+    /* Menu items: flat, a transparent frame; the highlight is the
+       selection bar, instantly. */
+    [data-theme='retro'] .kp-nav__link {
+        display: block;
+        padding: 0.3rem 0.7rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--foreground);
+        border: 1px solid transparent;
+        border-radius: 0;
+        background: none;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+    [data-theme='retro'] .kp-nav__link:hover,
+    [data-theme='retro'] .kp-nav__link:focus-visible,
+    [data-theme='retro'] .kp-nav__link[aria-current],
+    [data-theme='retro'] .kp-nav__links > li:focus-within > .kp-nav__link {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='retro'] .kp-nav__link[aria-haspopup]::after {
+        content: ' ▾';
+        font-size: 0.7em;
+    }
+
+    /* The language switch sits behind a two-line separator. */
+    [data-theme='retro'] .kp-nav__link--lang {
+        margin-inline-start: 0.5rem;
+        border-inline-start: 1px solid var(--border);
+        box-shadow: inset 1px 0 0 var(--popover);
+    }
+
+    /* The call to action is a raised button on the strip. */
+    [data-theme='retro'] .kp-nav__link--cta {
+        margin-inline-start: 0.35rem;
+        align-self: center;
+        background: var(--card);
+        color: var(--foreground);
+        border: 1px solid var(--border-strong);
+        box-shadow: var(--kp-raised);
+        font-weight: 700;
+        padding: 0.25rem 0.9rem;
+    }
+
+    [data-theme='retro'] .kp-nav__link--cta:hover,
+    [data-theme='retro'] .kp-nav__link--cta:focus-visible {
+        background: var(--card);
+        color: var(--foreground);
+        box-shadow: var(--kp-raised);
+    }
+
+    [data-theme='retro'] .kp-nav__link--cta:focus-visible {
+        box-shadow:
+            0 0 0 2px var(--focus-ring-contrast),
+            0 0 0 4px var(--focus-ring),
+            var(--kp-raised);
+    }
+
+    [data-theme='retro'] .kp-nav__link--cta:active {
+        box-shadow: var(--kp-pressed);
+        padding: calc(0.25rem + 1px) calc(0.9rem - 1px) calc(0.25rem - 1px) calc(0.9rem + 1px);
+    }
+
+    /* The dropdown: a raised panel that pops, no fade — 1995 had no easing. */
+    [data-theme='retro'] .kp-nav__menu {
+        background: var(--background);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-raised), var(--kp-drop);
+        padding: 2px;
+        min-width: 12rem;
+    }
+
+    [data-theme='retro'] .kp-nav__menu a {
+        display: block;
+        position: relative;
+        padding: 0.25rem 1.4rem 0.25rem 1.6rem;
+        font-size: 0.85rem;
+        color: var(--foreground);
+        text-decoration: none;
+        border-radius: 0;
+    }
+
+    [data-theme='retro'] .kp-nav__menu a::before {
+        content: '▸';
+        position: absolute;
+        inset-inline-start: 0.6rem;
+        opacity: 0;
+    }
+
+    [data-theme='retro'] .kp-nav__menu a:hover,
+    [data-theme='retro'] .kp-nav__menu a:focus-visible {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='retro'] .kp-nav__menu a:hover::before,
+    [data-theme='retro'] .kp-nav__menu a:focus-visible::before {
+        opacity: 1;
+    }
+
+    /* ── Buttons: the bevel, the label that steps one pixel on press ───── */
+
+    /* Raised: light on the top-left, dark on the bottom-right [TH87]. */
+    [data-theme='retro'] .kp-button,
+    [data-theme='retro'] .kp-icon-button {
+        background: var(--card);
+        color: var(--foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-raised);
+        font-weight: 600;
+    }
+
+    [data-theme='retro'] .kp-card,
+    [data-theme='retro'] .kp-popover {
+        box-shadow: var(--kp-raised);
+    }
+
+    /* The demo's call-to-action row: wide buttons, as in the reference. A
+       pager's or a menu's button keeps its own width (DI11 at 320 px). */
+    [data-theme='retro'] [data-kp-surface='hero'] .kp-row > .kp-button {
+        min-width: min(11rem, 100%);
+        min-height: 2.2rem;
+    }
+
+    [data-theme='retro'] .kp-button:hover {
+        background: var(--card);
+        color: var(--foreground);
+    }
+
+    /* The bevel is a box-shadow, and kp.register comes after kp.components,
+       so it replaced .kp-button:focus-visible's ring outright in 3.1.0 —
+       the same fault W0 repaired one layer down, made again here. Measured
+       before this rule: under retro the focused and unfocused box-shadow
+       were IDENTICAL, so only the outline remained of a deliberately
+       two-part indicator [DI2, AR30 as amended 2026-09-07]. It hid because
+       neither ring fixture loaded this stylesheet (standing rule 7e; the
+       fixtures now load every register). So the ring is composed in front
+       of the bevel rather than instead of it. */
+    [data-theme='retro'] .kp-button:focus-visible,
+    [data-theme='retro'] .kp-icon-button:focus-visible {
+        box-shadow:
+            0 0 0 var(--kp-focus-ring-inner-width, 2px) var(--focus-ring-contrast),
+            var(--kp-raised);
+    }
+
+    /* Pressed: the bevel inverts and the label steps one pixel down and
+       right, the way the original's did. No transition: --fx-duration is 0. */
+    [data-theme='retro'] .kp-button:active:not(:disabled),
+    [data-theme='retro'] .kp-icon-button:active:not(:disabled) {
+        box-shadow: var(--kp-pressed);
+        padding-block-start: calc(0.375rem + 1px);
+        padding-inline-start: calc(0.875rem + 1px);
+    }
+
+    /* The default button: the navy fill with its own bevel. The mirror
+       modifier is the 1995 default ring — the one-pixel ink line around
+       whatever Enter would press. */
+    [data-theme='retro'] .kp-button--primary,
+    [data-theme='retro'] .kp-button--primary:hover {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-color: var(--kp-navy-deep);
+        box-shadow: var(--kp-raised-navy);
+    }
+
+    [data-theme='retro'] .kp-button--mirror {
+        box-shadow:
+            var(--kp-raised),
+            0 0 0 1px var(--foreground);
+        margin: 1px;
+    }
+
+    [data-theme='retro'] .kp-button--primary.kp-button--mirror {
+        box-shadow:
+            var(--kp-raised-navy),
+            0 0 0 1px var(--foreground);
+    }
+
+    [data-theme='retro'] .kp-button--primary:focus-visible {
+        box-shadow:
+            0 0 0 2px var(--focus-ring-contrast),
+            0 0 0 4px var(--focus-ring),
+            var(--kp-raised-navy);
+    }
+
+    [data-theme='retro'] .kp-button--primary:active:not(:disabled) {
+        box-shadow: var(--kp-pressed-navy);
+    }
+
+    /* Destructive: a face button whose label is the alert colour, the way
+       1995 never coloured a whole button. */
+    [data-theme='retro'] .kp-button--destructive,
+    [data-theme='retro'] .kp-button--destructive:hover {
+        background: var(--card);
+        color: var(--destructive);
+        border-color: var(--border-strong);
+        box-shadow: var(--kp-raised);
+    }
+
+    [data-theme='retro'] .kp-button--destructive.kp-button--mirror {
+        box-shadow:
+            var(--kp-raised),
+            0 0 0 1px var(--destructive);
+    }
+
+    /* Ghost: the flat toolbar button — no bevel until the pointer is on it. */
+    [data-theme='retro'] .kp-button--ghost {
+        background: transparent;
+        border-color: transparent;
+        box-shadow: none;
+    }
+
+    [data-theme='retro'] .kp-button--ghost:hover,
+    [data-theme='retro'] .kp-button--ghost:focus-visible {
+        background: var(--card);
+        border-color: var(--border-strong);
+        box-shadow: var(--kp-raised);
+    }
+
+    /* Disabled: the embossed grey label of a 1995 control. */
+    [data-theme='retro'] .kp-button:disabled {
+        color: var(--border);
+        text-shadow: 1px 1px 0 var(--popover);
+        box-shadow: var(--kp-raised);
+    }
+
+    /* ── Fields: wells cut into the chrome ─────────────────────────────── */
+
+    [data-theme='retro'] .kp-field__label {
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    /* Sunken: on the lightest surface so the ink reads. */
+    [data-theme='retro'] .kp-field__input,
+    [data-theme='retro'] .kp-datatable__search,
+    [data-theme='retro'] .kp-combobox__input,
+    [data-theme='retro'] .kp-palette__input {
+        background: var(--popover);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-sunken);
+    }
+
+    [data-theme='retro'] .kp-field__input:focus-visible,
+    [data-theme='retro'] .kp-datatable__search:focus-visible,
+    [data-theme='retro'] .kp-combobox__input:focus-visible,
+    [data-theme='retro'] .kp-palette__input:focus-visible {
+        box-shadow:
+            0 0 0 2px var(--focus-ring-contrast),
+            var(--kp-sunken);
+    }
+
+    /* The select keeps the base layer's customisable picker (KT8: the list
+       wears the theme where the browser allows it); only the arrow is the
+       ink. The demo's painted combo button would need `appearance: none`,
+       which takes that picker away. */
+    [data-theme='retro'] select.kp-field__input::picker-icon {
+        color: var(--foreground);
+    }
+
+    [data-theme='retro'] .kp-field__help {
+        font-family: var(--kp-dos);
+        font-size: 1rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='retro'] .kp-field--invalid .kp-field__input {
+        box-shadow:
+            var(--kp-sunken),
+            inset 0 0 0 2px var(--destructive);
+    }
+
+    [data-theme='retro'] .kp-field__error {
+        font-family: var(--kp-dos);
+        font-size: 1rem;
+        color: var(--destructive);
+    }
+
+    [data-theme='retro'] .kp-field__error::before {
+        content: '× ';
+    }
+
+    /* The checkbox: a small well, and the pixel tick drawn with gradients. */
+    [data-theme='retro'] .kp-field__check {
+        appearance: none;
+        inline-size: 15px;
+        block-size: 15px;
+        background: var(--popover);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-sunken);
+        display: grid;
+        place-items: center;
+    }
+
+    [data-theme='retro'] .kp-field__check:checked {
+        background: var(--popover);
+        border-color: var(--border-strong);
+    }
+
+    [data-theme='retro'] .kp-field__check:checked::before {
+        content: '';
+        inline-size: 9px;
+        block-size: 9px;
+        background:
+            linear-gradient(var(--foreground), var(--foreground)) 1px 5px / 2px 3px no-repeat,
+            linear-gradient(var(--foreground), var(--foreground)) 3px 7px / 2px 2px no-repeat,
+            linear-gradient(var(--foreground), var(--foreground)) 5px 3px / 2px 4px no-repeat,
+            linear-gradient(var(--foreground), var(--foreground)) 7px 0 / 2px 4px no-repeat;
+        image-rendering: pixelated;
+    }
+
+    [data-theme='retro'] .kp-field__check:focus-visible {
+        box-shadow:
+            0 0 0 2px var(--focus-ring-contrast),
+            var(--kp-sunken);
+    }
+
+    /* The fieldset groove of 98.css. */
+    /* The groove the demo drew with a 5×5 border-image [S49, A11]: two
+       hairlines, the outer dark over light, the inner light over dark.
+       The image itself would have to name its two colours, which DI9
+       forbids in this layer, so the same four lines are drawn as nested
+       inset shadows in the theme's own tokens — the shape the SVG was
+       there to make, and pixel for pixel the same. */
+    [data-theme='retro'] .kp-fieldset {
+        border: 0;
+        border-radius: 0;
+        padding: 0.9rem 1rem;
+        box-shadow:
+            inset 1px 1px 0 0 var(--border-strong),
+            inset -1px -1px 0 0 var(--popover),
+            inset 2px 2px 0 0 var(--popover),
+            inset -2px -2px 0 0 var(--border-strong);
+    }
+
+    [data-theme='retro'] .kp-form__summary {
+        background: var(--popover);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-sunken);
+    }
+
+    /* ── Cards, windows and containers ─────────────────────────────────── */
+
+    [data-theme='retro'] .kp-card {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='retro'] .kp-card__title {
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+        font-size: 1.35rem;
+    }
+
+    /* The dossier: a Notepad window — the header is the title bar, the body
+       a sunken document, the stamp the 1995 read-only badge (a double rule
+       and the pixel face), and the redactions the 50% dither brush of a
+       disabled control, lifted left to right in eight steps when the file
+       is opened. */
+    [data-theme='retro'] .kp-card[data-kp-reveal='emphasis'] {
+        position: relative;
+        padding: 3px;
+    }
+
+    [data-theme='retro'] .kp-card[data-kp-reveal='emphasis'] .kp-card__header {
+        background: var(--kp-ramp);
+        color: var(--primary-foreground);
+        padding: 3px 0.5rem;
+        border: 0;
+        margin: 0;
+    }
+
+    [data-theme='retro'] .kp-card[data-kp-reveal='emphasis'] .kp-card__title {
+        color: var(--primary-foreground);
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+
+    [data-theme='retro'] .kp-card[data-kp-reveal='emphasis'] .kp-card__body {
+        background: var(--popover);
+        color: var(--popover-foreground);
+        border: 1px solid var(--border-strong);
+        box-shadow: var(--kp-sunken);
+        margin-block-start: 2px;
+        padding: 1rem 1.1rem 1.2rem;
+    }
+
+    [data-theme='retro'] .kp-card[data-kp-label]::before {
+        content: attr(data-kp-label);
+        position: absolute;
+        inset-inline-end: 0.7rem;
+        inset-block-start: 2.4rem;
+        rotate: -8deg;
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+        font-size: 0.85rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--destructive);
+        background: var(--popover);
+        border: 2px solid var(--destructive);
+        box-shadow:
+            0 0 0 1px var(--popover),
+            0 0 0 3px var(--destructive);
+        padding: 0.25rem 0.7rem;
+        z-index: 1;
+    }
+
+    [data-theme='retro'] .kp-card[data-kp-reveal='emphasis'] mark {
+        color: var(--popover-foreground);
+        background: none;
+        padding: 0;
+        font-weight: 400;
+    }
+
+    [data-theme='retro'] .kp-card[data-kp-reveal='emphasis'] mark::before {
+        display: none;
+    }
+
+    [data-theme='retro'] .kp-card[data-kp-reveal='emphasis'] mark::after {
+        content: '';
+        position: absolute;
+        inset: -0.05em -0.1em;
+        background-color: var(--border);
+        background-image: var(--kp-brush);
+        background-size: 2px 2px;
+        image-rendering: pixelated;
+        clip-path: inset(0 0 0 100%);
+        pointer-events: none;
+    }
+
+    [data-theme='retro'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark:not(.is-cleared) {
+        color: transparent;
+    }
+
+    [data-theme='retro'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark:not(.is-cleared)::after {
+        clip-path: inset(0 0 0 0);
+    }
+
+    /* Windows: raised chrome with the hard shadow; a dialog carries the
+       title bar. */
+    [data-theme='retro'] .kp-dialog,
+    [data-theme='retro'] .kp-popover,
+    [data-theme='retro'] .kp-menu,
+    [data-theme='retro'] .kp-toast,
+    [data-theme='retro'] .kp-tooltip,
+    [data-theme='retro'] .kp-confirm,
+    [data-theme='retro'] .kp-datepicker__panel,
+
+    /* The combo button the demo paints [S49, A12]: `appearance: none` and
+       a raised square with the ink arrow on it. KT8 kept the platform
+       list themeable and refused this; Kenny chose the demo for this
+       theme on 2026-09-08, and tests/fixtures.spec.mjs carries the
+       exception with that reason. */
+    [data-theme='retro'] select.kp-field__input {
+        appearance: none;
+        padding-inline-end: 2.1rem;
+        background-image:
+            linear-gradient(45deg, transparent 50%, var(--foreground) 50%), linear-gradient(135deg, var(--foreground) 50%, transparent 50%),
+            linear-gradient(180deg, var(--popover) 0 2px, transparent 2px), linear-gradient(90deg, var(--popover) 0 2px, transparent 2px),
+            linear-gradient(0deg, var(--border-strong) 0 2px, transparent 2px), linear-gradient(270deg, var(--border-strong) 0 2px, transparent 2px),
+            linear-gradient(var(--card), var(--card));
+        background-repeat: no-repeat;
+        background-size:
+            6px 6px,
+            6px 6px,
+            18px 18px,
+            18px 18px,
+            18px 18px,
+            18px 18px,
+            18px 18px;
+        background-position:
+            right 12px center,
+            right 6px center,
+            right 4px center,
+            right 4px center,
+            right 4px center,
+            right 4px center,
+            right 4px center;
+    }
+
+    /* And the keyboard highlight is the selection bar, as it is on a
+       mark: navy with white on it [S49, A12]. */
+    [data-theme='retro'] .kp-combobox__option.is-active,
+    [data-theme='retro'] .kp-palette__option.is-active,
+    [data-theme='retro'] .kp-datepicker__day.is-active {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='retro'] .kp-combobox__list,
+    [data-theme='retro'] .kp-palette,
+    [data-theme='retro'] .kp-theme-menu {
+        background: var(--background);
+        color: var(--foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-raised), var(--kp-drop);
+    }
+
+    [data-theme='retro'] .kp-toasts {
+        gap: 3px;
+    }
+
+    [data-theme='retro'] .kp-dialog__title {
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+        font-size: 0.95rem;
+        background: var(--kp-ramp);
+        color: var(--primary-foreground);
+        padding: 3px 0.5rem;
+        margin: 0 0 0.75rem;
+    }
+
+    /* The keyboard highlight is the selection bar with its own ink (KT8:
+       the text keeps its colour where a bar is a wash; here the bar carries
+       the ink). */
+    [data-theme='retro'] .kp-menu__item:hover {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    /* The list highlight of a combobox or a palette stays the base layer's
+       wash of the ink: KT8's review finding on this very theme (a highlight
+       is not a plate, the text keeps its colour), held by the fixture test. */
+
+    [data-theme='retro'] .kp-alert {
+        background: var(--popover);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-sunken);
+    }
+
+    [data-theme='retro'] .kp-alert__label {
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+    }
+
+    [data-theme='retro'] .kp-grid__tile,
+    [data-theme='retro'] .kp-split__pane {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-raised);
+    }
+
+    [data-theme='retro'] .kp-grid {
+        gap: 3px;
+    }
+
+    [data-theme='retro'] .kp-split {
+        gap: 0;
+    }
+
+    [data-theme='retro'] .kp-split__separator {
+        background: var(--background);
+        inline-size: 4px;
+        box-shadow: var(--kp-raised);
+    }
+
+    /* The footer: the chrome, and the fine print as a status bar. */
+    [data-theme='retro'] .kp-footer {
+        background: var(--background);
+        color: var(--foreground);
+        position: relative;
+    }
+
+    /* The resize grip in the corner of the status bar [S49, A2]: the
+       three diagonal runs of pixels a 1995 window ends on. */
+    [data-theme='retro'] .kp-footer::after {
+        content: '';
+        position: absolute;
+        inset-inline-end: 3px;
+        inset-block-end: 3px;
+        inline-size: 13px;
+        block-size: 13px;
+        background-image:
+            linear-gradient(135deg, transparent 0 46%, var(--popover) 46% 62%, var(--border-strong) 62% 78%, transparent 78%),
+            linear-gradient(135deg, transparent 0 46%, var(--popover) 46% 62%, var(--border-strong) 62% 78%, transparent 78%),
+            linear-gradient(135deg, transparent 0 46%, var(--popover) 46% 62%, var(--border-strong) 62% 78%, transparent 78%);
+        background-repeat: no-repeat;
+        background-size:
+            5px 5px,
+            9px 9px,
+            13px 13px;
+        background-position:
+            right bottom,
+            right bottom,
+            right bottom;
+    }
+
+    [data-theme='retro'] .kp-footer h4 {
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+        font-size: 0.95rem;
+    }
+
+    [data-theme='retro'] .kp-footer a {
+        color: var(--foreground);
+        font-size: 0.85rem;
+        text-decoration: underline;
+        text-decoration-color: var(--border);
+        text-underline-offset: 2px;
+    }
+
+    [data-theme='retro'] .kp-footer a:hover,
+    [data-theme='retro'] .kp-footer a:focus-visible {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        text-decoration-color: transparent;
+    }
+
+    [data-theme='retro'] .kp-footer .microlabel {
+        display: block;
+        color: var(--foreground);
+        padding: 0.1rem 0.6rem;
+        border: 1px solid var(--border-strong);
+        box-shadow: var(--kp-sunken);
+    }
+
+    [data-theme='retro'] .kp-footer .microlabel::before,
+    [data-theme='retro'] .kp-footer .microlabel::after {
+        content: none;
+    }
+
+    /* ── Badges, tags, status: sunken panels ───────────────────────────── */
+
+    [data-theme='retro'] .kp-badge,
+    [data-theme='retro'] .kp-tag {
+        border-radius: 0;
+        border: 1px solid var(--border-strong);
+        box-shadow: var(--kp-sunken);
+        font-family: var(--kp-dos);
+        font-size: 0.95rem;
+        letter-spacing: 0.04em;
+    }
+
+    [data-theme='retro'] .kp-health {
+        font-family: var(--kp-dos);
+        font-size: 1rem;
+    }
+
+    [data-theme='retro'] .kp-health__dot {
+        border-radius: 0;
+        box-shadow: var(--kp-raised);
+    }
+
+    /* The 50% dither of a control still loading. */
+    [data-theme='retro'] .kp-skeleton {
+        background-color: var(--card);
+        background-image: var(--kp-brush);
+        background-size: 2px 2px;
+        image-rendering: pixelated;
+        border-radius: 0;
+    }
+
+    /* The segmented progress bar of a 1995 installer. */
+    [data-theme='retro'] .kp-progress {
+        background: var(--popover);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-sunken);
+        padding: 2px;
+    }
+
+    [data-theme='retro'] .kp-progress__value {
+        background: repeating-linear-gradient(90deg, var(--primary) 0 8px, var(--popover) 8px 10px);
+    }
+
+    [data-theme='retro'] .kp-spinner {
+        border-color: var(--border);
+        border-top-color: var(--primary);
+        border-radius: 0;
+    }
+
+    [data-theme='retro'] .kp-empty {
+        border: 2px groove var(--border);
+        border-radius: 0;
+    }
+
+    [data-theme='retro'] .kp-empty__title {
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+    }
+
+    [data-theme='retro'] .kp-error {
+        font-family: var(--kp-dos);
+        font-size: 1rem;
+        color: var(--destructive);
+    }
+
+    /* ── Text shapes: identifiers in the DOS face ──────────────────────── */
+
+    [data-theme='retro'] .kp-id,
+    [data-theme='retro'] .kp-url,
+    [data-theme='retro'] .kp-numeric,
+    [data-theme='retro'] .kp-timestamp,
+    [data-theme='retro'] .kp-masked,
+    [data-theme='retro'] .kp-copyable,
+    [data-theme='retro'] .kp-truncate,
+    [data-theme='retro'] .kp-cell-break,
+    [data-theme='retro'] .kp-cell-truncate {
+        font-family: var(--kp-dos);
+        font-size: 1.05em;
+        letter-spacing: 0.02em;
+    }
+
+    [data-theme='retro'] .kp-copyable__button {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-raised);
+    }
+
+    /* ── Data: Explorer's column headers are buttons ───────────────────── */
+
+    [data-theme='retro'] .kp-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        background: var(--popover);
+    }
+
+    [data-theme='retro'] .kp-table th {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        box-shadow: var(--kp-raised);
+        font-weight: 600;
+    }
+
+    [data-theme='retro'] .kp-table td {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='retro'] .kp-table tbody tr:hover {
+        background: var(--card);
+    }
+
+    [data-theme='retro'] .kp-datatable {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-sunken);
+        background: var(--popover);
+    }
+
+    [data-theme='retro'] .kp-datatable__bar {
+        background: var(--background);
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='retro'] .kp-datatable__sort[aria-sort] {
+        color: var(--primary);
+    }
+
+    [data-theme='retro'] .kp-datatable__status,
+    [data-theme='retro'] .kp-datatable__page {
+        font-family: var(--kp-dos);
+        font-size: 1rem;
+    }
+
+    [data-theme='retro'] .kp-diff {
+        background: var(--popover);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-sunken);
+    }
+
+    [data-theme='retro'] .kp-diff__line {
+        font-family: var(--kp-dos);
+        font-size: 1.05em;
+    }
+
+    [data-theme='retro'] .kp-timeline {
+        border-inline-start: 2px groove var(--border);
+    }
+
+    [data-theme='retro'] .kp-timeline__marker {
+        background: var(--primary);
+        border-radius: 0;
+        box-shadow: var(--kp-raised-navy);
+    }
+
+    [data-theme='retro'] .kp-timeline__when {
+        font-family: var(--kp-dos);
+        font-size: 1rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='retro'] .kp-tree {
+        font-family: var(--kp-dos);
+        font-size: 1.05rem;
+    }
+
+    [data-theme='retro'] .kp-reorder {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-sunken);
+        background: var(--popover);
+    }
+
+    /* ── Navigation and steps: the tab that lifts ──────────────────────── */
+
+    /* 98.css's measured rule: the selected tab lifts two pixels and
+       overhangs its neighbours by three. */
+    [data-theme='retro'] .kp-tab {
+        background: var(--background);
+        color: var(--muted-foreground);
+        border: 1px solid var(--border-strong);
+        border-bottom: 0;
+        border-radius: 0;
+        box-shadow:
+            inset 1px 1px 0 var(--popover),
+            inset -1px 0 0 var(--border);
+        font-size: 0.85rem;
+        padding: 0.3rem 0.75rem;
+    }
+
+    [data-theme='retro'] .kp-tab[aria-selected='true'] {
+        color: var(--foreground);
+        font-weight: 600;
+        margin-block-start: -2px;
+        margin-inline-start: -3px;
+        padding-inline: calc(0.75rem + 3px);
+        position: relative;
+        z-index: 2;
+        background: var(--background);
+    }
+
+    [data-theme='retro'] .kp-tabs__list {
+        border-bottom: 1px solid var(--border-strong);
+        padding-inline-start: 0.4rem;
+    }
+
+    [data-theme='retro'] .kp-breadcrumb,
+    [data-theme='retro'] .kp-pagination {
+        font-family: var(--kp-dos);
+        font-size: 1.05rem;
+    }
+
+    [data-theme='retro'] .kp-pagination a[aria-current],
+    [data-theme='retro'] .kp-pagination [aria-current] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: 0;
+    }
+
+    [data-theme='retro'] .kp-wizard {
+        background: var(--background);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-raised);
+        padding: 3px;
+    }
+
+    [data-theme='retro'] .kp-wizard__steps {
+        font-family: var(--kp-dos);
+        font-size: 1.05rem;
+    }
+
+    /* ── Pickers and palettes ─────────────────────────────────────────── */
+
+    [data-theme='retro'] .kp-datepicker__day[aria-selected='true'] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: 0;
+    }
+
+    [data-theme='retro'] .kp-datepicker__weekday,
+    [data-theme='retro'] .kp-datepicker__title {
+        font-family: var(--kp-dos);
+        font-size: 1rem;
+    }
+
+    [data-theme='retro'] .kp-colorpicker__swatch {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-raised);
+    }
+
+    [data-theme='retro'] .kp-colorpicker__value {
+        font-family: var(--kp-dos);
+    }
+
+    [data-theme='retro'] .kp-shortcuts__row kbd {
+        font-family: var(--kp-dos);
+        font-size: 1rem;
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-raised);
+        background: var(--card);
+        display: inline-block;
+        padding: 0 0.4em;
+    }
+
+    [data-theme='retro'] .kp-shortcuts__group-label,
+    [data-theme='retro'] .kp-palette__group-label {
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+    }
+
+    [data-theme='retro'] .kp-theme-menu__status,
+    [data-theme='retro'] .kp-palette__status,
+    [data-theme='retro'] .kp-combobox__status {
+        font-family: var(--kp-dos);
+        font-size: 1rem;
+    }
+
+    /* ── The roots the rules above reach only by their parts ──────────── */
+
+    [data-theme='retro'] .kp-field {
+        gap: 0.25rem;
+    }
+
+    [data-theme='retro'] .kp-form {
+        gap: 0.8rem;
+    }
+
+    [data-theme='retro'] .kp-combobox,
+    [data-theme='retro'] .kp-datepicker,
+    [data-theme='retro'] .kp-colorpicker,
+    [data-theme='retro'] .kp-shortcuts,
+    [data-theme='retro'] .kp-tabs {
+        border-radius: 0;
+    }
+
+    /* ── Scrollbars: the 2×2 checkerboard track of 98.css ──────────────── */
+
+    [data-theme='retro'] {
+        scrollbar-color: var(--card) var(--popover);
+    }
+
+    [data-theme='retro'] ::-webkit-scrollbar {
+        inline-size: 16px;
+        block-size: 16px;
+    }
+
+    [data-theme='retro'] ::-webkit-scrollbar-track {
+        background: conic-gradient(var(--popover) 0 25%, var(--card) 0 50%, var(--popover) 0 75%, var(--card) 0) 0 0 / 2px 2px;
+        image-rendering: pixelated;
+    }
+
+    [data-theme='retro'] ::-webkit-scrollbar-thumb {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        box-shadow: var(--kp-raised);
+    }
+
+    /* ── The demo's own pieces [S46] ──────────────────────────────────── */
+
+    /* The vertical margin note, in the DOS face. */
+    [data-theme='retro'] .kp-side-note {
+        position: absolute;
+        inset-inline-end: 0.35rem;
+        inset-block-start: 2rem;
+        writing-mode: vertical-rl;
+        font-family: var(--kp-dos);
+        font-size: 1rem;
+        letter-spacing: 0.18em;
+        color: var(--muted-foreground);
+    }
+
+    /* Laurels: three sunken status panels, the way 1995 reported anything. */
+    [data-theme='retro'] .kp-laurels {
+        gap: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.75rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='retro'] .kp-laurels li {
+        flex: 1 1 12rem;
+        padding: 0.5rem 0.7rem;
+        background: var(--background);
+        border: 1px solid var(--border-strong);
+        box-shadow: var(--kp-sunken);
+    }
+
+    [data-theme='retro'] .kp-laurels b {
+        display: block;
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+        font-size: 1rem;
+        letter-spacing: 0;
+        text-transform: none;
+        color: var(--foreground);
+        margin-block-end: 0.15rem;
+    }
+
+    [data-theme='retro'] .kp-lede {
+        max-width: 36rem;
+        font-size: 1.05rem;
+    }
+
+    /* The platforms line: the DOS face, a teal block before every name. */
+    [data-theme='retro'] .kp-platforms {
+        margin-block-start: 1.6rem;
+        gap: 0.2rem 1.4rem;
+        font-family: var(--kp-dos);
+        font-size: 1.05rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='retro'] .kp-platforms span::before {
+        content: '■ ';
+        color: var(--accent);
+    }
+
+    /* The spec sheet: a Display Properties window — the ramp as its title
+       bar, the raised chrome, the DOS face for the values. */
+    [data-theme='retro'] .kp-spec {
+        background: var(--background);
+        color: var(--foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-raised);
+        padding: 3px;
+        font-family: var(--kp-dos);
+        font-size: 1.05rem;
+        line-height: 1.5;
+    }
+
+    /* The swatches sit in the groove well the demo's fieldset draws. */
+    [data-theme='retro'] .kp-spec dl {
+        border: 2px groove var(--border);
+        padding: 0.6rem 0.7rem;
+        margin-block-start: 3px;
+    }
+
+    [data-theme='retro'] .kp-spec::before {
+        content: '';
+        display: block;
+        block-size: 18px;
+        background: var(--kp-ramp);
+        margin-block-end: 0.6rem;
+    }
+
+    [data-theme='retro'] .kp-spec dl {
+        margin: 0.2rem 0.7rem 0.6rem;
+    }
+
+    [data-theme='retro'] .kp-spec dt {
+        color: var(--kp-teal-ink);
+    }
+
+    [data-theme='retro'] .kp-spec__swatch {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-raised);
+        image-rendering: pixelated;
+    }
+
+    [data-theme='retro'] .kp-spec__font {
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+    }
+
+    /* ── The arrival [S45, RT2]: the POST ─────────────────────────────── */
+
+    /* The overlay js/effects.js builds when the theme answers the arrival
+       hook with `boot`: the dictionary's boot line counting up in the DOS
+       face on the deep ground, a raised Skip button, and the screen leaving
+       through the pixel dissolve — four mask densities in discrete steps,
+       once. Once per session; never under reduced motion (the module does
+       not build it). */
+    [data-theme='retro'] .kp-boot {
+        position: fixed;
+        inset: 0;
+        z-index: var(--kp-z-boot, 100);
+        background: var(--foreground);
+        color: var(--background);
+        font-family: var(--kp-dos);
+        font-size: clamp(1rem, 2.2vw, 1.4rem);
+        line-height: 1.35;
+        padding: clamp(1rem, 4vw, 3rem);
+        overflow: hidden;
+        -webkit-mask-size: var(--kp-dither-cell) var(--kp-dither-cell);
+        mask-size: var(--kp-dither-cell) var(--kp-dither-cell);
+        image-rendering: pixelated;
+    }
+
+    [data-theme='retro'] .kp-boot__line {
+        margin: 0;
+        font: inherit;
+        white-space: pre-wrap;
+    }
+
+    [data-theme='retro'] .kp-boot__skip {
+        position: absolute;
+        inset-inline-end: clamp(1rem, 4vw, 3rem);
+        inset-block-end: clamp(1rem, 4vw, 3rem);
+        font: inherit;
+        color: var(--foreground);
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: var(--kp-raised);
+        padding: 0.1rem 0.9rem;
+        cursor: pointer;
+    }
+
+    [data-theme='retro'] .kp-boot__skip:active {
+        box-shadow: var(--kp-pressed);
+    }
+
+    [data-theme='retro'] .kp-boot.is-off {
+        pointer-events: none;
+    }
+
+    /* ── Motion, guarded [DI7] ────────────────────────────────────────── */
+
+    /* Every animation and transition of this register lives here, inside
+       the no-preference guard, so a reader who asked for reduced motion
+       never receives one: the rest states above are what they get. The
+       durations are literal because check-motion.mjs computes DI5's rate
+       from them; the matching --kp-* knobs are what js/effects.js reads.
+       Every step function is discrete on purpose: 1995 did not ease. */
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='retro'] [data-kp-reveal='headline'].is-dissolving::after {
+            animation: kp-dither-clear 640ms steps(1, end) 1 forwards;
+        }
+
+        [data-theme='retro'] [data-kp-reveal='rule'].is-in::after {
+            animation: kp-rule-in 480ms steps(12, end) 1 both;
+        }
+
+        /* The selection: the plate drags across the ink text in eight
+           steps and returns to nothing as the element's own bar switches on
+           — a size, not a colour, switched after the drag in no time (KT8:
+           no mid-transition colour can be read); the ink turns white in the
+           same instant. */
+        [data-theme='retro'] mark.is-cleared::before {
+            animation: kp-drag-select 360ms steps(8, end) 1;
+        }
+
+        [data-theme='retro'] mark {
+            transition:
+                background-size 0s linear 340ms,
+                color 0s linear 340ms;
+        }
+
+        [data-theme='retro'] .kp-card[data-kp-reveal='emphasis'] mark.is-cleared::after {
+            animation: kp-redact-lift 400ms steps(8, end) 1 both;
+        }
+
+        [data-theme='retro'] .kp-card[data-kp-reveal='emphasis'] mark.is-cleared:nth-of-type(2)::after {
+            animation-delay: var(--kp-redact-stagger);
+        }
+
+        [data-theme='retro'] .kp-card[data-kp-reveal='emphasis'] mark.is-cleared:nth-of-type(3)::after {
+            animation-delay: calc(2 * var(--kp-redact-stagger));
+        }
+
+        [data-theme='retro'] .kp-card[data-kp-reveal='emphasis'] mark {
+            transition: color 0s linear 0s;
+        }
+
+        [data-theme='retro'] .kp-boot.is-off {
+            animation: kp-dither-out 520ms steps(1, end) 1 forwards;
+        }
+    }
+
+    /* ── Motion [DI5, DI7] ────────────────────────────────────────────── */
+
+    /* Every keyframe here has its row in TIMINGS (js/effects.js); kp-rule-in
+       is the base layer's. The dissolve only clears: four densities, then
+       gone — one monotone change. */
+    @keyframes kp-dither-clear {
+        0% {
+            opacity: 1;
+            background-image: var(--kp-dd-100);
+        }
+
+        25% {
+            opacity: 1;
+            background-image: var(--kp-dd-75);
+        }
+
+        50% {
+            opacity: 1;
+            background-image: var(--kp-dd-50);
+        }
+
+        75% {
+            opacity: 1;
+            background-image: var(--kp-dd-25);
+        }
+
+        100% {
+            opacity: 0;
+            background-image: var(--kp-dd-25);
+        }
+    }
+
+    @keyframes kp-dither-out {
+        0% {
+            opacity: 1;
+            -webkit-mask-image: var(--kp-dm-100);
+            mask-image: var(--kp-dm-100);
+        }
+
+        25% {
+            opacity: 1;
+            -webkit-mask-image: var(--kp-dm-75);
+            mask-image: var(--kp-dm-75);
+        }
+
+        50% {
+            opacity: 1;
+            -webkit-mask-image: var(--kp-dm-50);
+            mask-image: var(--kp-dm-50);
+        }
+
+        75% {
+            opacity: 1;
+            -webkit-mask-image: var(--kp-dm-25);
+            mask-image: var(--kp-dm-25);
+        }
+
+        100% {
+            opacity: 0;
+            -webkit-mask-image: var(--kp-dm-25);
+            mask-image: var(--kp-dm-25);
+        }
+    }
+
+    @keyframes kp-drag-select {
+        from {
+            clip-path: inset(0 100% 0 0);
+        }
+
+        to {
+            clip-path: inset(0 0 0 0);
+        }
+    }
+
+    @keyframes kp-redact-lift {
+        from {
+            clip-path: inset(0 0 0 0);
+        }
+
+        to {
+            clip-path: inset(0 0 0 100%);
+        }
+    }
+
+    /* In the title bar the tag is white on the ramp, in the DOS face. */
+    [data-theme='retro'] .kp-nav__brand-tag {
+        font-family: var(--kp-dos);
+        font-size: 0.95rem;
+        letter-spacing: 0.08em;
+        color: var(--primary-foreground);
+        opacity: 0.9;
+    }
+
+    /* The segmented bar the POST counts along [S49, A11]: a sunken well
+       with the blocks a memory test fills. The module writes
+       --kp-boot-progress from 0 to 1; nothing here animates. */
+    [data-theme='retro'] .kp-boot__bar {
+        inline-size: min(22rem, 70vw);
+        block-size: 18px;
+        margin-block: 0.9rem 0.2rem;
+        padding: 2px;
+        background: var(--background);
+        border: 1px solid var(--border-strong);
+        box-shadow: var(--kp-sunken);
+    }
+
+    [data-theme='retro'] .kp-boot__bar::before {
+        content: '';
+        display: block;
+        block-size: 100%;
+        inline-size: calc(var(--kp-boot-progress, 0) * 100%);
+        background-image: repeating-linear-gradient(90deg, var(--primary) 0 10px, transparent 10px 13px);
+    }
+    /* The band [M1, M4]: Kenny picked this theme's own version over the
+       shared one on 2026-09-08 — a pressed bevel, the same one its windows carry. */
+    [data-theme='retro'] .kp-marquee {
+        background: var(--card);
+        border-block-start: 2px solid var(--background);
+        border-block-end: 2px solid var(--border-strong);
+        box-shadow: inset 0 2px 0 color-mix(in srgb, var(--foreground) 12%, transparent);
+        font-family: var(--theme-font-mono);
+        --kp-marquee: 36000ms;
+    }
+
+    /* The menu's caption [M3]: the same choice, for the line a consumer
+       may put above a dropdown's items. */
+    [data-theme='retro'] .kp-nav__menu[data-kp-menu-label]::before {
+        background: var(--secondary);
+        font-family: var(--theme-font-mono);
+        text-transform: none;
+        border-block-end: 2px solid var(--border-strong);
+    }
+}

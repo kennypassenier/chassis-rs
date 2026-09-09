@@ -1,0 +1,1017 @@
+@layer kp.register {
+    /* @kp-soft/themes — css/nostromo-register.css
+   The nostromo register, 5.0.0 [S48, LIFT_PLAN nostromo row]: cassette
+   futurism, the case not the screen. Scoped to [data-theme='nostromo']
+   and inert elsewhere; opt-in, imported after themes.css. The approved
+   concept demo ("Beige Freight", 2026-09-08) is the reference for every
+   value here — its own comment block names the sources: Terminal
+   Industries' clip-inset popdown reveal (ported as the headline and
+   stamp mechanism), its tracked mono "label tape" button, and its
+   ratio-dimensioned spec-sheet plate; the rest is this package's own
+   established concept-demo grammar, repainted in nostromo's tokens.
+
+   What this file does, in order: the knobs; the headings (correcting the
+   pre-lift placeholder in css/_rules.css, which this layer outranks
+   regardless); the focus ring; the nav strip and its dropdown (KT14);
+   the hero furniture (side note, laurels, platforms, spec plates); the
+   headline and stamp pop-down and the section-rule underline; the
+   dividers; buttons as label tape; fields and the checkbox; the dossier
+   card, its stamp and its redactions; the confirm dialog; the footer;
+   then one answer per remaining component root (TH124), and the motion
+   block last.
+
+   Colour discipline (DI9): nothing here names a colour. Every value is
+   var(--token) or a relative colour of one. The one texture (vent ribs)
+   is declared in css/_rules.css, corrected at this lift to the demo's
+   own direction; it stays under DI9's 0.06 ceiling at 0.05, so no
+   per-theme ceiling override is needed.
+
+   The only loops on this page: none. The LED does not blink — the one
+   thing the reference hardware did that this theme refuses — and every
+   reveal here plays once. Full inventory in reports/di5.md. */
+
+    [data-theme='nostromo'] {
+        /* The configuration surface [AR43], the demo's own values. */
+        --kp-reveal-threshold: 0.5;
+        --kp-reveal-stagger: 90ms;
+        --kp-classified-delay: 0ms;
+        --kp-rule-delay: 60ms;
+        --kp-stamp-delay: 120ms;
+        /* The reveals this theme performs [S45]: js/effects.js reads these
+       and leaves a theme that declares none at rest. No arrival: this
+       theme boots straight into its content, like cyberpunk. */
+        --kp-reveal-headline: popdown;
+        --kp-reveal-emphasis: stamp;
+        --kp-reveal-rule: ruler;
+        /* The redaction ink and the highlight underline, both relative
+       colours of tokens the demo measured as literal hex (DI9). */
+        --kp-redact-ink: var(--foreground);
+        --kp-underline: hsl(from var(--selected) h s l / 0.28);
+        --kp-backdrop: hsl(from var(--foreground) h s l / 0.55);
+    }
+
+    /* ── Headings: sentence case, Michroma, correcting the pre-lift
+   placeholder in css/_rules.css (this layer outranks it regardless of
+   what stays there — kp.register loads after kp.base) ─────────────── */
+
+    [data-theme='nostromo'] h1,
+    [data-theme='nostromo'] h2,
+    [data-theme='nostromo'] h3,
+    [data-theme='nostromo'] h4 {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+        line-height: 1.15;
+        letter-spacing: 0.01em;
+        text-transform: none;
+        color: var(--foreground);
+    }
+
+    [data-theme='nostromo'] [data-kp-surface] h1 {
+        font-size: var(--kp-text-display);
+        line-height: 1.06;
+        max-width: 20ch;
+    }
+
+    [data-theme='nostromo'] .microlabel {
+        font-family: var(--theme-font-mono);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--muted-foreground);
+    }
+
+    /* ── Focus: two channels always, DI2/AR30 ─────────────────────────── */
+
+    [data-theme='nostromo'] a:focus-visible,
+    [data-theme='nostromo'] button:focus-visible,
+    [data-theme='nostromo'] input:focus-visible,
+    [data-theme='nostromo'] select:focus-visible,
+    [data-theme='nostromo'] textarea:focus-visible,
+    [data-theme='nostromo'] dialog:focus-visible {
+        outline: none;
+        box-shadow:
+            0 0 0 2px var(--background),
+            0 0 0 4px var(--foreground);
+        border-radius: calc(var(--radius) / 2);
+    }
+
+    [data-theme='nostromo'] .kp-nav a:focus-visible,
+    [data-theme='nostromo'] .kp-nav button:focus-visible,
+    [data-theme='nostromo'] .kp-footer a:focus-visible {
+        box-shadow:
+            0 0 0 2px var(--sidebar-background),
+            0 0 0 4px var(--sidebar-foreground);
+    }
+
+    /* ── Nav: the dark control strip, and its dropdown (KT14) ─────────── */
+
+    [data-theme='nostromo'] .kp-nav-wrap {
+        background: var(--sidebar-background);
+    }
+
+    [data-theme='nostromo'] .kp-nav {
+        background: var(--sidebar-background);
+        color: var(--sidebar-foreground);
+        border-bottom: 1px solid var(--sidebar-accent);
+    }
+
+    [data-theme='nostromo'] .kp-nav__brand {
+        font-family: var(--theme-font-display);
+        font-size: 0.95rem;
+        letter-spacing: 0.04em;
+        color: var(--sidebar-foreground);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    [data-theme='nostromo'] .kp-nav__brand::before {
+        content: '';
+        inline-size: 0.5rem;
+        block-size: 0.5rem;
+        border-radius: 50%;
+        background: var(--sidebar-primary);
+        box-shadow:
+            0 0 0 2px var(--sidebar-background),
+            0 0 4px 1px hsl(from var(--sidebar-primary) h s l / 0.5);
+        flex: none;
+    }
+
+    [data-theme='nostromo'] .kp-nav__brand-tag {
+        font-family: var(--theme-font-mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.14em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='nostromo'] .kp-nav__links {
+        font-family: var(--theme-font-mono);
+        font-size: 0.72rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='nostromo'] .kp-nav__link {
+        color: var(--sidebar-foreground);
+        border-radius: 0.2rem;
+    }
+
+    /* The current item carries a filled LED dot no other item has [DI4];
+   css/_rules.css already answers this generically for `nav
+   [aria-current='page']`, this refines the flex layout on the link
+   itself. */
+    [data-theme='nostromo'] .kp-nav__link[aria-current] {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    [data-theme='nostromo'] .kp-nav__link:hover,
+    [data-theme='nostromo'] .kp-nav__link:focus-visible,
+    [data-theme='nostromo'] .kp-nav__link[aria-expanded='true'],
+    [data-theme='nostromo'] .kp-nav__links > li:focus-within > .kp-nav__link {
+        background: var(--sidebar-accent);
+        color: var(--sidebar-foreground);
+    }
+
+    [data-theme='nostromo'] .kp-nav__link--lang {
+        opacity: 0.85;
+    }
+
+    [data-theme='nostromo'] .kp-nav__link--cta {
+        background: var(--selected);
+        color: var(--primary-foreground);
+        border-radius: 0.2rem;
+    }
+
+    [data-theme='nostromo'] .kp-nav__link--cta:hover,
+    [data-theme='nostromo'] .kp-nav__link--cta:focus-visible {
+        background: hsl(from var(--selected) h s calc(l - 6%));
+        color: var(--primary-foreground);
+    }
+
+    /* The dropdown [KT14]: a dark plate off the strip, one boundary in
+   the sidebar's own accent. */
+    [data-theme='nostromo'] .kp-nav__menu {
+        background: var(--sidebar-background);
+        border: 1px solid var(--sidebar-accent);
+        border-radius: 0.35rem;
+        box-shadow: 0 8px 20px hsl(from var(--sidebar-background) h s l / 0.35);
+    }
+
+    [data-theme='nostromo'] .kp-nav__menu a {
+        color: var(--sidebar-foreground);
+        border-radius: 0.2rem;
+    }
+
+    [data-theme='nostromo'] .kp-nav__menu a:hover,
+    [data-theme='nostromo'] .kp-nav__menu a:focus-visible {
+        background: var(--sidebar-accent);
+    }
+
+    /* ── The hero furniture: side note, laurels, platforms, spec plate ── */
+
+    [data-theme='nostromo'] .kp-side-note {
+        font-family: var(--theme-font-mono);
+        font-size: 0.65rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='nostromo'] .kp-laurels {
+        gap: 0.75rem;
+    }
+
+    [data-theme='nostromo'] .kp-laurels li {
+        border: 1px solid var(--border-strong);
+        background: var(--card);
+        border-radius: 0.2rem;
+        min-width: 8rem;
+    }
+
+    [data-theme='nostromo'] .kp-laurels b {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 0.72rem;
+        color: var(--foreground);
+    }
+
+    [data-theme='nostromo'] .kp-platforms {
+        font-family: var(--theme-font-mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='nostromo'] .kp-platforms span::before {
+        content: '// ';
+        color: var(--border-strong);
+    }
+
+    /* The spec sheet: a nameplate grid, riveted rather than reflowed —
+   Terminal Industries' fixed-ratio plate, measured [demo §1]. */
+    [data-theme='nostromo'] .kp-spec {
+        background: var(--card);
+        color: var(--card-foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='nostromo'] .kp-spec dt {
+        font-family: var(--theme-font-mono);
+        font-size: 0.62rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='nostromo'] .kp-spec dd {
+        font-family: var(--theme-font-mono);
+        font-size: 0.68rem;
+        color: var(--foreground);
+    }
+
+    [data-theme='nostromo'] .kp-spec__swatch {
+        aspect-ratio: 3 / 2;
+        border-radius: 0.2rem;
+        border: 1px solid var(--border-strong);
+    }
+
+    [data-theme='nostromo'] .kp-spec__font {
+        aspect-ratio: 3 / 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--background);
+        border: 1px solid var(--border-strong);
+        border-radius: 0.2rem;
+        letter-spacing: normal;
+        text-transform: none;
+    }
+
+    /* ── The lede's marks: ink stays, an underline of signal orange ──── */
+
+    [data-theme='nostromo'] .kp-lede mark,
+    [data-theme='nostromo'] mark {
+        background: transparent;
+        color: var(--foreground);
+        font-weight: 600;
+        box-shadow: inset 0 -0.4em 0 0 var(--kp-underline);
+        padding: 0 0.05em;
+    }
+
+    /* ── The headline: pop down under a clip-path, text always whole ── */
+
+    [data-theme='nostromo'] [data-kp-reveal='headline'] {
+        clip-path: inset(0 0 0 0);
+        opacity: 1;
+    }
+
+    /* ── The section rule: the shared underline keyframe, the demo's own
+   280ms and 60ms delay ─────────────────────────────────────────────── */
+
+    [data-theme='nostromo'] [data-kp-reveal='rule']::after {
+        content: '';
+        display: block;
+        block-size: 2px;
+        margin-block-start: 0.6rem;
+        background: var(--selected);
+        transform-origin: left center;
+        transform: scaleX(1);
+    }
+
+    [data-theme='nostromo'][data-kp-effects] [data-kp-reveal='rule']:not(.is-in)::after {
+        transform: scaleX(0);
+    }
+
+    /* ── Dividers: a perforated seam of vent dots, not a razor tear ──── */
+
+    [data-theme='nostromo'] [data-kp-divider] {
+        position: relative;
+        background: var(--muted);
+        border-block: 1px solid var(--border-strong);
+    }
+
+    [data-theme='nostromo'] [data-kp-divider]::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: radial-gradient(circle, var(--border-strong) 1.1px, transparent 1.2px);
+        background-size: 14px 100%;
+        background-position: 7px center;
+        opacity: 0.55;
+    }
+
+    [data-theme='nostromo'] [data-kp-divider='alt'] {
+        background: var(--sidebar-accent);
+        border-color: var(--sidebar-background);
+    }
+
+    [data-theme='nostromo'] [data-kp-divider='alt']::before {
+        background-image: radial-gradient(circle, var(--sidebar-foreground) 1.1px, transparent 1.2px);
+        opacity: 0.35;
+    }
+
+    /* ── Buttons: label tape — tracked mono, uppercase [demo §1] ──────── */
+
+    [data-theme='nostromo'] .kp-button {
+        font-family: var(--theme-font-mono);
+        font-size: 0.8125rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        border: 1px solid var(--border-strong);
+        background: var(--secondary);
+        color: var(--secondary-foreground);
+    }
+
+    [data-theme='nostromo'] .kp-button:hover:not(:disabled) {
+        background: var(--muted);
+    }
+
+    [data-theme='nostromo'] .kp-button--primary,
+    [data-theme='nostromo'] .kp-button--primary:hover:not(:disabled) {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-color: var(--primary);
+    }
+
+    [data-theme='nostromo'] .kp-button--primary:hover:not(:disabled) {
+        background: hsl(from var(--primary) h s calc(l + 7%));
+    }
+
+    [data-theme='nostromo'] .kp-button--ghost {
+        background: transparent;
+        border-color: var(--border-strong);
+        color: var(--foreground);
+    }
+
+    [data-theme='nostromo'] .kp-button--ghost:hover:not(:disabled) {
+        background: var(--card);
+    }
+
+    [data-theme='nostromo'] .kp-button--destructive,
+    [data-theme='nostromo'] .kp-button--destructive:hover:not(:disabled) {
+        background: var(--destructive);
+        color: var(--destructive-foreground);
+        border-color: var(--destructive);
+    }
+
+    [data-theme='nostromo'] .kp-button--destructive:hover:not(:disabled) {
+        background: hsl(from var(--destructive) h s calc(l - 6%));
+    }
+
+    [data-theme='nostromo'] .kp-button:disabled {
+        background: var(--muted);
+        color: var(--muted-foreground);
+        border-color: var(--border);
+    }
+
+    [data-theme='nostromo'] .kp-icon-button {
+        border: 1px solid var(--border-strong);
+        background: transparent;
+        color: var(--foreground);
+    }
+
+    [data-theme='nostromo'] .kp-icon-button:hover:not(:disabled) {
+        background: var(--card);
+    }
+
+    /* ── Fields: the well, the checkbox, the select ───────────────────── */
+
+    [data-theme='nostromo'] .kp-field__label {
+        font-family: var(--theme-font-mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    /* The demo's own CSS colours this span with --selected (3.77 on the
+   plain background, under the 4.5 text floor — the demo's own contrast
+   section classifies that pair as a boundary application, not text; see
+   the anatomy's Tokens section). --destructive clears 6.08 in the same
+   place and keeps the same "attend to this" register. */
+    [data-theme='nostromo'] .kp-field__required {
+        color: var(--destructive);
+        font-size: 0.6rem;
+        text-transform: uppercase;
+    }
+
+    [data-theme='nostromo'] .kp-field__input,
+    [data-theme='nostromo'] .kp-datatable__search,
+    [data-theme='nostromo'] .kp-combobox__input,
+    [data-theme='nostromo'] .kp-palette__input {
+        background: var(--popover);
+        color: var(--foreground);
+        border: 1px solid var(--input);
+        border-radius: 0.3rem;
+    }
+
+    [data-theme='nostromo'] .kp-field__input::placeholder {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='nostromo'] .kp-field__help {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='nostromo'] .kp-field--invalid .kp-field__input {
+        border-color: var(--destructive);
+    }
+
+    [data-theme='nostromo'] .kp-field__error {
+        color: var(--destructive);
+    }
+
+    [data-theme='nostromo'] .kp-field__check {
+        accent-color: var(--selected);
+    }
+
+    [data-theme='nostromo'] .kp-fieldset {
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='nostromo'] .kp-form__summary {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    /* ── The dossier card: the stamp (a rubber stamp, rotated), the
+   redactions that clear together on the trigger [demo §1] ───────────── */
+
+    [data-theme='nostromo'] .kp-card {
+        background: var(--card);
+        color: var(--card-foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='nostromo'] .kp-card__title {
+        font-size: 1.25rem;
+    }
+
+    [data-theme='nostromo'] .kp-card[data-kp-reveal='emphasis'] {
+        position: relative;
+    }
+
+    [data-theme='nostromo'] .kp-card[data-kp-reveal='emphasis'][data-kp-label]::before {
+        content: attr(data-kp-label);
+        position: absolute;
+        inset-block-start: 0.9rem;
+        inset-inline-end: 1.1rem;
+        font-family: var(--theme-font-mono);
+        font-size: 0.62rem;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--primary-foreground);
+        background: var(--selected);
+        border: 1px solid var(--primary);
+        border-radius: 0.15rem;
+        padding: 0.25rem 0.55rem;
+        transform: rotate(-5deg);
+    }
+
+    [data-theme='nostromo'] .kp-card[data-kp-open][data-kp-label-open]::before {
+        content: attr(data-kp-label-open);
+    }
+
+    /* The redactions: ink over the phrase until the trigger opens the
+   file, then they clear one after another, staggered — the way label
+   tape peels, one motion, not a flicker. */
+    [data-theme='nostromo'] .kp-card[data-kp-reveal='emphasis'] mark {
+        background: var(--kp-redact-ink);
+        color: transparent;
+        border-radius: 0.15rem;
+        box-shadow: none;
+        padding: 0 0.15em;
+    }
+
+    [data-theme='nostromo'] .kp-card[data-kp-reveal='emphasis'] mark.is-cleared {
+        background: transparent;
+        color: var(--card-foreground);
+        font-weight: 600;
+        box-shadow: inset 0 -0.4em 0 0 var(--kp-underline);
+    }
+
+    [data-theme='nostromo'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(2) {
+        transition-delay: var(--kp-reveal-stagger);
+    }
+
+    [data-theme='nostromo'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(3) {
+        transition-delay: calc(2 * var(--kp-reveal-stagger));
+    }
+
+    /* ── The confirm dialog and its siblings ──────────────────────────── */
+
+    [data-theme='nostromo'] .kp-dialog,
+    [data-theme='nostromo'] .kp-popover,
+    [data-theme='nostromo'] .kp-menu,
+    [data-theme='nostromo'] .kp-toast,
+    [data-theme='nostromo'] .kp-tooltip,
+    [data-theme='nostromo'] .kp-confirm,
+    [data-theme='nostromo'] .kp-datepicker__panel,
+    [data-theme='nostromo'] .kp-combobox__list,
+    [data-theme='nostromo'] .kp-palette,
+    [data-theme='nostromo'] .kp-theme-menu {
+        background: var(--popover);
+        color: var(--popover-foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='nostromo'] .kp-dialog::backdrop {
+        background: var(--kp-backdrop);
+    }
+
+    [data-theme='nostromo'] .kp-dialog__title {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+    }
+
+    [data-theme='nostromo'] .kp-menu__item:hover {
+        background: var(--card);
+    }
+
+    [data-theme='nostromo'] .kp-toasts {
+        gap: 0.5rem;
+    }
+
+    /* ── Alert, badges, tags, status ──────────────────────────────────── */
+
+    [data-theme='nostromo'] .kp-alert {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='nostromo'] .kp-alert__label {
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='nostromo'] .kp-badge,
+    [data-theme='nostromo'] .kp-tag {
+        border: 1px solid var(--border-strong);
+        border-radius: 0.2rem;
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='nostromo'] .kp-health {
+        letter-spacing: 0.04em;
+    }
+
+    [data-theme='nostromo'] .kp-health__dot {
+        box-shadow: 0 0 0 1px var(--border-strong);
+    }
+
+    [data-theme='nostromo'] .kp-skeleton {
+        background: repeating-linear-gradient(90deg, var(--border) 0 6px, transparent 6px 12px);
+        border-radius: 0.2rem;
+    }
+
+    [data-theme='nostromo'] .kp-progress {
+        background: var(--muted);
+        border: 1px solid var(--border-strong);
+        border-radius: 999px;
+        padding: 1px;
+    }
+
+    [data-theme='nostromo'] .kp-progress__value {
+        background: var(--selected);
+        border-radius: 999px;
+    }
+
+    /* --selected against --border-strong only reaches 1.17:1 (KT8's 1.5
+   floor for a visibly turning head): --foreground reaches 2.92. */
+    [data-theme='nostromo'] .kp-spinner {
+        border-color: var(--border-strong);
+        border-top-color: var(--foreground);
+    }
+
+    [data-theme='nostromo'] .kp-empty {
+        border: 1px dashed var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='nostromo'] .kp-empty__title {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+    }
+
+    [data-theme='nostromo'] .kp-error {
+        color: var(--destructive);
+    }
+
+    /* ── Text shapes ───────────────────────────────────────────────────── */
+
+    [data-theme='nostromo'] .kp-id,
+    [data-theme='nostromo'] .kp-url,
+    [data-theme='nostromo'] .kp-numeric,
+    [data-theme='nostromo'] .kp-timestamp,
+    [data-theme='nostromo'] .kp-masked,
+    [data-theme='nostromo'] .kp-truncate,
+    [data-theme='nostromo'] .kp-cell-break,
+    [data-theme='nostromo'] .kp-cell-truncate {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.01em;
+    }
+
+    [data-theme='nostromo'] .kp-timestamp,
+    [data-theme='nostromo'] .kp-id {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='nostromo'] .kp-copyable {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='nostromo'] .kp-copyable__button {
+        border: 1px solid var(--border-strong);
+        border-radius: 0.2rem;
+        background: transparent;
+    }
+
+    /* ── Data: table, datatable, diff, timeline, tree, reorder ────────── */
+
+    [data-theme='nostromo'] .kp-table {
+        font-family: var(--theme-font-body);
+    }
+
+    [data-theme='nostromo'] .kp-table th {
+        font-family: var(--theme-font-mono);
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-weight: 600;
+        color: var(--muted-foreground);
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='nostromo'] .kp-table td {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='nostromo'] .kp-table tbody tr:hover {
+        background: var(--card);
+    }
+
+    [data-theme='nostromo'] .kp-datatable {
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='nostromo'] .kp-datatable__bar {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='nostromo'] .kp-datatable__sort[aria-sort] {
+        color: var(--selected);
+    }
+
+    [data-theme='nostromo'] .kp-datatable__status,
+    [data-theme='nostromo'] .kp-datatable__page {
+        color: var(--muted-foreground);
+        letter-spacing: 0.04em;
+    }
+
+    [data-theme='nostromo'] .kp-diff {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='nostromo'] .kp-diff__line {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='nostromo'] .kp-timeline {
+        border-inline-start: 2px solid var(--border-strong);
+    }
+
+    [data-theme='nostromo'] .kp-timeline__marker {
+        background: var(--selected);
+        box-shadow: 0 0 0 2px var(--background);
+    }
+
+    [data-theme='nostromo'] .kp-timeline__when {
+        color: var(--muted-foreground);
+        font-family: var(--theme-font-mono);
+        font-size: 0.75rem;
+    }
+
+    [data-theme='nostromo'] .kp-tree {
+        font-family: var(--theme-font-mono);
+        font-size: 0.85rem;
+    }
+
+    [data-theme='nostromo'] .kp-reorder {
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    /* ── Navigation and steps ──────────────────────────────────────────── */
+
+    [data-theme='nostromo'] .kp-tab {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+        border-radius: 0.2rem 0.2rem 0 0;
+    }
+
+    [data-theme='nostromo'] .kp-tab[aria-selected='true'] {
+        background: var(--card);
+        color: var(--foreground);
+        box-shadow: inset 0 -2px 0 0 var(--selected);
+    }
+
+    [data-theme='nostromo'] .kp-tabs__list {
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='nostromo'] .kp-breadcrumb,
+    [data-theme='nostromo'] .kp-pagination {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.04em;
+    }
+
+    [data-theme='nostromo'] .kp-pagination a[aria-current],
+    [data-theme='nostromo'] .kp-pagination [aria-current] {
+        background: var(--selected);
+        color: var(--primary-foreground);
+        border-radius: 0.2rem;
+    }
+
+    [data-theme='nostromo'] .kp-wizard {
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        background: var(--card);
+    }
+
+    [data-theme='nostromo'] .kp-wizard__steps {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    /* ── Pickers and palettes ──────────────────────────────────────────── */
+
+    [data-theme='nostromo'] .kp-datepicker__day[aria-selected='true'] {
+        background: var(--selected);
+        color: var(--primary-foreground);
+        border-radius: 0.2rem;
+    }
+
+    [data-theme='nostromo'] .kp-datepicker__weekday,
+    [data-theme='nostromo'] .kp-datepicker__title {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='nostromo'] .kp-colorpicker__swatch {
+        border: 1px solid var(--border-strong);
+        border-radius: 0.2rem;
+    }
+
+    [data-theme='nostromo'] .kp-colorpicker__value {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='nostromo'] .kp-shortcuts__row kbd {
+        border: 1px solid var(--border-strong);
+        border-radius: 0.2rem;
+        background: var(--card);
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='nostromo'] .kp-shortcuts__group-label,
+    [data-theme='nostromo'] .kp-palette__group-label {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='nostromo'] .kp-theme-menu__status,
+    [data-theme='nostromo'] .kp-palette__status,
+    [data-theme='nostromo'] .kp-combobox__status {
+        color: var(--muted-foreground);
+        font-size: 0.85rem;
+    }
+
+    /* ── Layout roots the rules above reach only through their parts ─── */
+
+    [data-theme='nostromo'] .kp-field {
+        gap: 0.35rem;
+    }
+
+    [data-theme='nostromo'] .kp-form {
+        gap: 1.1rem;
+    }
+
+    [data-theme='nostromo'] .kp-combobox,
+    [data-theme='nostromo'] .kp-datepicker,
+    [data-theme='nostromo'] .kp-colorpicker,
+    [data-theme='nostromo'] .kp-shortcuts,
+    [data-theme='nostromo'] .kp-tabs {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='nostromo'] .kp-split {
+        gap: 1px;
+        background: var(--border-strong);
+    }
+
+    [data-theme='nostromo'] .kp-split__separator {
+        background: var(--border-strong);
+        inline-size: 1px;
+    }
+
+    [data-theme='nostromo'] .kp-grid {
+        gap: 1px;
+    }
+
+    [data-theme='nostromo'] .kp-grid__tile,
+    [data-theme='nostromo'] .kp-split__pane {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    /* ── The footer: one step down, the base unit ─────────────────────── */
+
+    [data-theme='nostromo'] .kp-footer {
+        background: var(--sidebar-background);
+        color: var(--sidebar-foreground);
+    }
+
+    [data-theme='nostromo'] .kp-footer h4 {
+        font-size: 0.85rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--sidebar-foreground);
+    }
+
+    [data-theme='nostromo'] .kp-footer p {
+        color: var(--sidebar-foreground);
+        opacity: 0.85;
+    }
+
+    [data-theme='nostromo'] .kp-footer a {
+        color: var(--sidebar-foreground);
+        opacity: 0.85;
+        text-decoration: none;
+    }
+
+    [data-theme='nostromo'] .kp-footer a:hover,
+    [data-theme='nostromo'] .kp-footer a:focus-visible {
+        opacity: 1;
+        text-decoration: underline;
+    }
+
+    [data-theme='nostromo'] .kp-footer .microlabel {
+        color: var(--sidebar-foreground);
+        opacity: 0.55;
+    }
+
+    /* ── The scrollbar joins the theme ─────────────────────────────────── */
+
+    [data-theme='nostromo'] {
+        scrollbar-color: var(--border-strong) var(--background);
+    }
+
+    /* ── Motion, guarded [DI7] ─────────────────────────────────────────── */
+
+    /* Every animation and transition this register runs lives here, so a
+   reader who asked for reduced motion never receives one: the rest
+   states above are what they get instead — full opacity, no clip, rules
+   drawn, marks either covered (never seen) or clear immediately. */
+    @media (prefers-reduced-motion: no-preference) {
+        /* The headline: js/effects.js's `popdown` routine toggles this
+       class (a new routine — the text never splits into glyphs or
+       words, unlike every other headline routine); without it the class
+       never appears and the element stays at its rest opacity/clip. */
+        [data-theme='nostromo'][data-kp-effects] [data-kp-reveal='headline'].is-popping {
+            animation: kp-popdown 340ms var(--fx-ease) both;
+        }
+
+        /* The dossier stamp: a ::before pseudo-element, which JS can never
+       select — gated on [data-kp-effects] presence directly, exactly as
+       the demo's own stylesheet gates it. */
+        [data-theme='nostromo'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'][data-kp-label]::before {
+            animation: kp-popdown 340ms var(--fx-ease) both;
+            animation-delay: var(--kp-stamp-delay);
+        }
+
+        [data-theme='nostromo'][data-kp-effects] [data-kp-reveal='rule'].is-in::after {
+            animation: kp-rule-in 280ms var(--fx-ease) both;
+            animation-delay: var(--kp-rule-delay);
+        }
+
+        [data-theme='nostromo'] .kp-card[data-kp-reveal='emphasis'] mark {
+            transition:
+                background 220ms var(--fx-ease),
+                color 220ms var(--fx-ease);
+        }
+
+        [data-theme='nostromo'] .kp-dialog[open] {
+            animation: kp-dialog-in 160ms var(--fx-ease) both;
+        }
+    }
+
+    /* Every keyframe here has its row in TIMINGS (js/effects.js); kp-rule-in
+   is the base layer's, shared with four other themes at their own
+   durations. kp-popdown and kp-dialog-in are new at this lift. */
+    @keyframes kp-popdown {
+        0% {
+            clip-path: inset(0 0 100% 0);
+            opacity: 0;
+        }
+
+        100% {
+            clip-path: inset(0 0 0 0);
+            opacity: 1;
+        }
+    }
+
+    @keyframes kp-dialog-in {
+        0% {
+            opacity: 0;
+            transform: translateY(6px) scale(0.98);
+        }
+
+        100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+    /* The band [M1, M4]: Kenny picked this theme's own version over the
+       shared one on 2026-09-08 — a beige plate, small mono set very wide in caps. */
+    [data-theme='nostromo'] .kp-marquee {
+        background: var(--card);
+        border-block: 1px solid var(--border-strong);
+        font-family: var(--theme-font-mono);
+        font-size: 0.8em;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        --kp-marquee: 42000ms;
+    }
+
+    /* The menu's caption [M3]: the same choice, for the line a consumer
+       may put above a dropdown's items. */
+    [data-theme='nostromo'] .kp-nav__menu[data-kp-menu-label]::before {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.2em;
+        color: var(--muted-foreground);
+        border-block-end: 1px solid var(--border-strong);
+    }
+}

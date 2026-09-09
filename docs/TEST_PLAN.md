@@ -92,7 +92,10 @@ the constants they read.
 - **Browser forms (CF-7 rule, from kit 1.5.1):** before every kit release
   that touches the dashboard, one login and one form action in Chrome
   against the inbox on CT 118, noted in the release entry of
-  REALIZATION_PLAN.md. Discipline-enforced; reviewed with CF-6/CF-7 at the
+  REALIZATION_PLAN.md — **and the browser console read for errors before
+  the drill is called clean** (CF-11, 2026-09-09: an invalid `pattern`
+  attribute logged an error and was silently ignored while every page
+  rendered fine). Discipline-enforced; reviewed with CF-6/CF-7 at the
   first project retro on the kit. Why: no browser had ever submitted a
   kit form before 2026-09-06, and the one environment the suite skipped
   was the one the dashboard exists for.

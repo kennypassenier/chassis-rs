@@ -66,6 +66,23 @@ consumer must change.
   offline without `--remote`. Measured 2026-09-06 on Almanac (1.7.0 vs 1.7.1)
   and kyu (`gates` still required).
 
+### Changed
+- **kp-themes 5.0.0** (K15): the kit vendors the new release under the
+  package's own paths — `/static/kp/css/…`, `/static/kp/js/…`,
+  `/static/kp/fonts/…` — with 25 themes (`topo` → `forest`, `tazhib` →
+  `lapis`, `nishiki` → `woodblock`; a stored old name is migrated by
+  `theme-boot.js`; `cyberpunk` is a different theme under the same name),
+  `layout.css` and `utilities.css` (the templates' inline layout styles are
+  gone), all 25 theme registers (loaded for the active theme only), and
+  kp-themes' own fonts (73 faces, 5 MB in the binary, fetched per theme).
+  Confirmations on Re-issue / Revoke / Delete and on project actions are
+  kp-themes' native `<dialog>` (default since kp-themes 4.0.0). Assets
+  reached without the `?v=` hash (fonts, registers) are cached a day
+  instead of a year. `js/effects.js` and the minified `dist/` twins are
+  deliberately not vendored (docs/DASHBOARD.md says why). A project that
+  linked `/static/themes.css` or `/static/fonts/…` itself moves to the
+  `kp/` paths; a project on the kit's layout changes nothing.
+
 ### Fixed
 - `chassis new` drops `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, `GIT_PREFIX`
   and `GIT_COMMON_DIR` for every tool it runs: from a pre-commit hook in a
@@ -83,6 +100,11 @@ consumer must change.
 - A wrong bearer on the admin routes (`/api/clients*`, pages) is answered with
   a JSON 401 and a remedy naming `<PREFIX>_TOKEN` instead of a redirect to
   `/login`; requests without any credential are still redirected (K30).
+- The client-name `pattern` on the Clients page was invalid under the `v`
+  flag browsers compile it with (a bare `-` inside the class), so Chromium
+  logged an error and ignored it — any name passed the browser and only the
+  server refused. The hyphen is escaped; a test pins the shape. Found in the
+  kp-themes 5.0.0 browser drill.
 - `chassis sync` exits 1 whenever a difference is still there when the run
   ends — also under `--write`, for the drift it cannot fix (the kit tag in
   Cargo.toml, a branch protection without `--protect`). Before, `--write`

@@ -316,7 +316,7 @@ pub struct Theme {
 pub fn themes() -> &'static [Theme] {
     static THEMES: std::sync::OnceLock<Vec<Theme>> = std::sync::OnceLock::new();
     THEMES.get_or_init(|| {
-        let src = include_str!("../../static/kp/theme-registry.js");
+        let src = include_str!("../../static/kp/js/theme-registry.js");
         let mut out = Vec::new();
         for line in src.lines() {
             let l = line.trim();
@@ -736,8 +736,8 @@ mod tests {
         let t = themes();
         assert_eq!(
             t.len(),
-            24,
-            "kp-themes 3.1.0 ships exactly 24 themes; the vendored registry is pinned"
+            25,
+            "kp-themes 5.0.0 ships exactly 25 themes; the vendored registry is pinned"
         );
         assert_eq!(t[0].name, "formal");
         assert_eq!(t[0].label, "Formal");
@@ -773,11 +773,31 @@ mod tests {
     // The no-flash snippet (now `static/theme-boot.js`, S8: no inline
     // script) must match the vendored module's behaviour: same storage
     // key, same attribute — and the layout must load it as a plain script.
+    /// Live-found in the kp-themes 5.0.0 drill (2026-09-09): Chromium compiles
+    /// a `pattern` attribute with the `v` flag, where a bare `-` inside a
+    /// character class is a syntax error; the browser then logged
+    /// "Invalid character in character class" and ignored the pattern, so
+    /// the name field accepted anything and only the server refused. The
+    /// class escapes the hyphen. Red before the fix (the template carried
+    /// `._-]`), green after.
+    #[test]
+    fn client_name_pattern_is_valid_under_the_v_flag() {
+        let clients = include_str!("../../templates/clients.html");
+        assert!(
+            clients.contains(r#"pattern="[A-Za-z0-9._\-]{1,64}""#),
+            "the name pattern escapes the hyphen for the v flag"
+        );
+        assert!(
+            !clients.contains("._-]"),
+            "a bare hyphen at the end of the class is invalid under the v flag"
+        );
+    }
+
     #[test]
     fn no_flash_snippet_matches_the_vendored_contract() {
         let layout = include_str!("../../templates/layout.html");
         let boot = include_str!("../../static/theme-boot.js");
-        let registry = include_str!("../../static/kp/theme-registry.js");
+        let registry = include_str!("../../static/kp/js/theme-registry.js");
         assert!(boot.contains("localStorage.getItem(\"theme\")"));
         assert!(registry.contains("STORAGE_KEY = 'theme'"));
         assert!(boot.contains("setAttribute(\"data-theme\""));

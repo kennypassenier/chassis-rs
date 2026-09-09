@@ -1,0 +1,1565 @@
+@layer kp.register {
+    /* @kp-soft/themes — css/dark-register.css
+   The dark register, 5.0.0 [S48, LIFT_PLAN row 15]: the ordinary dark
+   theme, done properly. Scoped to [data-theme='dark'] and inert
+   elsewhere; opt-in, imported after themes.css. The approved concept
+   demo ("Small Hours", stars II, 2026-09-08) is the reference for every
+   value here — Kenny's second reading asked for a visible-but-subtle
+   starfield with a JWST-style shimmer on its brightest points, and this
+   file is that reading, not the plain first draft ("Small Hours") that
+   stayed a comparison point beside it.
+
+   What this file does, in order: the knobs and the two texture layers
+   (the 102-point field on the shared texture pseudo-element, the ten
+   shimmer stars on their own); the two-channel focus ring, reversed from
+   the base default; the type; the hooks of S45 — the headline that
+   resolves word by word out of a blur, the mark as an ignite (the lede's
+   colour-only, scroll-bound; the dossier's a redact bar that lifts on
+   the trigger), the rule that sweeps in under a heading, the divider as
+   a night seam with its own dense local sample; the nav as a quiet strip
+   with its dropdown's own keyboard ring; the buttons, fields and panels;
+   and one answer per component root (TH124).
+
+   Colour discipline (DI9): nothing here names a colour. Every stop is
+   `var(--token)` or `hsl(from var(--token) h s l / alpha)`.
+
+   THE STARFIELD [S42, S49]: 112 individually-generated positions (dim 80
+   + mid 22 + bright/spike 10), pasted verbatim (as `hsl(from
+   var(--foreground) …)` in place of the demo's `var(--ink)`) from the
+   demo's own header comment, itself the stdout of a seeded mulberry32
+   PRNG (seed 20260908) run once and never regenerated. Nothing here is
+   randomised at build time or at runtime: every position is a literal.
+   The layer's own opacity is 0.35 — DI9's 0.06 ceiling names a felt, not
+   seen, texture; 0.35 is roughly 5.8x that, over it, and reported rather
+   than corrected (S42) via `textureOpacityCeiling.perTheme.dark` in
+   gates/config.json, the demo named as the reason. Nothing in the field
+   is animated: no `@keyframes`, no opacity cycling, nothing that could
+   ever oppose luminance (DI5) — it is a still photograph, painted once.
+
+   THE SHIMMER: the demo drew its ten brightest stars as an inline SVG
+   `<symbol>` reused by `<use>`. A register is CSS only and the concept
+   page's markup is shared by every theme, so that symbol cannot travel
+   here; the same appearance — a soft core plus eight thin rays fading
+   from the centre, a minority of stars a little brighter, never a wash —
+   is rebuilt as layered `conic-gradient`s (the eight rays, angularly
+   thin wedges recomputed per star from the demo's own literal rotation)
+   masked by a small `radial-gradient` per star (the length taper the
+   SVG's stroke gradient did with an alpha fade, this does with
+   `mask-image`), plus one `radial-gradient` core. A mechanism
+   substitution, not an appearance one: the same still, subtle glyph the
+   demo names. */
+
+    [data-theme='dark'] {
+        /* The configuration surface [AR43], the demo's values as defaults. */
+        --kp-reveal-threshold: 0.6;
+        --kp-word-stagger: 28ms;
+        --kp-redact-stagger: 90ms;
+        --kp-sweep-range-start: entry 10%;
+        --kp-sweep-range-end: entry 85%;
+        --kp-ignite-range-start: entry 30%;
+        --kp-ignite-range-end: entry 80%;
+        /* The reveals this theme performs [S45]: js/effects.js reads these
+           and leaves a theme that declares none at rest. No arrival: the
+           demo has no boot sequence, the page is simply there. */
+        --kp-reveal-headline: resolve;
+        --kp-reveal-emphasis: ignite;
+        --kp-reveal-rule: sweep;
+        /* Dead North's shout-in ease, reused for the word resolve [S49]. */
+        --kp-settle: cubic-bezier(0.22, 1, 0.36, 1);
+
+        /* The starfield [S42, S49]: 102 static points on the shared
+           texture pseudo-element (css/_rules.css's body::after); the ten
+           brightest live in their own layer below, so their own alpha is
+           not diluted by this layer's 0.35. Each dot fades only in the
+           outer 8% of its own radius (transparent at 92%), not from the
+           centre, so the core still reaches close to its nominal alpha
+           despite the small size. */
+        --fx-texture:
+            radial-gradient(0.54px 0.54px at 88.87% 1.94%, hsl(from var(--foreground) h s l / 0.34), transparent 92%),
+            radial-gradient(0.51px 0.51px at 51.53% 10.05%, hsl(from var(--foreground) h s l / 0.31), transparent 92%),
+            radial-gradient(0.52px 0.52px at 80.97% 12.77%, hsl(from var(--foreground) h s l / 0.44), transparent 92%),
+            radial-gradient(0.55px 0.55px at 57.07% 70.36%, hsl(from var(--foreground) h s l / 0.32), transparent 92%),
+            radial-gradient(0.69px 0.69px at 72.75% 59.8%, hsl(from var(--foreground) h s l / 0.31), transparent 92%),
+            radial-gradient(0.49px 0.49px at 17.76% 13.19%, hsl(from var(--foreground) h s l / 0.46), transparent 92%),
+            radial-gradient(0.56px 0.56px at 84.6% 63.3%, hsl(from var(--foreground) h s l / 0.32), transparent 92%),
+            radial-gradient(0.53px 0.53px at 43.84% 0.71%, hsl(from var(--foreground) h s l / 0.37), transparent 92%),
+            radial-gradient(0.71px 0.71px at 30.57% 23.7%, hsl(from var(--foreground) h s l / 0.32), transparent 92%),
+            radial-gradient(0.6px 0.6px at 45.59% 17.57%, hsl(from var(--foreground) h s l / 0.45), transparent 92%),
+            radial-gradient(0.54px 0.54px at 84.08% 21.21%, hsl(from var(--foreground) h s l / 0.31), transparent 92%),
+            radial-gradient(0.61px 0.61px at 57.58% 0.8%, hsl(from var(--foreground) h s l / 0.35), transparent 92%),
+            radial-gradient(0.74px 0.74px at 53.5% 23.59%, hsl(from var(--foreground) h s l / 0.41), transparent 92%),
+            radial-gradient(0.61px 0.61px at 96.8% 63.48%, hsl(from var(--foreground) h s l / 0.44), transparent 92%),
+            radial-gradient(0.65px 0.65px at 31.69% 5.48%, hsl(from var(--foreground) h s l / 0.44), transparent 92%),
+            radial-gradient(0.7px 0.7px at 85.97% 22.48%, hsl(from var(--foreground) h s l / 0.31), transparent 92%),
+            radial-gradient(0.55px 0.55px at 10.78% 2.19%, hsl(from var(--foreground) h s l / 0.43), transparent 92%),
+            radial-gradient(0.7px 0.7px at 74.14% 27.66%, hsl(from var(--foreground) h s l / 0.33), transparent 92%),
+            radial-gradient(0.66px 0.66px at 99.49% 95.54%, hsl(from var(--foreground) h s l / 0.33), transparent 92%),
+            radial-gradient(0.57px 0.57px at 4.38% 82.01%, hsl(from var(--foreground) h s l / 0.32), transparent 92%),
+            radial-gradient(0.67px 0.67px at 7.01% 66.69%, hsl(from var(--foreground) h s l / 0.46), transparent 92%),
+            radial-gradient(0.65px 0.65px at 39.35% 68.25%, hsl(from var(--foreground) h s l / 0.3), transparent 92%),
+            radial-gradient(0.63px 0.63px at 59.61% 52.31%, hsl(from var(--foreground) h s l / 0.43), transparent 92%),
+            radial-gradient(0.46px 0.46px at 20.54% 11.46%, hsl(from var(--foreground) h s l / 0.34), transparent 92%),
+            radial-gradient(0.56px 0.56px at 6.11% 95.56%, hsl(from var(--foreground) h s l / 0.36), transparent 92%),
+            radial-gradient(0.63px 0.63px at 25.77% 16.04%, hsl(from var(--foreground) h s l / 0.41), transparent 92%),
+            radial-gradient(0.71px 0.71px at 25.79% 87.93%, hsl(from var(--foreground) h s l / 0.45), transparent 92%),
+            radial-gradient(0.52px 0.52px at 93.62% 52.85%, hsl(from var(--foreground) h s l / 0.33), transparent 92%),
+            radial-gradient(0.66px 0.66px at 20.61% 98.01%, hsl(from var(--foreground) h s l / 0.42), transparent 92%),
+            radial-gradient(0.68px 0.68px at 93.97% 80.22%, hsl(from var(--foreground) h s l / 0.32), transparent 92%),
+            radial-gradient(0.56px 0.56px at 87.03% 5.41%, hsl(from var(--foreground) h s l / 0.35), transparent 92%),
+            radial-gradient(0.59px 0.59px at 80.71% 65.76%, hsl(from var(--foreground) h s l / 0.33), transparent 92%),
+            radial-gradient(0.57px 0.57px at 99.5% 10.27%, hsl(from var(--foreground) h s l / 0.36), transparent 92%),
+            radial-gradient(0.61px 0.61px at 53.68% 21.06%, hsl(from var(--foreground) h s l / 0.45), transparent 92%),
+            radial-gradient(0.67px 0.67px at 77.82% 53.12%, hsl(from var(--foreground) h s l / 0.48), transparent 92%),
+            radial-gradient(0.57px 0.57px at 80.06% 25.6%, hsl(from var(--foreground) h s l / 0.35), transparent 92%),
+            radial-gradient(0.66px 0.66px at 76.73% 64.57%, hsl(from var(--foreground) h s l / 0.38), transparent 92%),
+            radial-gradient(0.53px 0.53px at 2.41% 79.31%, hsl(from var(--foreground) h s l / 0.33), transparent 92%),
+            radial-gradient(0.57px 0.57px at 37.9% 83.64%, hsl(from var(--foreground) h s l / 0.38), transparent 92%),
+            radial-gradient(0.65px 0.65px at 94.54% 86.15%, hsl(from var(--foreground) h s l / 0.46), transparent 92%),
+            radial-gradient(0.53px 0.53px at 7.15% 75.91%, hsl(from var(--foreground) h s l / 0.45), transparent 92%),
+            radial-gradient(0.54px 0.54px at 57.74% 29.82%, hsl(from var(--foreground) h s l / 0.4), transparent 92%),
+            radial-gradient(0.73px 0.73px at 19.11% 10.45%, hsl(from var(--foreground) h s l / 0.44), transparent 92%),
+            radial-gradient(0.74px 0.74px at 61.7% 28.91%, hsl(from var(--foreground) h s l / 0.34), transparent 92%),
+            radial-gradient(0.67px 0.67px at 4.93% 25.58%, hsl(from var(--foreground) h s l / 0.48), transparent 92%),
+            radial-gradient(0.65px 0.65px at 65.41% 66.94%, hsl(from var(--foreground) h s l / 0.43), transparent 92%),
+            radial-gradient(0.55px 0.55px at 32.76% 18.3%, hsl(from var(--foreground) h s l / 0.34), transparent 92%),
+            radial-gradient(0.53px 0.53px at 91.88% 26.54%, hsl(from var(--foreground) h s l / 0.47), transparent 92%),
+            radial-gradient(0.6px 0.6px at 4.13% 24.24%, hsl(from var(--foreground) h s l / 0.32), transparent 92%),
+            radial-gradient(0.65px 0.65px at 32.88% 73.16%, hsl(from var(--foreground) h s l / 0.38), transparent 92%),
+            radial-gradient(0.68px 0.68px at 80.98% 85.39%, hsl(from var(--foreground) h s l / 0.33), transparent 92%),
+            radial-gradient(0.72px 0.72px at 37.23% 9%, hsl(from var(--foreground) h s l / 0.39), transparent 92%),
+            radial-gradient(0.64px 0.64px at 62.52% 49.75%, hsl(from var(--foreground) h s l / 0.45), transparent 92%),
+            radial-gradient(0.71px 0.71px at 21.79% 28.69%, hsl(from var(--foreground) h s l / 0.33), transparent 92%),
+            radial-gradient(0.48px 0.48px at 47.18% 75.92%, hsl(from var(--foreground) h s l / 0.41), transparent 92%),
+            radial-gradient(0.64px 0.64px at 43% 5.73%, hsl(from var(--foreground) h s l / 0.34), transparent 92%),
+            radial-gradient(0.57px 0.57px at 9.38% 67.9%, hsl(from var(--foreground) h s l / 0.34), transparent 92%),
+            radial-gradient(0.64px 0.64px at 99.12% 98.7%, hsl(from var(--foreground) h s l / 0.44), transparent 92%),
+            radial-gradient(0.74px 0.74px at 75.31% 9.18%, hsl(from var(--foreground) h s l / 0.31), transparent 92%),
+            radial-gradient(0.71px 0.71px at 2.34% 3.41%, hsl(from var(--foreground) h s l / 0.38), transparent 92%),
+            radial-gradient(0.69px 0.69px at 80.76% 43.83%, hsl(from var(--foreground) h s l / 0.37), transparent 92%),
+            radial-gradient(0.73px 0.73px at 63.86% 92.45%, hsl(from var(--foreground) h s l / 0.4), transparent 92%),
+            radial-gradient(0.5px 0.5px at 62.88% 84.25%, hsl(from var(--foreground) h s l / 0.43), transparent 92%),
+            radial-gradient(0.73px 0.73px at 94.83% 37.32%, hsl(from var(--foreground) h s l / 0.34), transparent 92%),
+            radial-gradient(0.73px 0.73px at 62.09% 28.54%, hsl(from var(--foreground) h s l / 0.46), transparent 92%),
+            radial-gradient(0.61px 0.61px at 51.93% 89.38%, hsl(from var(--foreground) h s l / 0.45), transparent 92%),
+            radial-gradient(0.7px 0.7px at 56.41% 38.54%, hsl(from var(--foreground) h s l / 0.41), transparent 92%),
+            radial-gradient(0.53px 0.53px at 38.04% 68.09%, hsl(from var(--foreground) h s l / 0.45), transparent 92%),
+            radial-gradient(0.52px 0.52px at 83.87% 43.57%, hsl(from var(--foreground) h s l / 0.38), transparent 92%),
+            radial-gradient(0.55px 0.55px at 88.65% 13.56%, hsl(from var(--foreground) h s l / 0.31), transparent 92%),
+            radial-gradient(0.62px 0.62px at 68.35% 77.8%, hsl(from var(--foreground) h s l / 0.34), transparent 92%),
+            radial-gradient(0.48px 0.48px at 86.69% 61.36%, hsl(from var(--foreground) h s l / 0.34), transparent 92%),
+            radial-gradient(0.48px 0.48px at 72.17% 53.66%, hsl(from var(--foreground) h s l / 0.41), transparent 92%),
+            radial-gradient(0.49px 0.49px at 6.64% 14.82%, hsl(from var(--foreground) h s l / 0.32), transparent 92%),
+            radial-gradient(0.72px 0.72px at 50.19% 78%, hsl(from var(--foreground) h s l / 0.45), transparent 92%),
+            radial-gradient(0.63px 0.63px at 81.1% 46.81%, hsl(from var(--foreground) h s l / 0.37), transparent 92%),
+            radial-gradient(0.68px 0.68px at 12.25% 3.33%, hsl(from var(--foreground) h s l / 0.47), transparent 92%),
+            radial-gradient(0.52px 0.52px at 37.76% 7.71%, hsl(from var(--foreground) h s l / 0.42), transparent 92%),
+            radial-gradient(0.65px 0.65px at 72.41% 75.41%, hsl(from var(--foreground) h s l / 0.45), transparent 92%),
+            radial-gradient(0.67px 0.67px at 77.19% 0.8%, hsl(from var(--foreground) h s l / 0.34), transparent 92%),
+            radial-gradient(1.27px 1.27px at 55.66% 17.97%, hsl(from var(--foreground) h s l / 0.54), transparent 92%),
+            radial-gradient(0.92px 0.92px at 31.48% 98.08%, hsl(from var(--foreground) h s l / 0.56), transparent 92%),
+            radial-gradient(0.98px 0.98px at 54.66% 2.18%, hsl(from var(--foreground) h s l / 0.6), transparent 92%),
+            radial-gradient(1.23px 1.23px at 83.8% 86.11%, hsl(from var(--foreground) h s l / 0.51), transparent 92%),
+            radial-gradient(1.14px 1.14px at 46.9% 16.07%, hsl(from var(--foreground) h s l / 0.54), transparent 92%),
+            radial-gradient(1.14px 1.14px at 82.88% 35.84%, hsl(from var(--foreground) h s l / 0.59), transparent 92%),
+            radial-gradient(1.23px 1.23px at 93.79% 46.77%, hsl(from var(--foreground) h s l / 0.55), transparent 92%),
+            radial-gradient(0.97px 0.97px at 19.1% 95.09%, hsl(from var(--foreground) h s l / 0.55), transparent 92%),
+            radial-gradient(1.23px 1.23px at 92.01% 4.13%, hsl(from var(--foreground) h s l / 0.53), transparent 92%),
+            radial-gradient(1.22px 1.22px at 68.07% 1.21%, hsl(from var(--foreground) h s l / 0.55), transparent 92%),
+            radial-gradient(0.99px 0.99px at 54.49% 22.62%, hsl(from var(--foreground) h s l / 0.65), transparent 92%),
+            radial-gradient(1px 1px at 76.81% 11.69%, hsl(from var(--foreground) h s l / 0.65), transparent 92%),
+            radial-gradient(1.11px 1.11px at 26.4% 24.48%, hsl(from var(--foreground) h s l / 0.68), transparent 92%),
+            radial-gradient(0.92px 0.92px at 90.33% 70.56%, hsl(from var(--foreground) h s l / 0.51), transparent 92%),
+            radial-gradient(1.2px 1.2px at 70.33% 42.31%, hsl(from var(--foreground) h s l / 0.63), transparent 92%),
+            radial-gradient(1.16px 1.16px at 6.78% 72.2%, hsl(from var(--foreground) h s l / 0.54), transparent 92%),
+            radial-gradient(1.07px 1.07px at 90.1% 56.54%, hsl(from var(--foreground) h s l / 0.58), transparent 92%),
+            radial-gradient(1.09px 1.09px at 50.41% 9.21%, hsl(from var(--foreground) h s l / 0.62), transparent 92%),
+            radial-gradient(1.17px 1.17px at 91.22% 22.93%, hsl(from var(--foreground) h s l / 0.61), transparent 92%),
+            radial-gradient(1.08px 1.08px at 93.35% 23.28%, hsl(from var(--foreground) h s l / 0.63), transparent 92%),
+            radial-gradient(1.19px 1.19px at 32.44% 12.13%, hsl(from var(--foreground) h s l / 0.5), transparent 92%),
+            radial-gradient(0.93px 0.93px at 98.39% 26.47%, hsl(from var(--foreground) h s l / 0.56), transparent 92%);
+        --fx-texture-size: auto;
+        --fx-texture-opacity: 0.35;
+    }
+
+    /* ── The ring, reversed from the base default [DI2, AR30, S49] ────────
+       The base layer puts the theme's foreground on the inner ring and its
+       background on the outer one; the approved demo's own :focus-visible
+       does it the other way — the void touching the element, the ink
+       outside it — and DI2's promise holds either way, since one of the
+       two always clears 3:1 on the surface behind it. */
+    [data-theme='dark'] :focus-visible {
+        outline-color: var(--foreground);
+        box-shadow: 0 0 0 var(--kp-focus-ring-inner-width, 2px) var(--background);
+    }
+
+    /* The ten brightest stars, on their own layer so their alpha is not
+       diluted by the field's own 0.35 — see the header comment "THE
+       SHIMMER". Ten soft cores (radial-gradient) plus ten ray glyphs
+       (conic-gradient, eight thin wedges each, angles taken from the
+       demo's own literal per-star rotation) masked down to a small local
+       window per star so the rays taper by distance the way the SVG's own
+       gradient stroke did. Fully static — no keyframes anywhere near it. */
+    [data-theme='dark'] body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: var(--kp-z-texture, 80);
+        --fx-texture:
+            conic-gradient(
+                from 0deg at 58.58% 70.69%,
+                transparent 245.4deg,
+                transparent 285.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 285.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 288.6deg,
+                transparent 288.6deg,
+                transparent 315.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 315.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 318.6deg,
+                transparent 318.6deg,
+                transparent 375.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 375.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 378.6deg,
+                transparent 378.6deg,
+                transparent 435.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 435.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 438.6deg,
+                transparent 438.6deg,
+                transparent 465.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 465.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 468.6deg,
+                transparent 468.6deg,
+                transparent 495.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 495.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 498.6deg,
+                transparent 498.6deg,
+                transparent 555.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 555.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 558.6deg,
+                transparent 558.6deg,
+                transparent 615.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 615.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 618.6deg,
+                transparent 618.6deg,
+                transparent 658.6deg
+            ),
+            conic-gradient(
+                from 0deg at 81.84% 28.91%,
+                transparent 81.4deg,
+                transparent 121.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 121.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 124.6deg,
+                transparent 124.6deg,
+                transparent 151.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 151.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 154.6deg,
+                transparent 154.6deg,
+                transparent 211.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 211.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 214.6deg,
+                transparent 214.6deg,
+                transparent 271.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 271.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 274.6deg,
+                transparent 274.6deg,
+                transparent 301.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 301.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 304.6deg,
+                transparent 304.6deg,
+                transparent 331.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 331.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 334.6deg,
+                transparent 334.6deg,
+                transparent 391.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 391.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 394.6deg,
+                transparent 394.6deg,
+                transparent 451.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 451.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 454.6deg,
+                transparent 454.6deg,
+                transparent 494.6deg
+            ),
+            conic-gradient(
+                from 0deg at 81.8% 39.12%,
+                transparent 15.4deg,
+                transparent 55.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 55.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 58.6deg,
+                transparent 58.6deg,
+                transparent 85.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 85.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 88.6deg,
+                transparent 88.6deg,
+                transparent 145.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 145.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 148.6deg,
+                transparent 148.6deg,
+                transparent 205.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 205.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 208.6deg,
+                transparent 208.6deg,
+                transparent 235.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 235.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 238.6deg,
+                transparent 238.6deg,
+                transparent 265.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 265.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 268.6deg,
+                transparent 268.6deg,
+                transparent 325.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 325.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 328.6deg,
+                transparent 328.6deg,
+                transparent 385.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 385.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 388.6deg,
+                transparent 388.6deg,
+                transparent 428.6deg
+            ),
+            conic-gradient(
+                from 0deg at 25.76% 9.93%,
+                transparent 129.4deg,
+                transparent 169.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 169.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 172.6deg,
+                transparent 172.6deg,
+                transparent 199.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 199.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 202.6deg,
+                transparent 202.6deg,
+                transparent 259.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 259.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 262.6deg,
+                transparent 262.6deg,
+                transparent 319.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 319.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 322.6deg,
+                transparent 322.6deg,
+                transparent 349.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 349.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 352.6deg,
+                transparent 352.6deg,
+                transparent 379.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 379.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 382.6deg,
+                transparent 382.6deg,
+                transparent 439.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 439.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 442.6deg,
+                transparent 442.6deg,
+                transparent 499.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 499.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 502.6deg,
+                transparent 502.6deg,
+                transparent 542.6deg
+            ),
+            conic-gradient(
+                from 0deg at 31.34% 26.1%,
+                transparent 8.4deg,
+                transparent 48.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 48.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 51.6deg,
+                transparent 51.6deg,
+                transparent 78.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 78.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 81.6deg,
+                transparent 81.6deg,
+                transparent 138.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 138.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 141.6deg,
+                transparent 141.6deg,
+                transparent 198.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 198.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 201.6deg,
+                transparent 201.6deg,
+                transparent 228.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 228.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 231.6deg,
+                transparent 231.6deg,
+                transparent 258.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 258.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 261.6deg,
+                transparent 261.6deg,
+                transparent 318.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 318.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 321.6deg,
+                transparent 321.6deg,
+                transparent 378.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 378.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 381.6deg,
+                transparent 381.6deg,
+                transparent 421.6deg
+            ),
+            conic-gradient(
+                from 0deg at 28.08% 86.45%,
+                transparent 113.4deg,
+                transparent 153.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 153.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 156.6deg,
+                transparent 156.6deg,
+                transparent 183.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 183.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 186.6deg,
+                transparent 186.6deg,
+                transparent 243.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 243.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 246.6deg,
+                transparent 246.6deg,
+                transparent 303.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 303.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 306.6deg,
+                transparent 306.6deg,
+                transparent 333.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 333.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 336.6deg,
+                transparent 336.6deg,
+                transparent 363.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 363.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 366.6deg,
+                transparent 366.6deg,
+                transparent 423.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 423.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 426.6deg,
+                transparent 426.6deg,
+                transparent 483.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 483.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 486.6deg,
+                transparent 486.6deg,
+                transparent 526.6deg
+            ),
+            conic-gradient(
+                from 0deg at 53.82% 5.38%,
+                transparent -21.6deg,
+                transparent 18.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 18.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 21.6deg,
+                transparent 21.6deg,
+                transparent 48.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 48.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 51.6deg,
+                transparent 51.6deg,
+                transparent 108.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 108.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 111.6deg,
+                transparent 111.6deg,
+                transparent 168.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 168.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 171.6deg,
+                transparent 171.6deg,
+                transparent 198.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 198.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 201.6deg,
+                transparent 201.6deg,
+                transparent 228.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 228.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 231.6deg,
+                transparent 231.6deg,
+                transparent 288.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 288.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 291.6deg,
+                transparent 291.6deg,
+                transparent 348.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 348.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 351.6deg,
+                transparent 351.6deg,
+                transparent 391.6deg
+            ),
+            conic-gradient(
+                from 0deg at 91.59% 77.36%,
+                transparent 66.4deg,
+                transparent 106.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 106.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 109.6deg,
+                transparent 109.6deg,
+                transparent 136.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 136.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 139.6deg,
+                transparent 139.6deg,
+                transparent 196.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 196.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 199.6deg,
+                transparent 199.6deg,
+                transparent 256.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 256.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 259.6deg,
+                transparent 259.6deg,
+                transparent 286.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 286.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 289.6deg,
+                transparent 289.6deg,
+                transparent 316.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 316.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 319.6deg,
+                transparent 319.6deg,
+                transparent 376.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 376.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 379.6deg,
+                transparent 379.6deg,
+                transparent 436.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 436.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 439.6deg,
+                transparent 439.6deg,
+                transparent 479.6deg
+            ),
+            conic-gradient(
+                from 0deg at 48.25% 22.63%,
+                transparent 42.4deg,
+                transparent 82.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 82.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 85.6deg,
+                transparent 85.6deg,
+                transparent 112.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 112.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 115.6deg,
+                transparent 115.6deg,
+                transparent 172.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 172.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 175.6deg,
+                transparent 175.6deg,
+                transparent 232.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 232.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 235.6deg,
+                transparent 235.6deg,
+                transparent 262.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 262.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 265.6deg,
+                transparent 265.6deg,
+                transparent 292.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 292.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 295.6deg,
+                transparent 295.6deg,
+                transparent 352.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 352.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 355.6deg,
+                transparent 355.6deg,
+                transparent 412.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 412.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 415.6deg,
+                transparent 415.6deg,
+                transparent 455.6deg
+            ),
+            conic-gradient(
+                from 0deg at 21.4% 69.03%,
+                transparent 176.4deg,
+                transparent 216.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 216.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 219.6deg,
+                transparent 219.6deg,
+                transparent 246.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 246.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 249.6deg,
+                transparent 249.6deg,
+                transparent 306.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 306.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 309.6deg,
+                transparent 309.6deg,
+                transparent 366.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 366.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 369.6deg,
+                transparent 369.6deg,
+                transparent 396.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 396.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 399.6deg,
+                transparent 399.6deg,
+                transparent 426.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 426.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 429.6deg,
+                transparent 429.6deg,
+                transparent 486.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 486.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 489.6deg,
+                transparent 489.6deg,
+                transparent 546.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 546.4deg,
+                hsl(from var(--foreground) h s l / 0.4) 549.6deg,
+                transparent 549.6deg,
+                transparent 589.6deg
+            ),
+            radial-gradient(2px 2px at 58.58% 70.69%, hsl(from var(--foreground) h s l / 0.6), transparent 100%),
+            radial-gradient(2px 2px at 81.84% 28.91%, hsl(from var(--foreground) h s l / 0.6), transparent 100%),
+            radial-gradient(2px 2px at 81.8% 39.12%, hsl(from var(--foreground) h s l / 0.6), transparent 100%),
+            radial-gradient(2px 2px at 25.76% 9.93%, hsl(from var(--foreground) h s l / 0.6), transparent 100%),
+            radial-gradient(2px 2px at 31.34% 26.1%, hsl(from var(--foreground) h s l / 0.6), transparent 100%),
+            radial-gradient(2px 2px at 28.08% 86.45%, hsl(from var(--foreground) h s l / 0.6), transparent 100%),
+            radial-gradient(2px 2px at 53.82% 5.38%, hsl(from var(--foreground) h s l / 0.6), transparent 100%),
+            radial-gradient(2px 2px at 91.59% 77.36%, hsl(from var(--foreground) h s l / 0.6), transparent 100%),
+            radial-gradient(2px 2px at 48.25% 22.63%, hsl(from var(--foreground) h s l / 0.6), transparent 100%),
+            radial-gradient(2px 2px at 21.4% 69.03%, hsl(from var(--foreground) h s l / 0.6), transparent 100%);
+        --fx-texture-opacity: 0.35;
+        background-image: var(--fx-texture);
+        opacity: var(--fx-texture-opacity);
+        mask-image:
+            radial-gradient(circle 13px at 58.58% 70.69%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 81.84% 28.91%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 81.8% 39.12%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 25.76% 9.93%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 31.34% 26.1%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 28.08% 86.45%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 53.82% 5.38%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 91.59% 77.36%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 48.25% 22.63%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 21.4% 69.03%, hsl(from var(--foreground) h s l / 1), transparent 100%);
+        -webkit-mask-image:
+            radial-gradient(circle 13px at 58.58% 70.69%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 81.84% 28.91%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 81.8% 39.12%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 25.76% 9.93%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 31.34% 26.1%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 28.08% 86.45%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 53.82% 5.38%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 91.59% 77.36%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 48.25% 22.63%, hsl(from var(--foreground) h s l / 1), transparent 100%),
+            radial-gradient(circle 13px at 21.4% 69.03%, hsl(from var(--foreground) h s l / 1), transparent 100%);
+    }
+
+    /* ── Type ──────────────────────────────────────────────────────────── */
+
+    [data-theme='dark'] h1,
+    [data-theme='dark'] h2,
+    [data-theme='dark'] h3 {
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+        line-height: 1.1;
+        color: var(--foreground);
+    }
+
+    [data-theme='dark'] [data-kp-surface] h1 {
+        font-size: var(--kp-text-display);
+        line-height: 1.08;
+        letter-spacing: -0.02em;
+        margin-block: 0 0.35em;
+        text-wrap: balance;
+    }
+
+    /* The headline reveal: the module wraps each word in its own span
+       (`[data-word]`, `--kp-i` its index); at rest — no script, or the
+       reveal already ran — every word is already its own inline-block
+       with nothing applied, which is the finished look. */
+    [data-theme='dark'] [data-kp-reveal='headline'] [data-word] {
+        display: inline-block;
+    }
+
+    /* Microlabels: a quiet dot before the label, the theme's own violet. */
+    [data-theme='dark'] .microlabel {
+        font-family: var(--theme-font-body);
+        font-size: 0.7rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+        line-height: 1.3;
+    }
+
+    [data-theme='dark'] .microlabel::before {
+        content: '· ';
+        color: var(--primary);
+    }
+
+    /* ── The hooks [S45]: the mark, the rule, the divider ─────────────── */
+
+    /* The mark, its default and general reading: an ignite. At rest — no
+       script, reduced motion, or a browser without scroll-driven
+       animations — the words already stand in the finished violet: never
+       an invisible or half-drawn state (DI7). */
+    [data-theme='dark'] mark {
+        background: none;
+        color: var(--primary);
+        font-weight: 600;
+        text-decoration: underline 2px solid var(--border-strong);
+        text-underline-offset: 0.18em;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        @supports (animation-timeline: view()) {
+            [data-theme='dark'] mark {
+                color: var(--muted-foreground);
+                text-decoration-color: var(--border);
+                animation: kp-ignite linear both;
+                animation-timeline: view();
+                animation-range: var(--kp-ignite-range-start) var(--kp-ignite-range-end);
+            }
+        }
+    }
+
+    /* The rule: a sweep under a heading, the same still-life mechanism as
+       the mark — a scroll-bound background-position slide, not a timed
+       one-shot. At rest (no support, or the heading is past its range)
+       the gradient already sits at its fully-drawn position. */
+    [data-theme='dark'] [data-kp-reveal='rule']::after {
+        content: '';
+        display: block;
+        width: min(16rem, 60%);
+        block-size: 2px;
+        margin-block-start: 0.6rem;
+        background: linear-gradient(90deg, var(--primary) 0 45%, var(--border) 45% 100%);
+        background-size: 220% 100%;
+        background-position: 0 0;
+        background-repeat: no-repeat;
+        border-radius: 2px;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        @supports (animation-timeline: view()) {
+            [data-theme='dark'] [data-kp-reveal='rule']::after {
+                animation: kp-sweep-in linear both;
+                animation-timeline: view();
+                animation-range: var(--kp-sweep-range-start) var(--kp-sweep-range-end);
+            }
+        }
+    }
+
+    /* The divider: a night seam — one step darker than the ground, its own
+       dense local sample of the same starfield technique, a thin violet
+       line at true centre. Not the page's global field (a different,
+       denser sample, the way the demo builds it), and no [data-theme]
+       colour of its own: every stop is a token. */
+    [data-theme='dark'] [data-kp-divider] {
+        position: relative;
+        display: block;
+        block-size: 56px;
+        background: var(--sidebar-background);
+        overflow: hidden;
+    }
+
+    [data-theme='dark'] [data-kp-divider]::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        opacity: 0.09;
+        background:
+            radial-gradient(1.4px 1.4px at 12% 30%, var(--foreground), transparent 60%),
+            radial-gradient(1.1px 1.1px at 27% 70%, var(--foreground), transparent 60%),
+            radial-gradient(1.6px 1.6px at 46% 20%, var(--foreground), transparent 60%),
+            radial-gradient(1.3px 1.3px at 63% 65%, var(--foreground), transparent 60%),
+            radial-gradient(1.5px 1.5px at 81% 35%, var(--foreground), transparent 60%),
+            radial-gradient(1.2px 1.2px at 92% 75%, var(--foreground), transparent 60%);
+    }
+
+    [data-theme='dark'] [data-kp-divider]::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: min(18rem, 60%);
+        height: 1px;
+        transform: translate(-50%, -50%);
+        background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    }
+
+    [data-theme='dark'] [data-kp-divider='alt'] {
+        transform: scaleX(-1);
+    }
+
+    /* ── The hero ──────────────────────────────────────────────────────── */
+
+    [data-theme='dark'] [data-kp-surface='hero'] {
+        position: relative;
+        padding-block: 3rem 4.5rem;
+    }
+
+    [data-theme='dark'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+        gap: 2.5rem;
+        align-items: end;
+    }
+
+    @container (max-width: 54rem) {
+        [data-theme='dark'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* The margin note: a difference-blend chrome over the hero's own glow —
+       there is no photograph to invert over (S48), so the "imagery" is the
+       glow itself. Decorative, aria-hidden, never carries text a reader
+       needs (checked against every surface it might land on: over the
+       void 13.36, over the panel 11.72, over the glow itself only 2.19 —
+       the reason it stays hidden from assistive tech rather than relied
+       on). */
+    [data-theme='dark'] .kp-side-note {
+        position: absolute;
+        inset-inline-end: 0.35rem;
+        inset-block-start: 2rem;
+        writing-mode: vertical-rl;
+        font-family: var(--theme-font-mono);
+        font-size: 0.65rem;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: var(--foreground);
+        mix-blend-mode: difference;
+        z-index: 2;
+        padding: 0.4rem 0.1rem;
+    }
+
+    @media (max-width: 40rem) {
+        [data-theme='dark'] .kp-side-note {
+            display: none;
+        }
+    }
+
+    /* ── The navbar: quiet, no chrome of its own beyond the ground ─────── */
+
+    [data-theme='dark'] .kp-nav-wrap {
+        background: var(--card);
+        position: relative;
+        border-bottom: 1px solid var(--border-strong);
+        z-index: var(--kp-z-nav, 30);
+    }
+
+    [data-theme='dark'] .kp-nav {
+        background: var(--card);
+        padding-block: 0.7rem;
+    }
+
+    [data-theme='dark'] .kp-nav__brand {
+        font-weight: 700;
+        font-size: 1.25rem;
+        letter-spacing: -0.01em;
+        color: var(--foreground);
+    }
+
+    [data-theme='dark'] .kp-nav__links {
+        gap: 0.15rem;
+    }
+
+    [data-theme='dark'] .kp-nav__link {
+        padding: 0.5rem 0.8rem;
+        border-radius: var(--radius);
+        font-weight: 500;
+        font-size: 0.94rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='dark'] .kp-nav__link:hover,
+    [data-theme='dark'] .kp-nav__link:focus-visible,
+    [data-theme='dark'] .kp-nav__link[aria-current],
+    [data-theme='dark'] .kp-nav__links > li:focus-within > .kp-nav__link {
+        color: var(--foreground);
+        background: var(--accent);
+    }
+
+    [data-theme='dark'] .kp-nav__link[aria-haspopup]::after {
+        content: ' ⌄';
+        font-size: 0.8em;
+    }
+
+    [data-theme='dark'] .kp-nav__link--lang {
+        border-inline-start: 1px solid var(--border);
+        margin-inline-start: 0.5rem;
+        padding-inline-start: 0.7rem;
+    }
+
+    [data-theme='dark'] .kp-nav__link--cta {
+        margin-inline-start: 0.25rem;
+        background: var(--primary);
+        color: var(--primary-foreground);
+        font-weight: 600;
+    }
+
+    [data-theme='dark'] .kp-nav__link--cta:hover,
+    [data-theme='dark'] .kp-nav__link--cta:focus-visible {
+        background: var(--foreground);
+        color: var(--background);
+    }
+
+    /* The dropdown: a quiet dark panel, the theme's own edge, and — the
+       thing every one of the first batch's demos left unstyled (KT14) —
+       its own keyboard state, the theme's own violet rather than the
+       page-wide ink outline. */
+    [data-theme='dark'] .kp-nav__menu {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        padding: 0.3rem;
+        min-width: 12rem;
+        box-shadow: 0 12px 28px hsl(from var(--background) h s l / 0.45);
+    }
+
+    [data-theme='dark'] .kp-nav__menu a {
+        display: block;
+        padding: 0.45rem 0.7rem;
+        border-radius: calc(var(--radius) / 1.5);
+        color: var(--foreground);
+        font-size: 0.92rem;
+    }
+
+    [data-theme='dark'] .kp-nav__menu a:hover {
+        background: var(--accent);
+    }
+
+    [data-theme='dark'] .kp-nav__menu a:focus-visible {
+        background: var(--accent);
+        outline: 2px solid var(--primary);
+        outline-offset: -2px;
+        box-shadow: none;
+    }
+
+    /* ── Buttons: a flat panel, an edge, no bevel ──────────────────────── */
+
+    [data-theme='dark'] .kp-button,
+    [data-theme='dark'] .kp-icon-button {
+        background: var(--card);
+        color: var(--foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        font-weight: 600;
+    }
+
+    [data-theme='dark'] .kp-button:hover {
+        background: var(--accent);
+    }
+
+    [data-theme='dark'] [data-kp-surface='hero'] .kp-row > .kp-button {
+        min-width: min(11rem, 100%);
+        min-height: 2.5rem;
+    }
+
+    [data-theme='dark'] .kp-button--primary,
+    [data-theme='dark'] .kp-button--primary:hover {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='dark'] .kp-button--primary:hover {
+        background: hsl(from var(--primary) h s calc(l + 6%));
+        border-color: hsl(from var(--primary) h s calc(l + 6%));
+    }
+
+    [data-theme='dark'] .kp-button--ghost {
+        background: transparent;
+        border-color: transparent;
+        color: var(--foreground);
+    }
+
+    [data-theme='dark'] .kp-button--ghost:hover {
+        background: var(--accent);
+        border-color: var(--border-strong);
+    }
+
+    [data-theme='dark'] .kp-button--destructive {
+        background: transparent;
+        border-color: var(--destructive);
+        color: var(--destructive);
+    }
+
+    [data-theme='dark'] .kp-button--destructive:hover {
+        background: var(--destructive);
+        color: var(--destructive-foreground);
+    }
+
+    [data-theme='dark'] .kp-button:disabled {
+        opacity: 0.45;
+    }
+
+    /* ── Fields: a panel and an edge, the violet as focus ──────────────── */
+
+    [data-theme='dark'] .kp-field__label {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--foreground);
+    }
+
+    [data-theme='dark'] .kp-field__input,
+    [data-theme='dark'] .kp-datatable__search,
+    [data-theme='dark'] .kp-combobox__input,
+    [data-theme='dark'] .kp-palette__input {
+        background: var(--card);
+        color: var(--foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='dark'] .kp-field__input:focus,
+    [data-theme='dark'] .kp-datatable__search:focus,
+    [data-theme='dark'] .kp-combobox__input:focus,
+    [data-theme='dark'] .kp-palette__input:focus {
+        border-color: var(--primary);
+    }
+
+    [data-theme='dark'] select.kp-field__input {
+        background-image:
+            linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+            linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+        background-position:
+            calc(100% - 18px) 55%,
+            calc(100% - 12px) 55%;
+        background-size:
+            6px 6px,
+            6px 6px;
+        background-repeat: no-repeat;
+    }
+
+    [data-theme='dark'] .kp-field__help {
+        font-size: 0.8rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='dark'] .kp-field--invalid .kp-field__input {
+        border-color: var(--destructive);
+    }
+
+    [data-theme='dark'] .kp-field__error {
+        color: var(--destructive);
+    }
+
+    [data-theme='dark'] .kp-field__check {
+        appearance: none;
+        inline-size: 1.15rem;
+        block-size: 1.15rem;
+        border: 1px solid var(--border-strong);
+        border-radius: 0.25rem;
+        background: var(--card);
+        display: grid;
+        place-items: center;
+    }
+
+    [data-theme='dark'] .kp-field__check:checked {
+        background: var(--primary);
+        border-color: var(--primary);
+    }
+
+    [data-theme='dark'] .kp-field__check:checked::before {
+        content: '';
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 0.1rem;
+        background: var(--primary-foreground);
+    }
+
+    [data-theme='dark'] .kp-fieldset {
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='dark'] .kp-form__summary {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    /* ── Cards, the dossier: a quiet panel, the redact bar ─────────────── */
+
+    [data-theme='dark'] .kp-card {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: calc(var(--radius) * 1.5);
+    }
+
+    [data-theme='dark'] .kp-card__title {
+        font-weight: 700;
+        font-size: 1.5rem;
+    }
+
+    /* The stamp: attr(data-kp-label) content, the convention
+       css/cyberpunk-register.css already uses for the same slot. */
+    [data-theme='dark'] .kp-card[data-kp-label]::before {
+        content: attr(data-kp-label);
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: var(--primary);
+        color: var(--primary-foreground);
+        font-family: var(--theme-font-mono);
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 0.2rem 0.55rem;
+        border-radius: 999px;
+    }
+
+    [data-theme='dark'] .kp-card[data-kp-reveal='emphasis'] {
+        position: relative;
+    }
+
+    /* The dossier's own reading of the mark: not the ignite above, but a
+       redact bar in the theme's edge colour that lifts off, right to
+       left, on the trigger — the demo's own mechanism for this slot,
+       distinct from the lede's colour-only ignite the general rule above
+       answers. The bar sits on the mark's own ::after so what a reader
+       hears (the text itself) is never removed, only its paint. */
+    [data-theme='dark'] .kp-card[data-kp-reveal='emphasis'] mark {
+        position: relative;
+        color: var(--foreground);
+        background: none;
+        text-decoration: none;
+        font-weight: 400;
+        white-space: nowrap;
+        border-radius: 0.2em;
+    }
+
+    [data-theme='dark'] .kp-card[data-kp-reveal='emphasis'] mark::after {
+        content: '';
+        position: absolute;
+        inset: -0.05em -0.15em;
+        background: var(--border-strong);
+        border-radius: 0.2em;
+        transform: scaleX(0);
+        transform-origin: right center;
+        pointer-events: none;
+    }
+
+    [data-theme='dark'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark:not(.is-cleared) {
+        color: transparent;
+    }
+
+    [data-theme='dark'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark:not(.is-cleared)::after {
+        transform: scaleX(1);
+    }
+
+    /* ── Panels: a quiet dark ground, the theme's own edge ─────────────── */
+
+    [data-theme='dark'] .kp-dialog,
+    [data-theme='dark'] .kp-popover,
+    [data-theme='dark'] .kp-menu,
+    [data-theme='dark'] .kp-toast,
+    [data-theme='dark'] .kp-tooltip,
+    [data-theme='dark'] .kp-confirm,
+    [data-theme='dark'] .kp-datepicker__panel,
+    [data-theme='dark'] .kp-combobox__list,
+    [data-theme='dark'] .kp-palette,
+    [data-theme='dark'] .kp-theme-menu {
+        background: var(--card);
+        color: var(--foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: calc(var(--radius) * 1.5);
+        box-shadow: 0 12px 28px hsl(from var(--background) h s l / 0.45);
+    }
+
+    [data-theme='dark'] .kp-dialog__title {
+        font-weight: 700;
+        font-size: 1.2rem;
+    }
+
+    [data-theme='dark'] .kp-menu__item:hover {
+        background: var(--accent);
+    }
+
+    [data-theme='dark'] .kp-alert {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='dark'] .kp-alert__label {
+        font-weight: 700;
+    }
+
+    [data-theme='dark'] .kp-grid__tile,
+    [data-theme='dark'] .kp-split__pane {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='dark'] .kp-split__separator {
+        background: var(--border);
+    }
+
+    /* ── The footer: one step darker than the ground ───────────────────── */
+
+    [data-theme='dark'] .kp-footer {
+        background: var(--sidebar-background);
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='dark'] .kp-footer h4 {
+        font-size: 0.95rem;
+        color: var(--foreground);
+    }
+
+    [data-theme='dark'] .kp-footer a {
+        color: var(--muted-foreground);
+        font-size: 0.92rem;
+    }
+
+    [data-theme='dark'] .kp-footer a:hover,
+    [data-theme='dark'] .kp-footer a:focus-visible {
+        color: var(--foreground);
+    }
+
+    /* ── Badges, tags, status ───────────────────────────────────────────── */
+
+    [data-theme='dark'] .kp-badge,
+    [data-theme='dark'] .kp-tag {
+        border: 1px solid var(--border-strong);
+    }
+
+    [data-theme='dark'] .kp-skeleton {
+        background: var(--accent);
+    }
+
+    [data-theme='dark'] .kp-progress {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+    }
+
+    [data-theme='dark'] .kp-progress__value {
+        background: var(--primary);
+    }
+
+    [data-theme='dark'] .kp-spinner {
+        border-color: var(--border);
+        border-top-color: var(--primary);
+    }
+
+    [data-theme='dark'] .kp-empty {
+        border: 1px dashed var(--border-strong);
+    }
+
+    [data-theme='dark'] .kp-error {
+        color: var(--destructive);
+    }
+
+    /* ── Text shapes ──────────────────────────────────────────────────── */
+
+    [data-theme='dark'] .kp-id,
+    [data-theme='dark'] .kp-url,
+    [data-theme='dark'] .kp-numeric,
+    [data-theme='dark'] .kp-timestamp,
+    [data-theme='dark'] .kp-masked,
+    [data-theme='dark'] .kp-copyable,
+    [data-theme='dark'] .kp-truncate,
+    [data-theme='dark'] .kp-cell-break,
+    [data-theme='dark'] .kp-cell-truncate {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='dark'] .kp-timestamp,
+    [data-theme='dark'] .kp-id {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='dark'] .kp-copyable__button {
+        border: 1px solid var(--border-strong);
+    }
+
+    /* ── Data ─────────────────────────────────────────────────────────── */
+
+    [data-theme='dark'] .kp-table th {
+        color: var(--muted-foreground);
+        border-bottom: 1px solid var(--border-strong);
+        font-weight: 600;
+    }
+
+    [data-theme='dark'] .kp-table td {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='dark'] .kp-table tbody tr:hover {
+        background: var(--card);
+    }
+
+    [data-theme='dark'] .kp-datatable {
+        border: 1px solid var(--border-strong);
+        background: var(--card);
+    }
+
+    [data-theme='dark'] .kp-datatable__bar {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='dark'] .kp-datatable__sort[aria-sort] {
+        color: var(--primary);
+    }
+
+    [data-theme='dark'] .kp-datatable__status,
+    [data-theme='dark'] .kp-datatable__page {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='dark'] .kp-diff {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+    }
+
+    [data-theme='dark'] .kp-diff__line {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='dark'] .kp-timeline {
+        border-inline-start: 1px solid var(--border-strong);
+    }
+
+    [data-theme='dark'] .kp-timeline__marker {
+        background: var(--primary);
+    }
+
+    [data-theme='dark'] .kp-timeline__when {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='dark'] .kp-tree {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='dark'] .kp-reorder {
+        border: 1px solid var(--border-strong);
+        background: var(--card);
+    }
+
+    /* ── Navigation and steps ───────────────────────────────────────────── */
+
+    [data-theme='dark'] .kp-tab {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='dark'] .kp-tab[aria-selected='true'] {
+        color: var(--foreground);
+        font-weight: 600;
+        border-bottom: 2px solid var(--primary);
+    }
+
+    [data-theme='dark'] .kp-tabs__list {
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='dark'] .kp-pagination a[aria-current],
+    [data-theme='dark'] .kp-pagination [aria-current] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='dark'] .kp-wizard {
+        border: 1px solid var(--border-strong);
+        background: var(--card);
+    }
+
+    /* ── Pickers and palettes ─────────────────────────────────────────── */
+
+    [data-theme='dark'] .kp-datepicker__day[aria-selected='true'] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='dark'] .kp-colorpicker__swatch {
+        border: 1px solid var(--border-strong);
+    }
+
+    [data-theme='dark'] .kp-shortcuts__row kbd {
+        border: 1px solid var(--border-strong);
+        background: var(--card);
+        display: inline-block;
+        padding: 0 0.4em;
+    }
+
+    [data-theme='dark'] .kp-shortcuts__group-label,
+    [data-theme='dark'] .kp-palette__group-label {
+        font-weight: 700;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='dark'] .kp-theme-menu__status,
+    [data-theme='dark'] .kp-palette__status,
+    [data-theme='dark'] .kp-combobox__status {
+        color: var(--muted-foreground);
+    }
+
+    /* ── The roots the rules above reach only by their parts ───────────── */
+
+    [data-theme='dark'] .kp-field {
+        gap: 0.3rem;
+    }
+
+    [data-theme='dark'] .kp-form {
+        gap: 1rem;
+    }
+
+    [data-theme='dark'] .kp-breadcrumb,
+    [data-theme='dark'] .kp-pagination {
+        font-size: 0.9rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='dark'] .kp-combobox,
+    [data-theme='dark'] .kp-datepicker,
+    [data-theme='dark'] .kp-colorpicker,
+    [data-theme='dark'] .kp-shortcuts {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='dark'] .kp-grid {
+        gap: 0.75rem;
+    }
+
+    [data-theme='dark'] .kp-split {
+        gap: 0;
+    }
+
+    [data-theme='dark'] .kp-toasts {
+        gap: 0.6rem;
+    }
+
+    [data-theme='dark'] .kp-health {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='dark'] .kp-table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    /* ── The scrollbar joins the theme ──────────────────────────────────── */
+
+    [data-theme='dark'] {
+        scrollbar-color: var(--border-strong) var(--background);
+    }
+
+    /* ── The demo's own pieces [S46] ───────────────────────────────────── */
+
+    [data-theme='dark'] .kp-laurels {
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='dark'] .kp-laurels li {
+        flex: 1 1 12rem;
+        padding: 0.5rem 0.7rem;
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='dark'] .kp-laurels b {
+        display: block;
+        font-weight: 700;
+        font-size: 1rem;
+        color: var(--foreground);
+        margin-block-end: 0.15rem;
+    }
+
+    [data-theme='dark'] .kp-lede {
+        max-width: 38rem;
+        font-size: 1.08rem;
+    }
+
+    [data-theme='dark'] .kp-platforms {
+        margin-block-start: 1.6rem;
+        gap: 0.2rem 1.3rem;
+        font-family: var(--theme-font-mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='dark'] .kp-platforms span::before {
+        content: '· ';
+        color: var(--primary);
+    }
+
+    [data-theme='dark'] .kp-spec {
+        background: var(--card);
+        color: var(--foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: calc(var(--radius) * 1.5);
+        padding: 1.2rem 1.4rem;
+        font-size: 0.86rem;
+        line-height: 1.75;
+    }
+
+    [data-theme='dark'] .kp-spec dt {
+        color: var(--muted-foreground);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 0.72rem;
+    }
+
+    [data-theme='dark'] .kp-spec__swatch {
+        border: 1px solid var(--border);
+    }
+
+    [data-theme='dark'] .kp-spec__font {
+        font-family: var(--theme-font-display);
+    }
+
+    /* ── Motion, guarded [DI7] ────────────────────────────────────────── */
+
+    /* Every animation and transition of this register lives here, inside
+       the no-preference guard, so a reader who asked for reduced motion
+       never receives one: the rest states above are what they get. */
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='dark'] [data-kp-reveal='headline'].is-words [data-word] {
+            animation: kp-resolve 640ms var(--kp-settle) both;
+            animation-delay: calc(var(--kp-i, 0) * var(--kp-word-stagger));
+        }
+
+        [data-theme='dark'] .kp-nav__menu {
+            transition: opacity var(--fx-duration) var(--fx-ease);
+        }
+
+        /* The redact bar: a size change, not a colour (KT8: no
+           mid-transition colour can be read); the ink turns visible in
+           the same instant the bar clears, staggered per redaction. */
+        [data-theme='dark'] .kp-card[data-kp-reveal='emphasis'] mark::after {
+            transition: transform 380ms var(--fx-ease);
+        }
+
+        [data-theme='dark'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(2)::after {
+            transition-delay: var(--kp-redact-stagger);
+        }
+
+        [data-theme='dark'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(3)::after {
+            transition-delay: calc(2 * var(--kp-redact-stagger));
+        }
+
+        [data-theme='dark'] .kp-card[data-kp-reveal='emphasis'] mark {
+            transition: color 0s linear 0s;
+        }
+    }
+
+    /* ── Motion [DI5, DI7] ────────────────────────────────────────────── */
+
+    /* Every keyframe here has its row in TIMINGS (js/effects.js). The
+       word resolve is one monotonic change (blur and translate settle
+       alongside the opacity move) [S49]. */
+    @keyframes kp-resolve {
+        0% {
+            opacity: 0;
+            filter: blur(6px);
+            transform: translateY(0.15em);
+        }
+
+        100% {
+            opacity: 1;
+            filter: blur(0);
+            transform: none;
+        }
+    }
+
+    /* Scroll-bound, not time-based: the browser scrubs this by the
+       heading's own position, not a clock, so it cannot free-run and
+       cannot loop — see gates/check-motion.mjs's OUT_OF_SCOPE entry. */
+    @keyframes kp-ignite {
+        100% {
+            color: var(--primary);
+            text-decoration-color: var(--border-strong);
+        }
+    }
+
+    @keyframes kp-sweep-in {
+        0% {
+            background-position: 100% 0;
+        }
+
+        100% {
+            background-position: 0 0;
+        }
+    }
+    /* The band [M1, M4]: Kenny picked this theme's own version over the
+       shared one on 2026-09-08 — the row a step lighter than the page it sits on. */
+    [data-theme='dark'] .kp-marquee {
+        border-block: 1px solid color-mix(in srgb, var(--foreground) 18%, transparent);
+        background: color-mix(in srgb, var(--card) 60%, var(--background));
+        --kp-marquee: 50000ms;
+    }
+
+    /* The menu's caption [M3]: the same choice, for the line a consumer
+       may put above a dropdown's items. */
+    [data-theme='dark'] .kp-nav__menu[data-kp-menu-label]::before {
+        color: var(--primary);
+        border-block-end: 1px solid color-mix(in srgb, var(--foreground) 20%, transparent);
+    }
+}

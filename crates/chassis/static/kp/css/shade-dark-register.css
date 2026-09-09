@@ -1,0 +1,889 @@
+@layer kp.register {
+    /* @kp-soft/themes — css/shade-dark-register.css
+   The shade-dark register, 5.0.0 [S48, LIFT_PLAN row 24]: the dark half of
+   the shade pair. Scoped to [data-theme='shade-dark'] and inert elsewhere;
+   opt-in, imported after themes.css. The approved concept demo ("Undertow
+   Editorial", 2026-09-08) is the reference for every value here, sourced
+   from <scratchpad>/shade-dark-research.md — obsidianassembly.com's
+   per-character blur reveal (shortened to word level here), noth.in's
+   blurred seam paired with Dark Editorial's gold-hairline device, and the
+   tone ladder alone for depth (no elevation shadow, matching
+   --fx-lift: 0px and --fx-shadow-offset: 0px already shipped).
+
+   Shade-dark is a one-ground theme: the hero and the app share
+   --background (themes/shade-dark/anatomy.md), so a divider that simply
+   fades to transparent would fade to the colour it already sits on and
+   vanish. The divider below is a radial swell in the NEXT surface's own
+   tone plus a hairline fading at both ends, never a literal blur() filter.
+
+   Colour discipline (DI9): nothing here names a colour. Nothing loops;
+   every reveal fires once (S42: reported at "What the demo showed" in the
+   anatomy, never silently corrected). No texture: --fx-texture stays
+   unset, matching "no starfield, no grain" (the anatomy's own rule). */
+
+    [data-theme='shade-dark'] {
+        /* The configuration surface [AR43], the demo's values as defaults. */
+        --kp-reveal-threshold: 0.6;
+        --kp-word-stagger: 90ms;
+        --kp-redact-stagger: 150ms;
+        --kp-ease-reveal: cubic-bezier(0.2, 0.75, 0.35, 1);
+        /* The reveals this theme performs [S45]: js/effects.js reads these
+           and leaves a theme that declares none at rest. No --kp-arrival:
+           the demo boots with nothing, the way dark and light already do. */
+        --kp-reveal-headline: focus;
+        --kp-reveal-emphasis: plate;
+        --kp-reveal-rule: draw;
+    }
+
+    /* ── Type ──────────────────────────────────────────────────────────── */
+
+    [data-theme='shade-dark'] h1,
+    [data-theme='shade-dark'] h2,
+    [data-theme='shade-dark'] h3,
+    [data-theme='shade-dark'] h4 {
+        font-family: var(--theme-font-display);
+        font-weight: 600;
+    }
+
+    /* The base layer paints a title bar behind every h1 on a surface (the
+       3.x theme); the demo's reading is plain type, no plate, no shadow —
+       the whole point of a reading theme is that a heading is just text. */
+    [data-theme='shade-dark'] [data-kp-surface] h1 {
+        display: block;
+        padding: 0;
+        background: none;
+        color: var(--foreground);
+        font-size: var(--kp-text-display);
+        line-height: 1.12;
+        letter-spacing: -0.01em;
+        margin-block: 0 1rem;
+        text-wrap: balance;
+    }
+
+    /* Microlabels: plain mono, accent ink — no glyph, no prompt. */
+    [data-theme='shade-dark'] .microlabel {
+        font-family: var(--theme-font-mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+    }
+
+    /* ── The focus ring: the demo's own global rule (DI2, AR30). An inner
+       outline in the foreground and an outer moat in the ground — on any
+       surface at least one of the two clears 3:1, which is what the
+       invariant asks for. Measured on a primary button: foreground/primary
+       1.11 (fails alone), background/primary 5.46 (clears): one channel
+       always wins. ─────────────────────────────────────────────────────── */
+    [data-theme='shade-dark'] a:focus-visible,
+    [data-theme='shade-dark'] button:focus-visible,
+    [data-theme='shade-dark'] input:focus-visible,
+    [data-theme='shade-dark'] select:focus-visible,
+    [data-theme='shade-dark'] textarea:focus-visible,
+    [data-theme='shade-dark'] [tabindex]:focus-visible,
+    [data-theme='shade-dark'] dialog:focus-visible {
+        outline: 2px solid var(--foreground);
+        outline-offset: 2px;
+        box-shadow: 0 0 0 4px var(--background);
+        border-radius: var(--radius);
+    }
+
+    /* ── The hooks [S45]: the headline, the mark, the rule, the divider ── */
+
+    /* The headline reveal: words arrive out of a blur, one after another,
+       90ms apart. The module wraps the words in [data-word] and sets
+       --kp-i; the register moves them. */
+    [data-theme='shade-dark'] [data-kp-reveal='headline'] [data-word] {
+        display: inline-block;
+    }
+
+    /* The rule: a short accent line that draws itself in when its heading
+       enters the viewport, the demo's own scaleX transition. */
+    [data-theme='shade-dark'] [data-kp-reveal='rule']::after {
+        content: '';
+        display: block;
+        block-size: 2px;
+        inline-size: 3rem;
+        margin-block-start: 0.5rem;
+        background: var(--accent);
+        transform-origin: left;
+        transform: scaleX(1);
+    }
+
+    [data-theme='shade-dark'][data-kp-effects] [data-kp-reveal='rule']:not(.is-in)::after {
+        transform: scaleX(0);
+    }
+
+    /* The emphasis containers with nothing to clear — the hero CTA and the
+       dossier card — settle out of the same blur the headline's words use,
+       once, on load (S49 finding: the demo's own words say "on first
+       scroll-into-view"; the shared module has no generic per-element
+       scroll trigger outside data-kp-reveal="rule", so this plays once the
+       page is ready rather than when the reader scrolls to it — kept as
+       close to the demo as the module allows, recorded in anatomy.md). */
+    [data-theme='shade-dark'] [data-kp-reveal='emphasis'] {
+        opacity: 1;
+        filter: blur(0);
+    }
+
+    /* The mark, outside a card: a static signal plate, no clearing — the
+       demo's lede marks never cover and never reveal, unlike the dossier's. */
+    [data-theme='shade-dark'] mark {
+        background: var(--fx-signal);
+        color: var(--fx-signal-foreground);
+        font-weight: 600;
+        padding: 0.05em 0.35em;
+        border-radius: 0.2em;
+        white-space: nowrap;
+    }
+
+    /* The dossier's marks: ink plates the reader clears left to right. At
+       rest (no script, or reduced motion) the text stands plain — the
+       plate is a reveal, not a redaction that could hide content. */
+    /* white-space: nowrap keeps a redacted phrase on one line: the plate
+       below is a single absolutely-positioned box sized to the mark's own
+       bounding rect, and a phrase that wrapped across two lines produced
+       one oversized plate spanning both — measured and fixed 2026-09-08. */
+    [data-theme='shade-dark'] .kp-card[data-kp-reveal='emphasis'] mark {
+        position: relative;
+        background: none;
+        color: var(--card-foreground);
+        font-weight: 400;
+        padding: 0;
+        white-space: nowrap;
+    }
+
+    [data-theme='shade-dark'] .kp-card[data-kp-reveal='emphasis'] mark::after {
+        content: '';
+        position: absolute;
+        inset: -0.05em -0.08em;
+        background: var(--border-strong);
+        border-radius: 0.15em;
+        transform-origin: right;
+        transform: scaleX(1);
+        pointer-events: none;
+    }
+
+    [data-theme='shade-dark'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark:not(.is-cleared) {
+        color: transparent;
+    }
+
+    [data-theme='shade-dark'] .kp-card[data-kp-reveal='emphasis'] mark.is-cleared::after {
+        transform: scaleX(0);
+    }
+
+    /* The divider: shade-dark shares one ground between hero and app
+       (anatomy.md), so a plain fade to transparent would fade to the
+       colour it already sits on. The mechanism is a radial swell in the
+       NEXT surface's own tone plus a hairline fading at both ends —
+       noth.in's blurred-seam idea paired with Dark Editorial's gold-line
+       device, neither literally reproduced (S49: no blur() filter, no
+       literal gold — both are token-relative here). */
+    [data-theme='shade-dark'] [data-kp-divider] {
+        position: relative;
+        block-size: 7rem;
+        margin-block: -2.5rem;
+        pointer-events: none;
+        z-index: 1;
+    }
+
+    [data-theme='shade-dark'] [data-kp-divider]::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+            ellipse 62% 100% at 50% 50%,
+            hsl(from var(--popover) h s l / 0.55) 0%,
+            hsl(from var(--popover) h s l / 0.18) 45%,
+            transparent 75%
+        );
+    }
+
+    [data-theme='shade-dark'] [data-kp-divider]::after {
+        content: '';
+        position: absolute;
+        inset-inline: 12%;
+        inset-block-start: 50%;
+        block-size: 1px;
+        background: linear-gradient(to right, transparent, var(--border-strong) 20%, var(--border-strong) 80%, transparent);
+        opacity: 0.55;
+    }
+
+    [data-theme='shade-dark'] [data-kp-divider='alt']::before {
+        background: radial-gradient(
+            ellipse 62% 100% at 50% 50%,
+            hsl(from var(--secondary) h s l / 0.55) 0%,
+            hsl(from var(--secondary) h s l / 0.18) 45%,
+            transparent 75%
+        );
+    }
+
+    /* ── The hero ──────────────────────────────────────────────────────── */
+
+    [data-theme='shade-dark'] [data-kp-surface='hero'] {
+        padding-block: 1.5rem 2.5rem;
+    }
+
+    [data-theme='shade-dark'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+        grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+        gap: clamp(2rem, 5vw, 3.5rem);
+        align-items: start;
+    }
+
+    @container (max-width: 55rem) {
+        [data-theme='shade-dark'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+
+    /* ── The navbar ────────────────────────────────────────────────────── */
+
+    [data-theme='shade-dark'] .kp-nav-wrap {
+        background: var(--popover);
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='shade-dark'] .kp-nav {
+        background: var(--popover);
+    }
+
+    [data-theme='shade-dark'] .kp-nav__brand {
+        font-family: var(--theme-font-display);
+        font-weight: 700;
+        color: var(--foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-nav__brand-tag {
+        font-family: var(--theme-font-mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.1em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-nav__link {
+        color: var(--muted-foreground);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-nav__link:hover,
+    [data-theme='shade-dark'] .kp-nav__link:focus-visible,
+    [data-theme='shade-dark'] .kp-nav__link[aria-current],
+    [data-theme='shade-dark'] .kp-nav__links > li:focus-within > .kp-nav__link {
+        color: var(--foreground);
+        background: none;
+    }
+
+    [data-theme='shade-dark'] .kp-nav__link--cta {
+        color: var(--accent-foreground);
+        background: var(--accent);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-nav__link--cta:hover,
+    [data-theme='shade-dark'] .kp-nav__link--cta:focus-visible {
+        color: var(--accent-foreground);
+        background: hsl(from var(--accent) h s calc(l + 8%));
+    }
+
+    /* The dropdown (KT14): a raised panel on the card ground, one boundary
+       in border-strong, no shadow — the tone ladder carries the depth. */
+    [data-theme='shade-dark'] .kp-nav__menu {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        box-shadow: none;
+    }
+
+    [data-theme='shade-dark'] .kp-nav__menu a {
+        color: var(--muted-foreground);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-nav__menu a:hover,
+    [data-theme='shade-dark'] .kp-nav__menu a:focus-visible {
+        color: var(--foreground);
+        background: var(--secondary);
+    }
+
+    /* ── Buttons ───────────────────────────────────────────────────────── */
+
+    [data-theme='shade-dark'] .kp-button,
+    [data-theme='shade-dark'] .kp-icon-button {
+        background: var(--secondary);
+        color: var(--secondary-foreground);
+        border: 1px solid transparent;
+        border-radius: var(--radius);
+        font-weight: 600;
+    }
+
+    [data-theme='shade-dark'] .kp-button:hover {
+        background: hsl(from var(--secondary) h s calc(l + 4%));
+    }
+
+    [data-theme='shade-dark'] .kp-button--primary {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-button--primary:hover {
+        background: hsl(from var(--primary) h s calc(l + 7%));
+    }
+
+    [data-theme='shade-dark'] .kp-button--ghost {
+        background: transparent;
+        color: var(--foreground);
+        border-color: var(--border-strong);
+    }
+
+    [data-theme='shade-dark'] .kp-button--ghost:hover {
+        background: var(--card);
+    }
+
+    [data-theme='shade-dark'] .kp-button--destructive {
+        background: var(--destructive);
+        color: var(--destructive-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-button--destructive:hover {
+        background: hsl(from var(--destructive) h s calc(l + 8%));
+    }
+
+    [data-theme='shade-dark'] .kp-button:disabled {
+        opacity: 0.55;
+    }
+
+    /* The demo's call-to-action row: wide buttons, as in the reference. A
+       pager's or a menu's button keeps its own width (DI11 at 320 px). */
+    [data-theme='shade-dark'] [data-kp-surface='hero'] .kp-row > .kp-button {
+        min-width: min(11rem, 100%);
+    }
+
+    /* ── Fields ────────────────────────────────────────────────────────── */
+
+    [data-theme='shade-dark'] .kp-field__label {
+        font-weight: 600;
+    }
+
+    [data-theme='shade-dark'] .kp-field__required {
+        font-weight: 400;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-field__input,
+    [data-theme='shade-dark'] .kp-datatable__search,
+    [data-theme='shade-dark'] .kp-combobox__input,
+    [data-theme='shade-dark'] .kp-palette__input {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-field__help {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-field--invalid .kp-field__input {
+        border-color: var(--destructive);
+    }
+
+    [data-theme='shade-dark'] .kp-field__error {
+        color: var(--destructive);
+    }
+
+    [data-theme='shade-dark'] .kp-field__check {
+        accent-color: var(--primary);
+    }
+
+    [data-theme='shade-dark'] .kp-fieldset {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-form__summary {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    /* ── Cards, popovers and surfaces: the tone ladder alone, no shadow ─── */
+
+    [data-theme='shade-dark'] .kp-card,
+    [data-theme='shade-dark'] .kp-popover {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: none;
+    }
+
+    [data-theme='shade-dark'] .kp-card__stamp {
+        font-family: var(--theme-font-mono);
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--status-draft-foreground);
+        background: var(--status-draft);
+        border-radius: 0.2rem;
+    }
+
+    [data-theme='shade-dark'] .kp-dialog,
+    [data-theme='shade-dark'] .kp-menu,
+    [data-theme='shade-dark'] .kp-toast,
+    [data-theme='shade-dark'] .kp-tooltip,
+    [data-theme='shade-dark'] .kp-confirm,
+    [data-theme='shade-dark'] .kp-datepicker__panel,
+    [data-theme='shade-dark'] .kp-combobox__list,
+    [data-theme='shade-dark'] .kp-palette,
+    [data-theme='shade-dark'] .kp-theme-menu {
+        background: var(--popover);
+        color: var(--foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        box-shadow: none;
+    }
+
+    [data-theme='shade-dark'] .kp-menu__item:hover {
+        background: var(--secondary);
+        color: var(--secondary-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-alert {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-grid {
+        gap: 0.75rem;
+    }
+
+    [data-theme='shade-dark'] .kp-grid__tile,
+    [data-theme='shade-dark'] .kp-split__pane {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-split__separator {
+        background: var(--border);
+    }
+
+    [data-theme='shade-dark'] .kp-toasts {
+        gap: 0.6rem;
+    }
+
+    /* ── Footer ────────────────────────────────────────────────────────── */
+
+    [data-theme='shade-dark'] .kp-footer {
+        background: var(--popover);
+        border-top: 1px solid var(--border);
+    }
+
+    [data-theme='shade-dark'] .kp-footer a {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-footer a:hover,
+    [data-theme='shade-dark'] .kp-footer a:focus-visible {
+        color: var(--foreground);
+    }
+
+    /* ── Badges, tags, status ──────────────────────────────────────────── */
+
+    [data-theme='shade-dark'] .kp-badge,
+    [data-theme='shade-dark'] .kp-tag {
+        border-radius: 0.25rem;
+    }
+
+    [data-theme='shade-dark'] .kp-health {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-health__dot {
+        border-radius: 50%;
+    }
+
+    [data-theme='shade-dark'] .kp-skeleton {
+        background: var(--card);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-progress {
+        background: var(--card);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-progress__value {
+        background: var(--primary);
+    }
+
+    [data-theme='shade-dark'] .kp-spinner {
+        border-color: var(--border);
+        border-top-color: var(--primary);
+    }
+
+    [data-theme='shade-dark'] .kp-empty {
+        border: 1px dashed var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-error {
+        color: var(--destructive);
+    }
+
+    /* ── Text shapes: identifiers in mono ──────────────────────────────── */
+
+    [data-theme='shade-dark'] .kp-id,
+    [data-theme='shade-dark'] .kp-url,
+    [data-theme='shade-dark'] .kp-numeric,
+    [data-theme='shade-dark'] .kp-timestamp,
+    [data-theme='shade-dark'] .kp-masked,
+    [data-theme='shade-dark'] .kp-copyable,
+    [data-theme='shade-dark'] .kp-truncate,
+    [data-theme='shade-dark'] .kp-cell-break,
+    [data-theme='shade-dark'] .kp-cell-truncate {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.01em;
+    }
+
+    [data-theme='shade-dark'] .kp-copyable__button {
+        border-radius: var(--radius);
+    }
+
+    /* ── Data ──────────────────────────────────────────────────────────── */
+
+    [data-theme='shade-dark'] .kp-table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    [data-theme='shade-dark'] .kp-table th {
+        color: var(--muted-foreground);
+        border-bottom: 1px solid var(--border-strong);
+        font-weight: 600;
+    }
+
+    [data-theme='shade-dark'] .kp-table td {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='shade-dark'] .kp-table tbody tr:hover {
+        background: var(--card);
+    }
+
+    [data-theme='shade-dark'] .kp-datatable {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--card);
+    }
+
+    [data-theme='shade-dark'] .kp-datatable__bar {
+        background: var(--popover);
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='shade-dark'] .kp-datatable__sort[aria-sort] {
+        color: var(--primary);
+    }
+
+    [data-theme='shade-dark'] .kp-diff {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-timeline {
+        border-inline-start: 2px solid var(--border);
+    }
+
+    [data-theme='shade-dark'] .kp-timeline__marker {
+        background: var(--primary);
+    }
+
+    [data-theme='shade-dark'] .kp-tree {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='shade-dark'] .kp-reorder {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    /* ── Navigation and steps ──────────────────────────────────────────── */
+
+    [data-theme='shade-dark'] .kp-tab {
+        color: var(--muted-foreground);
+        border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    [data-theme='shade-dark'] .kp-tab[aria-selected='true'] {
+        color: var(--foreground);
+        border-bottom: 2px solid var(--accent);
+    }
+
+    [data-theme='shade-dark'] .kp-tabs__list {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='shade-dark'] .kp-breadcrumb {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-pagination {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-pagination a[aria-current],
+    [data-theme='shade-dark'] .kp-pagination [aria-current] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-wizard {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    /* ── Pickers and palettes ──────────────────────────────────────────── */
+
+    [data-theme='shade-dark'] .kp-datepicker__day[aria-selected='true'] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-colorpicker__swatch {
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-shortcuts__row kbd {
+        border: 1px solid var(--border-strong);
+        border-radius: 0.2rem;
+        background: var(--card);
+        font-family: var(--theme-font-mono);
+    }
+
+    /* ── The roots the rules above reach only by their parts ────────────── */
+
+    [data-theme='shade-dark'] .kp-combobox,
+    [data-theme='shade-dark'] .kp-datepicker,
+    [data-theme='shade-dark'] .kp-colorpicker,
+    [data-theme='shade-dark'] .kp-shortcuts,
+    [data-theme='shade-dark'] .kp-tabs {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-field {
+        gap: 0.35rem;
+    }
+
+    [data-theme='shade-dark'] .kp-form {
+        gap: 1.1rem;
+    }
+
+    [data-theme='shade-dark'] .kp-split {
+        gap: 0;
+    }
+
+    /* ── The scrollbar joins the theme ──────────────────────────────────── */
+
+    [data-theme='shade-dark'] {
+        scrollbar-color: var(--border-strong) var(--card);
+    }
+
+    /* ── The demo's own pieces [S46] ─────────────────────────────────────── */
+
+    [data-theme='shade-dark'] .kp-side-note {
+        font-family: var(--theme-font-mono);
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-laurels {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-laurels b {
+        color: var(--foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-lede {
+        max-width: 42rem;
+    }
+
+    [data-theme='shade-dark'] .kp-platforms {
+        font-family: var(--theme-font-mono);
+        font-size: 0.78rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-platforms span::before {
+        content: '· ';
+        color: var(--border-strong);
+    }
+
+    [data-theme='shade-dark'] .kp-platforms span:first-child::before {
+        content: '';
+    }
+
+    [data-theme='shade-dark'] .kp-spec {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='shade-dark'] .kp-spec dt {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='shade-dark'] .kp-spec__swatch {
+        border: 1px solid var(--border-strong);
+        border-radius: 0.25rem;
+    }
+
+    [data-theme='shade-dark'] .kp-spec__font {
+        font-family: var(--theme-font-display);
+    }
+
+    /* ── Motion, guarded [DI7] ─────────────────────────────────────────── */
+
+    /* Every animation and transition of this register lives here, inside
+       the no-preference guard, so a reader who asked for reduced motion
+       never receives one: the rest states above (rule drawn, mark plain,
+       card and button in full focus) are what they get. */
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='shade-dark'] [data-kp-reveal='headline'].is-words [data-word] {
+            animation: kp-focus 600ms var(--kp-ease-reveal) both;
+            animation-delay: calc(var(--kp-i, 0) * var(--kp-word-stagger));
+        }
+
+        [data-theme='shade-dark'] [data-kp-reveal='rule']::after {
+            transition: transform 500ms var(--kp-ease-reveal);
+        }
+
+        /* The emphasis containers with nothing to clear settle out of the
+           blur once, on load (see the finding above the rest-state rule). */
+        [data-theme='shade-dark'][data-kp-effects] [data-kp-reveal='emphasis'] {
+            animation: kp-focus-in 500ms var(--kp-ease-reveal) both;
+        }
+
+        [data-theme='shade-dark'] .kp-card[data-kp-reveal='emphasis'] mark::after {
+            transition: transform 300ms var(--kp-ease-reveal);
+        }
+
+        [data-theme='shade-dark'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(2)::after {
+            transition-delay: var(--kp-redact-stagger);
+        }
+
+        [data-theme='shade-dark'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(3)::after {
+            transition-delay: calc(2 * var(--kp-redact-stagger));
+        }
+
+        /* The colour switches the instant the plate starts to recede: the
+           text sits behind the plate at that moment, so nothing is ever
+           read mid-transition (KT8). */
+        [data-theme='shade-dark'] .kp-card[data-kp-reveal='emphasis'] mark {
+            transition: color 0s linear 0s;
+        }
+
+        /* The dialog: opacity and a small settle, 180ms — the same
+           --fx-duration this theme already ships (demo comment 2). */
+        [data-theme='shade-dark'] .kp-dialog {
+            animation: kp-dialog-in 180ms var(--fx-ease) both;
+        }
+
+        [data-theme='shade-dark'] .kp-dialog::backdrop {
+            animation: kp-backdrop-in 180ms var(--fx-ease) both;
+        }
+
+        [data-theme='shade-dark'] .kp-button,
+        [data-theme='shade-dark'] .kp-nav__link,
+        [data-theme='shade-dark'] .kp-nav__link--cta,
+        [data-theme='shade-dark'] .kp-nav__menu,
+        [data-theme='shade-dark'] .kp-nav__menu a,
+        [data-theme='shade-dark'] .kp-footer a,
+        [data-theme='shade-dark'] .skip-link {
+            transition:
+                background var(--fx-duration) var(--fx-ease),
+                color var(--fx-duration) var(--fx-ease),
+                opacity var(--fx-duration) var(--fx-ease),
+                transform var(--fx-duration) var(--fx-ease),
+                visibility var(--fx-duration) var(--fx-ease);
+        }
+    }
+
+    /* ── Motion [DI5, DI7] ────────────────────────────────────────────── */
+
+    /* Every keyframe here has its row in TIMINGS (js/effects.js). The
+       headline's words and the emphasis containers' entrance are the same
+       blur-and-focus device at two grains; the dialog's pair is opacity
+       with a small settle, once, on open. */
+    @keyframes kp-focus {
+        0% {
+            opacity: 0;
+            filter: blur(6px);
+        }
+
+        100% {
+            opacity: 1;
+            filter: blur(0);
+        }
+    }
+
+    @keyframes kp-focus-in {
+        0% {
+            opacity: 0;
+            filter: blur(6px);
+        }
+
+        100% {
+            opacity: 1;
+            filter: blur(0);
+        }
+    }
+
+    @keyframes kp-dialog-in {
+        0% {
+            opacity: 0;
+            transform: translateY(6px) scale(0.98);
+        }
+
+        100% {
+            opacity: 1;
+            transform: none;
+        }
+    }
+
+    @keyframes kp-backdrop-in {
+        0% {
+            opacity: 0;
+        }
+
+        100% {
+            opacity: 1;
+        }
+    }
+    /* The band [M1, M4]: Kenny picked this theme's own version over the
+       shared one on 2026-09-08 — the same fade in the dark. */
+    [data-theme='shade-dark'] .kp-marquee {
+        mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent);
+        color: var(--muted-foreground);
+        font-family: var(--theme-font-mono);
+        --kp-marquee: 46000ms;
+    }
+
+    /* The menu's caption [M3]: the same choice, for the line a consumer
+       may put above a dropdown's items. */
+    [data-theme='shade-dark'] .kp-nav__menu[data-kp-menu-label]::before {
+        font-family: var(--theme-font-mono);
+        text-transform: none;
+        letter-spacing: 0;
+        color: var(--muted-foreground);
+        border-block-end: 0;
+    }
+}

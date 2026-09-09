@@ -302,6 +302,14 @@ Nothing is required. What a project can adopt, each on its own:
 - **Docs:** `chassis sync --write` adds `docs/KIT.md` (kit-owned; point the
   project's own docs at it instead of retelling the kit) and the knob table
   behind `<name> --knobs`; hand-written kit knob tables can go.
+- **kp-themes 5.0.0:** nothing to do on the kit's layout — the picker shows
+  25 themes, a visitor's stored `topo`/`tazhib`/`nishiki` becomes
+  `forest`/`lapis`/`woodblock` on the next page load, and destructive
+  buttons confirm in a dialog. Own templates that linked `/static/themes.css`,
+  `/static/components.css` or `/static/fonts/…` directly move to
+  `/static/kp/css/…` and `/static/kp/fonts/…`; a test that asserted the old
+  path does the same. `chassis sync --write` corrects `kp_themes` in
+  `.chassis.toml` to `5.0.0` (K32).
 - **Drift:** `chassis sync` now also reports a kit tag in Cargo.toml that
   differs from `chassis_tag`, a stale `kp_themes`, and with `--remote` a branch
   protection that names other checks than the CI does.

@@ -518,7 +518,7 @@ fn dashboard_pages_render_with_layout_and_assets() {
     );
     let asset_url = html
         .split('"')
-        .find(|s| s.starts_with("/static/themes.css?v="))
+        .find(|s| s.starts_with("/static/kp/css/themes.css?v="))
         .expect("versioned asset link")
         .to_string();
     let res = http.get(format!("{base}{asset_url}")).send().unwrap();
@@ -1742,9 +1742,11 @@ fn project_page_renders_inside_the_layout_with_security_headers() {
         assert!(page.contains("class=\"explain\""), "{p} explains itself");
     }
     for asset in [
-        "/static/fonts.css",
+        "/static/kp/css/fonts.css",
+        "/static/kp/css/layout.css",
+        "/static/kp/css/formal-register.css",
         "/static/theme-boot.js",
-        "/static/fonts/instrument-sans-latin-400-normal.woff2",
+        "/static/kp/fonts/instrumentsans/instrumentsans-variable.woff2",
     ] {
         let res = anon.get(format!("http://{addr}{asset}")).send().unwrap();
         assert_eq!(res.status().as_u16(), 200, "{asset}");

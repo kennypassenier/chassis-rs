@@ -1,0 +1,828 @@
+@layer kp.register {
+    /* @kp-soft/themes — css/high-contrast-register.css
+   The high-contrast register, 5.0.0 [S48, LIFT_PLAN row 6]: printed for
+   the reader who needs contrast, not comfort. Scoped to
+   [data-theme='high-contrast'] and inert elsewhere; opt-in, imported
+   after themes.css. The approved concept demo ("Ink & Signal",
+   2026-09-08) is the reference for every value here.
+
+   The idea, restated from the demo's own comment block: pure black on
+   pure white (21:1), one signal-yellow accent that is never used as
+   text, no gradient, no shadow, no texture, no gloss. Every control
+   keeps a real border — 2px at rest, black on focus — never a colour
+   change alone. Every motion is a single load- or click-triggered
+   transition that starts and stops once; nothing loops, nothing blinks,
+   nothing eases past linear or ease-out.
+
+   What this file does, in order: the knobs; the ring and the selection;
+   type; the hooks of S45 — the headline's one-shot ellipse wipe, the
+   redaction bars a mark hides behind, the drawn rule, the razor-tear
+   divider; the hero's own pieces; the navbar and its dropdown; the
+   buttons, including the mirrored press and the ghost's rising bar; the
+   fields; the dossier and its stamp; the panels; the footer; and one
+   answer per component root (TH124). The reveals have their rest state
+   here and their motion in this file's own guarded block; without a
+   script or with reduced motion every one of them stands at rest —
+   these two reveals are pure CSS and do not depend on js/effects.js at
+   all (a deliberate divergence from the JS-driven, once-per-session
+   convention the other five registers use; recorded in the anatomy and
+   the lift report, S49).
+
+   Colour discipline (DI9): nothing here names a colour. --border-strong
+   is the only ink most controls need; --accent is the one signal colour
+   and it is never set as a foreground on the page ground (1.51:1, well
+   under the floor — refused by construction, matching the demo's own
+   contrast table). */
+
+    [data-theme='high-contrast'] {
+        /* The configuration surface [AR43], the demo's own values. */
+        --kp-headline-wipe: 550ms;
+        --kp-rule-wipe: 400ms;
+        --kp-redact-lift: 300ms;
+        --kp-redact-stagger: 90ms;
+        --kp-ghost-bar: 140ms;
+        /* The reveals this theme performs [S45]. The headline and the rule
+           are left unset on purpose: js/effects.js treats an unset routine
+           as quiet and leaves the element alone, which is what lets the
+           plain CSS keyframes below run unconditionally, exactly once,
+           on every load — the demo's own idiom, with no character
+           scrambling and no session memo. Emphasis needs a routine (any
+           non-empty word) so the module leaves the dossier's marks in
+           their CSS rest state instead of clearing them before the
+           trigger is ever pressed [S49]. */
+        --kp-reveal-emphasis: classified;
+        /* The mirror press: a flat 3px offset, no blur, no colour. */
+        --kp-mirror-offset: 3px;
+    }
+
+    /* ── The ring and the selection [DI2] ─────────────────────────────────
+       The demo stacks the paper channel inside and the ink channel
+       outside — the opposite order from the base layer's default, which
+       register rule 8 allows either way, since both channels still clear
+       3:1 against what is behind them. */
+    [data-theme='high-contrast'] :focus-visible {
+        outline: none;
+        box-shadow:
+            0 0 0 2px var(--background),
+            0 0 0 4px var(--foreground);
+    }
+
+    [data-theme='high-contrast'] ::selection {
+        background: var(--foreground);
+        color: var(--background);
+    }
+
+    /* ── Type ──────────────────────────────────────────────────────────── */
+
+    [data-theme='high-contrast'] a {
+        text-decoration-thickness: 2px;
+        text-underline-offset: 0.15em;
+    }
+
+    [data-theme='high-contrast'] .microlabel {
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: var(--kp-text-xs);
+        font-weight: 700;
+        color: var(--muted-foreground);
+    }
+
+    /* ── The hooks [S45]: the headline, the mark, the rule, the divider ── */
+
+    /* The headline: a clip-path ellipse wipe sweeping on from the left
+       edge, once, on load — no character scrambling, text intact
+       throughout. The base value IS the fully-revealed state, so a page
+       with no script (or reduced motion, which drops the animation
+       below) still shows the headline whole [AR34's promise, kept by a
+       plain property rather than a class]. */
+    [data-theme='high-contrast'] [data-kp-reveal='headline'] {
+        clip-path: ellipse(150% 150% at 0% 50%);
+    }
+
+    @keyframes kp-hc-headline-wipe {
+        from {
+            clip-path: ellipse(0% 0% at 0% 50%);
+        }
+
+        to {
+            clip-path: ellipse(150% 150% at 0% 50%);
+        }
+    }
+
+    /* The rule under a heading: a 3px bar that draws left to right, once,
+       on load. Same rest-state-is-final idiom as the headline. */
+    [data-theme='high-contrast'] [data-kp-reveal='rule']::after {
+        content: '';
+        display: block;
+        height: 3px;
+        margin-block-start: 0.5rem;
+        background: var(--foreground);
+        transform: scaleX(1);
+        transform-origin: left center;
+    }
+
+    @keyframes kp-hc-rule-wipe {
+        from {
+            transform: scaleX(0);
+        }
+
+        to {
+            transform: scaleX(1);
+        }
+    }
+
+    /* The mark, outside the dossier: an accent plate, always on — the
+       demo's own lede treatment, with no cover-and-clear mechanism (the
+       shared module still toggles is-cleared on it, but nothing here
+       reads that class, so nothing changes). */
+    [data-theme='high-contrast'] mark {
+        background: var(--accent);
+        color: var(--accent-foreground);
+        padding: 0.05em 0.25em;
+        border-radius: 0.15em;
+    }
+
+    /* The divider: a flat two-tone hard edge, no blur — the "razor tear". */
+    [data-theme='high-contrast'] [data-kp-divider] {
+        display: block;
+        block-size: 6px;
+        background: var(--border-strong);
+        border-bottom: 2px solid var(--accent);
+        margin: 0;
+    }
+
+    [data-theme='high-contrast'] [data-kp-divider='alt'] {
+        background: var(--accent);
+        border-bottom: 2px solid var(--border-strong);
+    }
+
+    /* ── The nav bar and its dropdown [KT14] ──────────────────────────── */
+
+    [data-theme='high-contrast'] .kp-nav-wrap {
+        background: var(--background);
+        border-bottom: 3px solid var(--border-strong);
+        box-shadow: none;
+    }
+
+    /* No script sets data-scrolled today [finding, S49]: the demo's nav
+       recolour on scroll has no shared JS hook to drive it (no module in
+       this package writes [data-scrolled], and a page-local script is
+       forbidden, TH109). The rule is kept, inert, so the mechanism is
+       exactly what the demo specifies the moment such a hook exists. */
+    [data-theme='high-contrast'] .kp-nav-wrap[data-scrolled] {
+        border-bottom-color: var(--border-strong);
+        box-shadow: 0 3px 0 0 var(--accent);
+    }
+
+    [data-theme='high-contrast'] .kp-nav__brand {
+        letter-spacing: 0.01em;
+    }
+
+    [data-theme='high-contrast'] .kp-nav__link {
+        font-weight: 700;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+    }
+
+    [data-theme='high-contrast'] .kp-nav__link:hover,
+    [data-theme='high-contrast'] .kp-nav__link[aria-current='page'] {
+        border-bottom-color: var(--foreground);
+    }
+
+    [data-theme='high-contrast'] .kp-nav__link--lang {
+        text-transform: uppercase;
+        font-size: 0.85rem;
+    }
+
+    [data-theme='high-contrast'] .kp-nav__link--cta {
+        background: var(--accent);
+        color: var(--accent-foreground);
+        border-bottom: none;
+        border-radius: var(--radius);
+        padding-inline: var(--kp-space-md);
+    }
+
+    [data-theme='high-contrast'] .kp-nav__link--cta:hover {
+        border-bottom: none;
+    }
+
+    /* The dropdown: white, the black line, no fade — matches the demo's
+       own panel exactly [KT14]. */
+    [data-theme='high-contrast'] .kp-nav__menu {
+        border: 2px solid var(--border-strong);
+        border-radius: var(--radius);
+        box-shadow: none;
+    }
+
+    [data-theme='high-contrast'] .kp-nav__menu a:hover,
+    [data-theme='high-contrast'] .kp-nav__menu a:focus-visible {
+        background: var(--muted);
+    }
+
+    /* ── The hero's own pieces [S46] ──────────────────────────────────── */
+
+    [data-theme='high-contrast'] .kp-side-note {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.08em;
+    }
+
+    [data-theme='high-contrast'] .kp-laurels {
+        border-bottom: 1px solid var(--border);
+        padding-block-end: var(--kp-space-md);
+        gap: var(--kp-space-lg) var(--kp-space-2xl);
+    }
+
+    [data-theme='high-contrast'] .kp-laurels b {
+        font-size: 1.15rem;
+        letter-spacing: -0.01em;
+    }
+
+    [data-theme='high-contrast'] .kp-platforms {
+        font-family: var(--theme-font-mono);
+        padding-block-start: var(--kp-space-sm);
+        border-top: 1px solid var(--border);
+    }
+
+    [data-theme='high-contrast'] h1.kp-headline,
+    [data-theme='high-contrast'] [data-kp-surface] h1 {
+        letter-spacing: -0.015em;
+        max-width: 18ch;
+    }
+
+    [data-theme='high-contrast'] .kp-lede {
+        max-width: 52ch;
+        font-size: 1.1rem;
+    }
+
+    /* The spec sheet: the card treatment, the swatches with the ink line. */
+    [data-theme='high-contrast'] .kp-spec {
+        border: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-spec dt {
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: var(--kp-text-xs);
+    }
+
+    [data-theme='high-contrast'] .kp-spec dd {
+        font-family: var(--theme-font-mono);
+        font-size: var(--kp-text-xs);
+    }
+
+    [data-theme='high-contrast'] .kp-spec__swatch {
+        border: 2px solid var(--border-strong);
+        border-radius: 0.2rem;
+        inline-size: 1.1em;
+        block-size: 1.1em;
+    }
+
+    /* ── Buttons: a real border, never a colour alone ─────────────────── */
+
+    [data-theme='high-contrast'] .kp-button {
+        border-width: 2px;
+        font-weight: 700;
+    }
+
+    [data-theme='high-contrast'] .kp-button--primary {
+        border-color: var(--primary);
+    }
+
+    [data-theme='high-contrast'] .kp-button--destructive {
+        border-color: var(--destructive);
+    }
+
+    /* The mirror: a flat offset shadow, no blur — pressed drops the
+       button onto it. Only the buttons the demo marks --mirror carry
+       this; every other theme's --fx-shadow-offset knob stays 0 so
+       nothing changes for them. */
+    [data-theme='high-contrast'] .kp-button--mirror {
+        box-shadow: var(--kp-mirror-offset) var(--kp-mirror-offset) 0 0 var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-button--mirror:active:not(:disabled) {
+        box-shadow: none;
+        translate: var(--kp-mirror-offset) var(--kp-mirror-offset);
+    }
+
+    [data-theme='high-contrast'] .kp-button--mirror:focus-visible {
+        box-shadow:
+            0 0 0 2px var(--background),
+            0 0 0 4px var(--foreground),
+            var(--kp-mirror-offset) var(--kp-mirror-offset) 0 0 var(--border-strong);
+    }
+
+    /* Ghost: no fill, border-strong outline. The demo's mechanism — a
+       second copy of the label sliding up from below — needs two copies
+       of the text in the DOM; the shared Button renderer emits one
+       [finding, S49]. Kept instead: a bar rises from the bottom edge on
+       hover/focus, the same "something arrives from below" gesture,
+       CSS-only and content-free. */
+    [data-theme='high-contrast'] .kp-button--ghost {
+        border-color: var(--border-strong);
+        overflow: hidden;
+        position: relative;
+    }
+
+    [data-theme='high-contrast'] .kp-button--ghost::after {
+        content: '';
+        position: absolute;
+        inset-inline: 0;
+        inset-block-end: 0;
+        block-size: 3px;
+        background: var(--foreground);
+        transform: translateY(100%);
+    }
+
+    [data-theme='high-contrast'] .kp-button--ghost:hover::after,
+    [data-theme='high-contrast'] .kp-button--ghost:focus-visible::after {
+        transform: translateY(0);
+    }
+
+    [data-theme='high-contrast'] .kp-icon-button {
+        border-width: 2px;
+    }
+
+    /* ── Fields: a soft hairline at rest, black on focus ──────────────── */
+
+    [data-theme='high-contrast'] .kp-field__input,
+    [data-theme='high-contrast'] .kp-datatable__search,
+    [data-theme='high-contrast'] .kp-combobox__input,
+    [data-theme='high-contrast'] .kp-palette__input {
+        border: 2px solid var(--border);
+    }
+
+    [data-theme='high-contrast'] .kp-field__input:focus-visible,
+    [data-theme='high-contrast'] .kp-datatable__search:focus-visible,
+    [data-theme='high-contrast'] .kp-combobox__input:focus-visible,
+    [data-theme='high-contrast'] .kp-palette__input:focus-visible {
+        border-color: var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-field__label {
+        font-weight: 700;
+    }
+
+    [data-theme='high-contrast'] .kp-field__required,
+    [data-theme='high-contrast'] .kp-field__help {
+        color: var(--muted-foreground);
+        font-size: 0.78rem;
+        font-weight: 400;
+    }
+
+    [data-theme='high-contrast'] .kp-field__check {
+        accent-color: var(--primary);
+    }
+
+    [data-theme='high-contrast'] .kp-fieldset {
+        border: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-form__summary {
+        border: 2px solid var(--border-strong);
+    }
+
+    /* ── Cards and the dossier ────────────────────────────────────────── */
+
+    [data-theme='high-contrast'] .kp-card {
+        border: 2px solid var(--border-strong);
+        box-shadow: none;
+    }
+
+    /* The stamp: a bordered plate in the destructive ink, tilted — the
+       demo's own "On record". */
+    [data-theme='high-contrast'] .kp-card[data-kp-label]::before {
+        content: attr(data-kp-label);
+        position: absolute;
+        inset-block-start: var(--kp-space-lg);
+        inset-inline-end: var(--kp-space-lg);
+        border: 2px solid var(--destructive);
+        color: var(--destructive);
+        font-family: var(--theme-font-mono);
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        padding: 0.15em 0.5em;
+        border-radius: 0.2rem;
+        text-transform: uppercase;
+    }
+
+    [data-theme='high-contrast'] .kp-card[data-kp-reveal='emphasis'] {
+        position: relative;
+    }
+
+    /* The redactions: solid bars over the words, one per mark. At rest —
+       no script — the marks stand clear, matching AR34's promise; armed
+       and not yet cleared, the bar covers the word from the left, and
+       lifting shrinks it away, three staggered by 90/180ms exactly as
+       the demo's transition-delay ladder does. */
+    [data-theme='high-contrast'] .kp-card[data-kp-reveal='emphasis'] mark {
+        /* inline-block: an absolutely positioned ::after covers the box
+           an inline element generates, and an inline mark that wraps
+           generates one box PER LINE — the bar then covers only the
+           last fragment, a sliver rather than a bar (caught by eye at
+           1280px, "tired eyes at the end of a shift" wrapping). As one
+           atomic box the phrase wraps as a whole instead. */
+        display: inline-block;
+        position: relative;
+        background: none;
+        color: var(--card-foreground);
+        font-weight: 400;
+        padding: 0;
+        border-radius: 0;
+    }
+
+    [data-theme='high-contrast'] .kp-card[data-kp-reveal='emphasis'] mark::after {
+        content: '';
+        position: absolute;
+        inset: -0.05em -0.15em;
+        background: var(--foreground);
+        border-radius: 0.1em;
+        transform: scaleX(0);
+        transform-origin: left center;
+        pointer-events: none;
+    }
+
+    [data-theme='high-contrast'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark:not(.is-cleared) {
+        color: transparent;
+    }
+
+    [data-theme='high-contrast'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark:not(.is-cleared)::after {
+        transform: scaleX(1);
+    }
+
+    [data-theme='high-contrast'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(2)::after {
+        transition-delay: var(--kp-redact-stagger);
+    }
+
+    [data-theme='high-contrast'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(3)::after {
+        transition-delay: calc(2 * var(--kp-redact-stagger));
+    }
+
+    /* ── Panels: white, the line, no float, no fade ───────────────────── */
+
+    [data-theme='high-contrast'] .kp-dialog,
+    [data-theme='high-contrast'] .kp-confirm {
+        border: 3px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-popover,
+    [data-theme='high-contrast'] .kp-menu,
+    [data-theme='high-contrast'] .kp-toast,
+    [data-theme='high-contrast'] .kp-tooltip,
+    [data-theme='high-contrast'] .kp-datepicker__panel,
+    [data-theme='high-contrast'] .kp-combobox__list,
+    [data-theme='high-contrast'] .kp-palette,
+    [data-theme='high-contrast'] .kp-theme-menu {
+        border: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-toast {
+        border-color: var(--success);
+    }
+
+    [data-theme='high-contrast'] .kp-menu__item:hover,
+    [data-theme='high-contrast'] .kp-menu__item:focus-visible {
+        background: var(--muted);
+    }
+
+    [data-theme='high-contrast'] .kp-alert {
+        border: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-alert__label {
+        font-weight: 700;
+    }
+
+    [data-theme='high-contrast'] .kp-grid__tile,
+    [data-theme='high-contrast'] .kp-split__pane {
+        border: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-split__separator {
+        background: var(--border-strong);
+        inline-size: 2px;
+    }
+
+    /* ── The footer ────────────────────────────────────────────────────── */
+
+    [data-theme='high-contrast'] .kp-footer {
+        border-top: 3px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-footer h4 {
+        font-size: 0.9rem;
+    }
+
+    [data-theme='high-contrast'] .kp-footer a {
+        text-decoration: none;
+        border-bottom: 1px solid transparent;
+    }
+
+    [data-theme='high-contrast'] .kp-footer a:hover,
+    [data-theme='high-contrast'] .kp-footer a:focus-visible {
+        border-bottom-color: currentColor;
+    }
+
+    /* ── Badges, tags, status: plates with black ink, never colour alone ── */
+
+    [data-theme='high-contrast'] .kp-badge,
+    [data-theme='high-contrast'] .kp-tag {
+        border: 2px solid var(--border-strong);
+        font-weight: 700;
+    }
+
+    [data-theme='high-contrast'] .kp-health {
+        font-weight: 700;
+    }
+
+    [data-theme='high-contrast'] .kp-health__dot {
+        border: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-skeleton {
+        border: 1px solid var(--border);
+    }
+
+    [data-theme='high-contrast'] .kp-progress {
+        border: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-progress__value {
+        background: var(--primary);
+    }
+
+    [data-theme='high-contrast'] .kp-spinner {
+        border-color: var(--border);
+        border-top-color: var(--foreground);
+    }
+
+    [data-theme='high-contrast'] .kp-empty {
+        border: 2px dashed var(--border);
+    }
+
+    [data-theme='high-contrast'] .kp-empty__title {
+        font-weight: 700;
+    }
+
+    [data-theme='high-contrast'] .kp-error {
+        color: var(--destructive);
+        font-weight: 700;
+    }
+
+    /* ── Text shapes ──────────────────────────────────────────────────── */
+
+    [data-theme='high-contrast'] .kp-id,
+    [data-theme='high-contrast'] .kp-url,
+    [data-theme='high-contrast'] .kp-numeric,
+    [data-theme='high-contrast'] .kp-timestamp,
+    [data-theme='high-contrast'] .kp-masked,
+    [data-theme='high-contrast'] .kp-copyable,
+    [data-theme='high-contrast'] .kp-truncate,
+    [data-theme='high-contrast'] .kp-cell-break,
+    [data-theme='high-contrast'] .kp-cell-truncate {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='high-contrast'] .kp-timestamp,
+    [data-theme='high-contrast'] .kp-id {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='high-contrast'] .kp-copyable__button {
+        border: 2px solid var(--border-strong);
+    }
+
+    /* ── Data ─────────────────────────────────────────────────────────── */
+
+    [data-theme='high-contrast'] .kp-table {
+        border: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-table th {
+        border-bottom: 2px solid var(--border-strong);
+        font-weight: 700;
+    }
+
+    [data-theme='high-contrast'] .kp-table td {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='high-contrast'] .kp-table tbody tr:hover {
+        background: var(--muted);
+    }
+
+    [data-theme='high-contrast'] .kp-datatable {
+        border: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-datatable__bar {
+        border-bottom: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-datatable__sort[aria-sort] {
+        background: var(--muted);
+    }
+
+    [data-theme='high-contrast'] .kp-datatable__status,
+    [data-theme='high-contrast'] .kp-datatable__page {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='high-contrast'] .kp-diff {
+        border: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-diff__line {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='high-contrast'] .kp-timeline {
+        border-inline-start: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-timeline__marker {
+        border: 2px solid var(--border-strong);
+        background: var(--background);
+    }
+
+    [data-theme='high-contrast'] .kp-timeline__when {
+        font-family: var(--theme-font-mono);
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='high-contrast'] .kp-reorder {
+        border: 2px solid var(--border-strong);
+    }
+
+    /* ── Navigation and steps ─────────────────────────────────────────── */
+
+    [data-theme='high-contrast'] .kp-tab {
+        border-bottom: 2px solid transparent;
+        font-weight: 700;
+    }
+
+    [data-theme='high-contrast'] .kp-tab[aria-selected='true'] {
+        border-bottom-color: var(--foreground);
+    }
+
+    [data-theme='high-contrast'] .kp-tabs__list {
+        border-bottom: 2px solid var(--border);
+    }
+
+    [data-theme='high-contrast'] .kp-breadcrumb,
+    [data-theme='high-contrast'] .kp-pagination {
+        font-weight: 700;
+    }
+
+    [data-theme='high-contrast'] .kp-pagination a[aria-current],
+    [data-theme='high-contrast'] .kp-pagination [aria-current] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='high-contrast'] .kp-wizard {
+        border: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-wizard__steps {
+        font-weight: 700;
+    }
+
+    /* ── Pickers and palettes ─────────────────────────────────────────── */
+
+    [data-theme='high-contrast'] .kp-datepicker__day[aria-selected='true'] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='high-contrast'] .kp-colorpicker__swatch {
+        border: 2px solid var(--border-strong);
+    }
+
+    [data-theme='high-contrast'] .kp-colorpicker__value {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='high-contrast'] .kp-shortcuts__row kbd {
+        font-family: var(--theme-font-mono);
+        border: 2px solid var(--border-strong);
+        border-radius: 0.2rem;
+        padding: 0 0.4em;
+    }
+
+    [data-theme='high-contrast'] .kp-theme-menu__status,
+    [data-theme='high-contrast'] .kp-palette__status,
+    [data-theme='high-contrast'] .kp-combobox__status {
+        font-family: var(--theme-font-mono);
+    }
+
+    /* ── The roots the rules above reach only by their parts ──────────── */
+
+    [data-theme='high-contrast'] .kp-field {
+        gap: 0.3rem;
+    }
+
+    [data-theme='high-contrast'] .kp-form {
+        gap: var(--kp-space-lg);
+    }
+
+    [data-theme='high-contrast'] .kp-nav {
+        border-bottom: 0;
+    }
+
+    [data-theme='high-contrast'] .kp-grid {
+        gap: var(--kp-space-lg);
+    }
+
+    [data-theme='high-contrast'] .kp-split {
+        gap: var(--kp-space-md);
+    }
+
+    [data-theme='high-contrast'] .kp-toasts {
+        gap: var(--kp-space-md);
+    }
+
+    [data-theme='high-contrast'] .kp-combobox,
+    [data-theme='high-contrast'] .kp-datepicker,
+    [data-theme='high-contrast'] .kp-colorpicker,
+    [data-theme='high-contrast'] .kp-shortcuts {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='high-contrast'] .kp-tree {
+        font-weight: 500;
+    }
+
+    /* ── The scrollbar joins the theme ────────────────────────────────── */
+
+    [data-theme='high-contrast'] {
+        scrollbar-color: var(--border-strong) var(--background);
+    }
+
+    /* ── Motion, guarded [DI7] ────────────────────────────────────────── */
+
+    /* Every animation and transition of this register lives here. The
+       headline and the rule wipe once on load, unconditionally — no
+       class, no [data-kp-effects] gate, matching the demo's own idiom of
+       plain CSS with no session memo. The ghost bar and the redaction
+       lift are interaction-bound; the mirror press has no transition at
+       all, exactly as the demo draws it (an instant drop, not an
+       eased one). */
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='high-contrast'] [data-kp-reveal='headline'] {
+            animation: kp-hc-headline-wipe var(--kp-headline-wipe) ease-out 1;
+        }
+
+        [data-theme='high-contrast'] [data-kp-reveal='rule']::after {
+            animation: kp-hc-rule-wipe var(--kp-rule-wipe) ease-out 1;
+        }
+
+        [data-theme='high-contrast'] .kp-nav-wrap {
+            transition:
+                border-color var(--fx-duration) var(--fx-ease),
+                box-shadow var(--fx-duration) var(--fx-ease);
+        }
+
+        /* The shared .kp-button rule (css/components.css) puts `translate`
+           in its own transition list for the hover lift every other theme
+           uses; high-contrast's --fx-lift is 0px, so that lift is already
+           a no-op here, but the same list would ease the mirror's press
+           over --fx-duration instead of snapping it, which is not what
+           the demo draws. Cancelled for this variant only. */
+        [data-theme='high-contrast'] .kp-button--mirror {
+            transition: none;
+        }
+
+        [data-theme='high-contrast'] .kp-button--ghost::after {
+            transition: transform var(--kp-ghost-bar) var(--fx-ease);
+        }
+
+        [data-theme='high-contrast'] .kp-card[data-kp-reveal='emphasis'] mark::after {
+            transition: transform var(--kp-redact-lift) ease-out;
+        }
+
+        [data-theme='high-contrast'] .kp-nav__link {
+            transition: border-color var(--fx-duration) var(--fx-ease);
+        }
+    }
+    /* The band [M1, M4]: Kenny picked this theme's own version over the
+       shared one on 2026-09-08 — inverted: the ground is ink and the ink is paper. */
+    [data-theme='high-contrast'] .kp-marquee {
+        background: var(--foreground);
+        color: var(--background);
+        font-weight: 700;
+        text-transform: uppercase;
+        --kp-marquee: 52000ms;
+    }
+
+    /* The menu's caption [M3]: the same choice, for the line a consumer
+       may put above a dropdown's items. */
+    [data-theme='high-contrast'] .kp-nav__menu[data-kp-menu-label]::before {
+        background: var(--foreground);
+        color: var(--background);
+        font-weight: 700;
+        border-block-end: 0;
+    }
+}

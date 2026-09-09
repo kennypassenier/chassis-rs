@@ -16,8 +16,9 @@ E2E tests `dashboard_pages_render_with_layout_and_assets` and
 
 ## The model in one paragraph
 
-`layout.html` owns the document: fonts, the kp-themes stylesheets, the
-theme picker (24 themes, parsed from the vendored `theme-registry.js`,
+`layout.html` owns the document: fonts, the kp-themes stylesheets
+(`themes.css`, `components.css`, `layout.css`, `utilities.css`), the
+theme picker (25 themes, parsed from the vendored `theme-registry.js`,
 rendered server-side), the top navigation, a skip link, and the Log out
 button. It defines four blocks a page may fill: `title`, `head`,
 `nav_extra`, `content`. Every template sees these globals: `app_name`,
@@ -38,7 +39,7 @@ project's entries in registration order.
 | `GET /clients` | admin | The clients table with the row controls below. |
 | `GET/POST /api/clients`, `/api/clients/{id}/{reissue,revoke,token,requests,test}`, `DELETE /api/clients/{id}` | admin | The JSON the buttons call. |
 | `GET /passkeys`, `/passkeys/*`, `/api/passkeys*` | admin (login/start+finish: anyone) | Only over HTTPS via a trusted proxy; else 404 with a remedy. |
-| `GET /static/{*name}` | anyone | Embedded assets, `Cache-Control: public, max-age=31536000, immutable`. |
+| `GET /static/{*name}` | anyone | Embedded assets: `Cache-Control: public, max-age=31536000, immutable` when the URL carries the `?v=<hash>` the layout adds, `public, max-age=86400` for a font or register reached without it. |
 
 An anonymous browser on an admin route is redirected to `/login` (303);
 a **client token** on an admin route gets a JSON 401 `a client token
@@ -221,9 +222,11 @@ How the two controls behave, per `crates/chassis/static/chassis.js`:
   `data-busy-label` (`Syncing…`) until the `fetch` POST returns; a 2xx
   reloads the page, anything else shows the response's `error` and
   `remedy` on the button for five seconds. Add `data-method="DELETE"` for
-  a delete, and `data-kp-destructive data-kp-confirm="…"` to make it arm
-  on the first click and act on the second (kp-themes'
-  `attachConfirmations`). On the kit's own Clients page the same button
+  a delete, and `data-kp-destructive data-kp-confirm="…"` to put a modal
+  confirmation dialog in front of the click (kp-themes'
+  `attachConfirmations`; since kp-themes 4.0.0 the default is a native
+  `<dialog>` with Cancel focused, and `data-kp-confirm-mode="inline"`
+  brings back the arm-then-act relabel). On the kit's own Clients page the same button
   needs no template at all: register a `ClientAction` (see "Actions"
   below) and the kit renders it on every source's row.
 
@@ -365,11 +368,12 @@ on click the button gets `aria-busy="true"`, is disabled and shows its
 session cookie and `Accept: application/json`; a 2xx reloads the page; a
 refusal shows the response's `error` and `remedy` on the button for five
 seconds. A destructive action carries `data-kp-destructive` and
-`data-kp-confirm="…"`, so kp-themes' `attachConfirmations` turns the first
-click into the confirm phrase and lets only the second through; a
-destructive action registered without a phrase gets `Are you sure? This
-cannot be undone.` (kp-themes refuses a destructive control without a
-confirm or an undo).
+`data-kp-confirm="…"`, so kp-themes' `attachConfirmations` opens a modal
+`<dialog>` carrying the phrase — Cancel has focus, Confirm re-fires the
+click exactly once — and lets nothing through without it; a destructive
+action registered without a phrase gets `Are you sure? This cannot be
+undone.` (kp-themes disables a destructive control without a confirm or
+an undo, and says so in the console).
 
 Your route is an ordinary `dashboard_routes` handler: return
 `StatusCode::NO_CONTENT` (or any 2xx) to reload, or a `chassis::Error`
@@ -423,7 +427,8 @@ and the next); and inbox's "Clear messages" section action in
   `x-frame-options: DENY`, `referrer-policy: same-origin` (the referrer
   stays inside this host and is blanked towards any other; `no-referrer`
   would blank the browser's `Origin` on our own forms too). The fonts are
-  vendored under `/static/fonts/…`; nothing loads from a CDN. The kit has
+  kp-themes' own, vendored under `/static/kp/fonts/…`; nothing loads
+  from a CDN. The kit has
   no hook for project static files (`ASSETS` in `shell/assets.rs` is a
   fixed list), so a project page's interactivity is plain forms plus the
   `data-*` behaviours chassis.js provides.
@@ -461,10 +466,52 @@ reveal and copy fetches it on click. Proven by:
 `dashboard_pages_render_with_layout_and_assets` (no `Bearer ` in the
 HTML), `core::clients::tests::issue_reissue_revoke_delete_lifecycle`.
 
+## kp-themes 5.0.0: what the kit vendors, and what it leaves
+
+Since 1.8.0 the kit carries kp-themes 5.0.0 under the package's own
+paths — `/static/kp/css/…`, `/static/kp/js/…`, `/static/kp/fonts/…` — so
+`fonts.css`'s relative `url('../fonts/…')` and the modules' `./strings.js`
+imports resolve unchanged and every file is the byte-for-byte copy the
+manifest `static/kp/KP_THEMES.sha256` names (the gate test compares all
+142 of them, fonts and licences included).
+
+- **Stylesheets:** `themes.css` (the palettes, 25 themes), `components.css`,
+  `layout.css` and `utilities.css` (the layout classes kp-themes wrote after
+  measuring this kit's 28 inline styles — `.kp-page`, `.kp-row`,
+  `.kp-autogrid`, `.kp-m-0`, `.kp-fw-medium` and friends; the templates now
+  carry two inline styles, both CSS anchor positioning for the theme menu).
+- **Registers:** every theme's `css/<name>-register.css`, its character on
+  top of the palette. A register is a stylesheet the consumer includes, and
+  loading all 25 on every page would be a megabyte for one theme's sake, so
+  `theme-boot.js` links the active theme's register before first paint and
+  `chassis.js` links the register of every theme picked afterwards
+  (`kp-theme-change`). A register is inert unless its theme is active.
+- **Fonts:** kp-themes' `fonts.css` (73 faces, 32 families, all OFL) and the
+  woff2 files behind it — 5 MB in the binary, fetched by the browser only
+  for the active theme's faces. Without them the themes still read (the
+  token stacks fall back to system faces); with them woodblock, lapis, deco
+  and academia keep their face.
+- **JavaScript:** the six modules whose import closure is closed
+  (`no-flash`, `theme-registry`, `theme-core`, `theme-picker`, `strings`,
+  `components`) — the set kp-themes' own `gates/check-closure.mjs` protects
+  for this consumer. **Not vendored:** `js/effects.js` (marquee, reveals,
+  the `<mark>` redaction, dividers, the terminal caret): no kit page uses
+  those hooks, and every reveal has a rest state that holds without the
+  script. A project that wants them adds the file and the hooks itself.
+- **Renamed themes:** `topo` → `forest`, `tazhib` → `lapis`, `nishiki` →
+  `woodblock`. `theme-boot.js` maps a stored old name once and writes the
+  new one back, so a visitor keeps their theme instead of falling back to
+  `formal`. `cyberpunk` is a different theme under the same name (signal
+  yellow instead of neon-on-violet).
+- **Left aside, on purpose:** the minified twins under `dist/css/` (45 %
+  smaller, but the kit serves once per content hash to a LAN and the
+  authored files stay readable and diffable); `dist/kp-themes.css` (one
+  file with every register, which would load all 25 for one).
+
 ## The status page
 
 Cards: **Service** (name, version, `Built on chassis <kit version>, kp-themes
-3.1.0`, up since, listening), **Health** (overall badge and one line per
+5.0.0`, up since, listening), **Health** (overall badge and one line per
 `/healthz` subsystem; the built-in `store` subsystem is always there),
 **Updates** (mode, running, latest release, last check, note — filled by
 the self-update feature, `not compiled in` otherwise), **Problems** (only

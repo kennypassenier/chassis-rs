@@ -1,0 +1,1116 @@
+@layer kp.register {
+    /* @kp-soft/themes — css/deco-register.css
+   The deco register, 5.0.0 [S48, LIFT_PLAN row 8]: Paris 1925, dark
+   reading. Scoped to [data-theme='deco'] and inert elsewhere; opt-in,
+   imported after themes.css. The approved concept demo ("The Gilded
+   Ascent", 2026-09-08) is the reference for every value here.
+
+   What this file does, in order: the knobs; the type; the hooks of S45 —
+   the headline inside a concentric inset frame that scales in once (the
+   cartouche), the redaction as a jewel plate lifted on a trigger, the
+   rule drawn under a heading, the double rule with a lozenge as divider;
+   the strip as navbar; the buttons with the mirror flourish; the wells;
+   the dossier with its stamp and its jewel redactions; and one answer
+   per component root (TH124). The reveals have their rest state here and
+   their motion in js/effects.js; without the script every one of them
+   stands at rest. There is no arrival: the cartouche is the only entry,
+   scoped to the headline, not the page.
+
+   Colour discipline (DI9): nothing here names a colour, not even in a
+   comment. Every colour literal the demo's own CSS wrote — the mirror
+   flourish's alpha, the nav dropdown's shadow, the dialog backdrop —
+   resolves onto an existing token (--primary for the first, close to
+   --sidebar-background for the other two, see the anatomy's findings
+   section for the near-black substitution), so every one is rewritten as
+   a relative colour of that token below; the rendered pixels do not
+   move except for the one substitution the anatomy records. Gold as a
+   flat colour
+   reads as Deco; gold as a gradient reads as a casino (anatomy.md), so
+   the only gradient in this file is the mirror flourish under the
+   primary button, and it fades to transparent rather than to a second
+   hue. Radius stays 0 everywhere: the style is corners.
+
+   DI2's focus ring needs no override: the derived --focus-ring and
+   --focus-ring-contrast tokens already equal --foreground and
+   --background for this theme, which is exactly the two-channel ring the
+   demo draws by hand — the base layer's default is already this theme's
+   answer.
+
+   The only loops: none. Every animation here runs once and stops. */
+
+    [data-theme='deco'] {
+        /* The configuration surface [AR43], the demo's values as defaults. */
+        --kp-reveal-threshold: 0.6;
+        --kp-redact-stagger: 140ms;
+        --kp-classified-delay: 0ms;
+        /* The reveals this theme performs [S45]: js/effects.js reads these
+       and leaves a theme that declares none at rest. Headline is quiet on
+       purpose — the demo's own script never touches the headline's text,
+       only its frame animates, so no word/glyph routine applies (see the
+       anatomy's "What the demo showed" section). */
+        --kp-reveal-emphasis: plate;
+        --kp-reveal-rule: draw;
+        /* The cartouche's three concentric steps and its chevron bite. */
+        --kp-frame: inset 0 0 0 2px var(--primary), inset 0 0 0 5px var(--background), inset 0 0 0 7px var(--foreground);
+        --kp-chevron: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+        /* The mirror flourish under a primary button: the demo's own
+       literal alpha over the primary hue, exactly. */
+        --kp-mirror: linear-gradient(to bottom, hsl(from var(--primary) h s l / 0.35), transparent);
+        /* The nav dropdown's shadow and the dialog's backdrop: the demo's
+       own near-black literal is close to --sidebar-background, so both
+       are relative colours of that token now (DI9) — see the anatomy's
+       findings section for how close. */
+        --kp-shadow-ink: hsl(from var(--sidebar-background) h s l / 0.5);
+        --kp-backdrop: hsl(from var(--sidebar-background) h s l / 0.72);
+    }
+
+    /* Future Pharmaceutical is not this theme's reference; the demo names
+   no selection colour, so the browser default stands. */
+
+    /* ── Type ──────────────────────────────────────────────────────────── */
+
+    [data-theme='deco'] h1,
+    [data-theme='deco'] h2,
+    [data-theme='deco'] h3 {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        line-height: 1.08;
+        margin: 0;
+    }
+
+    [data-theme='deco'] [data-kp-surface] h1 {
+        font-size: var(--kp-text-display);
+        line-height: 1.08;
+        max-width: 18ch;
+        margin-block: 0 0.4em;
+        text-wrap: balance;
+        overflow-wrap: anywhere;
+    }
+
+    /* Microlabels: the demo's mono side-note voice. */
+    [data-theme='deco'] .microlabel {
+        font-family: var(--theme-font-mono);
+        font-size: 0.72rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='deco'] a {
+        color: var(--primary);
+    }
+
+    /* ── The cartouche: the headline's own frame, scaling in once ─────── */
+
+    /* No wrapper element exists in the shared skeleton, so the frame is
+   painted on the h1 itself: padding makes room for it, ::before draws it,
+   the chevron bites one corner (Empire State Building, measured), and the
+   whole element scales in from 0.94×0.7 to 1×1 (Bathyscaphe's frame,
+   recomposed as one motion — anatomy.md, "What the demo showed"). */
+    [data-theme='deco'] [data-kp-surface] h1[data-kp-reveal='headline'] {
+        position: relative;
+        display: inline-block;
+        padding: 0.9rem 1.1rem;
+    }
+
+    [data-theme='deco'] [data-kp-surface] h1[data-kp-reveal='headline']::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        box-shadow: var(--kp-frame);
+        clip-path: var(--kp-chevron);
+        pointer-events: none;
+    }
+
+    /* The base layer draws a double rule under every deco h1/h2 [css/_rules.css,
+   T5-T8]; the hero headline wears the cartouche frame instead, so its own
+   ::after is cleared here rather than stacking a second device under it. */
+    [data-theme='deco'] [data-kp-surface] h1::after {
+        content: none;
+    }
+
+    /* ── The hooks [S45]: the mark, the rule, the divider ─────────────── */
+
+    /* Plain prose emphasis (the lede's marks): a gold underline, always
+   visible — this is not the reveal mechanism, only the dossier's jewel
+   redactions are. No covering rule exists for a bare mark, so the effects
+   module's loose-mark stagger has nothing to hide (anatomy.md). */
+    [data-theme='deco'] .kp-lede mark {
+        background: transparent;
+        color: var(--primary);
+        font-weight: 600;
+        font-style: normal;
+        box-shadow: inset 0 -2px 0 var(--border-strong);
+        padding: 0 0.1em;
+    }
+
+    /* The rule: a double gold line drawn left to right under a heading,
+   once, when it enters the viewport — reused from css/_rules.css's own
+   @keyframes kp-rule-in (the base layer's "draw" answer), at the demo's
+   own literal 600ms rather than the base's calc(--fx-duration * 4). */
+    [data-theme='deco'] [data-kp-reveal='rule']::after {
+        content: '';
+        display: block;
+        block-size: 2px;
+        margin-block-start: 0.4rem;
+        background: linear-gradient(to right, var(--primary), transparent 85%);
+        transform-origin: left center;
+        transform: scaleX(1);
+    }
+
+    [data-theme='deco'][data-kp-effects] [data-kp-reveal='rule']:not(.is-in)::after {
+        transform: scaleX(0);
+    }
+
+    /* The divider: the double rule (CSS `border-style: double`) with a
+   lozenge at its centre — the razor tear, this theme's answer. */
+    [data-theme='deco'] [data-kp-divider] {
+        position: relative;
+        display: block;
+        block-size: 2.4rem;
+        margin-block: 0;
+        border-block: 3px double var(--border-strong);
+    }
+
+    [data-theme='deco'] [data-kp-divider]::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 0.9rem;
+        height: 0.9rem;
+        background: var(--background);
+        border: 1px solid var(--primary);
+        transform: translate(-50%, -50%) rotate(45deg);
+    }
+
+    [data-theme='deco'] [data-kp-divider='alt']::before {
+        background: var(--card);
+        border-color: var(--accent);
+        width: 0.7rem;
+        height: 0.7rem;
+    }
+
+    /* ── The hero ──────────────────────────────────────────────────────── */
+
+    [data-theme='deco'] [data-kp-surface='hero'] {
+        position: relative;
+        padding-block: 2.2rem 3.4rem;
+    }
+
+    [data-theme='deco'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+        grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+        gap: clamp(2rem, 5vw, 3.5rem);
+        align-items: start;
+    }
+
+    @container (max-width: 62rem) {
+        [data-theme='deco'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ── The navbar: a strip on blue-black, ruled off in gold ─────────── */
+
+    [data-theme='deco'] .kp-nav-wrap {
+        background: var(--sidebar-background);
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='deco'] .kp-nav {
+        background: var(--sidebar-background);
+        padding-block: 0.9rem;
+        position: relative;
+        z-index: var(--kp-z-nav, 30);
+    }
+
+    [data-theme='deco'] .kp-nav__brand {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+        font-size: 1.4rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--primary);
+        text-decoration: none;
+    }
+
+    [data-theme='deco'] .kp-nav__links {
+        gap: 0.4rem;
+        align-items: center;
+    }
+
+    [data-theme='deco'] .kp-nav__link {
+        display: inline-block;
+        padding: 0.5rem 0.7rem;
+        color: var(--muted-foreground);
+        text-decoration: none;
+        font-size: 0.8rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        border-bottom: 1px solid transparent;
+        border-radius: 0;
+        background: none;
+    }
+
+    [data-theme='deco'] .kp-nav__link:hover,
+    [data-theme='deco'] .kp-nav__link:focus-visible,
+    [data-theme='deco'] .kp-nav__link[aria-current],
+    [data-theme='deco'] .kp-nav__links > li:focus-within > .kp-nav__link {
+        color: var(--primary);
+        border-color: var(--border-strong);
+    }
+
+    [data-theme='deco'] .kp-nav__link[aria-haspopup]::after {
+        content: ' ▾';
+    }
+
+    [data-theme='deco'] .kp-nav__link--lang {
+        margin-inline-start: 0.5rem;
+        padding-inline-start: 0.7rem;
+        border-inline-start: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-nav__link--cta {
+        color: var(--primary-foreground);
+        background: var(--primary);
+        border: 1px solid var(--primary);
+    }
+
+    [data-theme='deco'] .kp-nav__link--cta:hover,
+    [data-theme='deco'] .kp-nav__link--cta:focus-visible {
+        color: var(--primary-foreground);
+        background: var(--selected);
+        border-color: var(--selected);
+    }
+
+    /* The dropdown snaps into place, a popover with the demo's own
+   shadow (rewritten as a relative colour of --sidebar-background, DI9). */
+    [data-theme='deco'] .kp-nav__menu {
+        background: var(--popover);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        box-shadow: 0 12px 24px var(--kp-shadow-ink);
+        padding: 0.4rem;
+        min-width: 11rem;
+    }
+
+    [data-theme='deco'] .kp-nav__menu a {
+        display: block;
+        padding: 0.4rem 0.5rem;
+        color: var(--popover-foreground);
+        text-decoration: none;
+        font-size: 0.82rem;
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-nav__menu a:hover,
+    [data-theme='deco'] .kp-nav__menu a:focus-visible {
+        color: var(--primary);
+    }
+
+    /* ── Buttons: a hairline, flat gold, the mirror flourish ──────────── */
+
+    [data-theme='deco'] .kp-button {
+        font-family: var(--theme-font-body);
+        font-weight: 400;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--foreground);
+        background: transparent;
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    /* The size the demo drew, and the two the package owes beside it
+   [S49, A4 + TH111's amendment]: one height for all three, and the type
+   and the padding are what tell them apart. */
+    [data-theme='deco'] .kp-button:not(.kp-button--sm):not(.kp-button--lg) {
+        font-size: 0.85rem;
+        padding-inline: 1.3rem;
+    }
+
+    [data-theme='deco'] .kp-button--sm {
+        font-size: 0.75rem;
+        padding-inline: 0.9rem;
+    }
+
+    [data-theme='deco'] .kp-button--lg {
+        font-size: 0.95rem;
+        padding-inline: 1.7rem;
+    }
+
+    [data-theme='deco'] .kp-button {
+        min-block-size: 2.9rem;
+    }
+
+    [data-theme='deco'] [data-kp-surface='hero'] .kp-row > .kp-button {
+        min-width: min(11rem, 100%);
+    }
+
+    [data-theme='deco'] .kp-button:hover,
+    [data-theme='deco'] .kp-button:focus-visible {
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    [data-theme='deco'] .kp-button--primary {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='deco'] .kp-button--primary:hover,
+    [data-theme='deco'] .kp-button--primary:focus-visible {
+        background: var(--selected);
+        border-color: var(--selected);
+        color: var(--primary-foreground);
+    }
+
+    [data-theme='deco'] .kp-button--destructive {
+        border-color: var(--destructive);
+        color: var(--destructive);
+    }
+
+    [data-theme='deco'] .kp-button--destructive:hover,
+    [data-theme='deco'] .kp-button--destructive:focus-visible {
+        background: var(--destructive);
+        color: var(--destructive-foreground);
+    }
+
+    [data-theme='deco'] .kp-button--ghost {
+        border-color: transparent;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='deco'] .kp-button--ghost:hover,
+    [data-theme='deco'] .kp-button--ghost:focus-visible {
+        color: var(--foreground);
+        border-color: var(--border);
+    }
+
+    [data-theme='deco'] .kp-button:disabled {
+        color: var(--muted-foreground);
+        border-color: var(--border);
+        background: transparent;
+    }
+
+    /* The mirror: a soft gold reflection under a primary/destructive
+   button that carries `.kp-button--mirror`, the demo's own device. */
+    [data-theme='deco'] .kp-button--mirror {
+        position: relative;
+    }
+
+    [data-theme='deco'] .kp-button--mirror::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 100%;
+        height: 3px;
+        background: var(--kp-mirror);
+        pointer-events: none;
+    }
+
+    [data-theme='deco'] .kp-icon-button {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        background: var(--card);
+        color: var(--foreground);
+    }
+
+    [data-theme='deco'] .kp-icon-button:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    /* ── Fields ────────────────────────────────────────────────────────── */
+
+    [data-theme='deco'] .kp-field__label {
+        font-size: 0.78rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='deco'] .kp-field__input,
+    [data-theme='deco'] .kp-datatable__search,
+    [data-theme='deco'] .kp-combobox__input,
+    [data-theme='deco'] .kp-palette__input {
+        font-family: var(--theme-font-body);
+        color: var(--foreground);
+        background: var(--background);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        padding: 0.6rem 0.7rem;
+    }
+
+    [data-theme='deco'] .kp-field__input:focus-visible,
+    [data-theme='deco'] .kp-datatable__search:focus-visible,
+    [data-theme='deco'] .kp-combobox__input:focus-visible,
+    [data-theme='deco'] .kp-palette__input:focus-visible {
+        border-color: var(--primary);
+    }
+
+    [data-theme='deco'] .kp-field__input::placeholder {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='deco'] .kp-field__check {
+        accent-color: var(--primary);
+    }
+
+    [data-theme='deco'] select.kp-field__input::picker-icon {
+        color: var(--primary);
+    }
+
+    [data-theme='deco'] .kp-field__help {
+        font-size: 0.72rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='deco'] .kp-field--invalid .kp-field__input {
+        border-color: var(--destructive);
+    }
+
+    [data-theme='deco'] .kp-field__error {
+        color: var(--destructive);
+    }
+
+    [data-theme='deco'] .kp-fieldset {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-form__summary {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    /* ── Cards and the dossier ────────────────────────────────────────── */
+
+    [data-theme='deco'] .kp-card {
+        background: var(--popover);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-card__title {
+        font-family: var(--theme-font-display);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 1.3rem;
+    }
+
+    [data-theme='deco'] .kp-card[data-kp-reveal='emphasis'] {
+        position: relative;
+    }
+
+    /* The stamp: a ruby plate, tilted, the demo's own literal offset. The
+   demo carries no `data-kp-label-open` colour change, so none is answered
+   here — the label stays "Classified" whether the file is open or not. */
+    [data-theme='deco'] .kp-card[data-kp-label]::before {
+        content: attr(data-kp-label);
+        position: absolute;
+        inset-block-start: -0.6rem;
+        inset-inline-end: 1rem;
+        background: var(--destructive);
+        color: var(--destructive-foreground);
+        font-family: var(--theme-font-mono);
+        font-size: 0.66rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        padding: 0.2rem 0.5rem;
+        rotate: 1.5deg;
+    }
+
+    /* The redactions: jewel plates (emerald) sitting over the words —
+   covered when the effects module is live, always readable without it
+   (AR34). Rest state here is cleared/readable; the trigger's marks start
+   covered only once [data-kp-effects] is set. Scoped to the dossier's own
+   marks, not every mark on the page (the lede's stay plain highlights). */
+    [data-theme='deco'] .kp-card[data-kp-reveal='emphasis'] mark {
+        display: inline-block;
+        background: transparent;
+        color: var(--foreground);
+        border-radius: 0;
+        padding: 0 0.3em;
+        box-shadow: inset 0 -2px 0 var(--accent);
+    }
+
+    [data-theme='deco'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark:not(.is-cleared) {
+        background: var(--accent);
+        color: var(--accent);
+        box-shadow: none;
+    }
+
+    /* Panels: one gold hairline, no shadow, nothing floats. */
+    [data-theme='deco'] .kp-dialog,
+    [data-theme='deco'] .kp-popover,
+    [data-theme='deco'] .kp-menu,
+    [data-theme='deco'] .kp-toast,
+    [data-theme='deco'] .kp-tooltip,
+    [data-theme='deco'] .kp-confirm,
+    [data-theme='deco'] .kp-datepicker__panel,
+    [data-theme='deco'] .kp-combobox__list,
+    [data-theme='deco'] .kp-palette,
+    [data-theme='deco'] .kp-theme-menu {
+        background: var(--popover);
+        color: var(--popover-foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    /* The dialog backdrop: the demo's literal rewritten as a relative
+   colour of --sidebar-background (DI9). */
+    [data-theme='deco'] .kp-dialog::backdrop {
+        background: var(--kp-backdrop);
+    }
+
+    [data-theme='deco'] .kp-dialog__title {
+        font-family: var(--theme-font-display);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-size: 1.2rem;
+    }
+
+    [data-theme='deco'] .kp-toast {
+        background: var(--popover);
+        border-color: var(--border-strong);
+    }
+
+    [data-theme='deco'] .kp-toasts {
+        gap: 0.8rem;
+    }
+
+    [data-theme='deco'] .kp-menu__item:hover,
+    [data-theme='deco'] .kp-menu__item:focus-visible {
+        background: var(--secondary);
+        color: var(--primary);
+    }
+
+    [data-theme='deco'] .kp-alert {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-alert__label {
+        font-family: var(--theme-font-display);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='deco'] .kp-grid__tile,
+    [data-theme='deco'] .kp-split__pane {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-split__separator {
+        background: var(--border-strong);
+    }
+
+    [data-theme='deco'] .kp-grid {
+        gap: 1.2rem;
+    }
+
+    [data-theme='deco'] .kp-split {
+        gap: 1rem;
+    }
+
+    /* The footer: blue-black, the gold wordmark. */
+    [data-theme='deco'] .kp-footer {
+        background: var(--sidebar-background);
+        color: var(--sidebar-foreground);
+    }
+
+    [data-theme='deco'] .kp-footer h4 {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+        font-size: 0.95rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--sidebar-primary);
+    }
+
+    [data-theme='deco'] .kp-footer a {
+        color: var(--sidebar-foreground);
+        text-decoration: none;
+        font-size: 0.85rem;
+    }
+
+    [data-theme='deco'] .kp-footer a:hover,
+    [data-theme='deco'] .kp-footer a:focus-visible {
+        color: var(--sidebar-primary);
+    }
+
+    [data-theme='deco'] .kp-footer .microlabel {
+        color: var(--muted-foreground);
+    }
+
+    /* ── Badges, tags, status ──────────────────────────────────────────── */
+
+    [data-theme='deco'] .kp-badge,
+    [data-theme='deco'] .kp-tag {
+        border-radius: 0;
+        border: 1px solid var(--border-strong);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='deco'] .kp-health {
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='deco'] .kp-health__dot {
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-skeleton {
+        background: repeating-linear-gradient(135deg, var(--muted) 0 6px, var(--card) 6px 12px);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-progress {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-progress__value {
+        background: var(--primary);
+    }
+
+    /* The track is --border (the quiet hairline, not the gold boundary):
+   --border-strong shares the gold hue with --primary and reads as one
+   ring turning, not a head against a track [KT8]. */
+    [data-theme='deco'] .kp-spinner {
+        border-color: var(--border);
+        border-top-color: var(--primary);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-empty {
+        border: 1px dashed var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-empty__title {
+        font-family: var(--theme-font-display);
+        text-transform: uppercase;
+    }
+
+    [data-theme='deco'] .kp-error {
+        color: var(--destructive);
+    }
+
+    /* ── Text shapes ──────────────────────────────────────────────────── */
+
+    [data-theme='deco'] .kp-id,
+    [data-theme='deco'] .kp-url,
+    [data-theme='deco'] .kp-numeric,
+    [data-theme='deco'] .kp-timestamp,
+    [data-theme='deco'] .kp-masked,
+    [data-theme='deco'] .kp-copyable,
+    [data-theme='deco'] .kp-truncate,
+    [data-theme='deco'] .kp-cell-break,
+    [data-theme='deco'] .kp-cell-truncate {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.02em;
+    }
+
+    [data-theme='deco'] .kp-timestamp,
+    [data-theme='deco'] .kp-id {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='deco'] .kp-copyable__button {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    /* ── Data ─────────────────────────────────────────────────────────── */
+
+    [data-theme='deco'] .kp-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        border: 1px solid var(--border-strong);
+        background: var(--card);
+    }
+
+    [data-theme='deco'] .kp-table th {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--primary);
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='deco'] .kp-table td {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='deco'] .kp-table tbody tr:hover {
+        background: var(--muted);
+    }
+
+    [data-theme='deco'] .kp-datatable {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        background: var(--card);
+    }
+
+    [data-theme='deco'] .kp-datatable__bar {
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='deco'] .kp-datatable__sort[aria-sort] {
+        color: var(--primary);
+    }
+
+    [data-theme='deco'] .kp-datatable__status,
+    [data-theme='deco'] .kp-datatable__page {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.04em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='deco'] .kp-diff {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-diff__line {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='deco'] .kp-timeline {
+        border-inline-start: 1px solid var(--border-strong);
+    }
+
+    [data-theme='deco'] .kp-timeline__marker {
+        background: var(--primary);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-timeline__when {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.04em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='deco'] .kp-tree {
+        font-family: var(--theme-font-body);
+    }
+
+    [data-theme='deco'] .kp-reorder {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    /* ── Navigation and steps ─────────────────────────────────────────── */
+
+    [data-theme='deco'] .kp-tab {
+        border-radius: 0;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='deco'] .kp-tab[aria-selected='true'] {
+        color: var(--primary);
+        border-color: var(--primary);
+    }
+
+    [data-theme='deco'] .kp-tabs__list {
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='deco'] .kp-breadcrumb,
+    [data-theme='deco'] .kp-pagination {
+        letter-spacing: 0.04em;
+    }
+
+    [data-theme='deco'] .kp-pagination a[aria-current],
+    [data-theme='deco'] .kp-pagination [aria-current] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-wizard {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        background: var(--card);
+    }
+
+    [data-theme='deco'] .kp-wizard__steps {
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    /* ── Pickers and palettes ─────────────────────────────────────────── */
+
+    [data-theme='deco'] .kp-datepicker__day[aria-selected='true'] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-datepicker__weekday,
+    [data-theme='deco'] .kp-datepicker__title {
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='deco'] .kp-colorpicker__swatch {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-colorpicker__value {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='deco'] .kp-shortcuts__row kbd {
+        font-family: var(--theme-font-mono);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        background: var(--card);
+        display: inline-block;
+        padding: 0 0.4em;
+    }
+
+    [data-theme='deco'] .kp-shortcuts__group-label,
+    [data-theme='deco'] .kp-palette__group-label {
+        font-family: var(--theme-font-display);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='deco'] .kp-theme-menu__status,
+    [data-theme='deco'] .kp-palette__status,
+    [data-theme='deco'] .kp-combobox__status {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.04em;
+        color: var(--muted-foreground);
+    }
+
+    /* ── The roots the rules above reach only by their parts ──────────── */
+
+    [data-theme='deco'] .kp-field {
+        gap: 0.35rem;
+    }
+
+    [data-theme='deco'] .kp-form {
+        gap: 1.1rem;
+    }
+
+    [data-theme='deco'] .kp-combobox,
+    [data-theme='deco'] .kp-datepicker,
+    [data-theme='deco'] .kp-colorpicker,
+    [data-theme='deco'] .kp-shortcuts,
+    [data-theme='deco'] .kp-tabs {
+        border-radius: 0;
+    }
+
+    /* ── The scrollbar joins the theme ────────────────────────────────── */
+
+    [data-theme='deco'] {
+        scrollbar-color: var(--border-strong) var(--background);
+    }
+
+    /* ── The demo's own pieces [S46] ──────────────────────────────────── */
+
+    [data-theme='deco'] .kp-side-note {
+        display: none;
+        position: absolute;
+        inset-block-start: 6rem;
+        inset-inline-end: 1rem;
+        writing-mode: vertical-rl;
+        letter-spacing: 0.3em;
+        font-size: 0.7rem;
+        color: var(--muted-foreground);
+        font-family: var(--theme-font-mono);
+    }
+
+    @container (min-width: 48rem) {
+        [data-theme='deco'] .kp-side-note {
+            display: block;
+        }
+    }
+
+    [data-theme='deco'] .kp-laurels {
+        gap: 0.5rem;
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+    }
+
+    [data-theme='deco'] .kp-laurels li {
+        border: 1px solid var(--border-strong);
+        padding: 0.35rem 0.6rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='deco'] .kp-laurels b {
+        color: var(--primary);
+        font-weight: 600;
+        margin-right: 0.3em;
+    }
+
+    [data-theme='deco'] .kp-lede {
+        max-width: 46ch;
+        color: var(--muted-foreground);
+        font-size: 1.05rem;
+    }
+
+    [data-theme='deco'] .kp-platforms {
+        margin-block-start: 1.6rem;
+        gap: 0.9rem;
+        font-family: var(--theme-font-mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='deco'] .kp-platforms span::before {
+        content: '◆ ';
+        color: var(--border-strong);
+    }
+
+    /* The spec sheet: a card with the demo's own literal spacing. */
+    [data-theme='deco'] .kp-spec {
+        border: 1px solid var(--border-strong);
+        background: var(--card);
+        border-radius: 0;
+        padding: 1.2rem;
+    }
+
+    [data-theme='deco'] .kp-spec dt {
+        font-family: var(--theme-font-mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='deco'] .kp-spec__swatch {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='deco'] .kp-spec__font {
+        font-family: var(--theme-font-display);
+    }
+
+    /* ── Motion, guarded [DI7] ────────────────────────────────────────── */
+
+    /* Every animation of this register lives here, inside the
+   no-preference guard, so a reader who asked for reduced motion never
+   receives one: the rest states above are what they get — the cartouche
+   is simply visible at scale 1, the rule is simply drawn, the redactions
+   still respond to the click but with no easing. */
+    @media (prefers-reduced-motion: no-preference) {
+        /* The cartouche assembles once, on load: the frame (Bathyscaphe's
+       inset-shadow technique, measured) scales in with the headline,
+       0.94×0.7 to 1×1, over 520ms — the demo's own literal duration, not
+       derived from --fx-duration. */
+        [data-theme='deco'] [data-kp-surface] h1[data-kp-reveal='headline'] {
+            animation: kp-cartouche-in 520ms var(--fx-ease) both;
+        }
+
+        /* The rule draws itself, reusing the base layer's own kp-rule-in
+       keyframe at the demo's literal 600ms. */
+        [data-theme='deco'][data-kp-effects] [data-kp-reveal='rule'].is-in::after {
+            animation: kp-rule-in 600ms var(--fx-ease) 1 both;
+        }
+
+        /* The redactions clear in three steps, 140ms apart, when the
+       dossier's trigger opens the file. */
+        [data-theme='deco'] .kp-card[data-kp-reveal='emphasis'] mark.is-cleared {
+            animation: kp-redaction-clear 320ms var(--fx-ease) both;
+        }
+
+        [data-theme='deco'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(2).is-cleared {
+            animation-delay: var(--kp-redact-stagger);
+        }
+
+        [data-theme='deco'] .kp-card[data-kp-reveal='emphasis'] mark:nth-of-type(3).is-cleared {
+            animation-delay: calc(2 * var(--kp-redact-stagger));
+        }
+
+        /* What the demo moves on a hover: the border and ink stepping to
+       gold, one step, no colour transition mid-flight after a theme
+       switch (KT8, AR30). */
+        [data-theme='deco'] .kp-button,
+        [data-theme='deco'] .kp-nav__link {
+            transition:
+                background-color var(--fx-duration) var(--fx-ease),
+                color var(--fx-duration) var(--fx-ease),
+                border-color var(--fx-duration) var(--fx-ease);
+        }
+    }
+
+    /* ── Motion [DI5, DI7] ────────────────────────────────────────────── */
+
+    /* Every keyframe here has its row in TIMINGS (js/effects.js); kp-rule-in
+   is the base layer's, reused rather than redeclared. */
+    @keyframes kp-cartouche-in {
+        0% {
+            opacity: 0;
+            transform: scale(0.94, 0.7);
+        }
+
+        100% {
+            opacity: 1;
+            transform: scale(1, 1);
+        }
+    }
+
+    @keyframes kp-redaction-clear {
+        0% {
+            opacity: 0;
+            transform: translateY(2px);
+        }
+
+        100% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Stamped beside the wordmark, in gold [S49, A3]. */
+    [data-theme='deco'] .kp-nav__brand-tag {
+        color: var(--muted-foreground);
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.14em;
+    }
+    /* The band [M1, M4]: Kenny picked this theme's own version over the
+       shared one on 2026-09-08 — gold rules above and below, the display face set very wide. */
+    [data-theme='deco'] .kp-marquee {
+        border-block: 1px solid var(--primary);
+        color: var(--primary);
+        font-family: var(--theme-font-display);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        --kp-marquee: 46000ms;
+    }
+
+    /* The menu's caption [M3]: the same choice, for the line a consumer
+       may put above a dropdown's items. */
+    [data-theme='deco'] .kp-nav__menu[data-kp-menu-label]::before {
+        color: var(--primary);
+        font-family: var(--theme-font-display);
+        letter-spacing: 0.24em;
+        border-block-end: 1px solid var(--primary);
+    }
+}

@@ -123,7 +123,7 @@ impl Recorded {
 /// behind a feature the CLI does not enable); a test keeps the two equal.
 const RELEASE_PUBKEY: &str = "RWQWCzzUBquIHGkS3YERMkuqEm4C3vBArnlb9rySbr8z5ytgVYuji3bS";
 const TOOLCHAIN: &str = "1.97";
-const KP_THEMES: &str = "3.1.0";
+const KP_THEMES: &str = "5.0.0";
 const CHASSIS_REPO: &str = "https://github.com/kennypassenier/chassis-rs";
 
 #[derive(Parser)]

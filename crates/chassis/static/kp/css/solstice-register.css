@@ -1,0 +1,873 @@
+@layer kp.register {
+    /* @kp-soft/themes — css/solstice-register.css
+   The solstice register, 5.0.0 [S48, S49]: warm dark, no neon. The
+   approved concept demo ("Low Sun", 2026-09-08) is the reference for
+   every value here; its own header comment names the two measured
+   sources (a display-serif recipe and a colour triad) and the hazards it
+   refuses. `themes/solstice/anatomy.md` is the idea in words; this file
+   is the idea in rules.
+
+   The character is an hour of the day, not a filter: charcoal warmed by
+   a trace of red, amber leading, rust following, a serif for display
+   because warmth reads better with a little contrast in the letterforms,
+   and the softest radius in the set because sharp corners fight the
+   warmth. Nothing here is a bevel, a scanline or a grid — DI9's texture
+   answer is "no texture, no register" (anatomy.md), and there is none.
+
+   Colour discipline (DI9): nothing here names a colour; every value is
+   var(--token) or a relative colour of one. Two knobs are new for this
+   theme and shared by nothing else: --kp-cal-* (the calibration wipe)
+   and --kp-redact-* (the dossier's redaction lift) — both one-shot,
+   both monotonic, both inside the no-preference guard at the bottom of
+   this file, so DI5 counts zero opposing changes for either. */
+
+    [data-theme='solstice'] {
+        /* The configuration surface [AR43], the demo's own values as
+       defaults. */
+        --kp-reveal-threshold: 0.6;
+        --kp-reveal-stagger: 260ms;
+        --kp-classified-delay: 1500ms;
+        --kp-cal-duration: 520ms;
+        --kp-cal-stagger: 110ms;
+        --kp-rule-duration: 480ms;
+        --kp-rule-delay: 260ms;
+        --kp-redact-duration: 320ms;
+        --kp-redact-stagger: 110ms;
+        /* The reveals this theme performs [S45]: js/effects.js reads
+       these and leaves a theme that declares none at rest. */
+        --kp-reveal-headline: calibrate;
+        --kp-reveal-emphasis: redact;
+        --kp-reveal-rule: draw;
+        /* No arrival: the demo's script wires the dropdown, the dossier
+       and the wipe dialog only — nothing counts up on first paint
+       (anatomy.md, "what it deliberately does not do"). */
+
+        /* The calibration wipe's three bands, in the demo's own order:
+       primary, accent, foreground — the same triad the swatches show. A
+       relative colour is not needed here; each band names a token
+       directly, which is the DI9-preferred form when a plain token IS
+       the value. */
+        --kp-cal-bands: linear-gradient(90deg, var(--primary) 0% 33.333%, var(--accent) 33.333% 66.666%, var(--foreground) 66.666% 100%);
+        /* A translucent version of the ground itself, standing in for the
+       demo's literal near-black shadow (DI9: no colour of the page's
+       own is available here, so the page's own darkest surface is). */
+        --kp-shadow-soft: hsl(from var(--background) h s l / 0.45);
+        --kp-shadow-deep: hsl(from var(--background) h s l / 0.55);
+        --kp-shadow-hair: hsl(from var(--background) h s l / 0.3);
+    }
+
+    /* ── Type ──────────────────────────────────────────────────────────── */
+
+    [data-theme='solstice'] h1,
+    [data-theme='solstice'] h2,
+    [data-theme='solstice'] h3 {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+    }
+
+    [data-theme='solstice'] .microlabel {
+        font-family: var(--theme-font-mono);
+        font-weight: 600;
+        font-size: 0.75rem;
+        line-height: 1.2;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    /* ── The hooks [S45]: the headline, the mark, the rule, the divider ── */
+
+    /* The headline: the calibration wipe. Three flat bands in the demo's
+       triad sit over the text with mix-blend-mode: difference and slide
+       away to their own right edge; the text itself is solid var(--fg)
+       underneath from first paint, so a page without the module — or a
+       theme answering quietly — simply shows the headline (anatomy: the
+       hazard note on Moranta's blend mode, confined here to a one-shot
+       decorative overlay, never to anything that must stay legible after
+       it settles). */
+    [data-theme='solstice'] [data-kp-reveal='headline'] {
+        position: relative;
+        display: inline-block;
+        overflow: hidden;
+        max-width: 100%;
+    }
+
+    [data-theme='solstice'] [data-kp-reveal='headline']::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: var(--kp-cal-bands);
+        mix-blend-mode: difference;
+        pointer-events: none;
+        opacity: 0;
+    }
+
+    [data-theme='solstice'][data-kp-effects] [data-kp-reveal='headline']:not(.is-deciphered)::after {
+        opacity: 1;
+    }
+
+    /* The rule: a plain scaleX(0→1) draw, left to right, when the heading
+       enters the viewport — the demo's own mechanism, unornamented. */
+    [data-theme='solstice'] [data-kp-reveal='rule']::after {
+        content: '';
+        display: block;
+        block-size: 3px;
+        margin-block-start: 0.6rem;
+        background: var(--primary);
+        transform-origin: left center;
+        transform: scaleX(1);
+    }
+
+    [data-theme='solstice'][data-kp-effects] [data-kp-reveal='rule']:not(.is-in)::after {
+        transform: scaleX(0);
+    }
+
+    /* The lede's mark: the base layer's warning plate already matches the
+       demo (background var(--warning), color var(--warning-foreground));
+       this only adds the demo's own corner and box-decoration. */
+    [data-theme='solstice'] mark {
+        border-radius: 3px;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+    }
+
+    /* The divider: the demo's horizon seam, without the SVG the shared
+       markup has no room for (an empty [data-kp-divider] div — S49
+       finding, recorded in anatomy.md). A hairline plus one accent peak
+       carries the idea: a low sun just above or just below the line. */
+    [data-theme='solstice'] [data-kp-divider] {
+        display: block;
+        block-size: 28px;
+        background:
+            conic-gradient(from 225deg at 50% 100%, transparent 0deg 45deg, var(--accent) 45deg 90deg, transparent 90deg 135deg) center / 46px 22px
+                no-repeat,
+            linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat;
+    }
+
+    [data-theme='solstice'] [data-kp-divider='alt'] {
+        background:
+            conic-gradient(from 45deg at 50% 0%, transparent 0deg 45deg, var(--primary) 45deg 90deg, transparent 90deg 135deg) center / 46px 22px
+                no-repeat,
+            linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat;
+    }
+
+    /* ── The hero ─────────────────────────────────────────────────────── */
+
+    [data-theme='solstice'] [data-kp-surface='hero'] {
+        padding-block: clamp(3rem, 8vw, 6rem) clamp(2.5rem, 6vw, 4rem);
+    }
+
+    [data-theme='solstice'] [data-kp-surface='hero'] h1 {
+        font-size: clamp(2.5rem, 10vw, 10.5rem);
+        line-height: 0.91;
+        letter-spacing: -0.04em;
+    }
+
+    /* The emphasised word inside the headline, small-caps rather than a
+       second colour on the overlay's own band (anatomy: amber leads). */
+    [data-theme='solstice'] [data-kp-surface='hero'] h1 em {
+        font-style: normal;
+        font-variant: all-small-caps;
+        letter-spacing: -0.03em;
+        color: var(--primary);
+    }
+
+    /* ── Nav: chrome, no bevel — a warm strip over the app ─────────────── */
+
+    [data-theme='solstice'] .kp-nav-wrap {
+        background: var(--card);
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='solstice'] .kp-nav {
+        gap: 0.75rem 1.5rem;
+    }
+
+    [data-theme='solstice'] .kp-nav__brand {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+        font-size: 1.35rem;
+        letter-spacing: -0.01em;
+    }
+
+    [data-theme='solstice'] .kp-nav__link {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='solstice'] .kp-nav__link:hover {
+        color: var(--primary);
+        background: none;
+    }
+
+    [data-theme='solstice'] .kp-nav__link--lang {
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    /* The dropdown caret: one glyph, drawn by content, never a word
+       [KT5] — the demo's own ⌄, not a borrowed arrow. */
+    [data-theme='solstice'] .kp-nav__link[aria-haspopup]::after {
+        content: ' ⌄';
+        font-size: 0.7em;
+        opacity: 0.8;
+    }
+
+    /* The dropdown (KT14): the demo's popover, opened and read before
+       this register was called done. */
+    [data-theme='solstice'] .kp-nav__menu {
+        background: var(--popover);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        padding: 0.4rem;
+        box-shadow: 0 12px 28px var(--kp-shadow-soft);
+    }
+
+    [data-theme='solstice'] .kp-nav__menu a {
+        border-radius: calc(var(--radius) - 3px);
+        padding: 0.5rem 0.6rem;
+    }
+
+    [data-theme='solstice'] .kp-nav__menu a:hover,
+    [data-theme='solstice'] .kp-nav__menu a:focus-visible {
+        background: var(--muted);
+        color: var(--primary);
+    }
+
+    [data-theme='solstice'] .kp-nav__link--cta {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: var(--radius);
+        font-weight: 600;
+    }
+
+    [data-theme='solstice'] .kp-nav__link--cta:hover {
+        background: hsl(from var(--primary) h s calc(l + 8%));
+        color: var(--primary-foreground);
+    }
+
+    /* ── Buttons: no bevel, one soft accent highlight [S49, A7] ────────── */
+
+    [data-theme='solstice'] .kp-button,
+    [data-theme='solstice'] .kp-icon-button {
+        border-radius: var(--radius);
+        font-weight: 600;
+    }
+
+    [data-theme='solstice'] .kp-button--primary:hover {
+        background: hsl(from var(--primary) h s calc(l + 8%));
+    }
+
+    [data-theme='solstice'] .kp-button--secondary:hover {
+        background: hsl(from var(--secondary) h s calc(l + 4%));
+    }
+
+    [data-theme='solstice'] .kp-button--ghost {
+        border-color: var(--border-strong);
+    }
+
+    [data-theme='solstice'] .kp-button--ghost:hover {
+        background: var(--muted);
+    }
+
+    [data-theme='solstice'] .kp-button--destructive {
+        background: transparent;
+        color: var(--destructive);
+        border-color: var(--destructive);
+    }
+
+    [data-theme='solstice'] .kp-button--destructive:hover {
+        background: var(--destructive);
+        color: var(--destructive-foreground);
+    }
+
+    /* The demo's answer to "mirror" [S49, A7]: a thin calibration-bar
+       highlight riding the top and bottom inset edges, echoing the
+       headline's fg/ink pair — this theme carries no gradients
+       (anatomy.md), so this is a highlight, not a flip. */
+    [data-theme='solstice'] .kp-button--mirror {
+        box-shadow:
+            inset 0 2px 0 hsl(from var(--foreground) h s l / 0.35),
+            inset 0 -2px 0 hsl(from var(--primary-foreground) h s l / 0.25);
+    }
+
+    [data-theme='solstice'] .kp-button--primary.kp-button--mirror {
+        box-shadow:
+            inset 0 2px 0 hsl(from var(--foreground) h s l / 0.35),
+            inset 0 -2px 0 hsl(from var(--primary-foreground) h s l / 0.25);
+    }
+
+    /* The mirror's own box-shadow would otherwise replace the two-channel
+       ring outright (kp.register sits after kp.components in the cascade)
+       — the exact fault retro's own comment records for its bevel [DI2,
+       AR30 as amended 2026-09-07]. Composed in front of the highlight,
+       never instead of it. */
+    [data-theme='solstice'] .kp-button--mirror:focus-visible {
+        box-shadow:
+            0 0 0 var(--kp-focus-ring-inner-width, 2px) var(--focus-ring),
+            inset 0 2px 0 hsl(from var(--foreground) h s l / 0.35),
+            inset 0 -2px 0 hsl(from var(--primary-foreground) h s l / 0.25);
+    }
+
+    /* ── Fields: wells with the softest radius in the set ──────────────── */
+
+    [data-theme='solstice'] .kp-field__label {
+        font-weight: 600;
+        font-size: 0.8125rem;
+    }
+
+    [data-theme='solstice'] .kp-field__required {
+        font-weight: 600;
+        font-size: 0.625rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='solstice'] .kp-field__input {
+        border-radius: calc(var(--radius) - 2px);
+        border-color: var(--border-strong);
+    }
+
+    [data-theme='solstice'] .kp-field__help {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='solstice'] .kp-field__error {
+        color: var(--destructive);
+    }
+
+    [data-theme='solstice'] .kp-fieldset {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='solstice'] .kp-form__summary {
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        background: var(--card);
+    }
+
+    /* ── Cards, windows and containers ─────────────────────────────────── */
+
+    [data-theme='solstice'] .kp-card {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='solstice'] .kp-card__title {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+        font-size: 1.4rem;
+    }
+
+    /* The dossier: the stamp rides a slight rotation the way a printed
+       tag would sit on a folder, and the redactions are the mark hook's
+       own emphasis reveal, styled below. */
+    [data-theme='solstice'] .kp-card[data-kp-label]::before {
+        content: attr(data-kp-label);
+        rotate: -2deg;
+        background: var(--accent);
+        color: var(--accent-foreground);
+        font-weight: 700;
+        font-size: 0.6875rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        border-radius: 4px;
+        padding: 0.35rem 0.6rem;
+    }
+
+    [data-theme='solstice'] .kp-card[data-kp-open]::before {
+        content: attr(data-kp-label-open);
+    }
+
+    /* The redactions: three marks inside the dossier, covered by a bar in
+       the theme's own boundary colour until the trigger opens the file,
+       then lifted one after another, right to left — the demo's own
+       clip-path direction. The ink underneath is present throughout
+       (color kept, never removed): the bar is what hides it, not the
+       text itself, which is how the demo's own `.kp-redaction` reads. */
+    [data-theme='solstice'] .kp-card[data-kp-reveal='emphasis'] mark {
+        position: relative;
+        background: none;
+        color: var(--card-foreground);
+        padding: 0.05em 0.15em;
+        font-weight: 400;
+        border-radius: 3px;
+    }
+
+    [data-theme='solstice'] .kp-card[data-kp-reveal='emphasis'] mark::after {
+        content: '';
+        position: absolute;
+        inset: 1px;
+        background: var(--border-strong);
+        border-radius: 3px;
+        clip-path: inset(0 0 0 0);
+        pointer-events: none;
+    }
+
+    [data-theme='solstice'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark:not(.is-cleared)::after {
+        clip-path: inset(0 0 0 0);
+    }
+
+    [data-theme='solstice'] .kp-card[data-kp-reveal='emphasis'] mark.is-cleared::after {
+        clip-path: inset(0 100% 0 0);
+    }
+
+    /* Windows: a plain popover panel with the demo's soft drop shadow —
+       no bevel, no ramp; the softest radius in the set doing the work
+       DI9's "no texture" leaves it to do. */
+    [data-theme='solstice'] .kp-dialog,
+    [data-theme='solstice'] .kp-popover,
+    [data-theme='solstice'] .kp-menu,
+    [data-theme='solstice'] .kp-toast,
+    [data-theme='solstice'] .kp-tooltip,
+    [data-theme='solstice'] .kp-confirm,
+    [data-theme='solstice'] .kp-datepicker__panel,
+    [data-theme='solstice'] .kp-combobox__list,
+    [data-theme='solstice'] .kp-palette,
+    [data-theme='solstice'] .kp-theme-menu {
+        box-shadow: 0 24px 56px var(--kp-shadow-deep);
+    }
+
+    [data-theme='solstice'] .kp-toasts {
+        gap: var(--kp-space-sm);
+    }
+
+    [data-theme='solstice'] .kp-dialog__title {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+        font-size: 1.4rem;
+    }
+
+    [data-theme='solstice'] .kp-menu__item:hover {
+        background: var(--muted);
+        color: var(--primary);
+    }
+
+    [data-theme='solstice'] .kp-alert {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='solstice'] .kp-grid {
+        gap: var(--kp-space-lg);
+    }
+
+    [data-theme='solstice'] .kp-grid__tile {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='solstice'] .kp-split {
+        gap: 1px;
+    }
+
+    [data-theme='solstice'] .kp-split__pane {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='solstice'] .kp-split__separator {
+        background: var(--border);
+    }
+
+    /* ── Footer ───────────────────────────────────────────────────────── */
+
+    [data-theme='solstice'] .kp-footer {
+        border-top: 1px solid var(--border);
+    }
+
+    [data-theme='solstice'] .kp-footer h4 {
+        font-weight: 600;
+        font-size: 0.8125rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='solstice'] .kp-footer a {
+        color: var(--muted-foreground);
+        text-decoration: none;
+    }
+
+    [data-theme='solstice'] .kp-footer a:hover {
+        color: var(--primary);
+    }
+
+    /* ── Badges, tags, status ───────────────────────────────────────────── */
+
+    [data-theme='solstice'] .kp-badge,
+    [data-theme='solstice'] .kp-tag {
+        border-radius: var(--radius);
+        font-weight: 600;
+    }
+
+    [data-theme='solstice'] .kp-health {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='solstice'] .kp-health__dot {
+        border-radius: 50%;
+    }
+
+    [data-theme='solstice'] .kp-skeleton {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='solstice'] .kp-progress {
+        border-radius: var(--radius);
+        background: var(--popover);
+    }
+
+    [data-theme='solstice'] .kp-progress__value {
+        background: var(--primary);
+    }
+
+    [data-theme='solstice'] .kp-spinner {
+        border-color: var(--border);
+        border-top-color: var(--primary);
+    }
+
+    [data-theme='solstice'] .kp-empty {
+        border: 1px dashed var(--border);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='solstice'] .kp-empty__title {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+    }
+
+    [data-theme='solstice'] .kp-error {
+        color: var(--destructive);
+    }
+
+    /* ── Text shapes: identifiers in the mono face, unornamented ───────── */
+
+    [data-theme='solstice'] .kp-id,
+    [data-theme='solstice'] .kp-url,
+    [data-theme='solstice'] .kp-numeric,
+    [data-theme='solstice'] .kp-timestamp,
+    [data-theme='solstice'] .kp-masked,
+    [data-theme='solstice'] .kp-copyable,
+    [data-theme='solstice'] .kp-truncate,
+    [data-theme='solstice'] .kp-cell-break,
+    [data-theme='solstice'] .kp-cell-truncate {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='solstice'] .kp-copyable__button {
+        border-radius: calc(var(--radius) - 3px);
+    }
+
+    /* ── Data: table, datatable, diff, timeline, tree, reorder ─────────── */
+
+    [data-theme='solstice'] .kp-table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    [data-theme='solstice'] .kp-table th {
+        color: var(--muted-foreground);
+        font-weight: 600;
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='solstice'] .kp-table td {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='solstice'] .kp-datatable {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='solstice'] .kp-datatable__sort[aria-sort] {
+        color: var(--primary);
+    }
+
+    [data-theme='solstice'] .kp-diff {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='solstice'] .kp-diff__line {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='solstice'] .kp-timeline {
+        border-inline-start: 2px solid var(--border);
+    }
+
+    [data-theme='solstice'] .kp-timeline__marker {
+        background: var(--primary);
+    }
+
+    [data-theme='solstice'] .kp-timeline__when {
+        color: var(--muted-foreground);
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='solstice'] .kp-tree {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='solstice'] .kp-reorder {
+        border-radius: var(--radius);
+    }
+
+    /* ── Navigation and steps ───────────────────────────────────────────── */
+
+    [data-theme='solstice'] .kp-tab[aria-selected='true'] {
+        color: var(--primary);
+    }
+
+    [data-theme='solstice'] .kp-tabs__list {
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='solstice'] .kp-breadcrumb,
+    [data-theme='solstice'] .kp-pagination {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='solstice'] .kp-pagination [aria-current] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='solstice'] .kp-wizard {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='solstice'] .kp-wizard__steps {
+        font-family: var(--theme-font-mono);
+    }
+
+    /* ── Pickers and palettes ────────────────────────────────────────────── */
+
+    [data-theme='solstice'] .kp-datepicker__day[aria-selected='true'] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: var(--radius);
+    }
+
+    [data-theme='solstice'] .kp-datepicker__weekday,
+    [data-theme='solstice'] .kp-datepicker__title {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='solstice'] .kp-colorpicker__swatch {
+        border-radius: calc(var(--radius) - 3px);
+    }
+
+    [data-theme='solstice'] .kp-colorpicker__value {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='solstice'] .kp-shortcuts__row kbd {
+        font-family: var(--theme-font-mono);
+        border: 1px solid var(--border-strong);
+        border-radius: calc(var(--radius) - 3px);
+        background: var(--card);
+        padding: 0 0.4em;
+    }
+
+    [data-theme='solstice'] .kp-shortcuts__group-label,
+    [data-theme='solstice'] .kp-palette__group-label {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+    }
+
+    [data-theme='solstice'] .kp-theme-menu__status,
+    [data-theme='solstice'] .kp-palette__status,
+    [data-theme='solstice'] .kp-combobox__status {
+        color: var(--muted-foreground);
+        font-family: var(--theme-font-mono);
+    }
+
+    /* ── The roots the rules above reach only by their parts ───────────── */
+
+    [data-theme='solstice'] .kp-field {
+        gap: 0.4rem;
+    }
+
+    [data-theme='solstice'] .kp-form {
+        gap: 1.1rem;
+    }
+
+    [data-theme='solstice'] .kp-combobox,
+    [data-theme='solstice'] .kp-datepicker,
+    [data-theme='solstice'] .kp-colorpicker,
+    [data-theme='solstice'] .kp-shortcuts,
+    [data-theme='solstice'] .kp-tabs {
+        border-radius: var(--radius);
+    }
+
+    /* ── The demo's own pieces [S46] ─────────────────────────────────────── */
+
+    /* The vertical margin note: static on narrow screens, rotated into
+       the hero's left margin from 960px, the demo's own breakpoint. */
+    [data-theme='solstice'] .kp-side-note {
+        font-family: var(--theme-font-mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    @media (min-width: 60rem) {
+        [data-theme='solstice'] .kp-side-note {
+            position: absolute;
+            inset-block-start: 6rem;
+            inset-inline-start: clamp(0.5rem, 2vw, 1.5rem);
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            max-width: none;
+        }
+    }
+
+    /* Laurels: a bold lead-in and a rust hairline either side, the way a
+       printed spec sheet sets its own tick marks. */
+    [data-theme='solstice'] .kp-laurels {
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 0.6875rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='solstice'] .kp-laurels li {
+        position: relative;
+        padding-inline: 0.85rem;
+    }
+
+    [data-theme='solstice'] .kp-laurels li::before,
+    [data-theme='solstice'] .kp-laurels li::after {
+        content: '';
+        position: absolute;
+        inset-block: 0.15rem;
+        inline-size: 1px;
+        background: var(--accent);
+    }
+
+    [data-theme='solstice'] .kp-laurels li::before {
+        inset-inline-start: 0;
+    }
+
+    [data-theme='solstice'] .kp-laurels li::after {
+        inset-inline-end: 0;
+    }
+
+    [data-theme='solstice'] .kp-laurels b {
+        color: var(--foreground);
+        font-weight: 700;
+    }
+
+    /* The platforms line: a rust tick before every name. */
+    [data-theme='solstice'] .kp-platforms {
+        font-weight: 500;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='solstice'] .kp-platforms span {
+        color: var(--foreground);
+        font-weight: 600;
+    }
+
+    /* The spec sheet: the plain card the demo shows — no ramp, no chrome. */
+    [data-theme='solstice'] .kp-spec {
+        border-radius: var(--radius);
+    }
+
+    [data-theme='solstice'] .kp-spec__swatch {
+        border-radius: 5px;
+    }
+
+    [data-theme='solstice'] .kp-spec__font[data-font='display'] {
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+    }
+
+    /* ── Motion, guarded [DI7] ────────────────────────────────────────── */
+
+    /* Every animation of this register lives here, inside the
+       no-preference guard, so a reader who asked for reduced motion never
+       receives one: the rest states above (headline solid, rule drawn,
+       redaction covered) are what they get. The durations are literal
+       because check-motion.mjs computes DI5's rate from them; the
+       matching --kp-* knobs above are what a consumer can retune
+       [AR43]. */
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='solstice'] [data-kp-reveal='headline'].is-calibrating::after {
+            animation: kp-cal-slide calc(var(--kp-cal-duration) + 2 * var(--kp-cal-stagger)) var(--fx-ease) 1 forwards;
+        }
+
+        [data-theme='solstice'] [data-kp-reveal='rule'].is-in::after {
+            animation: kp-cal-rule var(--kp-rule-duration) var(--fx-ease) var(--kp-rule-delay) 1 both;
+        }
+
+        [data-theme='solstice'] .kp-card[data-kp-reveal='emphasis'] mark.is-cleared::after {
+            animation: kp-cal-redact var(--kp-redact-duration) var(--fx-ease) 1 both;
+        }
+
+        [data-theme='solstice'] .kp-card[data-kp-reveal='emphasis'] mark.is-cleared:nth-of-type(2)::after {
+            animation-delay: var(--kp-redact-stagger);
+        }
+
+        [data-theme='solstice'] .kp-card[data-kp-reveal='emphasis'] mark.is-cleared:nth-of-type(3)::after {
+            animation-delay: calc(2 * var(--kp-redact-stagger));
+        }
+    }
+
+    /* ── Motion [DI5, DI7] ────────────────────────────────────────────── */
+
+    /* One monotonic wipe, never opposed: the three bands recede together
+       on a single timeline (js/effects.js adds is-calibrating for the
+       whole 740ms span; the demo's own three independently-staggered
+       transforms are approximated here as one clip-path sweep, left to
+       right, at the theme's own ease — the same triad, the same total
+       time, a different mechanism [S49 finding, recorded in
+       anatomy.md]). */
+    @keyframes kp-cal-slide {
+        0% {
+            clip-path: inset(0 0 0 0);
+        }
+
+        100% {
+            clip-path: inset(0 0 0 100%);
+        }
+    }
+
+    /* The rule: scaleX(0→1), one direction, one step. */
+    @keyframes kp-cal-rule {
+        from {
+            transform: scaleX(0);
+        }
+
+        to {
+            transform: scaleX(1);
+        }
+    }
+
+    /* The redaction: the bar lifts right to left, the demo's own
+       direction (`clip-path: inset(0 100% 0 0)` at rest-cleared). */
+    @keyframes kp-cal-redact {
+        from {
+            clip-path: inset(0 0 0 0);
+        }
+
+        to {
+            clip-path: inset(0 100% 0 0);
+        }
+    }
+    /* The band [M1, M4]: Kenny picked this theme's own version over the
+       shared one on 2026-09-08 — amber between two translucent amber rules. */
+    [data-theme='solstice'] .kp-marquee {
+        color: var(--primary);
+        border-block: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+        font-family: var(--theme-font-mono);
+        --kp-marquee: 44000ms;
+    }
+
+    /* The menu's caption [M3]: the same choice, for the line a consumer
+       may put above a dropdown's items. */
+    [data-theme='solstice'] .kp-nav__menu[data-kp-menu-label]::before {
+        color: var(--primary);
+        font-family: var(--theme-font-mono);
+        border-block-end: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+    }
+}

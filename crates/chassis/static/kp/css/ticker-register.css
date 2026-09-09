@@ -1,0 +1,973 @@
+@layer kp.register {
+    /* @kp-soft/themes — css/ticker-register.css
+   The ticker register, 5.0.0 [S48, LIFT_PLAN row 6]: the trading screen.
+   Scoped to [data-theme='ticker'] and inert elsewhere; opt-in, imported
+   after themes.css. The approved concept demo ("Open Outcry", 2026-09-08,
+   scratchpad/ticker-demo.html) is the reference for every value here.
+
+   What this file does, in order: the knobs; the two-channel ring in the
+   demo's own stacked order; the type; the hooks of S45 — the headline and
+   the marks that CUT into place (an instant class swap, never a fade), the
+   hairline rule that draws itself once under a heading, the hairline
+   divider; the accent (a plain display heading, no ornament — the
+   restraint IS the accent); the hero; the navbar with the dropdown; the
+   buttons, the mirror outline and the reverse-video primary; the fields;
+   the dossier card with its stamp and its cut redactions; and one answer
+   per component root (TH124).
+
+   Colour discipline (DI9): nothing here names a colour; every value is
+   var(--token). Radius 0 throughout — the token contract already carries
+   it (`--radius: 0rem`), and a component root's own rule states it again
+   for clarity, matching the sibling registers' convention.
+
+   Motion (DI5, DI7): the demo's own thesis is "cuts, not dissolves" —
+   `themes/ticker/tokens.json` sets `--fx-duration: 0ms`, which the whole
+   base layer's own transitions already read (css/_rules.css,
+   css/components.css), so every hover, focus and state change in the
+   package is already instantaneous under this theme without a line of
+   register code. This file adds no `transition` or `animation`
+   declaration of its own: every reveal below is a bare class swap with no
+   transition property at all, which is the browser's definition of
+   instant, and there is nothing here for `@media
+   (prefers-reduced-motion: no-preference)` to guard — DI5's "no more than
+   three opposing luminance changes per second" does not apply to a
+   mechanism that never interpolates in the first place. */
+
+    [data-theme='ticker'] {
+        /* The configuration surface [AR43], the demo's own values as
+           defaults: 0.35 is the demo's IntersectionObserver threshold; the
+           delay and stagger are 0 because the demo choreographs nothing —
+           every reveal fires the instant it is seen, together, not one
+           after another. */
+        --kp-reveal-threshold: 0.35;
+        --kp-classified-delay: 0ms;
+        --kp-reveal-stagger: 0ms;
+        /* The reveals this theme performs [S45]: js/effects.js reads these
+           and leaves a theme that declares none at rest. The headline
+           reuses `draw` — academia's routine (LIFT_PLAN row 10): the text
+           is never touched, no glyphs, no split into words, and the
+           element is simply flipped to `is-in` the instant it scrolls into
+           view, the exact IntersectionObserver `rule()` already runs,
+           generalised to h1. Ticker's register paints that flip as an
+           opacity cut rather than academia's drawn rule, which is the
+           whole point of one JS mechanism serving many visual answers.
+           `emphasis` and `rule` do not switch on the routine name at all
+           (see `emphasis()`/`rule()` in js/effects.js), so `cut` there is
+           purely documentary — this theme's own word for what happens. */
+        --kp-reveal-headline: draw;
+        --kp-reveal-emphasis: cut;
+        --kp-reveal-rule: cut;
+    }
+
+    /* ── The ring, in the demo's own stacked order [DI2, AR30] ───────────
+       A double concentric ring: the amber channel and the near-white
+       channel, each separated from the element and from each other by a
+       background-coloured gap, so the ring reads the same over the amber
+       primary button as over the void. No transition property: the demo's
+       own :focus-visible rule carries `transition: none` for the same
+       reason every other interactive rule in this file omits the
+       property — the absence of a declaration is the instant state. */
+    [data-theme='ticker'] :focus-visible {
+        outline: none;
+        box-shadow:
+            0 0 0 2px var(--background),
+            0 0 0 4px var(--ring),
+            0 0 0 6px var(--background),
+            0 0 0 8px var(--foreground);
+    }
+
+    /* ── Type ──────────────────────────────────────────────────────────── */
+
+    /* css/_rules.css still carries ticker's pre-lift sketch — a solid
+       amber bar behind every h1 and h2 ("reverse video on the panel
+       titles"), `display: inline-block`, `padding-inline: 0.35em` — from
+       before the approved demo existed. The demo's own heading is plain:
+       colour only, no bar. This rule supersedes that placeholder outright
+       rather than leaving it to bleed through the properties the surface
+       rule below does not otherwise touch, which is what an unthemed h1
+       measured at 1.70:1 against its own background (TH116's surfaces
+       suite) before this line existed. */
+    [data-theme='ticker'] h1,
+    [data-theme='ticker'] h2,
+    [data-theme='ticker'] h3,
+    [data-theme='ticker'] h4 {
+        display: block;
+        background: none;
+        padding-inline: 0;
+        font-family: var(--theme-font-display);
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        line-height: 1.15;
+        color: var(--foreground);
+    }
+
+    /* Microlabels: mono, tracked, tabular — the desk code above every
+       panel. */
+    [data-theme='ticker'] .microlabel {
+        font-family: var(--theme-font-mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ── The hooks [S45]: the accent, the mark, the rule, the divider ──── */
+
+    /* The accent: a plain display heading, no ornament. Ticker's answer
+       to "what marks a heading as this theme's own" is restraint itself —
+       the demo's h1 carries no shadow, no bar, no colour trick, only the
+       display size and the mono capitals every heading already has above.
+       Every register still owes this rule, because nothing in the base
+       layer reads `--kp-text-display` on its own [S47, critic #19]. */
+    [data-theme='ticker'] [data-kp-surface] h1 {
+        font-size: var(--kp-text-display);
+        line-height: 1.08;
+        margin-block: 0 0.35em;
+        text-wrap: balance;
+        color: var(--foreground);
+    }
+
+    /* The headline: a cut, not a dissolve. At rest — no script, seen this
+       session, or reduced motion — the text is simply there; armed and
+       still pending, it is not, and the instant `js/effects.js`'s `draw`
+       flips it `is-in` it is, in the same frame, no transition property to
+       interpolate through. `draw`'s own bail path (quiet, reduced, seen)
+       goes through the shared top of `headline()` first, which adds
+       `is-deciphered` instead of `is-in` — excluding both keeps the
+       headline covered whichever of the two the module reached, the same
+       shape academia's own rule uses for the identical reason. */
+    [data-theme='ticker'] [data-kp-reveal='headline'] {
+        opacity: 1;
+    }
+
+    [data-theme='ticker'][data-kp-effects] [data-kp-reveal='headline']:not(.is-in):not(.is-deciphered) {
+        opacity: 0;
+    }
+
+    /* The mark: emphasis is a cut, not a dissolve. At rest the words
+       stand plain, underlined in the boundary colour; the instant the
+       theme's effects are armed the words go quiet (an underline only)
+       until the reveal lands, and then the amber wash and the amber
+       underline arrive together, in one frame — a background-size swap
+       with no transition property, exactly the demo's own `transition:
+       none` on `.kp-lede mark`. */
+    [data-theme='ticker'] mark {
+        background: hsl(from var(--primary) h s l / 0.18);
+        color: var(--foreground);
+        text-decoration: underline;
+        text-decoration-color: var(--primary);
+        padding-inline: 0.06em;
+    }
+
+    [data-theme='ticker'][data-kp-effects] mark:not(.is-cleared) {
+        background: transparent;
+        color: var(--muted-foreground);
+        text-decoration-color: var(--border-strong);
+    }
+
+    /* The rule: the underline cuts in at full width the instant its
+       heading enters the viewport — no draw, no ease, a width property
+       with no transition. */
+    [data-theme='ticker'] [data-kp-reveal='rule']::after {
+        content: '';
+        display: block;
+        block-size: 2px;
+        inline-size: 3rem;
+        margin-block-start: 0.6rem;
+        background: var(--primary);
+    }
+
+    [data-theme='ticker'][data-kp-effects] [data-kp-reveal='rule']:not(.is-in)::after {
+        inline-size: 0;
+    }
+
+    /* The divider: one flat hairline, dim, no blur, no torn edge — the
+       theme's refusal of the round's razor tear (the anatomy: "this
+       theme's own idiom is a printed rule"). The second is the quieter
+       boundary tone. */
+    [data-theme='ticker'] [data-kp-divider] {
+        block-size: 1px;
+        background: hsl(from var(--primary) h s l / 0.4);
+    }
+
+    [data-theme='ticker'] [data-kp-divider='alt'] {
+        background: hsl(from var(--border-strong) h s l / 0.6);
+    }
+
+    /* ── The hero ──────────────────────────────────────────────────────── */
+
+    [data-theme='ticker'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+        grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+        gap: 2.5rem;
+        align-items: start;
+    }
+
+    @container (max-width: 60rem) {
+        [data-theme='ticker'] [data-kp-surface='hero'] [data-kp-hero-grid] {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ── The navbar: the desk strip ────────────────────────────────────── */
+
+    [data-theme='ticker'] .kp-nav-wrap {
+        background: var(--background);
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='ticker'] .kp-nav {
+        background: var(--background);
+        position: relative;
+        z-index: var(--kp-z-nav, 30);
+    }
+
+    [data-theme='ticker'] .kp-nav__brand {
+        font-family: var(--theme-font-mono);
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--primary);
+    }
+
+    [data-theme='ticker'] .kp-nav__brand-tag {
+        color: var(--muted-foreground);
+        font-weight: 400;
+        letter-spacing: 0.1em;
+    }
+
+    [data-theme='ticker'] .kp-nav__link {
+        color: var(--foreground);
+        font-size: 0.85rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        border-radius: 0;
+        background: none;
+    }
+
+    [data-theme='ticker'] .kp-nav__link:hover,
+    [data-theme='ticker'] .kp-nav__link:focus-visible,
+    [data-theme='ticker'] .kp-nav__link[aria-current],
+    [data-theme='ticker'] .kp-nav__links > li:focus-within > .kp-nav__link {
+        color: var(--primary);
+        background: none;
+    }
+
+    [data-theme='ticker'] .kp-nav__link--lang {
+        color: var(--muted-foreground);
+    }
+
+    /* The call to action is the reverse-video plate: amber field, black
+       ink, the way a terminal names a live screen. */
+    [data-theme='ticker'] .kp-nav__link--cta {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        font-weight: 600;
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-nav__link--cta:hover,
+    [data-theme='ticker'] .kp-nav__link--cta:focus-visible {
+        background: var(--accent);
+        color: var(--accent-foreground);
+    }
+
+    /* The dropdown [KT14]: the popover plate, one hairline frame, flat
+       rows — no motion, a plain reveal. */
+    [data-theme='ticker'] .kp-nav__menu {
+        background: var(--popover);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-nav__menu a {
+        color: var(--popover-foreground);
+        font-size: 0.85rem;
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-nav__menu a:hover,
+    [data-theme='ticker'] .kp-nav__menu a:focus-visible {
+        background: var(--muted);
+        color: var(--foreground);
+    }
+
+    /* ── Buttons: a hairline plate, the mirror as a duplicate outline ──── */
+
+    [data-theme='ticker'] .kp-button,
+    [data-theme='ticker'] .kp-icon-button {
+        font-family: var(--theme-font-mono);
+        font-size: 0.85rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--foreground);
+        background: transparent;
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-button:hover,
+    [data-theme='ticker'] .kp-icon-button:hover {
+        border-color: var(--foreground);
+        background: transparent;
+    }
+
+    /* The mirror: the demo's own duplicate outline, flipped, half
+       opacity — a second frame rather than a shadow (this theme has no
+       shadow anywhere: a shadow implies a light source, and the amber
+       here is a field colour, not one). */
+    [data-theme='ticker'] .kp-button--mirror {
+        position: relative;
+    }
+
+    [data-theme='ticker'] .kp-button--mirror::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border: 1px solid var(--primary);
+        transform: scaleX(-1);
+        pointer-events: none;
+        opacity: 0.5;
+    }
+
+    /* The primary plate: reverse video, amber field, black ink — the
+       theme's one loud surface. */
+    [data-theme='ticker'] .kp-button--primary {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-color: var(--primary);
+        font-weight: 600;
+    }
+
+    [data-theme='ticker'] .kp-button--primary:hover,
+    [data-theme='ticker'] .kp-button--primary:focus-visible {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-foreground);
+    }
+
+    [data-theme='ticker'] .kp-button--ghost {
+        background: transparent;
+        color: var(--muted-foreground);
+        border-color: var(--border);
+    }
+
+    [data-theme='ticker'] .kp-button--ghost:hover,
+    [data-theme='ticker'] .kp-button--ghost:focus-visible {
+        color: var(--foreground);
+        border-color: var(--border-strong);
+    }
+
+    [data-theme='ticker'] .kp-button--destructive {
+        color: var(--destructive);
+        border-color: var(--destructive);
+    }
+
+    [data-theme='ticker'] .kp-button--destructive:hover,
+    [data-theme='ticker'] .kp-button--destructive:focus-visible {
+        background: var(--destructive);
+        color: var(--destructive-foreground);
+    }
+
+    [data-theme='ticker'] .kp-button:disabled {
+        opacity: 0.5;
+    }
+
+    /* ── Fields: sunken wells, tabular ink ─────────────────────────────── */
+
+    [data-theme='ticker'] .kp-field__label {
+        font-family: var(--theme-font-mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='ticker'] .kp-field__input,
+    [data-theme='ticker'] .kp-datatable__search,
+    [data-theme='ticker'] .kp-combobox__input,
+    [data-theme='ticker'] .kp-palette__input {
+        background: var(--card);
+        color: var(--foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        font-variant-numeric: tabular-nums;
+    }
+
+    [data-theme='ticker'] select.kp-field__input::picker-icon {
+        color: var(--primary);
+    }
+
+    [data-theme='ticker'] .kp-field__help {
+        font-family: var(--theme-font-mono);
+        font-size: 0.7rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='ticker'] .kp-field--invalid .kp-field__input {
+        border-color: var(--destructive);
+    }
+
+    [data-theme='ticker'] .kp-field__error {
+        font-family: var(--theme-font-mono);
+        color: var(--destructive);
+    }
+
+    [data-theme='ticker'] .kp-field__check {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        background: var(--card);
+    }
+
+    [data-theme='ticker'] .kp-field__check:checked {
+        background: var(--primary);
+        border-color: var(--primary);
+    }
+
+    [data-theme='ticker'] .kp-fieldset {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-form__summary {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    /* ── Cards, the dossier and containers ─────────────────────────────── */
+
+    [data-theme='ticker'] .kp-card {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    /* The panel title in reverse video — the anatomy's own phrase: "the
+       way a terminal names a screen." */
+    [data-theme='ticker'] .kp-card__header {
+        background: var(--primary);
+        border-bottom: 0;
+    }
+
+    [data-theme='ticker'] .kp-card__title {
+        font-family: var(--theme-font-display);
+        text-transform: uppercase;
+        color: var(--primary-foreground);
+    }
+
+    /* The stamp: a bordered plate, the destructive tone, tilted once —
+       "Classified" over the file, no shadow. */
+    [data-theme='ticker'] .kp-card[data-kp-label]::before {
+        content: attr(data-kp-label);
+        position: absolute;
+        inset-block-start: 0.9rem;
+        inset-inline-end: 0.9rem;
+        rotate: -4deg;
+        font-family: var(--theme-font-mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--destructive);
+        background: var(--card);
+        border: 1px solid var(--destructive);
+        padding: 0.15rem 0.55rem;
+    }
+
+    [data-theme='ticker'] .kp-card[data-kp-reveal='emphasis'] {
+        position: relative;
+    }
+
+    /* The redactions: the dossier's marks read as bars of the foreground
+       colour, ink hidden by colour only [KT5] — a screen reader still
+       hears the sentence, a sighted reader sees a redaction bar until the
+       trigger clears it, in one frame, no dissolve. */
+    [data-theme='ticker'] .kp-card[data-kp-reveal='emphasis'] mark {
+        background: var(--foreground);
+        color: transparent;
+        text-decoration: none;
+        padding-inline: 0.15em;
+        user-select: text;
+    }
+
+    [data-theme='ticker'][data-kp-effects] .kp-card[data-kp-reveal='emphasis'] mark.is-cleared {
+        background: hsl(from var(--primary) h s l / 0.22);
+        color: var(--foreground);
+        text-decoration: underline;
+        text-decoration-color: var(--primary);
+    }
+
+    /* ── Dialogs, popovers and overlay panels: the void with a hairline ── */
+
+    [data-theme='ticker'] .kp-dialog,
+    [data-theme='ticker'] .kp-popover,
+    [data-theme='ticker'] .kp-menu,
+    [data-theme='ticker'] .kp-toast,
+    [data-theme='ticker'] .kp-tooltip,
+    [data-theme='ticker'] .kp-confirm,
+    [data-theme='ticker'] .kp-datepicker__panel,
+    [data-theme='ticker'] .kp-combobox__list,
+    [data-theme='ticker'] .kp-palette,
+    [data-theme='ticker'] .kp-theme-menu {
+        background: var(--popover);
+        color: var(--popover-foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-dialog__title {
+        font-family: var(--theme-font-display);
+        text-transform: uppercase;
+    }
+
+    [data-theme='ticker'] .kp-menu__item:hover,
+    [data-theme='ticker'] .kp-combobox__option[aria-selected='true'],
+    [data-theme='ticker'] .kp-palette__option[aria-selected='true'] {
+        background: var(--muted);
+    }
+
+    /* The menu's own popover clips at its 4px padding (`.kp-popover`,
+       `overflow: auto`), so the broad ring above — which reaches 8px, the
+       demo's own four-layer stack — never fully paints on a row inside
+       it; only the background gap survives, indistinguishable from rest
+       (measured on the destructive row action, W4/AR30). A menu item
+       falls back to the base layer's own two-channel pair
+       (--focus-ring/--focus-ring-contrast, re-declared because the broad
+       rule above cleared it), which fits the 4px budget: the demo never
+       shows this component, so there is no amber to be faithful to here. */
+    [data-theme='ticker'] .kp-menu__item:focus-visible {
+        outline: 2px solid var(--focus-ring-contrast);
+        outline-offset: 2px;
+        box-shadow: 0 0 0 2px var(--focus-ring);
+    }
+
+    [data-theme='ticker'] .kp-alert {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-left: 3px solid var(--accent);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-alert--destructive {
+        border-left-color: var(--destructive);
+    }
+
+    [data-theme='ticker'] .kp-alert--success {
+        border-left-color: var(--success);
+    }
+
+    [data-theme='ticker'] .kp-alert__label {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='ticker'] .kp-grid__tile,
+    [data-theme='ticker'] .kp-split__pane {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-split__separator {
+        background: var(--border-strong);
+    }
+
+    /* ── The footer ────────────────────────────────────────────────────── */
+
+    [data-theme='ticker'] .kp-footer {
+        background: var(--background);
+        color: var(--muted-foreground);
+        border-top: 1px solid var(--border-strong);
+    }
+
+    [data-theme='ticker'] .kp-footer h4 {
+        font-family: var(--theme-font-display);
+        color: var(--primary);
+    }
+
+    [data-theme='ticker'] .kp-footer a {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='ticker'] .kp-footer a:hover,
+    [data-theme='ticker'] .kp-footer a:focus-visible {
+        color: var(--foreground);
+    }
+
+    /* ── Badges, tags, status ──────────────────────────────────────────── */
+
+    [data-theme='ticker'] .kp-badge,
+    [data-theme='ticker'] .kp-tag {
+        border-radius: 0;
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='ticker'] .kp-health {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='ticker'] .kp-health__dot {
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-skeleton {
+        background: var(--muted);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-progress {
+        background: var(--card);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-progress__value {
+        background: var(--primary);
+    }
+
+    [data-theme='ticker'] .kp-spinner {
+        border-color: var(--border);
+        border-top-color: var(--primary);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-empty {
+        border: 1px dashed var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-empty__title {
+        font-family: var(--theme-font-display);
+        text-transform: uppercase;
+    }
+
+    [data-theme='ticker'] .kp-error {
+        font-family: var(--theme-font-mono);
+        color: var(--destructive);
+    }
+
+    /* ── Text shapes: identifiers in the mono face, tabular ────────────── */
+
+    [data-theme='ticker'] .kp-id,
+    [data-theme='ticker'] .kp-url,
+    [data-theme='ticker'] .kp-numeric,
+    [data-theme='ticker'] .kp-timestamp,
+    [data-theme='ticker'] .kp-masked,
+    [data-theme='ticker'] .kp-copyable,
+    [data-theme='ticker'] .kp-truncate,
+    [data-theme='ticker'] .kp-cell-break,
+    [data-theme='ticker'] .kp-cell-truncate {
+        font-family: var(--theme-font-mono);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
+    }
+
+    [data-theme='ticker'] .kp-timestamp,
+    [data-theme='ticker'] .kp-id {
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='ticker'] .kp-copyable__button {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    /* ── Data: the tape's own discipline, tabular throughout ───────────── */
+
+    [data-theme='ticker'] .kp-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        font-variant-numeric: tabular-nums;
+    }
+
+    [data-theme='ticker'] .kp-table th {
+        font-family: var(--theme-font-mono);
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='ticker'] .kp-table td {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='ticker'] .kp-table tbody tr:hover {
+        background: var(--card);
+    }
+
+    [data-theme='ticker'] .kp-datatable {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-datatable__bar {
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='ticker'] .kp-datatable__sort[aria-sort] {
+        color: var(--primary);
+    }
+
+    [data-theme='ticker'] .kp-datatable__status,
+    [data-theme='ticker'] .kp-datatable__page {
+        font-family: var(--theme-font-mono);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.04em;
+    }
+
+    [data-theme='ticker'] .kp-diff {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-diff__line {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='ticker'] .kp-timeline {
+        border-inline-start: 2px solid var(--border-strong);
+    }
+
+    [data-theme='ticker'] .kp-timeline__marker {
+        background: var(--primary);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-timeline__when {
+        font-family: var(--theme-font-mono);
+        font-variant-numeric: tabular-nums;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='ticker'] .kp-tree {
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='ticker'] .kp-reorder {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    /* ── Navigation and steps ─────────────────────────────────────────── */
+
+    [data-theme='ticker'] .kp-tab {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-tab[aria-selected='true'] {
+        color: var(--primary);
+        border-bottom: 2px solid var(--primary);
+    }
+
+    [data-theme='ticker'] .kp-tabs__list {
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    [data-theme='ticker'] .kp-breadcrumb,
+    [data-theme='ticker'] .kp-pagination {
+        font-family: var(--theme-font-mono);
+        font-variant-numeric: tabular-nums;
+    }
+
+    [data-theme='ticker'] .kp-pagination a[aria-current],
+    [data-theme='ticker'] .kp-pagination [aria-current] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-wizard {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-wizard__steps {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    /* ── Pickers and palettes ─────────────────────────────────────────── */
+
+    [data-theme='ticker'] .kp-datepicker__day[aria-selected='true'] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-datepicker__weekday,
+    [data-theme='ticker'] .kp-datepicker__title {
+        font-family: var(--theme-font-mono);
+        letter-spacing: 0.04em;
+    }
+
+    [data-theme='ticker'] .kp-colorpicker__swatch {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-colorpicker__value {
+        font-family: var(--theme-font-mono);
+        font-variant-numeric: tabular-nums;
+    }
+
+    [data-theme='ticker'] .kp-shortcuts__row kbd {
+        font-family: var(--theme-font-mono);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        background: var(--card);
+    }
+
+    [data-theme='ticker'] .kp-shortcuts__group-label,
+    [data-theme='ticker'] .kp-palette__group-label {
+        font-family: var(--theme-font-display);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='ticker'] .kp-theme-menu__status,
+    [data-theme='ticker'] .kp-palette__status,
+    [data-theme='ticker'] .kp-combobox__status {
+        font-family: var(--theme-font-mono);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ── The roots the rules above reach only by their parts ──────────── */
+
+    /* Density as a virtue: a tighter rhythm than the base layer's default,
+       the desk's own — a trading screen packs the row. */
+    [data-theme='ticker'] .kp-field {
+        gap: 0.3rem;
+    }
+
+    [data-theme='ticker'] .kp-form {
+        gap: 0.75rem;
+    }
+
+    [data-theme='ticker'] .kp-grid {
+        gap: 0.75rem;
+    }
+
+    [data-theme='ticker'] .kp-split {
+        gap: 0;
+    }
+
+    [data-theme='ticker'] .kp-toasts {
+        gap: 0.5rem;
+    }
+
+    [data-theme='ticker'] .kp-combobox,
+    [data-theme='ticker'] .kp-datepicker,
+    [data-theme='ticker'] .kp-colorpicker,
+    [data-theme='ticker'] .kp-shortcuts,
+    [data-theme='ticker'] .kp-tabs {
+        border-radius: 0;
+    }
+
+    /* ── The scrollbar joins the theme ────────────────────────────────── */
+
+    [data-theme='ticker'] {
+        scrollbar-color: var(--border-strong) var(--background);
+    }
+
+    /* ── The demo's own pieces [S46] ──────────────────────────────────── */
+
+    [data-theme='ticker'] .kp-side-note {
+        font-family: var(--theme-font-mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+        border-left: 2px solid var(--primary);
+        padding-left: 0.5rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    [data-theme='ticker'] .kp-laurels {
+        font-size: 0.75rem;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='ticker'] .kp-laurels li {
+        border-left: 1px solid var(--border-strong);
+        padding-left: 0.5rem;
+    }
+
+    [data-theme='ticker'] .kp-laurels b {
+        display: block;
+        font-family: var(--theme-font-mono);
+        color: var(--foreground);
+    }
+
+    [data-theme='ticker'] .kp-lede {
+        max-width: 36rem;
+    }
+
+    [data-theme='ticker'] .kp-platforms {
+        font-family: var(--theme-font-mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    /* The spec sheet: the desk's own reference card — a hairline frame,
+       the mono face, tabular throughout. */
+    [data-theme='ticker'] .kp-spec {
+        background: var(--card);
+        color: var(--card-foreground);
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+        font-family: var(--theme-font-mono);
+        font-size: 0.75rem;
+        line-height: 1.75;
+        font-variant-numeric: tabular-nums;
+    }
+
+    [data-theme='ticker'] .kp-spec dt {
+        color: var(--muted-foreground);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    [data-theme='ticker'] .kp-spec__swatch {
+        border: 1px solid var(--border-strong);
+        border-radius: 0;
+    }
+
+    [data-theme='ticker'] .kp-spec__font {
+        font-family: var(--theme-font-display);
+        text-transform: uppercase;
+    }
+
+    [data-theme='ticker'] .kp-spec__font[data-font='body'] {
+        font-family: var(--theme-font-body);
+        text-transform: none;
+    }
+    /* The band [M1, M4]: Kenny picked this theme's own version over the
+       shared one on 2026-09-08 — the tape its own approved demo showed, mono on the card colour with the items hard against each other. */
+    [data-theme='ticker'] .kp-marquee {
+        background: var(--card);
+        border-block: 1px solid var(--border);
+        font-family: var(--theme-font-mono);
+        --kp-marquee: 24000ms;
+        --kp-marquee-gap: 0rem;
+    }
+
+    /* The menu's caption [M3]: the same choice, for the line a consumer
+       may put above a dropdown's items. */
+    [data-theme='ticker'] .kp-nav__menu[data-kp-menu-label]::before {
+        color: var(--primary);
+        font-family: var(--theme-font-mono);
+        border-block-end: 1px solid var(--border);
+    }
+}

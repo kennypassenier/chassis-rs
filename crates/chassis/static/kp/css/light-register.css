@@ -1,0 +1,708 @@
+@layer kp.register {
+    /* @kp-soft/themes — css/light-register.css
+   The light register, 5.0.0 [S48, LIFT_PLAN]: "Plain Sight", the concept
+   demo Kenny approved on 2026-09-08. Scoped to [data-theme='light'] and
+   inert elsewhere; opt-in, imported after themes.css. The demo is the
+   reference for every value here — see themes/light/anatomy.md for the
+   idea and the research it names (loom.com, notion.so, Aardvark Book
+   Club, each independently measured in the demo's own header comment).
+
+   The theme's whole case: restraint is a decision, not an absence of
+   one. Every colour below is already the token — themes/light/tokens.json
+   converts to the demo's own hex values exactly (checked, X0), so this
+   file changes no token and adds no colour of its own (DI9). What it adds
+   is shape, easing and two mechanisms: a headline that opens through a
+   rounded clip window, and marks that sweep in with a highlighter's
+   background-size, both eased on the demo's measured notion.so curve
+   (`--kp-ease-arrive`); a hover/click curve measured separately from
+   loom.com (`--kp-ease-hover`) for the micro-interactions. Nothing here
+   is textured or looped: DI5 counts zero opposing changes anywhere,
+   because every animation in this file runs once.
+
+   The two radius vocabularies the demo measured (a small surface radius
+   for cards/inputs/the dialog, a full pill for buttons/chips) are already
+   how css/components.css reads `--radius` and `--kp-radius-pill` — this
+   file only asks the button and the icon button to use the pill, since
+   the base layer defaults a button to the surface radius. Everything
+   else keeps the base layer's shape.
+
+   Elevation, answered once, everywhere it recurs: card, popover, dialog,
+   menu, toast, tooltip, confirm, the datepicker/combobox/palette panels
+   and the theme menu are all pure white on a pure white page (DI6: card
+   and popover are both `--card`/`--popover` = white), so the base layer's
+   border-only treatment leaves them looking like a page with no surfaces
+   at all. The three shadow steps below are the demo's own three (the
+   card's 1px/2px wash, the dropdown's 8px/24px, the dialog's 20px/48px),
+   each a relative colour of `--foreground` (DI9) at the demo's own alpha. */
+
+    [data-theme='light'] {
+        /* The configuration surface [AR43], the demo's own values as
+       defaults: the lede's two marks stagger 620ms then +160ms, exactly
+       as the demo's `animation-delay`s read; the dossier's three
+       redactions stagger 140ms apart, exactly as the demo's script did. */
+        --kp-classified-delay: 620ms;
+        --kp-reveal-stagger: 160ms;
+        --kp-redact-stagger: 140ms;
+        /* Two eases, measured separately in the demo's own header: a
+       confident settle for arrivals (notion.so, four uses in the
+       fetched chunks) and a quicker curve for hover/active (loom.com's
+       own micro-interaction curve). Neither replaces --fx-ease, which
+       stays the package's shared default; these are this theme's own,
+       named the way retro names --kp-teal-ink. */
+        --kp-ease-arrive: cubic-bezier(0.16, 1, 0.3, 1);
+        --kp-ease-hover: cubic-bezier(0.4, 0, 0.2, 1);
+        /* The demo's three shadow steps, each a relative colour of
+       --foreground (DI9) at the demo's own measured alpha. */
+        --kp-shadow-sm: 0 1px 2px hsl(from var(--foreground) h s l / 0.06);
+        --kp-shadow-md: 0 8px 24px hsl(from var(--foreground) h s l / 0.12);
+        --kp-shadow-lg: 0 20px 48px hsl(from var(--foreground) h s l / 0.22);
+        /* The reveals this theme performs [S45]: js/effects.js reads
+       these and leaves a theme that declares none at rest. `clip` is
+       new — see js/effects.js's `clip` branch and TIMINGS['kp-clip-reveal']
+       — because none of the six existing headline routines keep the text
+       whole while opening a shape around it. */
+        --kp-reveal-headline: clip;
+        --kp-reveal-emphasis: sweep;
+        --kp-reveal-rule: draw;
+    }
+
+    /* ── Type ──────────────────────────────────────────────────────────── */
+
+    [data-theme='light'] h1,
+    [data-theme='light'] h2,
+    [data-theme='light'] h3 {
+        font-weight: 600;
+        letter-spacing: -0.01em;
+    }
+
+    /* ── The hooks [S45]: the headline, the mark, the rule, the divider ── */
+
+    /* The headline: a rounded clip window opens around the whole text,
+       once. The text itself never changes — no noise, no per-word
+       stagger, no dither — which is the one thing every other headline
+       routine in the package does and this one deliberately does not
+       [anatomy: "no ornament"]. */
+    [data-theme='light'] [data-kp-reveal='headline'] {
+        clip-path: inset(0% 0% 0% 0% round 0);
+        opacity: 1;
+    }
+
+    [data-theme='light'][data-kp-effects] [data-kp-reveal='headline']:not(.is-deciphered) {
+        clip-path: inset(38% 0% 38% 0% round 999px);
+        opacity: 0;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='light'] [data-kp-reveal='headline'].is-revealing {
+            animation: kp-clip-reveal 620ms var(--kp-ease-arrive) both;
+        }
+    }
+
+    /* The rule: reuses the base layer's own kp-rule-in (formal, blueprint
+       and deco already draw a heading rule with it), at the demo's own
+       480ms and its own arrive easing rather than --fx-ease. */
+    [data-theme='light'] [data-kp-reveal='rule'] {
+        position: relative;
+        padding-block-end: var(--kp-space-sm, 0.5rem);
+        margin-block-end: var(--kp-space-sm, 0.5rem);
+    }
+
+    [data-theme='light'] [data-kp-reveal='rule']::after {
+        content: '';
+        position: absolute;
+        inset-inline-start: 0;
+        inset-block-end: 0;
+        block-size: 2px;
+        inline-size: 3rem;
+        background: var(--primary);
+        transform: scaleX(1);
+        transform-origin: left;
+    }
+
+    [data-theme='light'][data-kp-effects] [data-kp-reveal='rule']:not(.is-in)::after {
+        transform: scaleX(0);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='light'] [data-kp-reveal='rule'].is-in::after {
+            animation: kp-rule-in 480ms var(--kp-ease-arrive) 80ms both;
+        }
+    }
+
+    /* The mark: base/soft pairing as the emphasis mechanism (TH115/S47),
+       a highlighter's background-size sweep rather than a plate — the
+       demo's own reasoning for why (a fragmented inline box's clip-path
+       drops content on a wrapped line, confirmed at 320px in the demo's
+       own verification pass). Loose marks (the lede) clear on load,
+       staggered by the module itself through --kp-classified-delay and
+       --kp-reveal-stagger above — no CSS stagger needed here. */
+    /* Marks partition into two mutually exclusive groups by ancestry —
+       a loose mark (the lede) and one inside a `[data-kp-reveal='emphasis']`
+       container (the dossier) — rather than fighting over specificity: a
+       CSS animation (below) always outranks a normal declaration
+       regardless of how specific it is, so the two groups have to be
+       selector-exclusive or the sweep's own end colour leaks into the
+       dossier's redaction. */
+    [data-theme='light'] mark:not([data-kp-reveal='emphasis'] mark) {
+        background-image: linear-gradient(var(--accent), var(--accent));
+        background-repeat: no-repeat;
+        background-position: 0 0;
+        background-size: 100% 100%;
+        color: var(--accent-foreground);
+        padding: 0 0.2em;
+        border-radius: 0.25em;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+    }
+
+    [data-theme='light'][data-kp-effects] mark:not(.is-cleared):not([data-kp-reveal='emphasis'] mark) {
+        background-size: 0% 100%;
+        color: var(--foreground);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='light'][data-kp-effects] mark.is-cleared:not([data-kp-reveal='emphasis'] mark) {
+            animation: kp-mark-sweep 420ms var(--kp-ease-arrive) both;
+        }
+    }
+
+    /* The dossier's marks are a different mechanism from the lede's — an
+       opaque bar that clears, not a highlighter (the demo's own
+       `.kp-redaction`, translated onto <mark> so the package's trigger
+       wiring [data-kp-reveal-trigger] can drive it; see anatomy's closing
+       section). The trigger toggles every mark's `.is-cleared` in the
+       same tick (js/effects.js `wireTrigger`), so the demo's 140ms stagger
+       is reproduced here as a `transition-delay` per mark instead of a
+       per-mark `setTimeout` — same visible result, one clock instead of
+       three. */
+    [data-theme='light'] [data-kp-reveal='emphasis'] mark {
+        display: inline-block;
+        border-radius: 0.2em;
+        padding: 0 0.1em;
+        background: var(--foreground);
+        color: transparent;
+    }
+
+    [data-theme='light'] [data-kp-reveal='emphasis'] mark.is-cleared {
+        background: var(--accent);
+        color: var(--foreground);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='light'] [data-kp-reveal='emphasis'] mark {
+            transition:
+                background-color 260ms var(--kp-ease-hover),
+                color 260ms var(--kp-ease-hover);
+        }
+
+        [data-theme='light'] [data-kp-reveal='emphasis'] mark.is-cleared:nth-of-type(2) {
+            transition-delay: var(--kp-redact-stagger);
+        }
+
+        [data-theme='light'] [data-kp-reveal='emphasis'] mark.is-cleared:nth-of-type(3) {
+            transition-delay: calc(2 * var(--kp-redact-stagger));
+        }
+    }
+
+    /* The divider: a seam, not a tear — the demo's own words. A hairline
+       with a small circle sitting on it; the alt divider tints the circle
+       with the accent/signal pair (TH115/S47), the one place this theme
+       uses the saturated companion at all. */
+    [data-theme='light'] [data-kp-divider] {
+        position: relative;
+        display: block;
+        block-size: 1px;
+        background: var(--border);
+        margin-block: var(--kp-space-2xl, 2rem);
+    }
+
+    [data-theme='light'] [data-kp-divider]::after {
+        content: '';
+        position: absolute;
+        inset-inline-start: 50%;
+        inset-block-start: 50%;
+        transform: translate(-50%, -50%);
+        inline-size: 2.75rem;
+        block-size: 2.75rem;
+        border-radius: var(--kp-radius-pill, 999px);
+        background: var(--background);
+        border: 1px solid var(--border-strong);
+    }
+
+    [data-theme='light'] [data-kp-divider='alt']::after {
+        background: var(--accent);
+        border-color: var(--fx-signal);
+    }
+
+    /* ── Navbar: a hairline strip, the dropdown answered [KT14] ────────── */
+
+    [data-theme='light'] .kp-nav-wrap {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='light'] .kp-nav__brand {
+        font-weight: 700;
+        letter-spacing: -0.02em;
+    }
+
+    [data-theme='light'] .kp-nav__link {
+        border-radius: var(--radius, 0.5rem);
+    }
+
+    [data-theme='light'] .kp-nav__link:hover,
+    [data-theme='light'] .kp-nav__link:focus-visible,
+    [data-theme='light'] .kp-nav__link[aria-current] {
+        color: var(--primary);
+        background: none;
+    }
+
+    [data-theme='light'] .kp-nav__link--lang {
+        color: var(--muted-foreground);
+        font-family: var(--theme-font-mono);
+        text-transform: uppercase;
+        font-size: var(--kp-text-xs, 0.75rem);
+    }
+
+    [data-theme='light'] .kp-nav__link--cta {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: var(--kp-radius-pill, 999px);
+        padding-inline: var(--kp-space-lg, 1rem);
+    }
+
+    [data-theme='light'] .kp-nav__link--cta:hover,
+    [data-theme='light'] .kp-nav__link--cta:focus-visible {
+        background: var(--foreground);
+        color: var(--background);
+    }
+
+    /* The dropdown [KT14]: the demo's own panel — white, a strong hairline,
+       the dropdown shadow step, a plain hover wash. */
+    [data-theme='light'] .kp-nav__menu {
+        border-radius: var(--radius, 0.5rem);
+        box-shadow: var(--kp-shadow-md);
+    }
+
+    [data-theme='light'] .kp-nav__menu a:hover,
+    [data-theme='light'] .kp-nav__menu a:focus-visible {
+        background: var(--muted);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='light'] .kp-nav__link,
+        [data-theme='light'] .kp-nav__menu {
+            transition-timing-function: var(--kp-ease-hover);
+        }
+    }
+
+    /* ── Buttons: the pill half of the radius vocabulary ───────────────── */
+
+    [data-theme='light'] .kp-button,
+    [data-theme='light'] .kp-icon-button {
+        border-radius: var(--kp-radius-pill, 999px);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        [data-theme='light'] .kp-button {
+            transition-timing-function: var(--kp-ease-hover);
+        }
+    }
+
+    /* ── Fields: the small radius half, kept plain ──────────────────────── */
+
+    [data-theme='light'] .kp-field__input {
+        background: var(--background);
+    }
+
+    [data-theme='light'] .kp-fieldset {
+        border: 1px solid var(--border);
+        border-radius: var(--radius, 0.5rem);
+    }
+
+    /* ── Card / dossier ──────────────────────────────────────────────────── */
+
+    [data-theme='light'] .kp-card {
+        box-shadow: var(--kp-shadow-sm);
+    }
+
+    [data-theme='light'] .kp-card__title {
+        font-size: 1.1rem;
+    }
+
+    /* ── Elevated panels: card and popover are both pure white (DI6), so
+       elevation has to come from the border and the shadow — the anatomy
+       names this as a real constraint, not an oversight. One answer for
+       every panel that floats over the page. ────────────────────────── */
+    [data-theme='light'] .kp-popover,
+    [data-theme='light'] .kp-menu,
+    [data-theme='light'] .kp-toast,
+    [data-theme='light'] .kp-tooltip,
+    [data-theme='light'] .kp-datepicker__panel,
+    [data-theme='light'] .kp-combobox__list,
+    [data-theme='light'] .kp-palette,
+    [data-theme='light'] .kp-theme-menu {
+        box-shadow: var(--kp-shadow-md);
+    }
+
+    [data-theme='light'] .kp-menu__item:hover {
+        background: var(--muted);
+    }
+
+    /* ── The confirmation dialog: the deepest shadow, the demo's own
+       backdrop stays the base layer's (not a token, by design) ────────── */
+    [data-theme='light'] .kp-dialog {
+        box-shadow: var(--kp-shadow-lg);
+    }
+
+    [data-theme='light'] .kp-dialog__title {
+        font-size: 1.1rem;
+    }
+
+    /* ── Badges, tags, status ────────────────────────────────────────────── */
+
+    [data-theme='light'] .kp-badge,
+    [data-theme='light'] .kp-tag {
+        border: 1px solid var(--border);
+    }
+
+    [data-theme='light'] .kp-alert {
+        border: 1px solid var(--border);
+        border-radius: var(--radius, 0.5rem);
+        background: var(--muted);
+    }
+
+    [data-theme='light'] .kp-health__dot {
+        border-radius: var(--kp-radius-pill, 999px);
+    }
+
+    /* ── Loading and empty states ────────────────────────────────────────── */
+
+    [data-theme='light'] .kp-skeleton {
+        background: var(--muted);
+    }
+
+    [data-theme='light'] .kp-progress {
+        background: var(--muted);
+        border-radius: var(--kp-radius-pill, 999px);
+    }
+
+    [data-theme='light'] .kp-progress__value {
+        background: var(--primary);
+    }
+
+    [data-theme='light'] .kp-spinner {
+        border-color: var(--border);
+        border-top-color: var(--primary);
+    }
+
+    [data-theme='light'] .kp-empty {
+        border: 1px dashed var(--border-strong);
+        border-radius: var(--radius, 0.5rem);
+    }
+
+    [data-theme='light'] .kp-error {
+        color: var(--destructive);
+    }
+
+    /* ── Text shapes: identifiers in the mono face ──────────────────────── */
+
+    [data-theme='light'] .kp-id,
+    [data-theme='light'] .kp-url,
+    [data-theme='light'] .kp-numeric,
+    [data-theme='light'] .kp-timestamp,
+    [data-theme='light'] .kp-masked,
+    [data-theme='light'] .kp-copyable,
+    [data-theme='light'] .kp-truncate,
+    [data-theme='light'] .kp-cell-break,
+    [data-theme='light'] .kp-cell-truncate {
+        font-family: var(--theme-font-mono);
+        font-size: 0.9em;
+    }
+
+    [data-theme='light'] .kp-copyable__button {
+        border-radius: var(--kp-radius-pill, 999px);
+    }
+
+    /* ── Data: tables, timelines, trees ─────────────────────────────────── */
+
+    [data-theme='light'] .kp-table th {
+        background: var(--muted);
+        font-weight: 600;
+    }
+
+    [data-theme='light'] .kp-table td {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='light'] .kp-datatable {
+        border: 1px solid var(--border);
+        border-radius: var(--radius, 0.5rem);
+    }
+
+    [data-theme='light'] .kp-datatable__bar {
+        border-bottom: 1px solid var(--border);
+    }
+
+    [data-theme='light'] .kp-diff {
+        border: 1px solid var(--border);
+        border-radius: var(--radius, 0.5rem);
+    }
+
+    [data-theme='light'] .kp-diff__line {
+        font-family: var(--theme-font-mono);
+        font-size: 0.9em;
+    }
+
+    [data-theme='light'] .kp-timeline {
+        border-inline-start: 2px solid var(--border);
+    }
+
+    [data-theme='light'] .kp-timeline__marker {
+        background: var(--primary);
+        border-radius: var(--kp-radius-pill, 999px);
+    }
+
+    [data-theme='light'] .kp-tree {
+        font-family: var(--theme-font-mono);
+        font-size: 0.9em;
+    }
+
+    [data-theme='light'] .kp-reorder {
+        border: 1px solid var(--border);
+        border-radius: var(--radius, 0.5rem);
+    }
+
+    /* ── Navigation and steps ────────────────────────────────────────────── */
+
+    [data-theme='light'] .kp-tab[aria-selected='true'] {
+        color: var(--primary);
+        border-bottom: 2px solid var(--primary);
+    }
+
+    [data-theme='light'] .kp-breadcrumb,
+    [data-theme='light'] .kp-pagination {
+        font-size: var(--kp-text-sm, 0.8125rem);
+    }
+
+    [data-theme='light'] .kp-pagination [aria-current] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: var(--kp-radius-pill, 999px);
+    }
+
+    [data-theme='light'] .kp-wizard {
+        border: 1px solid var(--border);
+        border-radius: var(--radius, 0.5rem);
+    }
+
+    [data-theme='light'] .kp-wizard__steps {
+        font-family: var(--theme-font-mono);
+        font-size: var(--kp-text-xs, 0.75rem);
+    }
+
+    /* ── Pickers ─────────────────────────────────────────────────────────── */
+
+    [data-theme='light'] .kp-datepicker__day[aria-selected='true'] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-radius: var(--kp-radius-pill, 999px);
+    }
+
+    [data-theme='light'] .kp-colorpicker__swatch {
+        border: 1px solid var(--border-strong);
+        border-radius: 0.4rem;
+    }
+
+    [data-theme='light'] .kp-shortcuts__row kbd {
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius, 0.5rem);
+        background: var(--card);
+        font-family: var(--theme-font-mono);
+    }
+
+    [data-theme='light'] .kp-combobox__status,
+    [data-theme='light'] .kp-palette__status,
+    [data-theme='light'] .kp-theme-menu__status {
+        font-family: var(--theme-font-mono);
+        font-size: var(--kp-text-xs, 0.75rem);
+    }
+
+    /* ── The roots the rules above reach only by their parts ───────────── */
+
+    [data-theme='light'] .kp-form {
+        gap: var(--kp-space-lg, 1rem);
+    }
+
+    [data-theme='light'] .kp-field {
+        gap: var(--kp-space-xs, 0.25rem);
+    }
+
+    /* Roots only their parts carry a rule above: a bare, undecorated
+       declaration is still an answer (subject roots read the selector's
+       last compound, and a `__`-suffixed one names an element, not the
+       root — gates/selectors.mjs `subjectRoots`). */
+    [data-theme='light'] .kp-nav {
+        gap: var(--kp-space-xl, 1.5rem);
+    }
+
+    [data-theme='light'] .kp-table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    [data-theme='light'] .kp-health {
+        gap: var(--kp-space-xs, 0.25rem);
+    }
+
+    [data-theme='light'] .kp-laurels {
+        gap: var(--kp-space-xl, 1.5rem);
+    }
+
+    [data-theme='light'] .kp-grid,
+    [data-theme='light'] .kp-split {
+        gap: var(--kp-space-md, 0.75rem);
+    }
+
+    [data-theme='light'] .kp-combobox,
+    [data-theme='light'] .kp-datepicker,
+    [data-theme='light'] .kp-colorpicker,
+    [data-theme='light'] .kp-shortcuts {
+        border-radius: var(--radius, 0.5rem);
+    }
+
+    [data-theme='light'] .kp-grid__tile,
+    [data-theme='light'] .kp-split__pane {
+        border: 1px solid var(--border);
+        border-radius: var(--radius, 0.5rem);
+    }
+
+    [data-theme='light'] .kp-split__separator {
+        background: var(--border);
+    }
+
+    [data-theme='light'] .kp-toasts {
+        gap: var(--kp-space-sm, 0.5rem);
+    }
+
+    [data-theme='light'] .kp-confirm {
+        box-shadow: var(--kp-shadow-lg);
+    }
+
+    /* ── The demo's own pieces [S46] ─────────────────────────────────────── */
+
+    [data-theme='light'] .kp-side-note {
+        font-family: var(--theme-font-mono);
+        font-size: var(--kp-text-xs, 0.75rem);
+        letter-spacing: 0.14em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='light'] .kp-laurels li {
+        border-inline-start: 2px solid var(--fx-signal);
+        padding-inline-start: var(--kp-space-sm, 0.5rem);
+    }
+
+    [data-theme='light'] .kp-laurels b {
+        display: block;
+        color: var(--foreground);
+        font-size: var(--kp-text-md, 1rem);
+        font-weight: 700;
+    }
+
+    [data-theme='light'] .kp-lede {
+        max-width: 42rem;
+        font-size: 1.0625rem;
+    }
+
+    [data-theme='light'] .kp-platforms {
+        font-family: var(--theme-font-mono);
+        font-size: var(--kp-text-xs, 0.75rem);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='light'] .kp-spec {
+        background: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: var(--radius, 0.5rem);
+    }
+
+    [data-theme='light'] .kp-spec dt {
+        font-family: var(--theme-font-mono);
+        font-size: var(--kp-text-xs, 0.75rem);
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+    }
+
+    [data-theme='light'] .kp-spec__swatch {
+        border: 1px solid var(--border-strong);
+        border-radius: 0.4rem;
+    }
+
+    [data-theme='light'] .kp-spec__font {
+        font-family: var(--theme-font-display);
+    }
+
+    /* ── Footer ──────────────────────────────────────────────────────────── */
+
+    [data-theme='light'] .kp-footer {
+        background: var(--muted);
+    }
+
+    [data-theme='light'] .kp-footer a:hover,
+    [data-theme='light'] .kp-footer a:focus-visible {
+        color: var(--primary);
+    }
+
+    /* ── Motion [DI5, DI7] ────────────────────────────────────────────────── */
+
+    /* kp-mark-sweep animates colour, not opacity — a highlighter sweep on
+       an inline phrase, once; documented in gates/check-motion.mjs's
+       OUT_OF_SCOPE. kp-clip-reveal and kp-rule-in (the base layer's) both
+       carry rows in TIMINGS (js/effects.js). */
+    @keyframes kp-clip-reveal {
+        0% {
+            clip-path: inset(38% 0% 38% 0% round 999px);
+            opacity: 0;
+        }
+
+        60% {
+            opacity: 1;
+        }
+
+        100% {
+            clip-path: inset(0% 0% 0% 0% round 0);
+            opacity: 1;
+        }
+    }
+
+    @keyframes kp-mark-sweep {
+        0% {
+            background-size: 0% 100%;
+            color: var(--foreground);
+        }
+
+        100% {
+            background-size: 100% 100%;
+            color: var(--accent-foreground);
+        }
+    }
+    /* The band [M1, M4]: Kenny picked this theme's own version over the
+       shared one on 2026-09-08 — a grey row with air between the items. */
+    [data-theme='light'] .kp-marquee {
+        border-block: 1px solid var(--border);
+        color: var(--muted-foreground);
+        --kp-marquee: 55000ms;
+        --kp-marquee-gap: 2.5rem;
+    }
+
+    /* The menu's caption [M3]: the same choice, for the line a consumer
+       may put above a dropdown's items. */
+    [data-theme='light'] .kp-nav__menu[data-kp-menu-label]::before {
+        text-transform: none;
+        letter-spacing: 0;
+        border-block-end: 0;
+        padding-block-end: 0;
+    }
+}

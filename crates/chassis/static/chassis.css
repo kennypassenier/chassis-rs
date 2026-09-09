@@ -1,20 +1,14 @@
-/* The kit's own stylesheet: layout glue and the few utilities
-   @kp-soft/themes deliberately does not ship. themes.css and
-   components.css are vendored verbatim; everything chassis-specific lives
-   here, so re-copying upstream never overwrites it (kyu's split). */
+/* The kit's own stylesheet: what @kp-soft/themes does not ship and the kit
+   needs — the explain block the lint test looks for, the client rows'
+   token cell and request panel, and three small hooks the templates use.
+   Layout (page measure, rows, the card grid, busy state) comes from
+   kp-themes' layout.css and utilities.css since 5.0.0; themes.css and
+   components.css are vendored verbatim, so re-copying upstream never
+   overwrites anything here (kyu's split). */
 
 body {
-    background: var(--background);
-    color: var(--foreground);
-    font-family: var(--theme-font-body, ui-sans-serif, system-ui, sans-serif);
     margin: 0;
     padding-bottom: 4rem;
-}
-
-main {
-    max-width: 64rem;
-    margin: 0 auto;
-    padding: 1.5rem clamp(0.75rem, 3vw, 1.5rem);
 }
 
 h1 { font-size: 1.75rem; margin: 0 0 0.5rem; }
@@ -33,6 +27,8 @@ h2 { font-size: 1.25rem; margin: 2rem 0 0.75rem; }
     line-height: 1.5;
 }
 
+/* Older names the templates and consumers' project pages still use; the
+   kp-themes utilities are the same rules under their own names. */
 .text-secondary { color: var(--muted-foreground); }
 .text-end { text-align: end; }
 .mono { font-family: var(--theme-font-mono, ui-monospace, monospace); font-size: 0.85rem; }
@@ -48,26 +44,18 @@ pre.snippet {
     word-break: break-all;
 }
 
-/* The status page's card grid (K17). */
-.cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-    gap: 1rem;
-}
+/* The status page's cards (K17): a label/value list inside each. */
 .cards .kp-card dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 1rem; }
 .cards .kp-card dt { color: var(--muted-foreground); }
 .cards .kp-card dd { margin: 0; }
+.problems-list { margin: 0; padding-left: 1.25rem; }
+.row-label { text-align: start; white-space: nowrap; }
+.divider { margin: 1rem 0; border: 0; border-top: 1px solid var(--border); }
 
 /* Client rows (K12/K13): the token cell and the expandable requests. */
-.token-cell { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .secret { font-family: var(--theme-font-mono, ui-monospace, monospace); font-size: 0.85rem; }
 .requests[hidden] { display: none; }
 .requests table { font-size: 0.85rem; }
 .requests pre { margin: 0; max-height: 12rem; overflow: auto; }
-.actions { display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap; }
-.actions form { margin: 0; }
 /* K29: a project's buttons under a status section sit with the text, not at the right edge. */
-.section-actions { justify-content: flex-start; margin: 0.75rem 0 1.5rem; }
-
-/* rule 31: a button that started something slow says so. */
-button[aria-busy="true"] { opacity: 0.7; cursor: progress; }
+.section-actions { margin: 0.75rem 0 1.5rem; }

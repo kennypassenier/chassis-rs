@@ -23,7 +23,7 @@ file, login, tokens, health, metrics, shutdown — is the kit's.
 | Feature | What it adds | Default |
 |---|---|---|
 | `core` | config (flag > env > file > default), logging, errors with a remedy, `/healthz`, `/metrics`, graceful stop, request-id, guards | on |
-| `dashboard` | login with a token + session, Clients page (issue/reveal/copy/revoke, last requests, test button), status page, kp-themes | off |
+| `dashboard` | login with a token + session, Clients page (issue/reveal/copy/revoke, last requests, test button), status page, kp-themes 5.0.0 (25 themes, registers, fonts) | off |
 | `passkeys` | WebAuthn login behind a TLS proxy (`<P>_PUBLIC_URL`, `<P>_TRUSTED_PROXIES`); pulls OpenSSL | off |
 | `self-update` | `off` / `supervised` (`<name> update`) / `autonomous`, minisign-verified, staged probe, rollback | off |
 | `notify` | `[[notify.webhook]]` per event, retries, fallback | off |

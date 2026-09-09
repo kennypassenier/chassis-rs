@@ -14,7 +14,7 @@ existing one against. Each file is a minijinja template rendered with:
 | `toolchain` | the pinned Rust | `1.97` |
 | `chassis_tag` | the kit tag the project pins | `v0.1.0` |
 | `chassis_repo` | where the kit lives | `https://github.com/kennypassenier/chassis-rs` |
-| `kp_themes` | the kp-themes version the kit vendors | `3.1.0` |
+| `kp_themes` | the kp-themes version the kit vendors | `5.0.0` |
 | `state_dir` | the default state root | `/var/lib/inbox` |
 | `env_file` | where the env file lives on the target (1.6.0; default `/etc/<name>/<name>.env`) — a migrated project records the measured path | `/appdata/almanac/almanac-config/latch.env` |
 | `vmid` | the LXC's vmid once adopted (1.7.1); `service.yml` and its hostname `<vmid>-app-<name>` come from it — a sync no longer resets them to 0 | `112` |

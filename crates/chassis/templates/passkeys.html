@@ -20,13 +20,13 @@
   <code>{{ prefix }}_TRUSTED_PROXIES</code>.</div>
 </div>
 {% else %}
-<div class="kp-card" style="margin-bottom: 1.5rem; max-width: 32rem">
-  <h2 class="kp-card__title" style="margin-top: 0; font-size: 1rem">Register a passkey</h2>
+<div class="kp-card kp-mb-lg kp-max-w-center">
+  <h2 class="kp-card__title kp-mt-0 kp-fs-md">Register a passkey</h2>
   <div class="kp-field">
     <label class="kp-field__label" for="passkey-label">Label</label>
     <input class="kp-field__input" type="text" id="passkey-label" placeholder="Kenny's Bitwarden" maxlength="64">
   </div>
-  <button type="button" class="kp-button kp-button--primary" data-passkey-register data-status="passkey-status" style="margin-top: 0.75rem">Register with this browser</button>
+  <button type="button" class="kp-button kp-button--primary kp-mt-md" data-passkey-register data-status="passkey-status">Register with this browser</button>
   <p id="passkey-status" class="kp-field__help" hidden></p>
 </div>
 {% endif %}
@@ -40,7 +40,7 @@
   <tbody>
   {% for p in passkeys %}
   <tr>
-    <td style="font-weight: 500">{{ p.label }}</td>
+    <td class="kp-fw-medium">{{ p.label }}</td>
     <td><span class="mono">{{ p.created_at }}</span></td>
     <td>{% if p.last_used_at %}<span class="mono">{{ p.last_used_at }}</span>{% else %}<span class="text-secondary">never</span>{% endif %}</td>
     <td class="text-end"><button type="button" class="kp-button kp-button--destructive" data-post="/api/passkeys/{{ p.id }}" data-method="DELETE" data-kp-destructive data-kp-confirm="Delete this passkey?">Delete</button></td>
