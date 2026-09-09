@@ -1414,3 +1414,44 @@ drill here will see, and because the second is retro material.
   than defaulted (`chassis clients issue <NAME>`). No instance of the shape in
   this repository. The general lesson — an input nobody parsed being treated
   as consent — is a candidate for the batch 3 retrospective.
+
+## Round 5 — rule 46, the consumer reports and the name Clients (answered 2026-09-10)
+
+Kenny's message of 2026-09-10 brought three things together: standing rule
+46 (a shared foundation proves its consumers before a release, guards its
+public surface, and lets a new shape stand beside the old for one version),
+the four consumer reports, and his own requirement that the kit be plug and
+play with **Clients** as the fixed name. Sixteen items went to him in one
+form, six of which came back asking for a proper explanation; those were
+answered in two follow-up forms with the measurements in them.
+
+**Decided, and what it means here:**
+
+| Item | Decision | What it is |
+|---|---|---|
+| Batch 4 | Akkoord | Closed with its four deviations as reported. |
+| feat-ci-1 | Trigger terugzetten | CI runs on every branch again; landed as `734079f`. The narrowing had locked main shut (measured: zero checks on a branch push, "Required status check … is expected" on the push to main, a dispatched run not counting for main). |
+| feat-clients-2 | Onmisbaar | The kit stores the extra client fields itself: in the sealed store, shown as columns, in the API and in `chassis clients`, cleaned up on delete. The hook stays for refusal, not storage. Clients-store format goes up one version. |
+| feat-build-1 | Overal statisch | The scaffold builds a static musl binary on a distroless image, with the `ldd` check kyu drilled. Measured first: a static build needs a musl C compiler because `ring` compiles C; passkeys additionally needs OpenSSL built for musl — and **no consumer builds passkeys** (kyu, almanac, http-switchboard use core + self-update + dashboard, kyu-runner core + self-update). So passkeys leaves the scaffold's default feature list, with the reason written down. |
+| arch-buildtarget | Allebei | A dated amendment rewrites the premise as a dependency, and the release publishes a glibc floor the homelab's deploy check can read. Note: under feat-build-1 a static binary has no glibc floor, so the two interact — the floor applies to whatever the scaffold still builds against glibc. |
+| feat-sync-1 | Onmisbaar | `chassis upgrade <version>` aligns the three places the kit version appears (`.chassis.toml`, the dependency, the dev-dependency), updates cargo and runs the gates. `sync` keeps its hands off Cargo.toml. |
+| feat-api-1 | Onmisbaar | A public-surface snapshot in the repository with a check that fails when the code drifts from it without a version bump. Local and in the release script, never at a commit (Kenny's condition). Measured surface today: 194 public functions, 85 structs, 11 enums, 6 traits. |
+| feat-api-2 | Gewenst | The transition window, built at the first breaking change rather than now. |
+| feat-dep-1 | Eigen registry | Claude investigates what an own registry costs on Kenny's infrastructure and presents it separately; nothing built yet. Measured for the decision: the repository is already public, the package would be 6.9 MiB over 171 files with no secrets in it (the one long hex is a SHA-256 test vector, the release key is public by design), the name `chassis` is taken on crates.io (0.2.0, 5202 downloads), and publishing would not remove the need for the consumer check — it makes it more important, because `cargo update` then moves a consumer without anyone touching the kit line. |
+| feat-config-1 | Onmisbaar | The kit hands a project its own part of the config file, table sections included. Today every project writes the same nineteen lines, one of which (`remove("notify")`) rests on knowledge that is written down nowhere. |
+| feat-metrics-1 | Onmisbaar | A small counter and gauge in the kit so a project stops formatting Prometheus text by hand; an unescaped label value invalidates the whole scrape, the kit's own metrics included. |
+| feat-testing-1 | Onmisbaar | The harness takes the project's assembly as a whole, and ships usable test secrets. http-switchboard's own test setup had forgotten one registration, so its health page saw no subsystem at all. |
+| feat-docs-1 | Onmisbaar | The feature chain with its weight in the generated document, and the secrets each feature makes mandatory in the migration guide. |
+| ask-1 | Allebei | The badge that breaks "active" across two lines: relayed to kp-themes with the measured selector (`overflow-wrap: anywhere` on `.kp-badge` in their bundle), plus one line here that keeps the state column whole. |
+| feat-clients-3 | Laten staan | `Caller` keeps its name; the generated document gains one line saying a client is one of its two shapes. |
+| fix-3 | Klopt | Recorded in `docs/CORRECTIONS.md`; the measurement waits on Almanac and http-switchboard. |
+
+**Already built and landed on 2026-09-10 before the decisions came back,
+because none of it needed one:** the `update_cmd` fix with its two-file test
+(fix-3), and the Clients naming sweep (feat-clients-1) — four sentences on
+the clients page, the Revoke confirmation, the login page, two generated
+documents, two of the kit's own documents and the CLI's help text said
+"caller", which no project's `vocabulary()` could follow. The guard that
+should have caught it read only the literal "client" and stripped
+attributes, which is exactly where the Revoke confirmation lives; it now
+forbids "caller" too and reads every confirmation text.

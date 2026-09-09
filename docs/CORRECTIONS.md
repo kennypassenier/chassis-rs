@@ -96,3 +96,50 @@ Answered by Kenny 2026-09-09: D1 **Opnemen** (the fix lands), CF-12 **Klopt**.
    from the loaded `App` configuration (kyu's own suggestion) instead of
    from the environment map.
 9. **Review.** At the batch 3 retrospective of this project.
+
+## fix-3 · `update_cmd` promised to reproduce the unit and left out its environment (2026-09-10)
+
+Answered by Kenny 2026-09-10: **Klopt**. Reported by the Almanac session
+after a misdiagnosis on CT 112 during its 4.0.3 rollout, confirmed
+independently by http-switchboard, and measured here before the fix.
+
+1. **What went wrong.** `scaffold/deploy/service.yml.tmpl` said in its own
+   comment that `update_cmd` "reproduces the unit line for line — same user,
+   working directory and EnvironmentFile", and the `systemd-run` invocation
+   set exactly those three. It never reproduced the unit's `Environment=`
+   lines — and `scaffold/deploy/service.tmpl`, the unit the same scaffold
+   writes, declares two of them (`<PREFIX>_STATE_DIR` and
+   `<PREFIX>_TIMEOUT_STOP_SECS`). So a supervised `update --check` ran
+   against the binary's compiled-in default state directory. On CT 112 it
+   failed with "the new version cannot start with this machine's
+   configuration" and a remedy pointing at a missing secret; no secret was
+   involved. Evidence: the red test reported
+   `update_cmd is missing --property=Environment=DEMO_SVC_STATE_DIR=/var/lib/demo-svc`.
+2. **Which gate let it through.** None. The test over that file asserted the
+   user, the EnvironmentFile and the working directory, and nothing ever laid
+   the two templates side by side. `chassis sync` reported zero drift in
+   every consumer, because the output was exactly what the scaffold
+   generates — which is why all four projects had the gap from day one.
+3. **Where else.** Measured on the property "two templates that together
+   describe one machine, never compared with each other": the latch variant
+   of the unit declares the same two lines and was fixed in the same commit;
+   http-switchboard and Almanac confirmed the identical shape in their own
+   checkouts; no second pair of scaffold files describes one machine
+   together. The kit's own `service.yml` is the only file that restates what
+   a unit says.
+4. **The measure.** The two lines are reproduced as
+   `--property=Environment=KEY=VALUE` in the unit's own order, and the
+   comment no longer promises more than the command does. The test now reads
+   BOTH files: it asserts the unit declares each variable and that
+   `update_cmd` carries it, so adding a line to one without the other is
+   red.
+5. **Cost.** Two lines in a template, one test that compares two files.
+6. **Enforced by.** Code: the test runs in the gates and in CI.
+7. **Measured at.** The next supervised update on a machine that uses these
+   templates: the check runs with the unit's own state directory instead of
+   the compiled-in default. Almanac and http-switchboard report that from
+   their own sessions (rule 7a); queued in `docs/PENDING_MINI_ROUNDS.md`.
+8. **Fallback.** If it still goes wrong there, the kit stops writing an
+   `update_cmd` of its own and points at a script that reads the unit, so
+   there is one source instead of two descriptions of one machine.
+9. **Review.** At the batch 3 retrospective of this project.
