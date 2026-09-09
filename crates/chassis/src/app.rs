@@ -106,6 +106,23 @@ impl AppSpec {
         self.knobs().into_iter().map(|k| k.key).collect()
     }
 
+    /// The config-file TABLE sections the kit owns (feat-config-1), next to
+    /// the knob keys because the two are stripped together.
+    ///
+    /// A section cannot be derived from `knob_keys()`: a knob is one flat
+    /// scalar key, while a section is a table or an array of tables
+    /// (`[[notify.webhook]]`) that the kit parses with its own serde types
+    /// and never registers as a knob. Whatever is missing here lands in the
+    /// project's half of the file and makes its `deny_unknown_fields` parse
+    /// fail on a machine, after an upgrade — so a milestone that teaches the
+    /// kit a new section adds its name here in the same commit.
+    ///
+    /// Complete whatever the binary was compiled with, like `knob_keys()`: a
+    /// section of an absent feature is still accepted and ignored.
+    pub fn kit_sections(&self) -> &'static [&'static str] {
+        &["notify"]
+    }
+
     fn state_dir_default(&self) -> PathBuf {
         self.default_state_dir
             .clone()
@@ -1449,6 +1466,34 @@ impl App {
         self
     }
 
+    /// The project's own half of the shared config file, as a TOML table
+    /// (feat-config-1): every kit knob key and every kit-owned section
+    /// stripped. An error only when this invocation reads no configuration
+    /// at all — guard with [`App::needs_project_config`].
+    pub fn project_table(&self) -> Result<toml::Table, Error> {
+        Ok(self.loaded_for_project()?.project_table(&self.spec))
+    }
+
+    /// The project's own half of the shared config file, deserialised into
+    /// the project's own type (feat-config-1). The whole call site, for a
+    /// struct with `deny_unknown_fields`:
+    ///
+    /// ```ignore
+    /// let config: Config = app.project_config()?;
+    /// ```
+    pub fn project_config<T: serde::de::DeserializeOwned>(&self) -> Result<T, Error> {
+        self.loaded_for_project()?.project_config(&self.spec)
+    }
+
+    fn loaded_for_project(&self) -> Result<&Loaded, Error> {
+        self.loaded.as_ref().ok_or_else(|| {
+            Error::internal(
+                "this invocation reads no configuration, so the project's own settings are not available",
+                "ask for the project's configuration only when needs_project_config() is true",
+            )
+        })
+    }
+
     /// Whether this invocation is going to read the project's own
     /// configuration (1.2.0): a real start or `--check`. `--version`,
     /// `--help`, `--knobs`, `gen-secret`, `--healthcheck`, `--print-config`,
@@ -2552,6 +2597,48 @@ mod tests {
         .err()
         .expect("an unknown flag is refused");
         assert!(err.remedy.contains("--help"));
+    }
+
+    /// feat-config-1: the whole call site is one line, and what comes back
+    /// carries none of the kit's keys or sections.
+    #[test]
+    fn project_config_is_one_call_on_the_app_and_carries_only_the_projects_keys() {
+        #[derive(Debug, PartialEq, serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Config {
+            topic: String,
+        }
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("config.toml"),
+            concat!(
+                "listen = \"127.0.0.1:0\"\n",
+                "topic = \"ops.alerts\"\n",
+                "\n[[notify.webhook]]\n",
+                "events = [\"update.ok\"]\n",
+                "url = \"http://h\"\n",
+            ),
+        )
+        .unwrap();
+        let app = App::from_args_with_env(
+            spec(),
+            argv(&base_args(dir.path())),
+            BTreeMap::new(),
+            Router::new(),
+        )
+        .unwrap();
+        let config: Config = app.project_config().unwrap();
+        assert_eq!(
+            config,
+            Config {
+                topic: "ops.alerts".to_string()
+            }
+        );
+        let version_only =
+            App::from_args_with_env(spec(), argv(&["--version"]), BTreeMap::new(), Router::new())
+                .unwrap();
+        let err = version_only.project_table().unwrap_err();
+        assert!(err.remedy.contains("needs_project_config()"), "{err}");
     }
 
     /// 1.2.0: which invocations read the project's own configuration.
