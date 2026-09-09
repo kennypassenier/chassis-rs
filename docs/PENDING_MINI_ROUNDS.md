@@ -1267,3 +1267,34 @@ kyu-runner also reported what worked: `chassis sync` as a drift detector
 (sharp `kp_themes` line, the `gates.sh` fix carried along, second run "in
 sync") and `chassis release --dry-run` printing the whole chain with a reason
 per step before anything happened.
+
+## Live-found: `update_cmd` drops the unit's own `Environment=` lines (2026-09-09, from Almanac)
+
+Reported by the Almanac session after a real misdiagnosis on CT 112 during
+its 4.0.3 rollout, with Kenny's approval to relay it here. Verified in this
+repository the same evening, and the finding is WIDER than reported.
+
+`scaffold/deploy/service.yml.tmpl` says in its own comment that `update_cmd`
+"reproduces the unit line for line — same user, working directory and
+EnvironmentFile". The `systemd-run` invocation sets `--uid`, `--gid`,
+`--property=EnvironmentFile` and `--property=WorkingDirectory`, and nothing
+else. Meanwhile `scaffold/deploy/service.tmpl` — the kit's OWN unit, the one
+every scaffolded project starts from — declares two `Environment=` lines:
+`<PREFIX>_STATE_DIR` and `<PREFIX>_TIMEOUT_STOP_SECS`. So the gap is not
+limited to projects that added lines of their own: it is in the pair of
+templates the scaffold ships.
+
+What it produced on CT 112: `almanac update --check` ran without the state
+directory the unit sets, looked for profiles at the binary's compiled-in
+default, and failed with "the new version cannot start with this machine's
+configuration" and a remedy pointing at a missing secret. No secret was
+involved; the diagnosis pointed at the wrong layer entirely. The Homelab
+Rust session worked around it in its own copy, Almanac fixed its checked-in
+`deploy/service.yml`, and `chassis sync` reported no drift before that fix —
+because the template's output was what it expected.
+
+This is a live-found fault in a kit artefact, so it needs a correction form
+(rule 29) with the fix beside it: the two `Environment=` lines the unit
+template declares must be reproduced as `--property=Environment=…`, and the
+comment must stop promising more than the command does. Queued for the next
+form; nothing is fixed yet.

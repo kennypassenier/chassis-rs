@@ -15,9 +15,9 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | **9 · Release — 1.8.0 released 2026-09-09** (tag `v1.8.0` = `b067f65`, batch 3 + kp-themes 5.0.0, no signing: library + CLI via git tag). Since the release, `main` carries one unreleased fix: CF-12, the testing harness now reads token and state dir after the `extra_env` overlay (`e4c2691`), reported by kyu and Almanac on adoption day. Next build: batch 4 (K34, plus whatever Kenny rates from the consumer-feedback round of 2026-09-09); then the retro of batch 3 |
-| Last completed gate | D1 **Opnemen** and CF-12 **Klopt** (Kenny, 2026-09-09): the `TestApp` override fix and its two tests landed on `main`, the nine-field record is in `docs/CORRECTIONS.md`, its measurement is queued and both reporting sessions are informed |
-| Next gate | The consumer-feedback round of 2026-09-09 (K35–K38 and HK5, open with Kenny); then batch 4 as the next Phase 6 milestone, then the Phase 10 retro of batch 3 (four candidates in PENDING §Kit batch 3, plus HK5 if Kenny sends it there) |
+| Current phase | **6 · Development loop — batch 4 built and landed 2026-09-09** (`e53d101`): K34 (kit smoke test in every new project), K35 (generated docs follow the project's features), K36 (`--knobs` filtered), K37 + HK5 (migration guide), K38 (`chassis::admin::AdminApi`). Everything sits under Unreleased; the release moment is Kenny's. The milestone report (L10) is with him |
+| Last completed gate | Consumer round 4 (Kenny, 2026-09-09): K35/K36/K37 Onmisbaar, K38 Gewenst, HK5 Allebei — all built as milestone L10. Before it: D1 Opnemen and CF-12 Klopt (the `TestApp` override fix, `e4c2691`) |
+| Next gate | The L10 milestone report (open with Kenny: five report items, four deviations, what comes next). Then the Phase 10 retro of batch 3. Waiting in the queue: a live-found fault Almanac relayed — the scaffold's `update_cmd` drops the unit's own `Environment=` lines — which needs a correction form with its fix |
 | AFK mode | **off** since 2026-09-07 (batch 3 reported). Rule 7a in force: the four consumer projects are touched only in their own sessions |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 
