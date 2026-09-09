@@ -15,6 +15,8 @@
 
 #![forbid(unsafe_code)]
 
+/// K38: driving another chassis service's clients API as its operator.
+pub mod admin;
 pub mod app;
 #[cfg(feature = "dashboard")]
 pub mod app_dashboard;

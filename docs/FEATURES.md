@@ -110,3 +110,24 @@ release timing is Kenny's call (form R1, 2026-09-07: "zie ik zelf nog wel").
 | K33 | F3 | Later | **Deploy knobs from the homelab's stack file.** `homelab_stack = "<stack>"` in `.chassis.toml`; sync derives `state_dir`, `env_file`, `latch`, `latch_env`, `vmid` from `stacks/<stack>/service.yml` in the homelab repo and reports drift; `--write` adopts. Kenny 2026-09-07: Later. | — |
 
 Tally after round 3: Essential 35 (K34 added 2026-09-07) · Desired 2 · Later 2 (W5, K33) · Don't do 3.
+
+## Round 4 — what the consumers found in 1.8.0 (weighed 2026-09-09)
+
+kyu, Almanac and kyu-runner adopted 1.8.0 the day it was released and each
+reported back through Kenny. kyu's and Almanac's finding was a fault and was
+fixed the same day (CF-12, `docs/CORRECTIONS.md`); the rest became this
+round. kyu-runner is the first HEADLESS consumer to go through a kit batch
+(`default-features = false`, features `core` + `self-update`; measured on its
+running binary: `/healthz` 200, `/metrics` 200, `/login` 404, `/clients` 404),
+and three of the four items are one pattern: the kit describes itself to a
+project that builds only part of it.
+
+| ID | Rating | Feature | Test bar |
+|---|---|---|---|
+| K35 | Essential (batch 4) | **The generated documentation describes what the project builds.** `chassis sync` resolves the kit features from the `chassis` dependency in the project's `Cargo.toml` (implications expanded, `default-features = false` honoured), names them under the title of `docs/KIT.md`, and renders only the sections that binary carries; `chassis new` renders the same list into the `Cargo.toml` it writes. Where no dependency can be read, the document keeps every section and sync says so — "could not tell" is not "no features" (rule 30). Kenny 2026-09-09: Onmisbaar. | A headless render carries no door, no dashboard, no notifications, no `gen-secret` row and no dashboard knob, and keeps self-update and every core knob; unit tests on the feature resolution incl. `passkeys` → `dashboard`. |
+| K36 | Essential (batch 4) | **`--knobs` lists the knobs this binary can act on.** `AppSpec::knobs_markdown` filters on the compiled features; `knobs_markdown_for(features)` renders for a named set, which is what the CLI uses (it is built with `core` alone). `knobs()` and `knob_keys()` stay complete, so a knob of an absent feature is still accepted and ignored in the config file. Kenny 2026-09-09: Onmisbaar. | A core-only table has `LISTEN` and not `TOKEN`; `knob_keys` still carries every key; `--knobs` equals the table of `compiled_features()`. |
+| K37 | Essential (batch 4) | **`docs/MIGRATION.md` says who the test harness is for.** The harness adoption is for services WITH a dashboard, with both reasons kyu-runner measured: `testing` implies `dashboard`, and `TestApp` runs in-process, so a suite that reads the service's log, signals it or checks its exit code cannot use it (29 tests there, kept by Kenny's decision). Kenny 2026-09-09: Onmisbaar. | Documentation only; the claim is checked against kyu-runner's own `docs/TEST_PLAN.md`. |
+| K38 | Desired (batch 4) | **A client token from ANOTHER service, as a library.** `chassis::admin::AdminApi` (part of `core`, so a headless service reaches it without a dashboard): `new`/`from_env`, `issue_client(name, fields)`, `list_clients`, `client_id`, `reveal_token`, `revoke_client`, `delete_client`. kyu-runner hand-wrote thirty lines of this to test against a real kyu hub; http-switchboard is in the same position. Kenny 2026-09-09: Gewenst. | A real round trip over HTTP against a service the harness started: issue, list, find by name, reveal, revoke; a wrong admin token is `Unauthorized` with a remedy and never a login page; an unreachable service names the URL. |
+| HK5 | Adopted (both halves) | **A kit migration makes a project's own documents lie.** `docs/MIGRATION.md` carries, per version, a list of claims a project should re-check in its own README and runbook; the general lesson goes to the batch 3 retrospective as a candidate for the procedure. From kyu: its README named a workflow file replaced at 3.0.0 and its runbook said kyu ships no self-updating binary, both false for months, neither visible to `chassis sync`. Kenny 2026-09-09: Allebei. | The 1.8.0 section lists five claim shapes; the retro decides the procedure half. |
+
+Tally after round 4: Essential 38 · Desired 3 · Later 2 (W5, K33) · Don't do 3.

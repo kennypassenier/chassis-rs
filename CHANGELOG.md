@@ -17,6 +17,14 @@ scaffold writes. A breaking change in either is a major and carries a
   (standing rule 43). `chassis new` renders the same list into the
   `Cargo.toml` it writes, so a new project's document and its features have
   one source.
+- **`chassis::admin::AdminApi`: a client token from another service** (K38).
+  Part of `core`, so a headless service reaches it without compiling a
+  dashboard: `new`/`from_env`, `issue_client(name, fields)` (issue and
+  reveal in one call), `list_clients`, `client_id`, `reveal_token`,
+  `revoke_client`, `delete_client`. A refusal keeps the other service's own
+  message and remedy; a wrong admin token is `Unauthorized` rather than a
+  followed redirect to a login page. kyu-runner hand-wrote thirty lines of
+  this to test against a real kyu hub.
 - **`--knobs` lists the knobs this binary can act on** (K36).
   `AppSpec::knobs_markdown` now filters on the compiled features, and
   `AppSpec::knobs_markdown_for(features)` renders the table for a named set

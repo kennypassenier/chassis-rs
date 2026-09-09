@@ -1197,7 +1197,29 @@ sessions; the decisions Kenny took on them are noted per item.
 `<PREFIX>_TOKEN`). Kenny answered D1 **Opnemen** and CF-12 **Klopt**: fix and
 two tests on main, record in `docs/CORRECTIONS.md`, measurement queued above.
 
-**Open, weighed in the form of 2026-09-09 (evening).** kyu-runner is the
+**Answered 2026-09-09 (evening):** K35, K36, K37 **Onmisbaar**, K38
+**Gewenst**, HK5 **Allebei**. Built as milestone L10; the ratings and the
+test bars are in `docs/FEATURES.md` §Round 4.
+
+Two things came out of the building that Kenny has not seen yet and that
+belong in the batch-4 report form:
+
+- **The clients protocol now has two implementations** (K38). `chassis
+  clients` (blocking, in the CLI) and `chassis::admin::AdminApi` (async, in
+  the library) both speak the same four routes, and standing rule 7g wants
+  one suite driving both. They are driven by two suites today
+  (`crates/chassis-cli/tests/clients_cli.rs` and
+  `crates/chassis/tests/admin_api.rs`), each against a real service. Making
+  the CLI use the library's implementation means giving the CLI an async
+  runtime; that is a bigger change than this item was rated for, so it is
+  named here rather than done quietly.
+- **The live drill found more than the form did** (K35). Generating a
+  project and making it headless showed that the door section, the
+  "sealed stores" phrase and the pre-update bullet also describe features a
+  headless binary lacks — the form only named the dashboard sections and the
+  knob table. All of it is now conditional.
+
+**Originally reported (kept for the retro).** kyu-runner is the
 first headless consumer to go through a kit batch (`default-features = false`,
 features `core` + `self-update`; measured on the running binary: `/healthz`
 200, `/metrics` 200, `/login` 404, `/clients` 404, `/api/clients` 404) and
