@@ -2,10 +2,16 @@ name: CI
 
 # Runs on every branch (standing rule 6a): branch protection waits for
 # these checks, and a branch push that produced no checks could never be
-# merged without a pull request.
+# merged without a pull request. Measured on 2026-09-09, the evening the
+# trigger was narrowed to `main`: a branch push produced zero checks, the
+# push to main was refused with "Required status check … is expected", and
+# a manually dispatched run did not satisfy it either — a check from
+# another branch's context does not count for main. Kenny chose to restore
+# this on 2026-09-10; what that change was really after, one CI job instead
+# of two, stays in place.
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
   workflow_dispatch:
 
