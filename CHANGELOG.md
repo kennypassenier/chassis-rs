@@ -7,9 +7,14 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
-Kit batch 3 (F1–F8, weighed by Kenny 2026-09-06): seven Essential candidates
-built in parallel worktrees on 2026-09-07. Additive only; nothing a 1.7.x
-consumer must change.
+_Nothing yet._
+
+## [1.8.0] - 2026-09-09
+
+Kit batch 3 (F1–F8, weighed by Kenny 2026-09-06; built in parallel worktrees
+on 2026-09-07) and kp-themes 5.0.0 (adopted 2026-09-09). Additive only;
+nothing a 1.7.x consumer must change — `docs/MIGRATION.md` "1.8.0 additions"
+lists what each consumer can adopt.
 
 ### Added
 - **`chassis::testing`** (K25, feature `testing`, implies `dashboard`; for a

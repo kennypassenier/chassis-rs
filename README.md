@@ -7,7 +7,7 @@ a graceful stop, a dashboard with per-client tokens (and passkeys behind a
 TLS proxy), a signed self-update with three modes, and per-event webhooks —
 and writes only what it does itself.
 
-**Status: 1.7.1 released; 1.8.0 (kit batch 3) waits in `[Unreleased]`.**
+**Status: 1.8.0 released 2026-09-09 (kit batch 3 + kp-themes 5.0.0).**
 Four services run on the kit — almanac, kyu, kyu-runner, http-switchboard —
 and the example service `examples/inbox` is the reference consumer.
 
