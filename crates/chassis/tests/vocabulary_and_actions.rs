@@ -210,6 +210,17 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
         full.contains("Delete this source and its history?"),
         "{full}"
     );
+    // ask-1: the kit's own state badges carry `state-badge`, which is what
+    // chassis.css narrows the wrap override to. Without the class the
+    // override would apply to a consumer's badges too, and kp-themes
+    // measured what that costs: one unbroken value at 485 px on a 360 px
+    // viewport, pushing the document sideways. Drilled red by dropping the
+    // class from clients.html.
+    assert!(
+        full.contains("kp-badge kp-badge--success state-badge"),
+        "the active badge is marked as a kit state badge: {full}"
+    );
+
     // Every confirmation the kit renders is read by a person and is not
     // reached by `visible_text`, which strips attributes. Drilled red by
     // putting "caller" back in the Revoke confirmation.

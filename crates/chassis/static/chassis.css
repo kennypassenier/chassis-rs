@@ -62,8 +62,13 @@ pre.snippet {
 
 /* ask-1 (2026-09-10): kp-themes puts `overflow-wrap: anywhere` on .kp-badge,
    which breaks a one-word state label mid-word ("acti / ve") when the column
-   is narrow — found in http-switchboard's browser drill. A badge holds a
-   label, never a long value, so there is nothing to break. Relayed to the
-   kp-themes session with the measurement; remove this rule once their
-   component no longer needs it. */
-.kp-badge { overflow-wrap: normal; word-break: keep-all; white-space: nowrap; }
+   is narrow — found in http-switchboard's browser drill.
+   Their rule is not wrong: they measured a badge holding one unbroken value
+   at 485 px on a 360 px viewport, pushing the document sideways, and chose
+   `anywhere` over `break-word` because only `anywhere` lowers the min-content
+   contribution a flex item's automatic minimum size is measured against.
+   So this overrides it ONLY for the badges the kit itself renders, which hold
+   a fixed word or a timestamp and never a caller-supplied value (measured:
+   active, revoked <time>, ok, degraded, failing). A consumer's own badges
+   keep the package's protection. */
+.state-badge { overflow-wrap: normal; word-break: keep-all; white-space: nowrap; }
