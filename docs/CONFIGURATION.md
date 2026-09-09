@@ -47,8 +47,11 @@ unreadable or malformed one is a configuration error with a remedy. The
 kit reads only its own flat keys, each a scalar (string, integer, float
 or boolean); an array or table under a kit key is refused with
 `config key `<key>` in <file> is a <type> and must be a scalar`. Nested tables
-(`[inbox]`, `[[notify.webhook]]`) are left to the project through
-`App::loaded.file_table`.
+(`[inbox]`) are left to the project, which asks for its own part with
+`App::project_config()` (or `App::project_table()` for the raw table). That
+call strips every kit knob key AND every section the kit owns — today
+`[[notify.webhook]]` — so a project's `deny_unknown_fields` struct sees only
+what belongs to it, and a section the kit adds later does not break it.
 
 Two knobs decide *where* the file is and are therefore taken from flag,
 env or default before the file is read: `state_dir` and `config`. A

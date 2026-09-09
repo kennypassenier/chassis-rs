@@ -8,6 +8,43 @@ scaffold writes. A breaking change in either is a major and carries a
 ## [Unreleased]
 
 ### Added
+- **The kit keeps a client's declared fields** (feat-clients-2). A project
+  declares a field with `client_form_field` and nothing else: the kit stores
+  the value with the client in its sealed store, renders a column under the
+  project's own label, returns it from the clients API (so `chassis clients
+  list --json` carries it) and removes it with the client. Only declared names
+  are stored, so a caller cannot grow the store; `on_client_issued` still sees
+  everything posted. Clients-store format 1 → 2, and a format-1 file reads
+  unchanged.
+- **`App::project_config()` / `project_table()`** (feat-config-1): the kit
+  hands a project its own part of the shared config file, kit knob keys and
+  kit table sections removed. Replaces nineteen hand-written lines per
+  consumer, one of which — removing `notify` — rested on undocumented
+  knowledge and would have broken silently when the kit gained a second
+  section.
+- **`Counter` and `Gauge`** (feat-metrics-1): enough to take Prometheus text
+  formatting out of a consumer. Label values and names are escaped and
+  sanitised, label sets canonicalised, so one quote in a label can no longer
+  invalidate the whole scrape — which takes the kit's own metrics with it.
+- **`docs/KIT.md` says what each feature brings with it** (feat-docs-1): the
+  feature chain with what it pulls in and what it weighs, and which secrets a
+  feature makes mandatory with what fails on a machine without them. The same
+  table is in `docs/MIGRATION.md`.
+
+### Changed
+- **The scaffold builds one shape for everyone** (feat-build-1): a static
+  musl binary on `gcr.io/distroless/static`, which removes the dependency on
+  the container's glibc that blocked three rollouts on 2026-09-09. `passkeys`
+  leaves the scaffold's default feature list because it pulls OpenSSL, which a
+  musl build would have to vendor per release; no consumer built it.
+- **CI runs on every branch again** (feat-ci-1) after the narrowed trigger
+  made `main` unreachable without a pull request.
+- **The kit says Clients** (feat-clients-1): every surface it renders or
+  prints uses the project's vocabulary or the word `client`, never `caller`.
+- **`ClientsFile::issue` is deprecated** in favour of `issue_with_fields`, and
+  stays for one version (feat-api-2, the first use of the transition window).
+
+### Fixed
 - **The generated `docs/KIT.md` describes the features the project builds**
   (K35). `chassis sync` reads the feature list off the `chassis` dependency
   in the project's `Cargo.toml` (implications expanded, `default-features =

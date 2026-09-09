@@ -227,8 +227,21 @@ from `app.on_start(|| { … tokio::spawn(…) … })` — after the bind and the
 READY notification, inside the runtime, never for `--check` or the other
 control commands — and stops it from `app.on_flush(|| { stop_tx.send(true);
 Handle::current().block_on(join_all(tasks)) })`, which the kit runs inside
-its shutdown window. The kit's own knob keys are stripped before a project
-deserialises the shared file with `deny_unknown_fields`:
+its shutdown window. The kit's own keys are stripped before a project
+deserialises the shared file with `deny_unknown_fields`. Since 1.9.0 the kit
+does that itself (feat-config-1), which is one line instead of nineteen and
+takes the kit's table sections with it:
+
+```rust
+let config: Config = app.project_config()?;
+```
+
+Before 1.9.0 a project did it by hand, and the version below is the one this
+guide used to show. It worked, and it carried a trap: `knob_keys()` returns
+the kit's flat knob keys and not its table sections, so `notify` had to be
+removed separately — a line nothing documented. The moment the kit gained a
+second section, a project doing this failed to start with an unknown-field
+error.
 
 ```rust
 let config = Config::from_table(&app.loaded.as_ref().unwrap().file_table, &app.spec.knob_keys())?;
@@ -326,6 +339,42 @@ Nothing is required. What a project can adopt, each on its own:
 - **Drift:** `chassis sync` now also reports a kit tag in Cargo.toml that
   differs from `chassis_tag`, a stale `kp_themes`, and with `--remote` a branch
   protection that names other checks than the CI does.
+
+## 1.9.0 additions
+
+Nothing is required; 1.8.x code compiles unchanged. What a project can adopt,
+each on its own:
+
+- **The kit keeps a client's declared fields** (feat-clients-2). A project
+  that declares a field with `client_form_field` no longer needs a store of
+  its own for the value: the kit keeps it with the client, shows it as a
+  column, returns it from `GET /api/clients` and removes it with the client.
+  Almanac can drop its calendar-per-source table and read
+  `client.fields["calendar"]`. `ClientsFile::issue` is deprecated in favour of
+  `issue_with_fields` and still works for this one version.
+- **The kit splits the config file** (feat-config-1). Replace the
+  hand-written strip with `let config: Config = app.project_config()?;`. It
+  removes the kit's knob keys AND the kit's table sections, so the
+  `remove("notify")` line that nothing documented can go.
+- **`Counter` and `Gauge`** (feat-metrics-1). Replace hand-formatted
+  Prometheus text with the kit's types; label values are escaped, so one
+  quote in a topic name can no longer invalidate the whole scrape.
+- **One build shape** (feat-build-1): the scaffold now builds a static musl
+  binary on a distroless image, which removes the glibc question from every
+  deployment. `passkeys` left the scaffold's default feature list because it
+  pulls OpenSSL; a project that wants passkeys stays on a glibc build and
+  says so in its own `.chassis.toml`.
+- **Which secrets a feature makes mandatory** is now written down, in
+  `docs/KIT.md` and below, instead of being discovered when a gate falls over.
+
+### Which secrets each feature makes mandatory
+
+| Feature | Makes mandatory | What happens without them |
+|---|---|---|
+| `dashboard` | `<PREFIX>_TOKEN`, `<PREFIX>_SECRET_KEY` | The service refuses to start. The unit runs `--check` as `ExecStartPre`, so systemd reports the refusal and never starts the service. Generate both with `<name> gen-secret` and put them in the environment file BEFORE the first start after enabling the feature. |
+| `passkeys` | `<PREFIX>_PUBLIC_URL` (plus the dashboard's two) | `--check` fails at parse time when the URL is missing or not https; the passkey routes answer 404 unless the request arrives over HTTPS through a trusted proxy. |
+| `self-update` | — | Nothing mandatory, but `update_url` must resolve or the updater reports it each cycle. |
+| `notify` | — | Nothing mandatory; a `${VAR}` in a webhook header that is unset fails closed at start. |
 
 ### Claims in your own documents that this version may have made false
 

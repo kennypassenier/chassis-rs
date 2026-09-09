@@ -110,6 +110,16 @@ as alive; dead does not.
 
 {%- if "self-update" in features %}
 
+The project's own numbers go on the same page. `Counter` and `Gauge` from the
+kit format the exposition text, so a label value with a quote in it cannot
+invalidate the whole scrape — which would take the kit's own metrics with it:
+
+```rust
+let delivered = Counter::new(&spec.metric_prefix(), "deliveries_total", "Messages delivered.");
+app.metrics_source(delivered.clone());
+delivered.inc(&[("topic", "alerts")]);
+```
+
 ## Self-update (`self-update` feature)
 
 The service can fetch its own next release, verify it and swap the binary
@@ -193,7 +203,50 @@ Do not edit it; write your own tests beside it. The harness it uses
 (`chassis::testing`) is documented in the kit's `docs/TESTING.md`.
 {%- endif %}
 
+## What each feature brings with it
+
+A feature is not only a switch: it pulls in other features, dependencies and
+bytes. The chain, so a decision to turn one on can be taken with the cost in
+view:
+
+| Feature | Pulls in | What it adds |
+|---|---|---|
+| `core` | — | configuration, logging, `/healthz`, `/metrics`, shutdown, guards. Always on. |
+| `assets` | `core` | the vendored kp-themes tree: stylesheets, scripts and **73 font faces, about 5 MB**, embedded in the binary. |
+| `dashboard` | `core`, `assets` | the login page, the {{ prefix }} admin session, the Clients page and the clients API — **and two mandatory secrets** (see below). |
+| `passkeys` | `dashboard`, `assets`, `core` | passkey registration and login; pulls OpenSSL, so a static build would have to vendor it. |
+| `self-update` | `core` | the updater, its state and the `update` subcommand; pulls a signature verifier. |
+| `notify` | `core` | the webhook notifier and the `[[notify.webhook]]` section. |
+| `testing` | `dashboard` (and so `assets`, `core`) | the in-process test harness, for `[dev-dependencies]`. It does not reach the built binary. |
+
+**A feature can make a secret mandatory.**
+{%- if "dashboard" in features %}
+This binary has `dashboard`, which makes `{{ prefix }}_TOKEN` and
+`{{ prefix }}_SECRET_KEY` required: without both the service refuses to start,
+and because the unit runs `--check` as `ExecStartPre`, systemd reports the
+refusal instead of starting. Generate them with `{{ name }} gen-secret` and put
+both lines in `{{ env_file }}`.
+{%- else %}
+`dashboard` is the one that does: it makes `<PREFIX>_TOKEN` and
+`<PREFIX>_SECRET_KEY` required, and a service that has neither refuses to
+start. This binary does not build it, so neither secret is read here — turning
+it on later means generating both before the next start.
+{%- endif %}
+{% if "dashboard" in features %}
+## Who is calling: `Caller`
+
+Every handler the project writes receives a `Caller`, which answers who sent
+this request rather than what kind of thing it is. It has two shapes: the
+admin, who logged in on the dashboard or sent the admin token, and a client,
+one of the rows on the Clients page. So "Clients" is the name of the thing
+that registers, and `Caller::Client` is that thing arriving at a route.
+{% endif %}
+
 ## Configuration knobs
+
+The project's own settings live in the same config file and are none of the
+kit's business: `app.project_config()` hands the project everything the kit
+does not own, table sections included.
 
 Every knob answers to three names: a flag, an environment variable and a
 key in the config file (`{{ state_dir }}/config.toml`). Precedence is
