@@ -18,7 +18,7 @@ were there.
 
 {%- if "dashboard" in features %}
 
-## The door: how callers get in
+## The door: how clients get in
 
 Every request to a protected route carries a **client token**:
 
@@ -28,15 +28,15 @@ curl -sS -H 'Authorization: Bearer <client token>' \
      -d '{}' http://127.0.0.1:8080/v1/…
 ```
 
-A client token is issued per caller, on the dashboard's **Clients** page
+A client token is issued per client, on the dashboard's **Clients** page
 (a name, one click) or, for a service without a dashboard, with
 `chassis clients` on the machine that runs it. The token is shown once and
 can be revealed, copied, re-issued or revoked at any time; revoking locks
-the caller out the same second. A request without a valid token is
+the client out the same second. A request without a valid token is
 answered with HTTP 401 and a JSON body that says what to send.
 
 
-Two secrets belong to the operator, not to callers, and live only in the
+Two secrets belong to the operator, not to clients, and live only in the
 environment file (`{{ env_file }}`), never in a flag or a config file:
 
 - `{{ prefix }}_TOKEN` — the **admin token**: it logs you in on `/login`
@@ -55,7 +55,7 @@ Paste the two lines it prints into `{{ env_file }}`. Without both, a
 service with a dashboard refuses to start and `--check` tells you so.
 {%- else %}
 
-## The door: how callers get in
+## The door: how clients get in
 
 The kit's door — client tokens, the admin token, the sealed client store —
 comes with the `dashboard` feature, which {{ name }} is not built with. The

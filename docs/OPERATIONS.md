@@ -243,7 +243,7 @@ key until step 7):
 7. Now discard the old key.
 
 **Procedure C — the key is gone and no copy exists.** What is lost:
-every client token (re-issue each caller), every browser session, every
+every client token (re-issue each client), every browser session, every
 passkey. `update-state.json`, `update-skip.json` and the binary are unaffected.
 
 1. `systemctl stop <name>`. Starting with a new key against the old
@@ -256,7 +256,7 @@ passkey. `update-state.json`, `update-skip.json` and the binary are unaffected.
    /var/lib/<name>/unrecoverable/` (keep them; a key that turns up later
    opens them).
 4. `--check`, `systemctl start`: the stores start empty.
-5. Log in with the new token, re-issue a client per caller, re-register
+5. Log in with the new token, re-issue every client, re-register
    passkeys.
 
 Proven by: `shell::store::tests::rekey_reseals_every_store_once_and_refuses_a_wrong_old_key`,
@@ -350,7 +350,7 @@ chassis clients <verb> --url <base url> --token-env <VAR> [--json] [--timeout-se
 | `list` | lists the clients (id, name, state, issued, last used, uses); never a token | the table, or the JSON array with `--json` |
 | `issue <name> [--field k=v]...` | creates a client and prints its token | the token, once; with `--json` the client view with a `token` field |
 | `reissue <id-or-name>` | replaces the token; the old one is refused the same second | the new token, once (same `--json` shape) |
-| `revoke <id-or-name>` | locks the caller out; the row stays as revoked, the name is free | nothing (the client view with `--json`) |
+| `revoke <id-or-name>` | locks that client out; the row stays as revoked, the name is free | nothing (the client view with `--json`) |
 | `delete <id-or-name>` | removes the client and its request history | nothing (`{"id","name","deleted":true}` with `--json`) |
 | `reveal <id-or-name>` | prints the current token | the token, once (the API's `{token, command}` with `--json`) |
 

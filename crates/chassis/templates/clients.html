@@ -4,7 +4,7 @@
 <h1>{{ clients_label }}</h1>
 <p class="explain">
   Every {{ vocab.singular }} listed here is one program that calls this
-  service, with its own token. Give each caller its own so you can switch
+  service, with its own token. Give each {{ vocab.singular }} its own so you can switch
   a single one off without touching the others, see which one sent what,
   and debug a new connection from its row — without ever handing out the
   service's own login token.
@@ -23,7 +23,7 @@
 <p class="explain kp-m-0 kp-mb-md">
     Pick a name you will recognise in the logs (<code>home-assistant</code>,
     <code>kyu-runner</code>). The token appears on the row; reveal or copy
-    it there, paste it into the caller, done.
+    it there, paste it into that program, done.
   </p>
   <form id="issue" class="kp-row kp-row--end kp-gap-md">
     <div class="kp-field">
@@ -51,7 +51,7 @@
        so the CSP can say script-src 'self' (S8). -->
 </div>
 
-<h2>Registered</h2>
+<h2>Registered {{ vocab.plural }}</h2>
 <p class="explain">
   <strong>Reveal</strong> shows the token for {{ reveal_seconds }} seconds.
   <strong>Copy token</strong> puts only the token on the clipboard;
@@ -59,7 +59,7 @@
   <strong>Last requests</strong> shows what this {{ vocab.singular }} actually sent (secrets
   masked, bodies cut at {{ capture_body_bytes }} bytes, kept {{ capture_ttl_minutes }} minutes).
   {% if has_test_route %}<strong>Send test</strong> sends one request with this {{ vocab.singular }}'s token to
-  this service's own test route, so you can see the round trip before the real caller is wired.{% endif %}
+  this service's own test route, so you can see the round trip before the real {{ vocab.singular }} is wired.{% endif %}
 </p>
 {% if clients %}
 <div class="kp-table-wrap">
@@ -99,7 +99,7 @@
         <button type="button" class="kp-button{% if a.destructive %} kp-button--destructive{% endif %}" data-post="{{ a.route|safe }}" data-method="{{ a.method }}"{% if a.busy_label %} data-busy-label="{{ a.busy_label }}"{% endif %}{% if a.destructive %} data-kp-destructive data-kp-confirm="{{ a.confirm }}"{% endif %}>{{ a.label }}</button>
         {% endfor %}
         <button type="button" class="kp-button" data-post="/api/clients/{{ c.id }}/reissue" data-kp-destructive data-kp-confirm="Re-issue? The current token stops working at once.">Re-issue</button>
-        <button type="button" class="kp-button kp-button--destructive" data-post="/api/clients/{{ c.id }}/revoke" data-kp-destructive data-kp-confirm="Revoke this token? The caller is locked out immediately.">Revoke</button>
+        <button type="button" class="kp-button kp-button--destructive" data-post="/api/clients/{{ c.id }}/revoke" data-kp-destructive data-kp-confirm="Revoke this token? This {{ vocab.singular }} is locked out immediately.">Revoke</button>
         {% endif %}
         <button type="button" class="kp-button kp-button--destructive" data-post="/api/clients/{{ c.id }}" data-method="DELETE" data-kp-destructive data-kp-confirm="Delete this {{ vocab.singular }} and its history?">Delete</button>
       </div>

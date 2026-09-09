@@ -268,7 +268,7 @@ Every kit sentence that names the thing now uses it: the explain
 paragraphs ("Every source listed here is one program that calls this
 service, with its own token…"), the "Add a source" card, "No sources yet.
 Add one above.", the Delete button's confirm phrase ("Delete this source
-and its history?"), the login page's aside about API callers, and every
+and its history?"), the login page's aside about client programs, and every
 refusal from the clients API (`a source named `job-tracker` already has
 a token`, `no source with id …`, `source … is revoked; it has no token`).
 The heading and nav label default to the capitalised plural, `Sources`,
@@ -410,7 +410,7 @@ and the next); and inbox's "Clear messages" section action in
 - **Errors as pages.** A refusal answered to a browser navigation
   (`Sec-Fetch-Mode: navigate`, or an `Accept` asking for HTML) renders in
   the layout — the kit's error and remedy, with a way back — through
-  `templates/error.html`; scripts and API callers get the JSON shape
+  `templates/error.html`; scripts and clients get the JSON shape
   (OPERATIONS.md §Error shapes).
 - **Layout.** Nav, theme picker, Log out and the skip link come from
   `layout.html`; the project fills `content`.

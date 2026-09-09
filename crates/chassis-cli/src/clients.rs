@@ -68,7 +68,7 @@ pub enum Verb {
         /// The client's id or exact name
         client: String,
     },
-    /// Revoke a client's token; the caller is locked out immediately, the name is free again
+    /// Revoke a client's token; that client is locked out immediately, the name is free again
     Revoke {
         /// The client's id or exact name
         client: String,

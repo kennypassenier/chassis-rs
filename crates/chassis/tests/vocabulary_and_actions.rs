@@ -131,11 +131,26 @@ fn visible_text(html: &str) -> String {
     out
 }
 
-/// Whole-word, case-insensitive: `client` or `clients` as a word of its own.
+/// Whole-word, case-insensitive: a word the kit must not use for the thing
+/// the project names itself. `client`/`clients` because that is the default
+/// vocabulary, and `caller`/`callers` because the kit used to reach for it as
+/// a synonym — four times on one page, where no vocabulary could follow
+/// (Kenny, 2026-09-10: the name is Clients everywhere, and a project renames
+/// it in one place or not at all).
 fn says_client(text: &str) -> Option<String> {
     text.split(|c: char| !c.is_alphanumeric())
         .map(|w| w.to_ascii_lowercase())
-        .find(|w| w == "client" || w == "clients")
+        .find(|w| matches!(w.as_str(), "client" | "clients" | "caller" | "callers"))
+}
+
+/// What a confirmation dialog says. `visible_text` strips attributes, so the
+/// kit's own `data-kp-confirm` texts were never checked — and that is exactly
+/// where "the caller is locked out" survived.
+fn confirm_texts(html: &str) -> Vec<String> {
+    html.split("data-kp-confirm=\"")
+        .skip(1)
+        .filter_map(|rest| rest.split('"').next().map(str::to_string))
+        .collect()
 }
 
 // K28: with `vocabulary("source", "sources")` no kit page says "client" any
@@ -157,7 +172,11 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
         None,
         "{login_page}"
     );
-    assert!(login_page.contains("source token on the Sources page"));
+    assert!(
+        login_page
+            .contains("each one is a source with its own token, issued on\n  the Sources page"),
+        "{login_page}"
+    );
 
     let cookie = login(addr).await;
     let admin = [("Cookie", cookie.as_str())];
@@ -168,6 +187,10 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     assert!(empty.contains("<h1>Sources</h1>"), "{empty}");
     assert!(empty.contains("No sources yet. Add one above."), "{empty}");
     assert!(empty.contains("Add a source"), "{empty}");
+    assert!(
+        empty.contains("<h2>Registered sources</h2>"),
+        "the second heading speaks the vocabulary too: {empty}"
+    );
     assert!(empty.contains("vocabdemo — sources</title>"), "{empty}");
     assert!(
         empty.contains(">Sources</a>") && !empty.contains("sources\""),
@@ -187,6 +210,21 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
         full.contains("Delete this source and its history?"),
         "{full}"
     );
+    // Every confirmation the kit renders is read by a person and is not
+    // reached by `visible_text`, which strips attributes. Drilled red by
+    // putting "caller" back in the Revoke confirmation.
+    let confirms = confirm_texts(&full);
+    assert!(
+        confirms.iter().any(|c| c.contains("source")),
+        "the confirmations speak the vocabulary: {confirms:?}"
+    );
+    for c in &confirms {
+        assert_eq!(
+            says_client(c),
+            None,
+            "a confirmation names the thing the project's own way: {c}"
+        );
+    }
 
     let (_, _, status_page) = http(addr, "GET", "/", &admin, "").await;
     assert_eq!(

@@ -228,7 +228,7 @@ enum Cmd {
     },
     /// Manage a running service's client tokens without a browser (list, issue, reissue, revoke, delete, reveal)
     #[command(
-        long_about = "Manage a running service's client tokens without a browser, over the same /api/clients the dashboard uses: list, issue, reissue, revoke, delete, reveal. For a headless service (http-switchboard, kyu-runner) that needs a token for a caller such as Alertmanager."
+        long_about = "Manage a running service's client tokens without a browser, over the same /api/clients the dashboard uses: list, issue, reissue, revoke, delete, reveal. For a headless service (http-switchboard, kyu-runner) that needs a token for a client such as Alertmanager."
     )]
     Clients(clients::ClientsArgs),
 }
@@ -1870,6 +1870,36 @@ mod tests {
                 .contains("--property=EnvironmentFile=/appdata/demo-svc/demo-svc-config/latch.env"),
             "{stack}"
         );
+        // fix-3 (Almanac on CT 112, 2026-09-09): every Environment= line the
+        // unit declares is reproduced, or a supervised `update --check` runs
+        // against the binary's compiled-in default state directory and its
+        // failure blames a missing secret. Drilled red by removing the two
+        // --property=Environment= lines from the template: both assertions
+        // fired, and the unit still declared the variables.
+        for line in [
+            "--property=Environment=DEMO_SVC_STATE_DIR=/var/lib/demo-svc",
+            "--property=Environment=DEMO_SVC_TIMEOUT_STOP_SECS=60",
+        ] {
+            assert!(
+                stack.contains(line),
+                "update_cmd is missing {line}:\n{stack}"
+            );
+        }
+        let unit_with_env = &files
+            .iter()
+            .find(|(p, ..)| p == "deploy/demo-svc.service")
+            .unwrap()
+            .1;
+        for (var, value) in [
+            ("DEMO_SVC_STATE_DIR", "/var/lib/demo-svc"),
+            ("DEMO_SVC_TIMEOUT_STOP_SECS", "60"),
+        ] {
+            assert!(
+                unit_with_env.contains(&format!("Environment={var}={value}")),
+                "the unit declares {var}, so update_cmd must carry it:\n{unit_with_env}"
+            );
+        }
+
         // The defaults are what a fresh project always got.
         let fresh = render_all(&rec(), &scaffold_features()).unwrap();
         let unit = &fresh
