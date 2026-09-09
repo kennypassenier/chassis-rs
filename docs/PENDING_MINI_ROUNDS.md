@@ -1362,6 +1362,28 @@ project's measurement:
    gap above (no stated minimum, no libc in the asset name) a dependency of
    somebody else's gate, not only a tidiness point.
 
+**Kenny decided (relayed 2026-09-09 by the Homelab Rust session): the whole
+fleet moves to Debian 13**, golden template first, then container by
+container with his go per container, gateway and media last. That decision is
+his and belongs to that project; what it means HERE is that T8's premise
+becomes true by making it true rather than by argument. No build change is
+needed: no musl, no bookworm base, the templates stay as they are.
+
+**So the mini-round on T8 is about its text, not its templates**, and it has
+two jobs:
+
+1. **Say that the premise is a dependency, not a fact.** "Every target
+   environment runs glibc >= 2.41" was untrue for about a year and nothing
+   noticed. Written as a dependency on the fleet, with what happens when a
+   machine falls behind it, it stops being a claim that can quietly rot.
+2. **Publish a glibc floor with the release.** The homelab's own task T87
+   makes its deploy refuse a staged binary that demands more than the target
+   container offers. Without a published floor that check must run `objdump
+   -T` and reason for itself; with one it reads what the kit promises. That
+   makes the floor a dependency of somebody else's gate. Whether the asset
+   name should carry the libc is part of the same round, because AR16 calls
+   the four asset names a contract.
+
 **Status: nothing changed here.** T8 is frozen, so this needs a mini-round, and
 the direction is Kenny's — he has a form open in the Homelab Rust session with
 three of them (static build, older build base, or move the container to Debian
@@ -1372,3 +1394,23 @@ dropping passkeys — while a headless consumer (kyu-runner, http-switchboard)
 could build musl today. The cheapest kit-side change is the third direction:
 `slim-bookworm` instead of `slim-trixie` in two templates, which links against
 glibc 2.36 and runs on both Debian 12 and 13 with passkeys intact.
+
+## Two findings from the Homelab Rust session that touch this project (2026-09-09)
+
+Neither is this project's work; both are recorded because they change what a
+drill here will see, and because the second is retro material.
+
+- **Security updates were refused fleet-wide, CT 118 included.** The rule
+  matched on the archive name, and Debian renames those as a release ages
+  (`trixie-security` becomes `stable-security`). That session fixed it in the
+  guards that run on every container, matching on the codename instead. CT 118
+  has no backlog only because it is new — worth knowing before the next drill
+  there reads its update state.
+- **A verb built a template because `--help` was read as a positional
+  argument** and the fallback to a default turned it into a real build on a
+  running host. Measured here for the same shape: this project's CLI parses
+  everything through clap, including the `clients` verbs, and its only
+  positional is a client name whose absence is refused with a remedy rather
+  than defaulted (`chassis clients issue <NAME>`). No instance of the shape in
+  this repository. The general lesson — an input nobody parsed being treated
+  as consent — is a candidate for the batch 3 retrospective.
