@@ -30,6 +30,12 @@ fn a_new_project_compiles_and_answers_version() {
     let workspace_target = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target");
     let dir = tempfile::tempdir().unwrap();
     let project = dir.path().join("demo-svc");
+    // K34: the tag is the kit's version requirement in the generated
+    // Cargo.toml, and the smoke test's dev-dependency points at this same
+    // checkout, so a made-up tag would leave cargo with a requirement no
+    // local crate satisfies. The kit's crates carry the CLI's version —
+    // `with_chassis_path` writes that same one on the path dependency.
+    let local_tag = format!("v{}", env!("CARGO_PKG_VERSION"));
 
     let out = chassis()
         .args([
@@ -43,7 +49,7 @@ fn a_new_project_compiles_and_answers_version() {
             "--chassis-path",
             kit.to_str().unwrap(),
             "--chassis-tag",
-            "v0.0.0-test",
+            local_tag.as_str(),
         ])
         .output()
         .unwrap();
@@ -67,6 +73,22 @@ fn a_new_project_compiles_and_answers_version() {
     assert!(kit_md.contains("DEMO_SVC_TOKEN"), "{kit_md}");
     assert!(kit_md.contains("| `DEMO_SVC_LISTEN` |"), "{kit_md}");
 
+    // K34: every new project ships the kit's smoke test, and its Cargo.toml
+    // gives the harness to the tests without putting it in the binary.
+    // Drilled red once by dropping the scaffold entry: `new` wrote no
+    // tests/kit_smoke.rs.
+    let smoke = std::fs::read_to_string(project.join("tests/kit_smoke.rs"))
+        .expect("tests/kit_smoke.rs is written by chassis new");
+    assert!(smoke.contains("chassis::testing::TestApp"), "{smoke}");
+    let cargo_toml_text = std::fs::read_to_string(project.join("Cargo.toml")).unwrap();
+    let (_, dev) = cargo_toml_text
+        .split_once("[dev-dependencies]")
+        .expect("the scaffold has a dev-dependencies section");
+    assert!(
+        dev.contains(r#"features = ["testing"]"#),
+        "the harness comes in as a dev-dependency: {dev}"
+    );
+
     // H10: the generated project passes ITS OWN gates (fmt, clippy -D
     // warnings, tests, clean tree) — what its first real commit will face.
     let gates = project.join(".claude/hooks/gates.sh");
@@ -76,11 +98,21 @@ fn a_new_project_compiles_and_answers_version() {
         .env("CARGO_TARGET_DIR", &workspace_target)
         .output()
         .unwrap();
-    assert!(
-        out.status.success(),
-        "the generated project's gates failed:\n{}\n{}",
+    let gates_out = format!(
+        "{}{}",
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        out.status.success(),
+        "the generated project's gates failed:\n{gates_out}"
+    );
+    // K34: the gates RAN the smoke test and it was green — a scaffold that
+    // ships a test nobody runs proves nothing. Drilled red once by asserting
+    // on a misspelt test name: failed, restored.
+    assert!(
+        gates_out.contains("test kit_smoke_login_client_token_api_call_and_dashboard ... ok"),
+        "the project's own `cargo test` ran the kit smoke test:\n{gates_out}"
     );
 
     // CF-6 (2026-09-06): the generated project must also pass cargo-deny.
@@ -151,6 +183,24 @@ fn a_new_project_compiles_and_answers_version() {
     assert!(
         sync_out.contains("path dependency"),
         "a --chassis-path project is told its tag is not compared: {sync_out}"
+    );
+
+    // K34: the smoke test is the kit's, so a sync puts it back instead of
+    // leaving a project on a harness the kit no longer has. Drilled red once
+    // by listing the scaffold entry as `owned(...)`: sync reported the file
+    // and left the vandalised copy in place.
+    let smoke_path = project.join("tests/kit_smoke.rs");
+    std::fs::write(&smoke_path, "// gone\n").unwrap();
+    let out = chassis()
+        .args(["sync", "--write", "--dir", project.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let sync_out = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "{sync_out}");
+    assert_eq!(
+        std::fs::read_to_string(&smoke_path).unwrap(),
+        smoke,
+        "sync rewrote the kit-owned smoke test: {sync_out}"
     );
 
     // D1 (K32, 2026-09-07): drift --write cannot fix exits 1 even with

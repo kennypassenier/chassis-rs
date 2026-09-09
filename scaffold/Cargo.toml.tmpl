@@ -19,6 +19,12 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
 serde_json = "1"
 
 [dev-dependencies]
+# K34: the same kit again, with its test harness (`chassis::testing`) for
+# tests/kit_smoke.rs. Cargo unifies the two entries, so this one only adds
+# the feature; bump its tag together with the one above. A `--chassis-path`
+# project points both at the local checkout — a path dependency still needs
+# `version`, or cargo-deny reads it as a wildcard (CF-6 a).
+chassis = { {% if chassis_path %}path = "{{ chassis_path }}"{% else %}git = "{{ chassis_repo }}", tag = "{{ chassis_tag }}"{% endif %}, version = "{{ chassis_version }}", features = ["testing"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking", "cookies"] }
 tempfile = "3"
 

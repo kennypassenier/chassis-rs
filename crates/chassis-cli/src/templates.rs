@@ -79,6 +79,13 @@ pub const ENTRIES: &[Entry] = &[
         "docs/KIT.md",
         include_str!("../../../scaffold/docs/KIT.md.tmpl"),
     ),
+    // K34: the kit's own smoke test. Kit-owned like docs/KIT.md, so a sync
+    // rewrites it when the harness changes; a project's own tests live in
+    // other files under tests/.
+    rendered(
+        "tests/kit_smoke.rs",
+        include_str!("../../../scaffold/tests/kit_smoke.rs.tmpl"),
+    ),
     rendered(
         ".github/workflows/ci.yml",
         include_str!("../../../scaffold/.github/workflows/ci.yml"),
@@ -152,3 +159,29 @@ pub const ENTRIES: &[Entry] = &[
         false,
     ),
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// K34: the smoke test is kit-owned, so `chassis sync` rewrites it when
+    /// the harness changes instead of leaving a project on an old one — the
+    /// whole point of shipping it. Drilled red once by listing the entry
+    /// with `owned(...)`: failed on `project_owned`, restored.
+    #[test]
+    fn k34_the_kit_smoke_test_is_a_rendered_kit_owned_scaffold_file() {
+        let entry = ENTRIES
+            .iter()
+            .find(|e| e.path == "tests/kit_smoke.rs")
+            .expect("the scaffold writes tests/kit_smoke.rs");
+        assert!(entry.render, "it carries the project's name and repository");
+        assert!(
+            !entry.project_owned,
+            "a sync must rewrite it, like docs/KIT.md"
+        );
+        assert!(
+            entry.body.contains("chassis::testing::TestApp"),
+            "it is built on the kit's harness"
+        );
+    }
+}

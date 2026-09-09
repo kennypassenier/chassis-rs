@@ -1541,21 +1541,25 @@ mod tests {
         );
     }
 
+    /// K34 moved this test to one `Recorded`: the scaffold now names the kit
+    /// twice (the dependency and the dev-dependency on its test harness), and
+    /// `with_chassis_path` only rewrites the first line. Rendering with the
+    /// same record `cmd_new` renders with is what the real flow does — the
+    /// template turns the dev-dependency into a path dependency itself — and
+    /// it is what makes "no git dependency is left" true again.
     #[test]
     fn chassis_path_replaces_the_git_dependency() {
-        let cargo = render_all(&rec(), &scaffold_features())
+        let local_rec = Recorded {
+            chassis_path: Some("/tmp/kit".into()),
+            ..rec()
+        };
+        let cargo = render_all(&local_rec, &scaffold_features())
             .unwrap()
             .into_iter()
             .find(|(p, ..)| p == "Cargo.toml")
             .unwrap()
             .1;
-        let local = with_chassis_path(
-            &cargo,
-            &Recorded {
-                chassis_path: Some("/tmp/kit".into()),
-                ..rec()
-            },
-        );
+        let local = with_chassis_path(&cargo, &local_rec);
         assert!(
             local.contains(&format!(
                 "chassis = {{ path = \"/tmp/kit\", version = \"{}\", features = [",
