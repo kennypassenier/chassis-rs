@@ -23,6 +23,18 @@ grep -q "^## \[$version\]" CHANGELOG.md || { echo "release-kit: CHANGELOG.md has
 git fetch -q origin main
 [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || { echo "release-kit: local main is not origin/main"; exit 1; }
 
+# Standing rule 46: the kit proves its consumers before it releases. A
+# precondition, so nothing is committed, tagged or published if a project
+# downstream stops building. Local by Kenny's condition (2026-09-09) — it
+# runs here, never on a commit. Pass --image to also build each consumer's
+# container, which is where the Debian-versus-Arch question is answered:
+# the Dockerfiles build inside rust:1.97-slim-trixie, so that artifact is
+# the one that ships.
+"$root/scripts/check-consumers.sh" ${CHECK_CONSUMERS_ARGS:-} || {
+  echo "release-kit: consumers do not build against this tree; nothing released" >&2
+  exit 1
+}
+
 current="$(grep -m1 '^version = ' crates/chassis/Cargo.toml | cut -d'"' -f2)"
 echo "release-kit: $current -> $version"
 sed -i "s/^version = \"$current\"/version = \"$version\"/" crates/chassis/Cargo.toml crates/chassis-cli/Cargo.toml
