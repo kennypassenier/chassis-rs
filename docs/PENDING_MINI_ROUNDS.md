@@ -1305,3 +1305,49 @@ This is a live-found fault in a kit artefact, so it needs a correction form
 template declares must be reproduced as `--property=Environment=…`, and the
 comment must stop promising more than the command does. Queued for the next
 form; nothing is fixed yet.
+
+## Live-found: every release binary needs a glibc the fleet does not have (2026-09-09, from Homelab Rust)
+
+Reported by the Homelab Rust session after it blocked three rollouts in one
+day, and verified here the same evening. It is the more serious of the two
+findings that arrived this evening, because it invalidates a frozen decision
+rather than a template line.
+
+**What they measured.** Every current release binary of the four consumers —
+kyu 3.1.0, kyu-runner 0.2.1, http-switchboard 3.0.0, almanac 4.0.3 — requires
+`GLIBC_2.39` (`objdump -T`). CT 109 runs Debian 12 with glibc 2.36, so the
+binary does not start there at all: `version 'GLIBC_2.39' not found`, followed
+by a restart loop under `Restart=always`; kyu was rolled back to 2.4.1 inside
+ninety seconds. Almanac worked only because CT 112 runs Debian 13. The
+fleet's golden template is Debian 12, so every container made from it has the
+same problem.
+
+**Where it comes from, measured here.** `scaffold/.github/workflows/release.yml`
+builds the asset in `rust:<toolchain>-slim-trixie`, and `scaffold/Dockerfile`
+does the same. That is decision **T8** in `docs/ARCHITECTURE_DECISIONS.md`
+("Release build target"), which chose `x86_64-unknown-linux-gnu on Debian
+trixie", said in so many words "not static musl", and justified it with: "every
+target environment (T7) runs glibc >= 2.41 anyway".
+
+**That justification is the fault.** It is an assumption about the homelab's
+machines that was never measured against the fleet — the exact shape standing
+rule 6a forbids (a choice may not rest on an unmeasured assumption about
+someone else's system). T7's environment table lists CT 118 (Debian 13) and
+the container image; the Debian 12 golden template appears nowhere in it.
+
+**Two things this leaves open regardless of the direction chosen.** No document
+of the kit states a minimum glibc as a supportability contract, and the release
+asset is named `<name>` with no architecture or libc suffix (AR16 calls the four
+asset names a contract), so nothing about the download says what it links
+against.
+
+**Status: nothing changed here.** T8 is frozen, so this needs a mini-round, and
+the direction is Kenny's — he has a form open in the Homelab Rust session with
+three of them (static build, older build base, or move the container to Debian
+13). Input relayed to that session because it changes the options: T8 rejected
+musl for a measured reason, namely that `passkeys` pulls webauthn-rs and with
+it OpenSSL, so a static build means vendoring OpenSSL on every release or
+dropping passkeys — while a headless consumer (kyu-runner, http-switchboard)
+could build musl today. The cheapest kit-side change is the third direction:
+`slim-bookworm` instead of `slim-trixie` in two templates, which links against
+glibc 2.36 and runs on both Debian 12 and 13 with passkeys intact.
