@@ -67,6 +67,7 @@
   <thead>
     <tr>
       <th>Name</th><th>Token</th><th>Issued</th><th>Last used</th><th>State</th>
+      {% for col in declared_columns %}<th>{{ col.title }}</th>{% endfor %}
       {% for col in extra_columns %}<th>{{ col.title }}</th>{% endfor %}
       <th class="text-end"></th>
     </tr>
@@ -88,6 +89,7 @@
     <td><span class="mono">{{ c.issued_at }}</span></td>
     <td>{% if c.last_used_at %}<span class="mono">{{ c.last_used_at }}</span> <span class="text-secondary">({{ c.uses }}×)</span>{% else %}<span class="text-secondary">never</span>{% endif %}</td>
     <td>{% if c.active %}<span class="kp-badge kp-badge--success state-badge">active</span>{% else %}<span class="kp-badge state-badge">revoked {{ c.revoked_at }}</span>{% endif %}</td>
+    {% for cell in c.declared %}<td>{{ cell }}</td>{% endfor %}
     {% for cell in c.extra %}<td>{{ cell|safe }}</td>{% endfor %}
     <td class="text-end">
       <div class="kp-row kp-justify-end">

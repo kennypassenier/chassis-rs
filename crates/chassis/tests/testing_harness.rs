@@ -483,3 +483,56 @@ async fn k25_extra_env_overrides_the_harness_state_dir_and_state_dir_reports_it(
     );
     app.shutdown().await;
 }
+
+// feat-clients-2: the kit keeps what the project declared. This is the whole
+// promise from a consumer's side — declare a field, and the value is stored,
+// shown, returned by the API and gone with the client — so it is driven over
+// real HTTP against a real app rather than against the store.
+#[tokio::test]
+async fn feat_clients_2_a_declared_field_is_stored_shown_and_returned() {
+    let mut app = TestApp::start_with(spec("fields"), Router::new(), |app| {
+        app.client_form_field(ClientFormField::text("calendar", "Calendar", "cal-…"));
+    })
+    .await;
+    app.login().await;
+
+    let client = app
+        .issue_client("almanac", &[("calendar", "work-cal")])
+        .await;
+
+    // Returned by the API, so `chassis clients list --json` carries it too.
+    let (status, listed) = app.get_json("/api/clients").await;
+    assert_eq!(status, 200);
+    let row = listed
+        .as_array()
+        .and_then(|rows| rows.iter().find(|r| r["id"] == client.id))
+        .expect("the new client is listed");
+    assert_eq!(
+        row["fields"]["calendar"], "work-cal",
+        "the declared field comes back from the API: {row}"
+    );
+
+    // Shown on the page, under the label the project gave the field.
+    let (page_status, page) = app.page("/clients").await;
+    assert_eq!(page_status, 200);
+    assert!(page.contains("<th>Calendar</th>"), "{page}");
+    assert!(page.contains("work-cal"), "{page}");
+
+    // A key the project never declared is not stored, so a caller cannot
+    // grow the store by posting extra JSON.
+    let (sneaky_status, sneaky) = app
+        .post_json(
+            "/api/clients",
+            serde_json::json!({"name": "sneaky", "calendar": "c", "surprise": "x"}),
+        )
+        .await;
+    assert_eq!(sneaky_status, 201, "{sneaky}");
+    assert_eq!(
+        sneaky["fields"]["surprise"],
+        serde_json::Value::Null,
+        "an undeclared key is not kept: {sneaky}"
+    );
+    assert_eq!(sneaky["fields"]["calendar"], "c");
+
+    app.shutdown().await;
+}

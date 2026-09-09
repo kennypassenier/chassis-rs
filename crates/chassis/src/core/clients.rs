@@ -9,6 +9,8 @@
 //! pure transformation of `ClientsFile`; the shell owns time, randomness
 //! and the disk.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::core::crypto::ct_eq;
@@ -16,7 +18,12 @@ use crate::core::error::{Error, Kind};
 
 /// Store format version for the decrypted JSON. A reader accepts this
 /// version and the one before it (K21); bump with a migration.
-pub const CLIENTS_FORMAT: u32 = 1;
+///
+/// 2 (feat-clients-2, 2026-09-10) adds `fields` to a client. A version-1
+/// file has no such key, so `serde`'s default fills an empty map and the
+/// file reads unchanged — the migration is the absence of work, and the
+/// test below pins that rather than trusting it.
+pub const CLIENTS_FORMAT: u32 = 2;
 
 /// Length of a freshly issued token: 32 random bytes as 64 hex chars.
 pub const TOKEN_BYTES: usize = 32;
@@ -35,6 +42,13 @@ pub struct Client {
     pub revoked_at: Option<String>,
     pub last_used_at: Option<String>,
     pub uses: u64,
+    /// What the project asked for besides a name (feat-clients-2): the
+    /// values of the fields it declared with `client_form_field`, by field
+    /// name. The kit keeps them so a project does not need a store of its
+    /// own for "which calendar does this client write to"; only declared
+    /// names are ever written here, so a caller cannot grow the store.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub fields: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -86,14 +100,16 @@ impl ClientsFile {
         }
     }
 
-    /// Issue a token for a new name. `id` and `token` come from the
+    /// Issue a token for a new name, keeping the project's declared field
+    /// values with it (feat-clients-2). `id` and `token` come from the
     /// shell's random source, `now` from its clock.
-    pub fn issue(
+    pub fn issue_with_fields(
         &mut self,
         name: &str,
         id: String,
         token: String,
         now: &str,
+        fields: BTreeMap<String, String>,
     ) -> Result<&Client, Error> {
         validate_name(name)?;
         if self.active_by_name(name).is_some() {
@@ -110,8 +126,29 @@ impl ClientsFile {
             revoked_at: None,
             last_used_at: None,
             uses: 0,
+            fields,
         });
         Ok(self.clients.last().expect("just pushed"))
+    }
+
+    /// [`ClientsFile::issue_with_fields`] with no fields.
+    ///
+    /// Kept beside the new shape for one version (feat-api-2, the first
+    /// time that rule is used): a consumer calling this still compiles and
+    /// is told where to go. It is removed in the version after the one
+    /// that introduces `issue_with_fields`.
+    #[deprecated(
+        since = "1.9.0",
+        note = "use issue_with_fields; a client now carries the project's declared fields"
+    )]
+    pub fn issue(
+        &mut self,
+        name: &str,
+        id: String,
+        token: String,
+        now: &str,
+    ) -> Result<&Client, Error> {
+        self.issue_with_fields(name, id, token, now, BTreeMap::new())
     }
 
     /// Replace the token of an active client (the old one stops working
@@ -207,11 +244,23 @@ mod tests {
     #[test]
     fn issue_reissue_revoke_delete_lifecycle() {
         let mut f = ClientsFile::default();
-        f.issue("home-assistant", "id-1".into(), "tok-a".into(), T0)
-            .unwrap();
+        f.issue_with_fields(
+            "home-assistant",
+            "id-1".into(),
+            "tok-a".into(),
+            T0,
+            Default::default(),
+        )
+        .unwrap();
         // Same active name is refused with a remedy naming re-issue.
         let err = f
-            .issue("home-assistant", "id-2".into(), "tok-b".into(), T0)
+            .issue_with_fields(
+                "home-assistant",
+                "id-2".into(),
+                "tok-b".into(),
+                T0,
+                Default::default(),
+            )
             .unwrap_err();
         assert!(err.remedy.contains("re-issue"));
         assert_eq!(f.by_token("tok-a").unwrap().name, "home-assistant");
@@ -230,8 +279,14 @@ mod tests {
         );
         assert_eq!(f.get("id-1").unwrap().revoked_at.as_deref(), Some(T1));
         // The name is free again, the row stays.
-        f.issue("home-assistant", "id-2".into(), "tok-d".into(), T1)
-            .unwrap();
+        f.issue_with_fields(
+            "home-assistant",
+            "id-2".into(),
+            "tok-d".into(),
+            T1,
+            Default::default(),
+        )
+        .unwrap();
         assert_eq!(f.clients.len(), 2);
         // Re-issuing a revoked row is refused.
         assert!(f.reissue("id-1", "x".into(), T1).is_err());
@@ -252,7 +307,8 @@ mod tests {
     #[test]
     fn touch_moves_last_used_and_counts() {
         let mut f = ClientsFile::default();
-        f.issue("n", "id".into(), "t".into(), T0).unwrap();
+        f.issue_with_fields("n", "id".into(), "t".into(), T0, Default::default())
+            .unwrap();
         assert!(f.get("id").unwrap().last_used_at.is_none());
         f.touch("id", T1);
         f.touch("id", T1);
@@ -279,5 +335,60 @@ mod tests {
         );
         f.v = CLIENTS_FORMAT + 7;
         assert!(f.check_format().is_err());
+    }
+    /// feat-clients-2: a store written by 1.8.0 has no `fields` key at all.
+    /// It must read, and every client must come back with an empty map —
+    /// that is the whole migration, so it is pinned rather than trusted.
+    /// Drilled red by removing `#[serde(default …)]` from the field: the
+    /// parse then failed with "missing field `fields`".
+    #[test]
+    fn feat_clients_2_a_version_1_store_reads_and_has_no_fields() {
+        let v1 = r#"{"v":1,"clients":[{"id":"id-1","name":"home-assistant",
+            "token":"tok","issued_at":"2026-01-01T00:00:00Z","revoked_at":null,
+            "last_used_at":null,"uses":3}]}"#;
+        let f: ClientsFile = serde_json::from_str(v1).expect("a 1.8.0 store still reads");
+        assert_eq!(f.v, 1);
+        assert!(f.check_format().is_ok(), "the previous format is accepted");
+        assert!(
+            f.clients[0].fields.is_empty(),
+            "a client from before this version carries no fields"
+        );
+    }
+
+    /// feat-clients-2: what the project declared is kept with the client and
+    /// survives a write and a read. Drilled red by dropping `fields` from
+    /// the pushed `Client`: the value came back empty.
+    #[test]
+    fn feat_clients_2_declared_fields_survive_the_round_trip() {
+        let mut f = ClientsFile::default();
+        assert_eq!(f.v, 2, "a fresh store is written in the current format");
+        let mut fields = BTreeMap::new();
+        fields.insert("calendar".to_string(), "work-cal".to_string());
+        f.issue_with_fields("almanac", "id-1".into(), "tok".into(), T0, fields)
+            .unwrap();
+        let text = serde_json::to_string(&f).unwrap();
+        let back: ClientsFile = serde_json::from_str(&text).unwrap();
+        assert_eq!(
+            back.clients[0].fields.get("calendar").map(String::as_str),
+            Some("work-cal")
+        );
+        let empty = ClientsFile::default();
+        assert!(
+            !serde_json::to_string(&empty).unwrap().contains("fields"),
+            "an empty map is not written, so a project without fields sees no change"
+        );
+    }
+
+    /// feat-api-2, used for the first time: the shape this version replaces
+    /// still works for one version. Drilled red by making the wrapper
+    /// `unimplemented!()`.
+    #[test]
+    #[allow(deprecated)]
+    fn feat_api_2_the_previous_issue_still_works_for_one_version() {
+        let mut f = ClientsFile::default();
+        let c = f
+            .issue("kyu-runner", "id-1".into(), "tok".into(), T0)
+            .expect("the previous shape still issues");
+        assert!(c.fields.is_empty(), "and it issues without fields");
     }
 }

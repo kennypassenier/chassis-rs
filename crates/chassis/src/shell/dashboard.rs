@@ -675,6 +675,9 @@ pub async fn status_page(State(d): State<Dashboard>) -> Result<Html<String>, Err
 struct ClientRow {
     #[serde(flatten)]
     view: ClientView,
+    /// feat-clients-2: one cell per field the project declared, in the
+    /// order it declared them, escaped.
+    declared: Vec<String>,
     extra: Vec<String>,
     /// K29: the project's buttons, routes with this client's id filled in.
     /// Empty on a revoked row — an action on a client that no longer has a
@@ -690,6 +693,21 @@ pub async fn clients_page(State(d): State<Dashboard>) -> Result<Html<String>, Er
         .iter()
         .map(|c| {
             let view = ClientView::from(c);
+            // feat-clients-2: one cell per declared field, before the
+            // project's own columns. The project declared the field, so the
+            // kit shows it back without being asked. The template renders
+            // these WITHOUT `|safe`: the value came from a form, unlike a
+            // project column's cell, which is HTML the project vouches for.
+            let declared: Vec<String> = d
+                .form_fields
+                .iter()
+                .map(|f| {
+                    view.fields
+                        .get(&f.name)
+                        .cloned()
+                        .unwrap_or_else(|| "—".to_string())
+                })
+                .collect();
             let extra = d.columns.iter().map(|col| col.cell(&view)).collect();
             let actions = if view.active {
                 d.client_actions
@@ -701,6 +719,7 @@ pub async fn clients_page(State(d): State<Dashboard>) -> Result<Html<String>, Er
             };
             ClientRow {
                 view,
+                declared,
                 extra,
                 actions,
             }
@@ -717,6 +736,11 @@ pub async fn clients_page(State(d): State<Dashboard>) -> Result<Html<String>, Er
             logged_in => true,
             active_nav => "/clients",
             clients => rows,
+            declared_columns => d
+                .form_fields
+                .iter()
+                .map(|f| serde_json::json!({ "title": f.label.clone() }))
+                .collect::<Vec<_>>(),
             extra_columns => columns,
             form_fields => d.form_fields.iter().map(|f| f.view()).collect::<Vec<_>>(),
             reveal_seconds => d.reveal_seconds,

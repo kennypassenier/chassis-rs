@@ -394,11 +394,12 @@ mod tests {
         let f = EncryptedFile::new(dir.path().join("clients.json.enc"), key(), "clients");
         assert!(f.load::<ClientsFile>().unwrap().is_none());
         let mut c = ClientsFile::default();
-        c.issue(
+        c.issue_with_fields(
             "ha",
             "id".into(),
             "very-secret-token".into(),
             "2026-09-05T07:00:00Z",
+            Default::default(),
         )
         .unwrap();
         f.save(&c).unwrap();
@@ -518,13 +519,19 @@ mod tests {
     fn drive(store: &dyn ClientStore) {
         let now = "2026-09-05T07:00:00Z";
         let c = store
-            .update(&mut |f| f.issue("ha", "id-1".into(), "tok".into(), now).cloned())
+            .update(&mut |f| {
+                f.issue_with_fields("ha", "id-1".into(), "tok".into(), now, Default::default())
+                    .cloned()
+            })
             .unwrap();
         assert_eq!(c.name, "ha");
         assert!(store.snapshot().by_token("tok").is_some());
         // A failing change persists nothing.
         let err = store
-            .update(&mut |f| f.issue("ha", "id-2".into(), "tok2".into(), now).cloned())
+            .update(&mut |f| {
+                f.issue_with_fields("ha", "id-2".into(), "tok2".into(), now, Default::default())
+                    .cloned()
+            })
             .unwrap_err();
         assert!(err.message.contains("already"));
         assert_eq!(store.snapshot().clients.len(), 1);

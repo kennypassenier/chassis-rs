@@ -146,6 +146,13 @@ pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
         self_base_url,
         on_issued: registry.on_client_issued.clone(),
         on_deleted: registry.on_client_deleted.clone(),
+        declared_fields: Arc::new(
+            registry
+                .form_fields
+                .iter()
+                .map(|f| f.name.clone())
+                .collect(),
+        ),
     };
     let kit_guards = guards.clone();
     let token_limit =

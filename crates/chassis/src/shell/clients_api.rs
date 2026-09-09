@@ -37,6 +37,11 @@ pub struct ClientView {
     pub revoked_at: Option<String>,
     pub last_used_at: Option<String>,
     pub uses: u64,
+    /// feat-clients-2: the values of the fields the project declared, by
+    /// field name. Empty for a project that declares none, so the shape of
+    /// the answer does not change for those.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub fields: BTreeMap<String, String>,
 }
 
 impl From<&Client> for ClientView {
@@ -45,6 +50,7 @@ impl From<&Client> for ClientView {
             id: c.id.clone(),
             name: c.name.clone(),
             active: c.revoked_at.is_none(),
+            fields: c.fields.clone(),
             issued_at: c.issued_at.clone(),
             revoked_at: c.revoked_at.clone(),
             last_used_at: c.last_used_at.clone(),
@@ -108,6 +114,11 @@ pub struct ClientsApi {
     /// what it created alongside (a profile), or refuses with a reason
     /// (events still waiting for that profile) and nothing is deleted.
     pub on_deleted: Option<DeleteHook>,
+    /// feat-clients-2: the field names the project declared with
+    /// `client_form_field`. Only these are stored with a client, so a
+    /// caller posting extra keys cannot grow the store — the hook still
+    /// sees everything that was posted, which is what it refuses on.
+    pub declared_fields: Arc<Vec<String>>,
 }
 
 pub type IssueHook =
@@ -171,12 +182,20 @@ pub async fn issue(
             revoked_at: None,
             last_used_at: None,
             uses: 0,
+            fields: form.fields.clone(),
         };
         hook(&provisional, &form.fields)?;
     }
-    let client = api
-        .clients
-        .update(&mut |f| f.issue(&name, id.clone(), token.clone(), &now).cloned())?;
+    // Only declared names reach the store; the hook above saw everything.
+    let stored: BTreeMap<String, String> = api
+        .declared_fields
+        .iter()
+        .filter_map(|name| form.fields.get(name).map(|v| (name.clone(), v.clone())))
+        .collect();
+    let client = api.clients.update(&mut |f| {
+        f.issue_with_fields(&name, id.clone(), token.clone(), &now, stored.clone())
+            .cloned()
+    })?;
     tracing::info!(client = %client.name, id = %client.id, "client token issued");
     Ok((StatusCode::CREATED, Json(ClientView::from(&client))).into_response())
 }
