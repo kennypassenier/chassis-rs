@@ -178,6 +178,21 @@ and never blocks a request.
 {%- endif %}
 | `{{ name }} --help` | Every flag, including one per knob. |
 
+{%- if "dashboard" in features %}
+
+## The smoke test the kit ships
+
+`tests/kit_smoke.rs` comes from the kit and `chassis sync` keeps it current:
+it starts {{ name }} on a free port with a temporary state directory, logs
+in as the admin, issues a client, calls one API route with that client's
+token and opens the dashboard. It is the fastest way to see whether a
+change broke the kit's own path through this service, and it runs with the
+project's own `cargo test`.
+
+Do not edit it; write your own tests beside it. The harness it uses
+(`chassis::testing`) is documented in the kit's `docs/TESTING.md`.
+{%- endif %}
+
 ## Configuration knobs
 
 Every knob answers to three names: a flag, an environment variable and a

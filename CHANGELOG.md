@@ -17,6 +17,13 @@ scaffold writes. A breaking change in either is a major and carries a
   (standing rule 43). `chassis new` renders the same list into the
   `Cargo.toml` it writes, so a new project's document and its features have
   one source.
+- **Every new project ships a kit smoke test** (K34). `chassis new` writes
+  `tests/kit_smoke.rs` on `chassis::testing` — start on a free port, log in,
+  issue a client, one API call with that client's token, one dashboard page
+  — and puts the harness on the `chassis` dev-dependency. The file is
+  kit-owned, so `chassis sync` keeps it current. A project built without the
+  dashboard gets neither the file nor the dev-dependency: the test logs in,
+  and the `testing` feature implies `dashboard`.
 - **`chassis::admin::AdminApi`: a client token from another service** (K38).
   Part of `core`, so a headless service reaches it without compiling a
   dashboard: `new`/`from_env`, `issue_client(name, fields)` (issue and

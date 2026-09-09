@@ -1219,6 +1219,19 @@ belong in the batch-4 report form:
   headless binary lacks — the form only named the dashboard sections and the
   knob table. All of it is now conditional.
 
+- **`chassis sync` does not compare the dev-dependency's kit tag** (found
+  while building K34). `drift::kit_dependency` reads `[dependencies].chassis`
+  only, and the scaffold now names the kit twice — the dependency and the
+  dev-dependency carrying the test harness. A project that bumps one and not
+  the other builds against two kit versions and nothing says so. The template
+  comment warns; nothing enforces. Unrated: it belongs in the batch-4 report
+  as a candidate rather than in this batch.
+- **The scaffold E2E now pins the kit tag to the real version** (K34). It used
+  `v0.0.0-test`; with the dev-dependency also pointing at the local checkout,
+  cargo has to satisfy the version requirement, so the test uses the crate's
+  own version. Slight loss of signal, named here: a regression in
+  `with_chassis_path` could be masked by the real tag existing on GitHub.
+
 **Originally reported (kept for the retro).** kyu-runner is the
 first headless consumer to go through a kit batch (`default-features = false`,
 features `core` + `self-update`; measured on the running binary: `/healthz`

@@ -295,8 +295,17 @@ fn render_all(
 ) -> Result<Vec<(String, String, bool, bool)>, Error> {
     let ctx = rec.context(features);
     let mut out = Vec::new();
+    let has = |feature: &str| features.iter().any(|f| f == feature);
     for e in templates::ENTRIES {
         if e.path.contains("latch") && !rec.latch {
+            continue;
+        }
+        // K34 meets K35: the smoke test logs in, issues a client and opens a
+        // page, and the `testing` feature it needs implies `dashboard`. A
+        // headless project would be handed a test it cannot compile, and
+        // `sync` would write it back on every run because the file is
+        // kit-owned.
+        if e.path == "tests/kit_smoke.rs" && !has("dashboard") {
             continue;
         }
         let path = render_str("path", e.path, &ctx)?;
@@ -1522,6 +1531,38 @@ mod tests {
         require_tool(tool.to_str().unwrap(), "install it").expect("-v is enough");
         let absent = dir.path().join("absent");
         assert!(require_tool(absent.to_str().unwrap(), "install it").is_err());
+    }
+
+    /// K34 + K35: the smoke test comes with the dashboard it drives. A
+    /// headless project must not be handed a test that logs in — and
+    /// because the file is kit-owned, `sync` would rewrite it on every run.
+    /// Drilled red by removing the skip in `render_all`.
+    #[test]
+    fn k34_a_headless_project_gets_no_kit_smoke_test() {
+        let headless: Vec<String> = ["core", "self-update"]
+            .iter()
+            .map(|f| (*f).to_string())
+            .collect();
+        let files = render_all(&rec(), &headless).unwrap();
+        assert!(
+            !files.iter().any(|(p, ..)| p == "tests/kit_smoke.rs"),
+            "the smoke test needs a dashboard to log in to"
+        );
+        let cargo = files
+            .iter()
+            .find(|(p, ..)| p == "Cargo.toml")
+            .expect("Cargo.toml rendered")
+            .1
+            .clone();
+        assert!(
+            !cargo.contains("features = [\"testing\"]"),
+            "and the harness is not a dev-dependency there either:\n{cargo}"
+        );
+        let full = render_all(&rec(), &scaffold_features()).unwrap();
+        assert!(
+            full.iter().any(|(p, ..)| p == "tests/kit_smoke.rs"),
+            "a project with a dashboard still gets it"
+        );
     }
 
     #[test]
