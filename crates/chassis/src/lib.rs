@@ -37,7 +37,7 @@ pub use shell::dashboard::{
     StatusSection, Vocabulary,
 };
 pub use shell::health::{Subsystem, SubsystemStatus};
-pub use shell::metrics::ScrapeSource;
+pub use shell::metrics::{Counter, Gauge, ScrapeSource};
 #[cfg(feature = "self-update")]
 pub use shell::update::Event as UpdateEvent;
 
