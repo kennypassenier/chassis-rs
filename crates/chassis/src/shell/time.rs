@@ -55,7 +55,12 @@ mod tests {
 /// Anything this cannot read is returned unchanged: a mangled timestamp is
 /// worse than an ugly one, and a silent substitution is what standing rule 12
 /// forbids.
-pub fn human_time(value: &str) -> String {
+///
+/// Not public: a project reaches this through the `human_time` filter, which
+/// `render_project` hands it along with the rest of the kit's environment.
+/// The kit's public surface does not grow for something a template already
+/// has (rule 46).
+pub(crate) fn human_time(value: &str) -> String {
     let Some((date, rest)) = value.split_once('T') else {
         return value.to_string();
     };
