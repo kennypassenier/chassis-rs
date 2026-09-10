@@ -1635,3 +1635,22 @@ and putting `state-badge` back).
 (CF-13): they searched their own documents for the property and found
 nothing — seven uses of "forever" that are guarantees rather than
 durations, and one count that already carries its figure.
+
+**A measured figure against D2, from their session.** Five of the package's
+thirty stylesheets changed in this release, so a consumer loading per file
+re-fetches about 20 kB where this kit re-fetches its whole 1.3 MB bundle —
+its content hash moves, and the year-long cache with it. Offered as a number,
+not as advice, and D2 stands: the per-file route cost thirty stylesheets plus
+a loader, which is what it was abandoned for. Recorded here so a future
+reopening of D2 weighs a measurement instead of an estimate.
+
+**Where our count needed a clause.** The first report to their session said
+"three of the 115 files changed", which reads as a claim about their release;
+five changed in the package. The three are what changed inside what this kit
+vendors. Their check was the right one to run — `css/components.css` (which
+holds the knob) and `css/themes.css` (which holds the version string) are not
+in our tree at all since D2, so there is no 5.0.0 stylesheet being served
+beside a 5.1.0 bundle. Confirmed: our `css/` holds only `fonts.css`, and the
+knob sits in `dist/kp-themes.css` (hash `2e75416426dd`, twice `--kp-badge-wrap`,
+`--kp-themes-version: '5.1.0'`). Same family as CF-13: a number without the
+clause that says what it counted.
