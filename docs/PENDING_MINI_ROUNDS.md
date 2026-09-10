@@ -2410,3 +2410,33 @@ reports.
   branch protection". It turns `enforce_admins` off and leaves the required
   checks alone. Corrected on their main; the wrong summary stands in their tag
   v3.1.1.
+
+### The same finding, sharper: the expectation fits no repository at all
+
+http-switchboard measured further and the shape changed. It is not that their
+project deviates from the kit's expectation; it is that **the expectation
+matches none of the five, this repository included.** Verified here
+independently before recording:
+
+- `crates/chassis-cli/src/drift.rs:387` names three required checks:
+  `fmt · clippy · tests`, `cargo-deny (advisories · licenses · bans)`,
+  `container build`.
+- `chassis-rs/.github/workflows/ci.yml` defines exactly one job,
+  `fmt · clippy · tests` at line 27. The other `name:` lines in that file are
+  step names. Nothing in it could produce the other two contexts.
+- All five repositories require exactly that one check, read with
+  `gh api repos/kennypassenier/<repo>/branches/main/protection`:
+  chassis-rs, kyu, almanac, http-switchboard and kyu-runner.
+
+So `chassis sync --remote`, run inside chassis-rs against chassis-rs, would
+print the same two drift lines it prints for them, and following its own
+remedy would make this repository's `main` wait for two checks its CI never
+produces. The kit fails its own check, and the one required check is not one
+project's deviation but the shape of the whole ecosystem.
+
+That changes what the eventual design rests on. Whichever way it goes — a
+project declaring its CI jobs in `.chassis.toml`, or the expectation deriving
+itself from the workflow file — the case does not depend on two consumers
+asking for it. It is here, in this repository, measurable today.
+
+Still stored and not acted on, at Kenny's instruction.
