@@ -401,11 +401,22 @@ pub struct Protection {
 
 impl Protection {
     /// What `chassis sync --protect` sets.
+    ///
+    /// `enforce_admins` is FALSE since 2026-09-10 (Kenny: "beheerders erlangs
+    /// laten"). With it on, the two people who touch these repositories had to
+    /// push a branch, wait for its checks and only then move main — for every
+    /// commit, including a one-line document fix. What it bought was small and
+    /// measurable: 4 red runs out of 248 in this repository, all of them on the
+    /// first two days, none in the last hundred. The check itself stays
+    /// required, so anything that is not a deliberate admin push still waits
+    /// for it, and force-pushing or deleting main stays blocked — that is the
+    /// only irreversible thing in the set. A release is verified by the release
+    /// command's own wait for green checks, not by this setting.
     pub fn expected() -> Self {
         Self {
             checks: REQUIRED_CHECKS.iter().map(|c| c.to_string()).collect(),
             strict: true,
-            enforce_admins: true,
+            enforce_admins: false,
         }
     }
 }
@@ -735,7 +746,7 @@ axum = "0.8"
                 "cargo-deny (advisories · licenses · bans)",
             ],
             true,
-            true,
+            false,
         );
         let drift = protection_drift(&Protection::expected(), &actual);
         assert_eq!(drift.len(), 1, "{drift:?}");
@@ -765,7 +776,7 @@ axum = "0.8"
     // Drilled red once (expected zero lines for strict = false): failed, restored.
     #[test]
     fn k32_strict_false_is_one_line() {
-        let actual = protection(REQUIRED_CHECKS, false, true);
+        let actual = protection(REQUIRED_CHECKS, false, false);
         let drift = protection_drift(&Protection::expected(), &actual);
         assert_eq!(drift.len(), 1, "{drift:?}");
         assert!(
@@ -775,10 +786,12 @@ axum = "0.8"
             "{}",
             drift[0]
         );
-        let actual = protection(REQUIRED_CHECKS, true, false);
+        // Since 2026-09-10 the kit expects admins to be allowed past, so it is
+        // protection that FORCES admins to wait which now reads as drift.
+        let actual = protection(REQUIRED_CHECKS, true, true);
         assert_eq!(
             protection_drift(&Protection::expected(), &actual)[0].project,
-            "enforce_admins = false"
+            "enforce_admins = true"
         );
     }
 

@@ -7,6 +7,16 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed
+
+- **`chassis sync --protect` no longer forces admins to wait** (Kenny,
+  2026-09-10). Branch protection still requires the one CI check and still
+  blocks force-pushing and deleting `main`; `enforce_admins` is off, so the
+  people who own the repository can push straight to main when they choose.
+  A project that still has it on now reads as drift. What a release is
+  verified by does not change: `chassis release` waits for the pushed
+  commit's checks itself.
+
 ### Fixed
 
 - **The consumer check no longer writes in the consumers' working trees**

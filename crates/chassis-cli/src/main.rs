@@ -888,7 +888,10 @@ fn protect_main(rec: &Recorded) -> Result<(), Error> {
     require_tool("gh", "install the GitHub CLI and run `gh auth login`")?;
     let body = serde_json::json!({
         "required_status_checks": { "strict": true, "contexts": drift::REQUIRED_CHECKS },
-        "enforce_admins": true,
+        // Admins push straight to main when they choose (Kenny, 2026-09-10);
+        // the required check still gates every other path. See
+        // drift::Protection::expected.
+        "enforce_admins": false,
         "required_pull_request_reviews": null,
         "restrictions": null,
         "allow_force_pushes": false,

@@ -2092,3 +2092,30 @@ Two more things they measured that belong here: their 3.1.0 release asset is
 `static-pie linked` with zero glibc symbols, so feat-build-1 does what it
 promised and the glibc blockage on CT 109 is gone; and their split gates ran
 the release tier before the tag existed, which is the shape CF-6 asked for.
+
+## Branch protection relaxed, and the hooks settled (2026-09-10)
+
+**Kenny: "Beheerders erlangs laten."** `enforce_admins` is off in all five
+repositories; the required check (`fmt · clippy · tests`) stays, and
+force-pushing or deleting main stays blocked. Measured before the change: 4 red
+CI runs out of 248 in chassis-rs, all on 5 and 6 September, none in the last
+hundred; 798 runs and 107 red across the five, of which almanac has 85 — with
+the honest caveat that it is not measured how many of those the local gate
+would have caught. The kit was taught the same expectation, so
+`chassis sync --protect` does not put it back and a repository that still
+forces admins to wait now reads as drift.
+
+**And the hooks are settled, on bytes rather than on a stamp.** Kenny's
+question was whether there is consensus across all five. There was not, and
+the tool said there was: `sync-hooks.sh --check` compared only the
+`# HOOK_VERSION=` line, so every project reported "up to date (3)" while its
+`check-ids.sh` was fifteen lines shorter than the canonical file, which had
+gained a fix that morning. The check compares content now and names the file
+that differs.
+
+The five were converted with the tool, which is what rule 7a prescribes for a
+shared fix, and are byte-identical to canonical. Each of the four sister
+projects has one uncommitted file, `.githooks/check-ids.sh`, for its own
+session to commit — this session does not commit in their repositories.
+Outside the five, ten more projects carry the same older copy and latch-rs
+carries no stamped hooks at all; measured, reported, not touched.
