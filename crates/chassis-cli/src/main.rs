@@ -139,18 +139,17 @@ const RELEASE_PUBKEY: &str = "RWQWCzzUBquIHGkS3YERMkuqEm4C3vBArnlb9rySbr8z5ytgVY
 /// generated Cargo.toml and the generated documentation are rendered from
 /// this one list, so a new project cannot start out with a document that
 /// describes other features than it builds.
+///
+/// `passkeys` is not on it (feat-build-1). It pulls OpenSSL, which the
+/// static musl release build would have to vendor and compile per release,
+/// and no consumer builds it: kyu, Almanac and HTTPSwitchboard run
+/// core + dashboard + self-update, kyu-runner core + self-update. A
+/// project that needs passkeys adds the feature and builds against glibc.
 fn scaffold_features() -> Vec<String> {
-    [
-        "core",
-        "dashboard",
-        "assets",
-        "passkeys",
-        "self-update",
-        "notify",
-    ]
-    .iter()
-    .map(|f| (*f).to_string())
-    .collect()
+    ["core", "dashboard", "assets", "self-update", "notify"]
+        .iter()
+        .map(|f| (*f).to_string())
+        .collect()
 }
 const TOOLCHAIN: &str = "1.97";
 const KP_THEMES: &str = "5.0.0";
@@ -1417,6 +1416,91 @@ mod tests {
         assert_eq!(required, drift::REQUIRED_CHECKS, "{ci}");
     }
 
+    /// feat-build-1: one build shape for everyone — a statically linked
+    /// musl binary on distroless/static. Every release binary the scaffold
+    /// produced before needed GLIBC_2.39 and would not start on Debian 12,
+    /// which blocked three rollouts on 2026-09-09. The shape lives in four
+    /// files that have to agree, so it is pinned here instead of being left
+    /// to whoever edits one of them next.
+    // Drilled red once per assertion (2026-09-10).
+    #[test]
+    fn feat_build_1_the_scaffold_builds_static_musl_on_distroless() {
+        let files = render_all(&rec(), &scaffold_features()).unwrap();
+        let get = |p: &str| {
+            files
+                .iter()
+                .find(|(path, ..)| path == p)
+                .map(|(_, b, ..)| b.clone())
+                .unwrap_or_else(|| panic!("{p} missing"))
+        };
+
+        let release = get(".github/workflows/release.yml");
+        assert!(
+            release.contains("cargo build --release --locked --target x86_64-unknown-linux-musl"),
+            "the released binary is built for musl:\n{release}"
+        );
+        // The install line, not the word: the comment above it names
+        // musl-tools too, and a comment compiles nothing.
+        assert!(
+            release.contains("install -y -qq musl-tools"),
+            "`ring` compiles C, so the builder needs the musl C compiler:\n{release}"
+        );
+        assert!(
+            release.contains("cp target-musl/x86_64-unknown-linux-musl/release/demo-svc dist/"),
+            "the release ships the musl binary, not a stale glibc one:\n{release}"
+        );
+        assert!(
+            release.contains("ldd dist/demo-svc") && release.contains("grep -q '=>'"),
+            "a step refuses a binary with a resolved shared library:\n{release}"
+        );
+
+        let dockerfile = get("Dockerfile");
+        assert!(
+            dockerfile
+                .contains("cargo build --release --locked --target x86_64-unknown-linux-musl")
+                && dockerfile.contains("/src/target/x86_64-unknown-linux-musl/release/demo-svc"),
+            "the image carries the same binary the release does:\n{dockerfile}"
+        );
+        // Everything after the last FROM is the runtime stage; the comments
+        // above it explain what that stage no longer needs, so they must not
+        // be what these assertions read.
+        let (_, runtime) = dockerfile
+            .split_once("FROM gcr.io/distroless/static:nonroot")
+            .expect("the runtime stage is distroless/static");
+        assert!(
+            runtime.contains("USER 65532:65532"),
+            "uid 65532 is built into the image:\n{runtime}"
+        );
+        assert!(
+            !runtime.contains("apt-get")
+                && !runtime.contains("useradd")
+                && !runtime.contains("libssl3t64"),
+            "distroless has no package manager and needs no OpenSSL:\n{runtime}"
+        );
+
+        let toolchain = get("rust-toolchain.toml");
+        assert!(
+            toolchain.contains(r#"targets = ["x86_64-unknown-linux-musl"]"#),
+            "the pin owns the target, so no `rustup target add` can miss it:\n{toolchain}"
+        );
+
+        // The comment above the dependency explains why passkeys is absent,
+        // so the dependency line itself is what this asserts on.
+        let cargo = get("Cargo.toml");
+        let dep = cargo
+            .lines()
+            .find(|l| l.starts_with("chassis = {"))
+            .expect("the kit dependency line");
+        assert!(
+            !dep.contains("passkeys"),
+            "passkeys pulls OpenSSL, which a musl build would vendor per release: {dep}"
+        );
+        assert!(
+            dep.contains("\"dashboard\""),
+            "what it does build stays: {dep}"
+        );
+    }
+
     /// K27: the rendered KIT.md is generated (says so, names the kit
     /// version and the tag it matches), carries the project's prefix, every
     /// knob key, and no template variable that escaped rendering. Drilled
@@ -1485,8 +1569,20 @@ mod tests {
         );
         assert!(kit_md.contains("DEMO_SVC_TOKEN") && kit_md.contains("DEMO_SVC_SECRET_KEY"));
         assert!(kit_md.contains("| `DEMO_SVC_LISTEN` |"), "{kit_md}");
-        for key in chassis::AppSpec::default().knob_keys() {
-            assert!(kit_md.contains(&format!("| `{key}` |")), "{key} missing");
+        // Every knob of what a fresh project builds, and none of what it
+        // does not: since feat-build-1 the scaffold leaves `passkeys` off,
+        // so its two knobs are exactly the rows K35 has to withhold.
+        let built = scaffold_features();
+        for knob in chassis::AppSpec::default().knobs() {
+            let row = format!("| `{}` |", knob.key);
+            match knob.feature {
+                Some(f) if !built.iter().any(|b| b == f) => assert!(
+                    !kit_md.contains(&row),
+                    "`{}` is a `{f}` knob and this project does not build {f}:\n{kit_md}",
+                    knob.key
+                ),
+                _ => assert!(kit_md.contains(&row), "{} missing", knob.key),
+            }
         }
         assert!(
             !kit_md.contains("{{ ") && !kit_md.contains("{% "),

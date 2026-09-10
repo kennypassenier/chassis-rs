@@ -12,7 +12,12 @@ publish = false
 [dependencies]
 # The kit, pinned to a tag: a new kit version is a deliberate bump here,
 # a build and a release (SCOPE N3). Features: drop what this service does
-# not need; `passkeys` pulls OpenSSL.
+# not need. `passkeys` is deliberately absent (feat-build-1): it pulls
+# OpenSSL, which the static musl release build would have to vendor and
+# compile for musl on every release. A service that really needs passkeys
+# builds against glibc instead — add the feature here and take the musl
+# target back out of rust-toolchain.toml, the Dockerfile and release.yml,
+# knowing the binary then only runs on hosts with the builder's glibc.
 chassis = { git = "{{ chassis_repo }}", tag = "{{ chassis_tag }}", version = "{{ chassis_version }}", features = [{{ chassis_features_literal }}] }
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json", "matched-path"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }

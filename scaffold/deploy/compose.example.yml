@@ -8,7 +8,9 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
-    env_file: /etc/{{ name }}/{{ name }}.env   # {{ prefix }}_TOKEN, {{ prefix }}_SECRET_KEY, {{ prefix }}_PUBLIC_URL
+    # {{ prefix }}_PUBLIC_URL is not in this list: it is a passkeys knob, and
+    # the scaffold builds without that feature (feat-build-1).
+    env_file: /etc/{{ name }}/{{ name }}.env   # {{ prefix }}_TOKEN, {{ prefix }}_SECRET_KEY
     volumes:
       - {{ name }}-state:/var/lib/{{ name }}    # a named volume inherits the image's owner
     logging:
