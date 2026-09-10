@@ -7,6 +7,12 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-09-10
+
+The transition window's missing half, and two faults kyu-runner and
+http-switchboard found while adopting 2.0.0. Nothing here touches the public
+surface: the contract reports 823 items unchanged.
+
 ### Added
 
 - **The transition window has a list and a check** (feat-api-2).
