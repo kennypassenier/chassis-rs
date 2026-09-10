@@ -93,7 +93,7 @@ Kenny's Garuda PC, CI on GitHub Actions Ubuntu. No Windows, macOS or ARM.
 | PC (Garuda) | cargo 1.97, gh token, minisign key, LAN reach, keyring | — |
 | CI (Ubuntu runner) | cargo 1.97, `GITHUB_TOKEN` | no minisign key, no LAN, no systemd unit, ephemeral fs |
 | CT 118 / production LXC (Debian 13, unprivileged) | systemd, journald, LAN, glibc 2.41 | no cargo, no gh; uid mapping (+100000 on the host); no curl by default |
-| Container (debian:trixie-slim) | the binary, ca-certificates | no shell tools, rename swap not persistent → self-update forced off |
+| Container (`gcr.io/distroless/static:nonroot` since 2026-09-10; `debian:trixie-slim` before) | the statically linked binary, nothing else | no shell tools, rename swap not persistent → self-update forced off |
 
 Phase 7 tests each mechanism from the environment it runs in: the update
 swap and rollback on CT 118, the CI release job in CI, the scaffold's
@@ -110,6 +110,45 @@ anyway. The `passkeys` feature is separate so a
 service that does not enable it stays OpenSSL-free and could build musl.
 Container images use `debian:trixie-slim`, with `--healthcheck` because
 the image has no curl.
+
+**Amendment 2026-09-10 (arch-1, built as feat-build-1): the release binary
+is statically linked musl, and the sentence above about glibc was a
+dependency written as a fact.**
+
+What went wrong with it. "Every target environment (T7) runs glibc ≥ 2.41
+anyway" was an assumption about Kenny's machines, never measured against the
+fleet, and it was untrue for about a year: the golden container template is
+Debian 12 with glibc 2.36, and T7's table listed only the two machines that
+happened to run Debian 13. On 2026-09-09 three rollouts were blocked by it —
+`version 'GLIBC_2.39' not found`, followed by a restart loop — and kyu was
+rolled back within ninety seconds. Standing rule 6a exists for exactly this
+shape: a choice may not rest on an unmeasured assumption about someone
+else's system.
+
+What replaces it. The scaffold builds **x86_64-unknown-linux-musl,
+statically linked, on `gcr.io/distroless/static:nonroot`**. The binary then
+has no libc requirement at all, so the question of which Debian a container
+runs disappears rather than being answered. Proven by a real build on
+2026-09-10: the generated project's Dockerfile compiled the kit for musl
+inside the builder image and the artefact reads `ELF 64-bit … static-pie
+linked`; a step in the release workflow refuses to publish a binary with a
+resolved shared library.
+
+What it costs, measured rather than argued. A musl build needs a musl C
+compiler because `ring` (rustls' crypto) compiles C — the Debian package
+`musl-tools`, one apt line in the builder. The `passkeys` feature pulls
+`openssl-sys`, which musl would have to vendor per release, so it leaves the
+scaffold's default feature list; **no consumer built it** (measured in all
+four Cargo.toml files on 2026-09-10). A project that wants passkeys builds
+against glibc and reverts three scaffold files, which its own `.chassis.toml`
+and `docs/KIT.md` then state.
+
+The dependency, written as one. A glibc build depends on the machine it
+lands on offering that glibc or newer; a static build depends on nothing.
+Whichever a project chooses, **its release states its linkage** (the release
+body says so in one line), so a deploy can refuse a binary a machine cannot
+run instead of discovering it through a restart loop. The homelab's own check
+reads that line.
 
 ---
 

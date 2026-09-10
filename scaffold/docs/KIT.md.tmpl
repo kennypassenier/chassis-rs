@@ -42,7 +42,7 @@ environment file (`{{ env_file }}`), never in a flag or a config file:
 - `{{ prefix }}_TOKEN` — the **admin token**: it logs you in on `/login`
   and also works as a bearer for scripts run by the operator.
 - `{{ prefix }}_SECRET_KEY` — the **secret key** (32 bytes, hex) that seals
-  the stores on disk: clients, sessions, passkeys.
+  the stores on disk: clients and sessions{% if "passkeys" in features %}, and passkeys{% endif %}.
 
 Both come from one command, run on a terminal (it refuses a pipe, so a
 secret never lands in a log):
@@ -82,7 +82,9 @@ A server-rendered set of pages behind the admin login:
 | `/` | The status page: service, health, updates, problems, then the project's own sections. |
 | `/clients` | Issue, reveal, copy, re-issue, revoke and delete client tokens; see each client's last requests. |
 | project pages | Whatever {{ name }} adds under its own navigation entries. |
-| `/passkeys` | Register a passkey and log in with it (`passkeys` feature; only over HTTPS through a trusted proxy). |
+{%- if "passkeys" in features %}
+| `/passkeys` | Register a passkey and log in with it (only over HTTPS through a trusted proxy). |
+{%- endif %}
 
 The layout, the navigation and the **theme picker** (kp-themes
 {{ kp_themes }}) come from the kit; a chosen theme is remembered by the

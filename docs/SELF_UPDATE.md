@@ -275,9 +275,11 @@ on purpose. Proven by: `the_compiled_in_key_verifies_a_real_almanac_release`.
 
 ## Signing a release
 
-CI (`.github/workflows/release.yml` from the scaffold) builds the trixie
-binary on a `v*` tag, writes `SHA256SUMS`, pushes the image and creates
-the GitHub release with those two assets. It checks that the tag equals
+CI (`.github/workflows/release.yml` from the scaffold) builds the static
+musl binary on a `v*` tag, refuses to publish one with a resolved shared
+library, writes `SHA256SUMS`, pushes the image and creates the GitHub
+release with those two assets. The release body states the linkage, so a
+deploy can refuse a binary its machine cannot run. It checks that the tag equals
 `Cargo.toml`'s version. The signature and `VERSION` are added from the
 PC by `chassis release <version>`, which (dry-run output, verbatim):
 
@@ -305,7 +307,9 @@ the release is inert to the updater. Proven by:
 ## Running the drills
 
 `scripts/drill-release.sh` builds a drill release of `inbox` for Debian
-trixie, writes the manifest and `VERSION`, signs it, and can serve it:
+trixie — glibc, because the kit's own drill tooling has not moved to musl
+with the scaffold yet (queued) — writes the manifest and `VERSION`, signs
+it, and can serve it:
 
 ```bash
 scripts/drill-release.sh 0.1.1                 # sign with Kenny's key (password prompt)

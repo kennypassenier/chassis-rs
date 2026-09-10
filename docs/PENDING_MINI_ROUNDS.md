@@ -1433,7 +1433,7 @@ answered in two follow-up forms with the measurements in them.
 | feat-ci-1 | Trigger terugzetten | CI runs on every branch again; landed as `734079f`. The narrowing had locked main shut (measured: zero checks on a branch push, "Required status check … is expected" on the push to main, a dispatched run not counting for main). |
 | feat-clients-2 | Onmisbaar | The kit stores the extra client fields itself: in the sealed store, shown as columns, in the API and in `chassis clients`, cleaned up on delete. The hook stays for refusal, not storage. Clients-store format goes up one version. |
 | feat-build-1 | Overal statisch | The scaffold builds a static musl binary on a distroless image, with the `ldd` check kyu drilled. Measured first: a static build needs a musl C compiler because `ring` compiles C; passkeys additionally needs OpenSSL built for musl — and **no consumer builds passkeys** (kyu, almanac, http-switchboard use core + self-update + dashboard, kyu-runner core + self-update). So passkeys leaves the scaffold's default feature list, with the reason written down. |
-| arch-buildtarget | Allebei | A dated amendment rewrites the premise as a dependency, and the release publishes a glibc floor the homelab's deploy check can read. Note: under feat-build-1 a static binary has no glibc floor, so the two interact — the floor applies to whatever the scaffold still builds against glibc. |
+| arch-1 | Allebei | A dated amendment rewrites the premise as a dependency, and the release publishes a glibc floor the homelab's deploy check can read. Note: under feat-build-1 a static binary has no glibc floor, so the two interact — the floor applies to whatever the scaffold still builds against glibc. |
 | feat-sync-1 | Onmisbaar | `chassis upgrade <version>` aligns the three places the kit version appears (`.chassis.toml`, the dependency, the dev-dependency), updates cargo and runs the gates. `sync` keeps its hands off Cargo.toml. |
 | feat-api-1 | Onmisbaar | A public-surface snapshot in the repository with a check that fails when the code drifts from it without a version bump. Local and in the release script, never at a commit (Kenny's condition). Measured surface today: 194 public functions, 85 structs, 11 enums, 6 traits. |
 | feat-api-2 | Gewenst | The transition window, built at the first breaking change rather than now. |
@@ -1480,3 +1480,22 @@ scoped to the kit's own five badges and leaves a consumer's badges protected.
 When the tag lands: bump `kp_themes` to 5.1.0, re-vendor, replace the
 `.state-badge` rule with `--kp-badge-wrap: normal` on the clients table's
 state column, and keep the test that pins the state cell does not wrap.
+
+## Left open by the static build, on purpose (2026-09-10)
+
+The scaffold builds static musl now; two things in this repository still build
+glibc and were not swept along, because they are the kit's own tooling rather
+than what a project ships:
+
+- `scripts/drill-release.sh` builds the `inbox` drill artefact for Debian
+  trixie with `pkg-config libssl-dev`. The drill proves the updater, not the
+  linkage, and CT 118 runs Debian 13, so it works — but it no longer matches
+  what a consumer ships, and a drill that differs from the real artefact is
+  the shape standing rule 9 warns about. Decide at the batch-5 report.
+- `scripts/check-consumers.sh --image` builds each consumer's container, which
+  now means their own Dockerfiles; those are theirs to move, and each project
+  does that in its own session when it adopts 1.9.0 (rule 7a).
+
+Also recorded from the build: `drift::KIT_FEATURES` still lists `passkeys` on
+purpose. It left the scaffold's DEFAULT list, not the kit; a consumer that
+enables it must still be read correctly by `chassis sync`.

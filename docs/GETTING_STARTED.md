@@ -16,9 +16,10 @@ Proven by: `crates/chassis-cli/tests/new_project_builds.rs`
   the `chassis` binary (`cargo build -p chassis-cli` in this repo puts it
   at `target/debug/chassis`). `gh` only when `chassis new` should create
   the GitHub repository; `minisign` only for `chassis release`.
-- On the LXC: nothing but the binary. It is glibc, built on Debian
-  trixie (ARCHITECTURE_DECISIONS T8); `curl` is not needed because the
-  binary probes itself (`--healthcheck`).
+- On the LXC: nothing but the binary. It is statically linked musl
+  (ARCHITECTURE_DECISIONS T8, amended 2026-09-10), so it needs no glibc and
+  runs on any x86_64 Linux; `curl` is not needed because the binary probes
+  itself (`--healthcheck`).
 
 ## 1 · `chassis new`
 
@@ -205,16 +206,18 @@ button. Proven by: `client_token_flow_end_to_end` (the `/test` step),
 The generated unit is `deploy/<name>.service`; its header comment is the
 install recipe, expanded here. Every step is reversible until step 9.
 
-1. Build the glibc binary on the same Debian the LXC runs, as the
-   Release workflow does:
+1. Build the static binary the way the Release workflow does. Which Debian
+   the builder is does not reach the artefact; it only supplies the musl
+   toolchain:
    ```bash
-   docker run --rm -v "$PWD":/w -w /w -e CARGO_TARGET_DIR=/w/target-trixie \
-     -e CARGO_HOME=/w/target-trixie/cargo-home rust:1.97-slim-trixie \
-     sh -c 'apt-get update -qq >/dev/null && apt-get install -y -qq pkg-config libssl-dev >/dev/null && cargo build --release --locked'
+   docker run --rm -v "$PWD":/w -w /w -e CARGO_TARGET_DIR=/w/target-musl \
+     -e CARGO_HOME=/w/target-musl/cargo-home rust:1.97-slim-trixie \
+     sh -c 'apt-get update -qq >/dev/null && apt-get install -y -qq musl-tools >/dev/null && cargo build --release --locked --target x86_64-unknown-linux-musl'
    ```
-   (`libssl-dev` because the scaffold enables `passkeys`, which pulls
-   OpenSSL — T8.)
-2. Copy `target-trixie/release/<name>` to the LXC and install it into its
+   (`musl-tools` because `ring`, rustls' crypto, compiles C. The scaffold no
+   longer enables `passkeys`: it pulls OpenSSL, which a musl build would have
+   to vendor per release — T8's amendment.)
+2. Copy `target-musl/x86_64-unknown-linux-musl/release/<name>` to the LXC and install it into its
    own directory — the self-updater needs write access to that directory
    and nothing else (S2):
    ```bash
@@ -273,7 +276,7 @@ L4 and L8 rows); the unit's shape by
 ## 10 · Deploying in docker
 
 The scaffold's `Dockerfile` builds on `rust:1.97-slim-trixie` and runs on
-`debian:trixie-slim` as user `<name>` (uid 10001) with
+`gcr.io/distroless/static:nonroot` as uid 65532 with
 `VOLUME ["/var/lib/<name>"]`, `ENV <P>_LISTEN=0.0.0.0:8080
 <P>_STATE_DIR=/var/lib/<name>`, and `HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD
 ["/usr/local/bin/<name>", "--healthcheck"]` (no curl in the image). CI
@@ -304,7 +307,7 @@ Three things the compose file encodes:
 - **Named volume vs bind mount.** The image's `/var/lib/<name>` is owned
   by the container user; a named volume inherits that owner, a bind
   mount does not. With a bind mount, `chown` the host directory to uid
-  10001 first — otherwise `--check` and start refuse with `the state
+  65532 first — otherwise `--check` and start refuse with `the state
   directory … is not writable` (the container drill of 2026-09-05 found
   this as H11; TEST_PLAN §5).
 - **Logging `max-size`.** The service logs to stdout/stderr; without the

@@ -87,3 +87,8 @@ jobs:
           body: |
             Built from `${{ '{{' }} github.sha {{ '}}' }}`. The signature (`SHA256SUMS.minisig`) and `VERSION`
             are added by `chassis release`; until they are, the self-updater ignores this release.
+
+            **Linkage: statically linked (x86_64-unknown-linux-musl).** This binary needs no
+            glibc and runs on any x86_64 Linux; a deploy that checks what a staged binary
+            requires will find no dynamic dependency at all. A step in this workflow refuses
+            to publish a binary with one.
