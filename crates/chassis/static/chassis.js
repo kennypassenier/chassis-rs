@@ -98,19 +98,50 @@ function restLabel(button) {
 // busy label).
 function flash(button, message, ms = 1500) {
   restLabel(button);
+  pinWidth(button);
   button.textContent = message;
   window.clearTimeout(button.flashTimer);
   button.flashTimer = window.setTimeout(() => {
     button.flashTimer = 0;
     button.textContent = button.dataset.label;
+    unpinWidth(button);
   }, ms);
 }
 
 // rule 31: busy while a request is in flight; disabled so a second click
 // cannot become a second action.
+// feat-clients-5: a control that reports it is working may not move the
+// layout around it (Kenny, looking at a live dashboard on 2026-09-10:
+// clicking `Send test` made Revoke and Delete jump from stacked to side by
+// side). The cause is width, not the label: these buttons sit in a wrapping
+// flex row inside a table cell, so a busy label narrower than the rest label
+// — "Sending…" against "Send test" — lets the row unwrap, and the whole cell
+// re-lays out under the reader's cursor. Measuring the button once and
+// holding that as a floor keeps every other element where it was.
+//
+// What this does NOT hold: a refusal flashed on the button carries a whole
+// remedy sentence (K29) and is wider than any rest label, so that case still
+// grows the button. Narrowing it would hide the remedy, which is the more
+// important of the two; feat-clients-4 removes the problem at the root by
+// moving these controls out of the table row and into a modal.
+function pinWidth(button) {
+  if (button.dataset.restWidth === undefined) {
+    button.dataset.restWidth = String(Math.ceil(button.getBoundingClientRect().width));
+  }
+  button.style.minWidth = `${button.dataset.restWidth}px`;
+}
+
+// Only once the button is wearing its rest label again — releasing it while a
+// flash is still up would let the row jump a second time.
+function unpinWidth(button) {
+  button.style.minWidth = '';
+  delete button.dataset.restWidth;
+}
+
 async function busy(button, work) {
   if (button.getAttribute('aria-busy') === 'true') return;
   restLabel(button);
+  pinWidth(button);
   button.setAttribute('aria-busy', 'true');
   button.disabled = true;
   button.textContent = button.dataset.busyLabel || 'Working…';
@@ -120,7 +151,10 @@ async function busy(button, work) {
     button.removeAttribute('aria-busy');
     button.disabled = false;
     // A flash raised by `work` stays on screen; the timer restores the label.
-    if (!button.flashTimer) button.textContent = button.dataset.label;
+    if (!button.flashTimer) {
+      button.textContent = button.dataset.label;
+      unpinWidth(button);
+    }
   }
 }
 
@@ -145,6 +179,26 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
+// feat-ui-1: a timestamp on a page is read by a person, so it is rendered in
+// the reader's own locale — which only the browser knows. The server puts the
+// exact RFC 3339 value in `datetime` and a plain "date time" fallback in the
+// text; this replaces that text and keeps the exact value in the tooltip, so
+// nothing is lost for whoever does want the machine form. Kenny's case was
+// `2026-09-10T02:16:47Z` in a live table column.
+//
+// A value the browser cannot read is left exactly as the server wrote it: a
+// wrong date is worse than an ugly one.
+function localiseTimes(root = document) {
+  for (const el of root.querySelectorAll('time[datetime]:not([data-localised])')) {
+    const when = new Date(el.getAttribute('datetime'));
+    if (Number.isNaN(when.getTime())) continue;
+    el.textContent = when.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    el.title = el.getAttribute('datetime');
+    el.dataset.localised = 'true';
+  }
+}
+localiseTimes();
+
 function renderRequests(list) {
   if (!list.length) return '<p class="text-secondary" style="margin:0.5rem 0">No requests captured yet.</p>';
   return list
@@ -152,7 +206,7 @@ function renderRequests(list) {
       const headers = c.headers.map(([k, v]) => `${escapeHtml(k)}: ${escapeHtml(v)}`).join('\n');
       const trunc = c.truncated ? ` <span class="kp-badge">truncated, ${c.body_bytes} bytes</span>` : '';
       const source = c.source === 'test' ? ' <span class="kp-badge kp-badge--info">test</span>' : '';
-      return `<details class="kp-card" style="margin:0.5rem 0"><summary><span class="mono">${escapeHtml(c.at)}</span> ${escapeHtml(c.method)} ${escapeHtml(c.path)} → ${c.status}${source}${trunc}</summary><pre class="snippet">${headers}\n\n${escapeHtml(c.body)}</pre></details>`;
+      return `<details class="kp-card" style="margin:0.5rem 0"><summary><time datetime="${escapeHtml(c.at)}">${escapeHtml(c.at)}</time> ${escapeHtml(c.method)} ${escapeHtml(c.path)} → ${c.status}${source}${trunc}</summary><pre class="snippet">${headers}\n\n${escapeHtml(c.body)}</pre></details>`;
     })
     .join('');
 }
@@ -161,6 +215,7 @@ async function loadRequests(id, panel) {
   const res = await fetch(`/api/clients/${id}/requests`, { headers: { accept: 'application/json' } });
   const list = res.ok ? await res.json() : [];
   panel.innerHTML = renderRequests(list);
+  localiseTimes(panel);
 }
 
 document.addEventListener('click', (event) => {

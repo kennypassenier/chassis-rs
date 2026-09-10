@@ -442,6 +442,9 @@ impl Dashboard {
             include_str!("../../templates/passkeys.html"),
         )
         .map_err(template_error)?;
+        // feat-ui-1: every template renders a timestamp through this, so
+        // there is one place that decides what a reader sees.
+        env.add_filter("human_time", |v: String| crate::shell::time::human_time(&v));
         env.add_global("app_name", app_name);
         env.add_global("open_dashboard", open);
         env.add_global("prefix", prefix.clone());

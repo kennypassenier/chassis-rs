@@ -86,9 +86,9 @@
       </div>
       {% else %}<span class="text-secondary">—</span>{% endif %}
     </td>
-    <td><span class="mono">{{ c.issued_at }}</span></td>
-    <td>{% if c.last_used_at %}<span class="mono">{{ c.last_used_at }}</span> <span class="text-secondary">({{ c.uses }}×)</span>{% else %}<span class="text-secondary">never</span>{% endif %}</td>
-    <td class="state-cell">{% if c.active %}<span class="kp-badge kp-badge--success">active</span>{% else %}<span class="kp-badge">revoked {{ c.revoked_at }}</span>{% endif %}</td>
+    <td><time datetime="{{ c.issued_at }}">{{ c.issued_at|human_time }}</time></td>
+    <td>{% if c.last_used_at %}<time datetime="{{ c.last_used_at }}">{{ c.last_used_at|human_time }}</time> <span class="text-secondary">({{ c.uses }}×)</span>{% else %}<span class="text-secondary">never</span>{% endif %}</td>
+    <td class="state-cell">{% if c.active %}<span class="kp-badge kp-badge--success">active</span>{% else %}<span class="kp-badge">revoked <time datetime="{{ c.revoked_at }}">{{ c.revoked_at|human_time }}</time></span>{% endif %}</td>
     {% for cell in c.declared %}<td>{{ cell }}</td>{% endfor %}
     {% for cell in c.extra %}<td>{{ cell|safe }}</td>{% endfor %}
     <td class="text-end">

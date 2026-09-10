@@ -41,8 +41,8 @@
   {% for p in passkeys %}
   <tr>
     <td class="kp-fw-medium">{{ p.label }}</td>
-    <td><span class="mono">{{ p.created_at }}</span></td>
-    <td>{% if p.last_used_at %}<span class="mono">{{ p.last_used_at }}</span>{% else %}<span class="text-secondary">never</span>{% endif %}</td>
+    <td><time datetime="{{ p.created_at }}">{{ p.created_at|human_time }}</time></td>
+    <td>{% if p.last_used_at %}<time datetime="{{ p.last_used_at }}">{{ p.last_used_at|human_time }}</time>{% else %}<span class="text-secondary">never</span>{% endif %}</td>
     <td class="text-end"><button type="button" class="kp-button kp-button--destructive" data-post="/api/passkeys/{{ p.id }}" data-method="DELETE" data-kp-destructive data-kp-confirm="Delete this passkey?">Delete</button></td>
   </tr>
   {% endfor %}

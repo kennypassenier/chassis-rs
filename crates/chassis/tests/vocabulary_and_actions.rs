@@ -131,6 +131,23 @@ fn visible_text(html: &str) -> String {
     out
 }
 
+/// The RFC 3339 shape a reader must never be shown (feat-ui-1): four digits,
+/// a dash, two, a dash, two, then the `T`. Returns what it found so a failure
+/// names the string instead of only asserting one exists.
+fn iso_timestamp_in(text: &str) -> Option<String> {
+    let c: Vec<char> = text.chars().collect();
+    for i in 0..c.len().saturating_sub(11) {
+        let w = &c[i..i + 11];
+        let digits = [0, 1, 2, 3, 5, 6, 8, 9]
+            .iter()
+            .all(|&k| w[k].is_ascii_digit());
+        if digits && w[4] == '-' && w[7] == '-' && w[10] == 'T' {
+            return Some(c[i..(i + 20).min(c.len())].iter().collect());
+        }
+    }
+    None
+}
+
 /// Whole-word, case-insensitive: a word the kit must not use for the thing
 /// the project names itself. `client`/`clients` because that is the default
 /// vocabulary, and `caller`/`callers` because the kit used to reach for it as
@@ -228,6 +245,22 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     assert!(
         !full.contains("state-badge"),
         "the kit's own badge class is gone with 5.1.0: {full}"
+    );
+
+    // feat-ui-1: an RFC 3339 timestamp is written for a machine. The exact
+    // value stays in `<time datetime="…">` — which `visible_text` strips —
+    // so what is left is what a person actually reads. Kenny's case was
+    // `2026-09-10T02:16:47Z` sitting in a live table column. Drilled red by
+    // rendering `{{ c.issued_at }}` without the filter.
+    let shown = visible_text(&full);
+    assert!(
+        iso_timestamp_in(&shown).is_none(),
+        "a machine timestamp reached the page: {:?}",
+        iso_timestamp_in(&shown)
+    );
+    assert!(
+        full.contains("<time datetime=\""),
+        "and the exact value is still there for whoever needs it: {full}"
     );
 
     // Every confirmation the kit renders is read by a person and is not

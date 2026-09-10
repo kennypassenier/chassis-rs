@@ -15,7 +15,7 @@
       <dt>Name</dt><dd>{{ app_name }}</dd>
       <dt>Version</dt><dd><span class="mono">{{ version }}</span></dd>
       <dt>Built on</dt><dd>chassis {{ chassis_version }}, kp-themes {{ kp_themes_version }}</dd>
-      <dt>Up since</dt><dd>{{ started_at }}</dd>
+      <dt>Up since</dt><dd><time datetime="{{ started_at }}">{{ started_at|human_time }}</time></dd>
       <dt>Listening</dt><dd><span class="mono">{{ listen }}</span></dd>
     </dl>
   </div>
