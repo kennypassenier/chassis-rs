@@ -1763,3 +1763,38 @@ token carrying `class="secret token-line"`, dates rendering as
 What only Kenny can judge, because no test here can see it: that the row no
 longer changes shape while `Send test` is working, and that revealing the
 token moves nothing beside it (feat-clients-5, feat-clients-4).
+
+## CF-14 closed, and the modal's width (2026-09-10)
+
+**CF-14's measurement, Claude's half, is done.** On the live 0.1.9 on CT 118,
+wrapping `document.execCommand` reported `activeTag: TEXTAREA`,
+`inDialog: true`, `selLen: 64` (a client token is 64 hex characters) and
+`returned: true`, where 0.1.8 in the same probe reported `BODY`,
+`inDialog: false` and an empty selection while still returning true. The
+browser tooling separately noticed that the page had written to the OS
+clipboard, which is the half no session can read for itself.
+
+**The width took two goes, and the second one taught the better lesson.**
+0.1.9 set `width: min(42rem, …)` and changed nothing on screen.
+`getComputedStyle` on the open dialog reported `width: 512px` and
+`max-width: 512px` where the rule asked for 672 — a width above a lower
+max-width is a rule that looks applied and is not. 0.1.10 added the matching
+`max-width` and measured 672px, viewport 1280.
+
+Then the honest check on a claim made along the way. Both the commit message
+and the form said "kp-themes caps `.kp-dialog` at 512px", which was never
+measured. `Gezocht met:`
+`grep -o '[^{};]*max-width:[^;}]*32rem[^;}]*' crates/chassis/static/kp/dist/kp-themes.css`
+— and what it actually writes is
+`max-width: var(--kp-dialog-max-width, min(32rem, calc(100vw - 2rem)))`. So
+32rem is a **default behind a knob**, exactly like `--kp-badge-wrap` from
+ask-1, and not a cap. Setting the knob is the right move; overriding their
+`max-width` works but would stop working the day they compose that property
+differently. `chassis.css` now sets `--kp-dialog-max-width`.
+
+Same family as CF-13: a figure asserted without the command that produced it.
+The number was right, the sentence around it was not.
+
+CT 118 runs 0.1.10, which already renders at 672px. The knob change makes no
+visible difference, so it rides along to the next install rather than costing
+another permission round.

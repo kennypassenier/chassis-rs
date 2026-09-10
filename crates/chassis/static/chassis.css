@@ -91,12 +91,19 @@ pre.snippet {
   display: flex;
   flex-direction: column;
   max-height: min(80vh, 42rem);
+  /* kp-themes writes `max-width: var(--kp-dialog-max-width, min(32rem, …))`,
+     so 32rem is a DEFAULT behind a knob rather than a cap — the same shape as
+     `--kp-badge-wrap` (ask-1). Setting the knob is therefore the right move;
+     overriding their `max-width` works too and would stop working the day
+     they change how that property is composed.
+
+     Found the way these things have to be found: the first attempt set only
+     `width` and changed nothing on screen. Measured in the running page on
+     CT 118 with the dialog open, `getComputedStyle` reported 512px where the
+     rule asked for 672 — a width above a lower max-width is a rule that looks
+     applied and is not. */
+  --kp-dialog-max-width: min(42rem, calc(100vw - 2rem));
   width: min(42rem, calc(100vw - 2rem));
-  /* kp-themes caps .kp-dialog at 512px, which silently held the width above
-     to 32rem — measured in the page on CT 118: computed width 512px where the
-     rule asked for 672. A width without the matching max-width is a rule that
-     looks applied and is not. */
-  max-width: min(42rem, calc(100vw - 2rem));
 }
 .client-dialog__head {
   display: flex;
