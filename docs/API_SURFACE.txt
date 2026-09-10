@@ -3,7 +3,7 @@
 # A line is a declaration path, not a re-export path: an item
 # re-exported at the crate root appears under the module that
 # declares it.
-# items: 822
+# items: 823
 const chassis::VERSION: & str
 const chassis::admin::DEFAULT_TIMEOUT: Duration
 const chassis::core::clients::CLIENTS_FORMAT: u32
@@ -445,6 +445,7 @@ fn chassis::app::AppSpec::fn prefix (& self) -> String
 fn chassis::app::Running::async fn stop (self)
 fn chassis::app::fn compiled_features () -> & 'static [& 'static str]
 fn chassis::app_dashboard::async fn mount (input : MountInput<'_>) -> Result<Mounted, Error>
+fn chassis::core::clients::Client::fn adopted (id : impl Into<String>, name : impl Into<String>, token : impl Into<String>, issued_at : impl Into<String>,) -> Self
 fn chassis::core::clients::ClientsFile::fn active_by_name (& self, name : & str) -> Option<& Client>
 fn chassis::core::clients::ClientsFile::fn by_token (& self, presented : & str) -> Option<& Client>
 fn chassis::core::clients::ClientsFile::fn check_format (& self) -> Result<(), Error>

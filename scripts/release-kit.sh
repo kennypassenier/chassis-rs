@@ -20,6 +20,19 @@ repo="kennypassenier/chassis-rs"
 [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ] || { echo "release-kit: not on main"; exit 1; }
 [ -z "$(git status --porcelain)" ] || { echo "release-kit: working tree not clean"; exit 1; }
 grep -q "^## \[$version\]" CHANGELOG.md || { echo "release-kit: CHANGELOG.md has no ## [$version] section"; exit 1; }
+# The kit held its consumers to a rule it did not apply to itself: `chassis
+# release` refuses a major bump without a Migration section, and this script
+# did not. Found while turning 1.9.0 into 2.0.0 (CF-15) — the rule is written
+# at the top of CHANGELOG.md and is the reason a consumer can trust a minor.
+case "$version" in
+  *.0.0)
+    awk -v v="## [$version]" 'index($0, v) == 1 {inside=1; next} /^## \[/ {inside=0} inside' CHANGELOG.md \
+      | grep -q "^### Migration" || {
+        echo "release-kit: $version is a major and its CHANGELOG section has no ### Migration."
+        echo "What now: write what a consumer has to change, with the before and after, under ## [$version]."
+        exit 1; }
+    ;;
+esac
 git fetch -q origin main
 [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || { echo "release-kit: local main is not origin/main"; exit 1; }
 

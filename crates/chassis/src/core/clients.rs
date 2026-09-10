@@ -29,6 +29,14 @@ pub const CLIENTS_FORMAT: u32 = 2;
 pub const TOKEN_BYTES: usize = 32;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+// 2.0.0: a consumer no longer writes this out field by field. Adding
+// `fields` in 1.9.0 broke every literal construction of it — almanac and kyu
+// both build one in their migration code, and the release chain refused with
+// `error[E0063]: missing field 'fields'` (CF-15). A struct with public fields
+// cannot grow without that happening, so the kit stops offering the shape and
+// offers `Client::adopted` instead: whatever is added later gets a default
+// here, and no caller has to know.
+#[non_exhaustive]
 pub struct Client {
     /// Stable id (UUIDv4 text), the key in URLs; the name may be reused
     /// after a revoke, the id never is.
@@ -49,6 +57,33 @@ pub struct Client {
     /// names are ever written here, so a caller cannot grow the store.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub fields: BTreeMap<String, String>,
+}
+
+impl Client {
+    /// Build a row from outside the kit — the shape a one-time migration
+    /// needs when it converts a project's own store into this one, which is
+    /// the only reason a consumer ever holds a `Client` it made itself.
+    ///
+    /// Everything the kit adds later gets its default here, so this signature
+    /// does not grow and a new field never breaks a caller again. That is the
+    /// whole point of the `#[non_exhaustive]` above it.
+    pub fn adopted(
+        id: impl Into<String>,
+        name: impl Into<String>,
+        token: impl Into<String>,
+        issued_at: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            token: Some(token.into()),
+            issued_at: issued_at.into(),
+            revoked_at: None,
+            last_used_at: None,
+            uses: 0,
+            fields: Default::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -236,6 +271,39 @@ fn not_found(id: &str) -> Error {
 
 #[cfg(test)]
 mod tests {
+    /// feat-api-3 (2.0.0): the kit stops offering the shape of a `Client` and
+    /// offers a way to make one, so a field added later cannot break a
+    /// consumer's build the way `fields` did in 1.9.0 (CF-15).
+    ///
+    /// `#[non_exhaustive]` itself cannot be asserted from inside this crate —
+    /// it only restricts other crates — so what this proves is the half that
+    /// is testable here: the constructor fills every field, including the one
+    /// that caused the break, and a row it makes round-trips through the
+    /// store. Made to fail first by having `adopted` leave `uses` at 1.
+    #[test]
+    fn feat_api_3_adopted_fills_every_field_and_survives_the_store() {
+        let c = Client::adopted("source-weather", "weather", "t0ken", "2026-09-10T02:16:47Z");
+        assert_eq!(c.id, "source-weather");
+        assert_eq!(c.name, "weather");
+        assert_eq!(c.token.as_deref(), Some("t0ken"));
+        assert_eq!(c.issued_at, "2026-09-10T02:16:47Z");
+        assert_eq!(c.revoked_at, None);
+        assert_eq!(c.last_used_at, None);
+        assert_eq!(c.uses, 0);
+        assert!(
+            c.fields.is_empty(),
+            "the field that broke 1.9.0 has a default"
+        );
+
+        let file = ClientsFile {
+            clients: vec![c.clone()],
+            ..Default::default()
+        };
+        let text = serde_json::to_string(&file).expect("serialise");
+        let back: ClientsFile = serde_json::from_str(&text).expect("read back");
+        assert_eq!(back.clients, vec![c]);
+    }
+
     use super::*;
 
     const T0: &str = "2026-09-05T07:00:00Z";

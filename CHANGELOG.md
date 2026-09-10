@@ -7,14 +7,55 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
-## [1.9.0] - 2026-09-10
+## [2.0.0] - 2026-09-10
 
 Batch 4 and round 5 (rule 46, the four consumer reports and the name Clients,
 weighed 2026-09-10), kp-themes 5.1.0, and round 6 — the three working points
 from Kenny's own look at this release running on the scratch container.
-Additive only; a consumer upgrades by moving its pin.
 
-The transition window promised by rule 46 is in use for the first time:
+**This is a major.** It was drafted as 1.9.0 and called additive, and the
+release chain proved otherwise: `check-consumers.sh` refused to publish
+because almanac and kyu no longer compiled. See CF-15.
+
+### Migration
+
+`chassis::core::clients::Client` gained a public field in this release
+(`fields`, from feat-clients-2) and a struct with public fields cannot grow
+without breaking every literal construction of it. Rather than let that
+happen again on the next field, the type is now `#[non_exhaustive]` and the
+kit offers the way to make one:
+
+```rust
+// before — breaks whenever the kit adds a field
+clients.push(Client {
+    id: format!("source-{source_id}"),
+    name: source_id,
+    token: Some(token),
+    issued_at,
+    revoked_at: None,
+    last_used_at: None,
+    uses: 0,
+});
+
+// after — everything the kit adds later gets its default
+clients.push(Client::adopted(
+    format!("source-{source_id}"),
+    source_id,
+    token,
+    issued_at,
+));
+```
+
+Only code that *builds* a `Client` is affected, which in practice means
+one-time migration code that converts a project's own store into the kit's.
+Measured across the four consumers on 2026-09-10: almanac
+(`src/shell/kit.rs`) and kyu (`src/kit.rs`), one place each.
+http-switchboard and kyu-runner never construct one and need no change.
+
+Reading a `Client` is unchanged, and so is the on-disk format: a store
+written by 1.8.0 reads here without conversion.
+
+The transition window promised by rule 46 is also in use for the first time:
 `Clients::issue` is deprecated and still works, replaced by
 `issue_with_fields`.
 
