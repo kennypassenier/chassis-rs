@@ -92,6 +92,11 @@ pre.snippet {
   flex-direction: column;
   max-height: min(80vh, 42rem);
   width: min(42rem, calc(100vw - 2rem));
+  /* kp-themes caps .kp-dialog at 512px, which silently held the width above
+     to 32rem — measured in the page on CT 118: computed width 512px where the
+     rule asked for 672. A width without the matching max-width is a rule that
+     looks applied and is not. */
+  max-width: min(42rem, calc(100vw - 2rem));
 }
 .client-dialog__head {
   display: flex;
