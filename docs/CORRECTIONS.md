@@ -384,7 +384,11 @@ replace three files with older copies, every run, forever.
    both first failing on the old entries.
 7. **How we measure it works, and when.** At the next consumer that runs
    `chassis sync` after a hook generation moves — the first report saying the
-   three files appear as `~` lines and the exit code stays 0. **It needs a
+   shared hooks it carries appear as `~` lines, or match, and the exit code
+   stays 0 where it was 1. Not every consumer can show every half: kyu-runner
+   measured that they already hold `check-ids.sh` (4095 bytes, carried in by
+   hand on 2026-09-09), so the writing-when-absent half has to come from a
+   migrated project that lacks it. **It needs a
    release first**: kyu-runner measured that they run 2.0.0 with
    `chassis_tag = "v2.0.0"`, so a fix on main reaches nobody. The measurement
    is the first consumer bump after the next tag. Queued in

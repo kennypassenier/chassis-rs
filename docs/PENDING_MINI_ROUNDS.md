@@ -2003,6 +2003,11 @@ project-owned file that is *absent* was skipped by `sync` exactly like one that
 differs, so the file would never have arrived — and the canonical `commit-msg`
 only warns when it is missing, which is the fail-open shape rule 12 forbids.
 `sync` now writes a project-owned file that is missing and still refuses to
-overwrite one that exists. Drilled by deleting `.githooks/check-ids.sh` from a
+overwrite one that exists. kyu-runner measured the other half of that answer
+straight away: they do hold `check-ids.sh` (4095 bytes), carried in by hand by
+the session that took their hooks to generation 3, and their `commit-msg`
+calls it with `|| exit 1` — so the gate runs there and the warning branch only
+covers a file that is absent. The fix is not redundant; it closes the case that
+handwork happened to cover, and the half they can report is the other one. Drilled by deleting `.githooks/check-ids.sh` from a
 freshly generated project: exit 1, `--write` puts it back, and a hook with
 different content is left untouched.
