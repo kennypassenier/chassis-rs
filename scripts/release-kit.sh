@@ -43,18 +43,35 @@ git fetch -q origin main
 # container, which is where the Debian-versus-Arch question is answered:
 # the Dockerfiles build inside rust:1.97-slim-trixie, so that artifact is
 # the one that ships.
-"$root/scripts/check-consumers.sh" ${CHECK_CONSUMERS_ARGS:-} || {
-  echo "release-kit: consumers do not build against this tree; nothing released" >&2
-  exit 1
-}
+# Kenny, 2026-09-10: a red consumer NEVER blocks. Their pins are fixed tags —
+# measured that day, all seven chassis dependency lines across the four — so a
+# new tag reaches nobody until they move it themselves. Holding the kit until
+# four other projects have time is what a major version number exists to
+# avoid. What a failure IS: the measured list of what a consumer will have to
+# change, which belongs in the Migration section. The contract check below is
+# what refuses a release.
+if ! "$root/scripts/check-consumers.sh" ${CHECK_CONSUMERS_ARGS:-}; then
+  echo
+  echo "release-kit: consumers above did not build against this tree."
+  case "$version" in
+    *.0.0) echo "release-kit: $version is a major, so this is expected — check that each"
+           echo "             failing consumer is named in the ### Migration section." ;;
+    *)     echo "release-kit: $version is NOT a major. The contract check below decides,"
+           echo "             but read those failures first: they are what a consumer feels." ;;
+  esac
+  echo
+fi
 
 # Standing rule 46, the second third (feat-api-1): the public surface is
 # compared against what is recorded, so a shape change cannot ride out in a
 # release nobody marked as breaking. A consumer compiles against these lines
 # and lives in another repository, so this is the only place left to notice.
 # Local as well, never on a commit.
-"$root/scripts/check-api.sh" || {
-  echo "release-kit: public surface differs from docs/API_SURFACE.txt; nothing released" >&2
+# The contract is what refuses a release now, not the consumers. For a major
+# it re-freezes; for anything else every recorded line must still be there and
+# a new one is only allowed when a caller cannot feel it (CF-15).
+"$root/scripts/check-api.sh" --for "$version" || {
+  echo "release-kit: the contract refuses $version; nothing released" >&2
   exit 1
 }
 

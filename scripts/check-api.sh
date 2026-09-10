@@ -11,8 +11,15 @@
 # the gates a person starts and a precondition of scripts/release-kit.sh; the
 # commit hook stays fast.
 #
-#   scripts/check-api.sh           compare, exit 1 on a difference
-#   scripts/check-api.sh --write   record the current surface
+# Since 2.0.0 (Kenny, 2026-09-10, after the chain refused a mislabelled minor)
+# the record is a CONTRACT, frozen for the life of a major. Comparing is no
+# longer enough: `scripts/contract_check.py` judges each difference, and the
+# generator records `[sealed]` so it can tell a field that cannot be felt from
+# one that breaks every caller. See CF-15.
+#
+#   scripts/check-api.sh                compare against the contract, report
+#   scripts/check-api.sh --for 1.9.1    judge as that release would
+#   scripts/check-api.sh --write        re-freeze (a major, or the first time)
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -23,9 +30,15 @@ trap 'rm -f "$current"' EXIT
 cargo run -q -p chassis-cli --example api_snapshot -- crates/chassis/src chassis > "$current"
 
 if [ "${1:-}" = "--write" ]; then
-  mv "$current" "$record"
+  # The contract carries its own identity: one line a release note or a
+  # consumer's report can quote without reproducing 800 of them. It is not
+  # what the judging uses — a hash says the contract moved and nothing more
+  # (Kenny asked; measured 2026-09-10: 20 full comparisons take 13 ms and 20
+  # hashes take 24 ms, so there was no speed to win either).
+  id=$(python3 scripts/contract_check.py --hash "$current" | cut -c1-16)
+  { echo "# contract identity: sha256:$id"; cat "$current"; } > "$record"
   trap - EXIT
-  echo "recorded $(grep -c '^' "$record") lines in $record"
+  echo "froze $(grep -vc '^#' "$record") items as sha256:$id"
   exit 0
 fi
 
@@ -34,17 +47,9 @@ if [ ! -f "$record" ]; then
   exit 1
 fi
 
-if diff -u "$record" "$current" > /dev/null; then
-  echo "public surface unchanged ($(grep -vc '^#' "$record") items)"
-  exit 0
-fi
+# Without a version there is nothing to judge against, so the report is what a
+# person reads while developing; with one it is the release gate.
+version="${2:-0.0.1}"
+[ "${1:-}" = "--for" ] || version="0.0.1"
 
-echo "PUBLIC SURFACE CHANGED — a consumer compiles against these lines." >&2
-echo >&2
-diff -u "$record" "$current" | sed -n '1,80p' >&2
-echo >&2
-echo "What now: if this change is intended, say so in the version (a removal" >&2
-echo "or a changed signature is a major; a new item is a minor), give the old" >&2
-echo "shape one version beside the new one where a consumer would otherwise" >&2
-echo "break, and record the new surface with: scripts/check-api.sh --write" >&2
-exit 1
+exec python3 scripts/contract_check.py "$record" "$current" "$version"

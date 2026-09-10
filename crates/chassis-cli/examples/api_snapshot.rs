@@ -83,9 +83,18 @@ fn items(list: &[Item], module: &str, out: &mut Vec<String>) {
                 out.push(format!("fn {module}::{}", sig_text(&quote(sig))));
             }
             Item::Struct(ItemStruct {
-                vis, ident, fields, ..
+                attrs,
+                vis,
+                ident,
+                fields,
+                ..
             }) if is_public(vis) => {
-                out.push(format!("struct {module}::{ident}"));
+                // Whether the type is sealed decides how a later addition has
+                // to be read: a field added to a sealed struct is additive,
+                // the same field on an open one breaks every caller that
+                // builds it. Without this the comparison can say a field
+                // appeared and nothing more (CF-15, 2026-09-10).
+                out.push(format!("struct {module}::{ident}{}", sealed(attrs)));
                 for f in fields {
                     if is_public(&f.vis) {
                         let name = f
@@ -101,12 +110,16 @@ fn items(list: &[Item], module: &str, out: &mut Vec<String>) {
                 }
             }
             Item::Enum(ItemEnum {
+                attrs,
                 vis,
                 ident,
                 variants,
                 ..
             }) if is_public(vis) => {
-                out.push(format!("enum {module}::{ident}"));
+                // Same reasoning as the struct above: a variant added to a
+                // sealed enum is additive, on an open one it breaks every
+                // exhaustive `match` a consumer wrote.
+                out.push(format!("enum {module}::{ident}{}", sealed(attrs)));
                 for v in variants {
                     out.push(format!("variant {module}::{ident}::{}", v.ident));
                 }
@@ -154,6 +167,17 @@ fn items(list: &[Item], module: &str, out: &mut Vec<String>) {
             }
             _ => {}
         }
+    }
+}
+
+/// ` [sealed]` when the item carries `#[non_exhaustive]`, empty otherwise.
+/// A sealed type can gain a field or a variant without breaking a caller,
+/// which is the whole difference between an additive release and a major.
+fn sealed(attrs: &[syn::Attribute]) -> &'static str {
+    if attrs.iter().any(|a| a.path().is_ident("non_exhaustive")) {
+        " [sealed]"
+    } else {
+        ""
     }
 }
 
