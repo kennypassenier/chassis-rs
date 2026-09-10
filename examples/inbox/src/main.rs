@@ -14,7 +14,10 @@ use axum::extract::State;
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use chassis::shell::clients_api::ClientView;
-use chassis::shell::dashboard::{ClientColumn, Section, SectionAction, StatusSection};
+use chassis::shell::dashboard::{
+    ClientColumn, ClientFormField, Section, SectionAction, StatusSection,
+};
+use chassis::shell::metrics::{Counter, Gauge};
 use chassis::shell::notify::Notifier;
 use chassis::{App, AppSpec, Caller};
 
@@ -26,6 +29,11 @@ type Messages = Arc<Mutex<Vec<serde_json::Value>>>;
 struct Inbox {
     messages: Messages,
     notifier: Notifier,
+    /// The project's own series, registered with the kit's `/metrics` in
+    /// `main`. A counter for what happened and a gauge for what is: the two
+    /// shapes Prometheus expects, and the reason the kit ships both.
+    received: Counter,
+    stored: Gauge,
 }
 
 /// The status page shows how many messages arrived and the last five (K17).
@@ -93,6 +101,11 @@ async fn receive(
         all.push(serde_json::json!({ "from": from, "body": body }));
         all.len()
     };
+    // A counter counts events and never goes down; a gauge says what the
+    // situation is right now. `from` is a client name the admin chose, not
+    // caller-supplied text, so it cannot grow the label set without bound.
+    inbox.received.inc(&[("from", from.as_str())]);
+    inbox.stored.set(&[], id as f64);
     inbox.notifier.emit(
         "message.received",
         env!("CARGO_PKG_VERSION"),
@@ -132,8 +145,13 @@ async fn messages_page(
 
 /// The section action's route (K29): behind the admin login like every
 /// `dashboard_routes` handler; a 204 makes the button reload the page.
-async fn clear_messages(State(messages): State<Messages>) -> axum::http::StatusCode {
+async fn clear_messages(
+    State((messages, stored)): State<(Messages, Gauge)>,
+) -> axum::http::StatusCode {
     messages.lock().expect("messages lock").clear();
+    // The gauge follows the truth down as well as up; the counter does not,
+    // because the messages were still received.
+    stored.set(&[], 0.0);
     axum::http::StatusCode::NO_CONTENT
 }
 
@@ -147,6 +165,10 @@ async fn main() -> std::process::ExitCode {
         repository: Some("kennypassenier/chassis-rs"),
         ..Default::default()
     };
+    // feat-metrics-1: the project's own series carry the kit's prefix, so
+    // `inbox_messages_received_total` sits beside the kit's own
+    // `inbox_http_requests_total` in one scrape. Read before the spec moves.
+    let prefix = spec.metric_prefix();
     // No public routes: `/` is the kit's status page, `/v1/messages` needs a token.
     let mut app = match App::from_env_and_args(spec, Router::new()) {
         Ok(app) => app,
@@ -156,9 +178,23 @@ async fn main() -> std::process::ExitCode {
         }
     };
     let messages: Messages = Arc::new(Mutex::new(Vec::new()));
+    let received = Counter::new(
+        &prefix,
+        "messages_received_total",
+        "Messages accepted on /v1/messages since start",
+    );
+    let stored = Gauge::new(
+        &prefix,
+        "messages_stored",
+        "Messages held in memory right now",
+    );
+    app.metrics_source(received.clone());
+    app.metrics_source(stored.clone());
     let inbox = Inbox {
         messages: messages.clone(),
         notifier: app.notifier(),
+        received: received.clone(),
+        stored: stored.clone(),
     };
     app.api_routes(
         Router::new()
@@ -173,13 +209,32 @@ async fn main() -> std::process::ExitCode {
     );
     app.status_section(MessagesSection(messages.clone()));
     app.client_column(MessagesColumn(messages.clone()));
+    // feat-clients-2: what a client of THIS service needs besides a name.
+    // The kit stores it with the client, renders it as a column under this
+    // label, and returns it from the clients API — the project writes no
+    // storage of its own for it.
+    app.client_form_field(ClientFormField::text("topic", "Topic", "alerts"));
+    // The same hook may refuse: an empty topic would make the column
+    // useless, and a refusal reaches the page as the kit's error with its
+    // remedy rather than as a silent blank.
+    app.on_client_issued(|client, fields| {
+        let topic = fields.get("topic").map(String::as_str).unwrap_or("").trim();
+        if topic.is_empty() {
+            return Err(chassis::Error::invalid(
+                format!("{} needs a topic", client.name),
+                "fill in the topic field — it is what this client's messages are about",
+            ));
+        }
+        Ok(())
+    });
     // K16: an own page behind the admin login, inside the kit's layout.
     app.nav_entry("Messages", "/messages");
     app.dashboard_routes(
         Router::new()
             .route("/messages", get(messages_page))
+            .with_state(messages.clone())
             .route("/messages/clear", post(clear_messages))
-            .with_state(messages.clone()),
+            .with_state((messages.clone(), stored.clone())),
     );
     // K21: before a binary swap, the kit asks for a consistent copy of the state.
     app.state_copy(move |dest| {
