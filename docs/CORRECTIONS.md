@@ -339,3 +339,101 @@ because `scripts/check-consumers.sh` could not build two of the four.
    and published nothing.
 8. **Fallback.** None needed; the gate held.
 9. **When we review it.** At the retrospective of batch 4.
+
+## CF-16 · The scaffold wrote over a hook another shared source owns (2026-09-10)
+
+Found live by kyu-runner while adopting 2.0.0: `chassis sync` proposes to
+replace three files with older copies, every run, forever.
+
+1. **What went wrong.** The kit ships `.githooks/commit-msg` and
+   `.claude/hooks/check-commit.sh` as kit-owned scaffold files, so
+   `chassis sync --write` writes them back. `~/Projects/dev-procedure/hooks/
+   sync-hooks.sh` distributes the same two files, plus `check-ids.sh`, and had
+   moved them to generation 3 on 2026-09-09. Evidence, measured here:
+   `wc -c` gave 508 bytes for the kit's `commit-msg` against 2824 canonical,
+   and 8324 against 10080 for `check-commit.sh`; the kit's copy carries no
+   `# HOOK_VERSION=` line at all, and its ID regex
+   (`[A-Za-z]{1,4}[0-9][^]]*`) accepts `K2` but refuses `feat-api-2` — a
+   project born from `chassis new` could not commit with the house scheme.
+   kyu-runner restored the files by hand after each sync, which left
+   `chassis sync` on exit 1 permanently.
+2. **Which gate let it through.** None of them looks outward. The scaffold's
+   files are only ever compared with the project they were written into, and
+   nothing in the kit knows that a second source distributes the same paths.
+   The kit's own hooks are current (both equal to canonical, checked with
+   `diff`), so no gate in this repository had anything to report.
+3. **Where the same fault sits.** The property: **a file the kit writes that
+   another shared source also writes into projects.** `Gezocht met:`
+   `grep -n 'cp "\$canon' ~/Projects/dev-procedure/hooks/sync-hooks.sh` — that
+   script is the only thing in dev-procedure that writes into a project, and
+   it copies exactly three files: `check-commit.sh`, `commit-msg` and
+   `check-ids.sh`. All three are the ones named above; there is no fourth
+   instance. `settings.snippet.json` looked like a candidate and is not: the
+   procedure has a person merge it once, nothing distributes it.
+4. **How we prevent recurrence.** The three files become project-owned in the
+   scaffold (fix-4): the kit writes them once at `chassis new`, from the
+   canonical version, and `chassis sync` reports a difference without ever
+   writing over it. Two shared sources cannot both hold a file, and the one
+   that versions its copies keeps it.
+5. **What the remedy costs.** A project that never runs `sync-hooks.sh` now
+   keeps whatever hook it was born with; the kit will not refresh it. That is
+   the same trade every project-owned scaffold file already carries, and the
+   `~` line in `sync`'s output names the difference every run.
+6. **Who enforces it.** Code: `fix_4_the_shared_hooks_are_written_once_and_
+   never_synced_back` and `fix_4_the_shipped_hooks_carry_the_version_stamp`,
+   both first failing on the old entries.
+7. **How we measure it works, and when.** At the next consumer that runs
+   `chassis sync` after a hook generation moves — the first report saying the
+   three files appear as `~` lines and the exit code stays 0. Queued in
+   `docs/PENDING_MINI_ROUNDS.md`.
+8. **The fallback if it fails.** If a project still goes red, the kit stops
+   shipping the three files entirely and `chassis new` calls dev-procedure's
+   `sync-hooks.sh` when that checkout is present, printing what to run when it
+   is not.
+9. **When we review it.** At the retrospective of batch 4.
+
+## CF-17 · A release waited half an hour for checks that could not start (2026-09-10)
+
+Also found by kyu-runner, releasing 0.2.2 of their own project with
+`chassis release`.
+
+1. **What went wrong.** `chassis release` pushes `release-<version>` and calls
+   `wait_for_checks` on that commit. kyu-runner's `ci.yml` triggered on
+   `branches: [main]`, so the push produced no check run at all. Their
+   measurement, from their own session: on branch `kit-2.0.0` only the
+   `pull_request` trigger produced a run; the push produced none. The wait
+   runs to `--max-wait-secs` (1800 by default) and then reports "checks did
+   not finish within 1800s", pointing at an Actions tab that shows nothing.
+   They finished the release by hand through a pull request.
+2. **Which gate let it through.** `check_release_files` is the precondition
+   step and it checked two things — `.chassis.toml`, and a Dockerfile where
+   the release workflow builds an image. Whether the CI would run at all on
+   the branch the release is about to push was never asked, so the failure
+   could only appear as a timeout.
+3. **Where the same fault sits.** The property: **the kit waits on something
+   another file decides whether to produce.** `Gezocht met:`
+   `grep -n 'wait_for\|poll' crates/chassis-cli/src/main.rs` — two waits:
+   this one and `wait_for_release_run`, which waits for the Release workflow
+   after the tag is pushed. The second has the same shape but not the same
+   hole: `release.yml` is triggered by the tag push and `check_release_files`
+   already reads that file. Recorded so the next wait added to this command
+   is asked the same question.
+4. **How we prevent recurrence.** fix-5: `check_release_files` reads the
+   project's `.github/workflows/ci.yml` and refuses before anything is pushed
+   when it would not run for `release-<version>`, naming `chassis sync
+   --write` as the remedy. A workflow the reader cannot understand counts as
+   covered, so nothing is refused on a guess.
+5. **What the remedy costs.** A project with a deliberately hand-written CI
+   that runs its checks under another name now has to name the release branch
+   in its push filter. The refusal says so in its remedy.
+6. **Who enforces it.** Code: five unit tests over `ci_runs_on_push_to` plus
+   the two refusals in `a_release_workflow_that_builds_an_image_needs_a_
+   dockerfile`; drilled red by making the reader answer "covered" always.
+7. **How we measure it works, and when.** At the next consumer release run
+   through `chassis release` — the report either names the refusal with its
+   remedy, or says the checks were found. Queued in
+   `docs/PENDING_MINI_ROUNDS.md`.
+8. **The fallback if it fails.** If a project is refused wrongly, the check
+   becomes a warning that still starts the wait, with a shorter first timeout
+   that says what to look at.
+9. **When we review it.** At the retrospective of batch 4.

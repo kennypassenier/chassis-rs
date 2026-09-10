@@ -23,6 +23,21 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Fixed
 
+- **The scaffold no longer overwrites the shared hooks** (fix-4). Three files
+  are distributed by `~/Projects/dev-procedure` as well: `.githooks/commit-msg`,
+  `.githooks/check-ids.sh` and `.claude/hooks/check-commit.sh`. The kit writes
+  them once at `chassis new` and `chassis sync` now reports a difference instead
+  of writing over it, so a project that carries the canonical version stops
+  going red on every sync. The shipped copies were a generation behind, old
+  enough that a fresh project could not commit with the house ID scheme.
+  Reported by kyu-runner; the ownership question is CF-16.
+- **`chassis release` refuses a project whose CI cannot check the release
+  branch** (fix-5). It pushes `release-<version>` and waits for that commit's
+  checks; a workflow triggering only on `main` produces none, so the wait ran
+  to its 1800-second timeout with nothing in the Actions tab to look at. The
+  `on:` block is read before anything is pushed, and the message names the
+  remedy. Measured by kyu-runner on their own release.
+- `docs/MIGRATION.md` still called this release's section `1.9.0 additions`.
 - `ClientsFile::issue` said `since = "1.9.0"`, a version that was never
   released — the chain refused it as a mislabelled minor and it went out as
   2.0.0. Its doc comment also promised removal "in the version after", which

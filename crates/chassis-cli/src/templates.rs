@@ -39,6 +39,20 @@ const fn verbatim(path: &'static str, body: &'static str, executable: bool) -> E
     }
 }
 
+/// A hook `~/Projects/dev-procedure` also distributes (fix-4). The kit writes
+/// it once so a fresh project starts with gates, and never again: two shared
+/// sources rewriting one file means every project restores it by hand after
+/// every sync, which is what CF-16 found in kyu-runner.
+const fn shared_hook(path: &'static str, body: &'static str) -> Entry {
+    Entry {
+        path,
+        body,
+        render: false,
+        executable: true,
+        project_owned: true,
+    }
+}
+
 const fn owned(path: &'static str, body: &'static str) -> Entry {
     Entry {
         path,
@@ -138,20 +152,22 @@ pub const ENTRIES: &[Entry] = &[
         include_str!("../../../scaffold/.githooks/pre-commit"),
         true,
     ),
-    verbatim(
+    shared_hook(
         ".githooks/commit-msg",
         include_str!("../../../scaffold/.githooks/commit-msg"),
-        true,
+    ),
+    shared_hook(
+        ".githooks/check-ids.sh",
+        include_str!("../../../scaffold/.githooks/check-ids.sh"),
     ),
     verbatim(
         ".claude/hooks/gates.sh",
         include_str!("../../../scaffold/.claude/hooks/gates.sh"),
         true,
     ),
-    verbatim(
+    shared_hook(
         ".claude/hooks/check-commit.sh",
         include_str!("../../../scaffold/.claude/hooks/check-commit.sh"),
-        true,
     ),
     verbatim(
         ".claude/settings.json",
@@ -163,6 +179,48 @@ pub const ENTRIES: &[Entry] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// fix-4: the three hooks that dev-procedure also owns are project-owned
+    /// here, so `chassis sync` reports a difference and never writes over a
+    /// project that carries the canonical version. Two shared sources claiming
+    /// one file is what made `sync` permanently red in kyu-runner (CF-16).
+    #[test]
+    fn fix_4_the_shared_hooks_are_written_once_and_never_synced_back() {
+        for path in [
+            ".githooks/commit-msg",
+            ".githooks/check-ids.sh",
+            ".claude/hooks/check-commit.sh",
+        ] {
+            let entry = ENTRIES
+                .iter()
+                .find(|e| e.path == path)
+                .unwrap_or_else(|| panic!("{path} is not in the scaffold"));
+            assert!(
+                entry.project_owned,
+                "{path} must be project-owned: dev-procedure owns it too"
+            );
+            assert!(entry.executable, "{path} is a hook and must be executable");
+            assert!(!entry.render, "{path} is copied verbatim, not rendered");
+        }
+    }
+
+    /// fix-4: a fresh project gets the current hook generation, not the one
+    /// the scaffold happened to be born with. The stamp is what dev-procedure's
+    /// sync-hooks.sh reads, and the old copy had none at all.
+    #[test]
+    fn fix_4_the_shipped_hooks_carry_the_version_stamp() {
+        for path in [
+            ".githooks/commit-msg",
+            ".githooks/check-ids.sh",
+            ".claude/hooks/check-commit.sh",
+        ] {
+            let entry = ENTRIES.iter().find(|e| e.path == path).unwrap();
+            assert!(
+                entry.body.lines().any(|l| l.starts_with("# HOOK_VERSION=")),
+                "{path} carries no HOOK_VERSION stamp"
+            );
+        }
+    }
 
     /// K34: the smoke test is kit-owned, so `chassis sync` rewrites it when
     /// the harness changes instead of leaving a project on an old one — the

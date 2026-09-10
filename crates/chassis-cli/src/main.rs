@@ -943,9 +943,9 @@ fn cmd_release(
     max_wait: u64,
 ) -> Result<(), Error> {
     let rec = read_recorded(dir)?;
-    check_release_files(dir)?;
     let v = chassis::core::update::Version::parse(version)?;
     let tag = format!("v{v}");
+    check_release_files(dir, &format!("release-{v}"))?;
     if !dry_run {
         require_tool("git", "install git")?;
         require_tool("gh", "install the GitHub CLI and run `gh auth login`")?;
@@ -996,7 +996,7 @@ fn cmd_release(
     ];
     if dry_run {
         println!(
-            "checked: .chassis.toml present · Dockerfile present where release.yml builds an image · Migration section on a major"
+            "checked: .chassis.toml present · CI runs on a push to the release branch · Dockerfile present where release.yml builds an image · Migration section on a major"
         );
         println!(
             "dry run: would write Cargo.toml version = \"{v}\" and a {v} section in CHANGELOG.md, then:"
@@ -1077,7 +1077,164 @@ fn current_version(cargo_toml: &str) -> Result<chassis::core::update::Version, E
 /// image job expected and the repository did not have — one tag deleted and
 /// re-created. So: when `.github/workflows/release.yml` builds an image, a
 /// `Dockerfile` must exist, and the dry run says so before any tag.
-fn check_release_files(dir: &Path) -> Result<(), Error> {
+/// fix-5: would this workflow run for a push to `branch`?
+///
+/// `chassis release` pushes a `release-<version>` branch and waits for that
+/// commit's checks. A workflow triggering only on `main` produces none, so the
+/// wait runs to its timeout and the Actions tab has nothing to show — half an
+/// hour spent on checks that could never arrive (kyu-runner, 2026-09-10,
+/// CF-17). This reads just enough of the `on:` block to answer that one
+/// question; anything it cannot understand is read as "covered", so an unusual
+/// workflow is never refused on a guess.
+fn ci_runs_on_push_to(workflow: &str, branch: &str) -> bool {
+    let mut in_on = false;
+    let mut push_indent: Option<usize> = None;
+    let mut list_indent: Option<usize> = None;
+    let mut push_seen = false;
+    let mut allow: Vec<String> = Vec::new();
+    let mut ignore: Vec<String> = Vec::new();
+    let mut collecting_ignore = false;
+
+    for line in workflow.lines() {
+        let body = line.trim_start();
+        if body.is_empty() || body.starts_with('#') {
+            continue;
+        }
+        let indent = line.len() - body.len();
+
+        if indent == 0 {
+            in_on = body.starts_with("on:");
+            push_indent = None;
+            list_indent = None;
+            if in_on {
+                // The one-line forms carry no branch filter at all:
+                // `on: push`, `on: [push, pull_request]`.
+                let rest = body["on:".len()..].trim();
+                if !rest.is_empty() {
+                    return rest.contains("push");
+                }
+            }
+            continue;
+        }
+        if !in_on {
+            continue;
+        }
+
+        if let Some(li) = list_indent {
+            if indent > li && body.starts_with("- ") {
+                let pat = unquote(body[2..].trim());
+                if collecting_ignore {
+                    ignore.push(pat);
+                } else {
+                    allow.push(pat);
+                }
+                continue;
+            }
+            list_indent = None;
+        }
+
+        if let Some(pi) = push_indent
+            && indent <= pi
+        {
+            push_indent = None;
+        }
+
+        if body.starts_with("push:") && push_indent.is_none() {
+            push_seen = true;
+            push_indent = Some(indent);
+            continue;
+        }
+
+        let Some(pi) = push_indent else { continue };
+        if indent <= pi {
+            continue;
+        }
+        for (key, into_ignore) in [("branches-ignore:", true), ("branches:", false)] {
+            if let Some(rest) = body.strip_prefix(key) {
+                collecting_ignore = into_ignore;
+                let rest = rest.trim();
+                if rest.is_empty() {
+                    list_indent = Some(indent);
+                } else {
+                    for pat in rest.trim_matches(['[', ']']).split(',') {
+                        let pat = unquote(pat.trim());
+                        if pat.is_empty() {
+                            continue;
+                        }
+                        if into_ignore {
+                            ignore.push(pat);
+                        } else {
+                            allow.push(pat);
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    if !push_seen {
+        return false;
+    }
+    if ignore.iter().any(|p| branch_matches(p, branch)) {
+        return false;
+    }
+    allow.is_empty() || allow.iter().any(|p| branch_matches(p, branch))
+}
+
+fn unquote(s: &str) -> String {
+    s.trim_matches(['\'', '"']).to_string()
+}
+
+/// GitHub's branch filter globbing, in the two forms a workflow uses: `*`
+/// stops at a `/`, `**` does not.
+fn branch_matches(pattern: &str, branch: &str) -> bool {
+    fn go(p: &[u8], b: &[u8]) -> bool {
+        match p.first() {
+            None => b.is_empty(),
+            Some(b'*') => {
+                let (rest, crosses_slash) = if p.get(1) == Some(&b'*') {
+                    (&p[2..], true)
+                } else {
+                    (&p[1..], false)
+                };
+                for i in 0..=b.len() {
+                    if !crosses_slash && b[..i].contains(&b'/') {
+                        break;
+                    }
+                    if go(rest, &b[i..]) {
+                        return true;
+                    }
+                }
+                false
+            }
+            Some(c) => !b.is_empty() && b[0] == *c && go(&p[1..], &b[1..]),
+        }
+    }
+    go(pattern.as_bytes(), branch.as_bytes())
+}
+
+fn check_release_files(dir: &Path, work_branch: &str) -> Result<(), Error> {
+    // fix-5: refuse before the push rather than after the wait.
+    let ci = dir.join(".github/workflows/ci.yml");
+    match std::fs::read_to_string(&ci) {
+        Ok(w) if !ci_runs_on_push_to(&w, work_branch) => {
+            return Err(Error::config(
+                format!(
+                    ".github/workflows/ci.yml does not run on a push to `{work_branch}`, and that is the branch this release pushes and waits for"
+                ),
+                "run `chassis sync --write` to take the kit's workflow (it triggers on every branch), or add the branch to the push filter; without it the wait ends in a timeout and the Actions tab shows no run at all",
+            ));
+        }
+        Ok(_) => {}
+        Err(_) => {
+            return Err(Error::config(
+                "the repository has no .github/workflows/ci.yml, so a release has no checks to wait for",
+                "run `chassis sync --write` to add the kit's CI workflow, then release again",
+            ));
+        }
+    }
+
     let workflow = dir.join(".github/workflows/release.yml");
     let builds_image = std::fs::read_to_string(&workflow)
         .map(|w| w.contains("build-push-action") || w.contains("docker build"))
@@ -1346,6 +1503,51 @@ fn capture(dir: &Path, program: &str, args: &[&str]) -> Result<String, Error> {
         ));
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+#[cfg(test)]
+mod fix_5_tests {
+    use super::*;
+
+    const KIT_CI: &str = include_str!("../../../scaffold/.github/workflows/ci.yml");
+
+    #[test]
+    fn fix_5_the_kit_workflow_covers_the_release_branch() {
+        assert!(ci_runs_on_push_to(KIT_CI, "release-1.2.3"));
+    }
+
+    #[test]
+    fn fix_5_a_main_only_workflow_does_not() {
+        let w = "name: CI\non:\n  push:\n    branches: [main]\n  pull_request:\njobs: {}\n";
+        assert!(!ci_runs_on_push_to(w, "release-1.2.3"));
+        assert!(ci_runs_on_push_to(w, "main"));
+    }
+
+    #[test]
+    fn fix_5_a_block_list_naming_the_pattern_does() {
+        let w = "on:\n  push:\n    branches:\n      - main\n      - 'release-*'\njobs: {}\n";
+        assert!(ci_runs_on_push_to(w, "release-1.2.3"));
+    }
+
+    #[test]
+    fn fix_5_push_without_a_branch_filter_covers_everything() {
+        assert!(ci_runs_on_push_to(
+            "on:\n  push:\njobs: {}\n",
+            "release-1.2.3"
+        ));
+        assert!(ci_runs_on_push_to(
+            "on: [push, pull_request]\njobs: {}\n",
+            "release-1.2.3"
+        ));
+    }
+
+    #[test]
+    fn fix_5_a_workflow_that_never_runs_on_push_is_refused() {
+        assert!(!ci_runs_on_push_to(
+            "on:\n  pull_request:\njobs: {}\n",
+            "release-1.2.3"
+        ));
+    }
 }
 
 #[cfg(test)]
@@ -2025,14 +2227,37 @@ chassis = { git = "g", tag = "v1.8.0", version = "1.8.0", features = ["testing"]
             "steps:\n  - uses: docker/build-push-action@sha # v6\n",
         )
         .unwrap();
-        let err = check_release_files(&dir).unwrap_err();
+        // fix-5 runs first, so the project needs a CI workflow that would
+        // actually check the branch this release pushes.
+        std::fs::write(
+            wf.join("ci.yml"),
+            "on:\n  push:\n    branches: [\"**\"]\njobs: {}\n",
+        )
+        .unwrap();
+        let err = check_release_files(&dir, "release-1.0.0").unwrap_err();
         assert!(err.to_string().contains("no Dockerfile"), "{err}");
         std::fs::write(dir.join("Dockerfile"), "FROM scratch\n").unwrap();
-        check_release_files(&dir).unwrap();
+        check_release_files(&dir, "release-1.0.0").unwrap();
         // A workflow without an image job needs no Dockerfile.
         std::fs::remove_file(dir.join("Dockerfile")).unwrap();
         std::fs::write(wf.join("release.yml"), "steps:\n  - run: cargo build\n").unwrap();
-        check_release_files(&dir).unwrap();
+        check_release_files(&dir, "release-1.0.0").unwrap();
+        // fix-5: a workflow that only watches main is refused before the push,
+        // instead of the release waiting out its timeout on checks that never
+        // start (kyu-runner, 2026-09-10).
+        std::fs::write(
+            wf.join("ci.yml"),
+            "on:\n  push:\n    branches: [main]\njobs: {}\n",
+        )
+        .unwrap();
+        let err = check_release_files(&dir, "release-1.0.0").unwrap_err();
+        assert!(err.to_string().contains("does not run on a push"), "{err}");
+        std::fs::remove_file(wf.join("ci.yml")).unwrap();
+        let err = check_release_files(&dir, "release-1.0.0").unwrap_err();
+        assert!(
+            err.to_string().contains("no .github/workflows/ci.yml"),
+            "{err}"
+        );
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

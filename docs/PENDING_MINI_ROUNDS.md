@@ -1943,3 +1943,38 @@ and the trigger that would reverse feat-dep-1.
 Nothing in the kit is half-finished at this point: main is green, the contract
 reports 823 items unchanged, and the transition window has its list and its
 check.
+
+## kyu-runner's adoption report, and what it found (2026-09-10)
+
+kyu-runner took 2.0.0 and reported from its own session. `App::project_config`,
+`Counter` and `AdminApi` each removed hand-written code there, the static musl
+build took the glibc question out of their deployment, 69 tests green with no
+change to the suite. Two faults came with it, both built here the same evening
+because neither needed a decision.
+
+**fix-4 / CF-16 — the scaffold wrote over a hook another source owns.** Three
+files are distributed by dev-procedure's `sync-hooks.sh` as well, and the kit's
+copies were a generation behind, so `chassis sync` proposed replacing the
+canonical hooks with older ones every run and kyu-runner restored them by hand
+each time. They are project-owned in the scaffold now: written once at
+`chassis new`, reported but never rewritten after that.
+
+**fix-5 / CF-17 — a release waited for checks that could not start.**
+`chassis release` pushes `release-<version>` and waits for its checks;
+kyu-runner's workflow only triggered on `main`, so nothing ever appeared and
+the wait ran to its 1800-second timeout. `check_release_files` now reads the
+workflow before anything is pushed.
+
+**One thing in their report needed correcting, and they should hear it.** They
+listed `.github/workflows/ci.yml` beside the two hooks as a file where the
+scaffold is behind. Measured here: `scaffold/.github/workflows/ci.yml` line 9
+reads `branches: ["**"]`, which is the current shape — feat-ci-1 restored it on
+2026-09-10. In that diff the kit was ahead and their project behind, which is
+also why their release found no checks. Taking the kit's workflow is the fix
+for their second finding.
+
+**Two measurements queued, both on the next consumer to reach them:** the first
+`chassis sync` run after a hook generation moves (the three files appear as `~`
+lines and the exit code stays 0), and the first `chassis release` run on a
+project whose CI does not cover the release branch (the refusal arrives before
+the push, with its remedy).

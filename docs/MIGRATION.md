@@ -201,8 +201,9 @@ before bumping the tag.
    supervised swap per SELF_UPDATE.md.
 6. **Closing check before "gates green" is reported** (CF-6, 2026-09-06):
    `chassis release <next> --dry-run` is green (it checks `.chassis.toml`,
-   the Dockerfile the image job expects, and the Migration section on a
-   major), and the Release workflow has run once on a test tag of the
+   that CI runs on a push to the `release-<version>` branch the release
+   pushes and waits for, the Dockerfile the image job expects, and the
+   Migration section on a major), and the Release workflow has run once on a test tag of the
    branch. Discipline-enforced: the migration is not reported done without
    both lines in its PENDING entry. Three migrations were reported green on
    2026-09-05 and none of them could release the next day.
@@ -228,7 +229,7 @@ READY notification, inside the runtime, never for `--check` or the other
 control commands — and stops it from `app.on_flush(|| { stop_tx.send(true);
 Handle::current().block_on(join_all(tasks)) })`, which the kit runs inside
 its shutdown window. The kit's own keys are stripped before a project
-deserialises the shared file with `deny_unknown_fields`. Since 1.9.0 the kit
+deserialises the shared file with `deny_unknown_fields`. Since 2.0.0 the kit
 does that itself (feat-config-1), which is one line instead of nineteen and
 takes the kit's table sections with it:
 
@@ -236,7 +237,7 @@ takes the kit's table sections with it:
 let config: Config = app.project_config()?;
 ```
 
-Before 1.9.0 a project did it by hand, and the version below is the one this
+Before 2.0.0 a project did it by hand, and the version below is the one this
 guide used to show. It worked, and it carried a trap: `knob_keys()` returns
 the kit's flat knob keys and not its table sections, so `notify` had to be
 removed separately — a line nothing documented. The moment the kit gained a
@@ -340,10 +341,14 @@ Nothing is required. What a project can adopt, each on its own:
   differs from `chassis_tag`, a stale `kp_themes`, and with `--remote` a branch
   protection that names other checks than the CI does.
 
-## 1.9.0 additions
+## 2.0.0 additions
 
-Nothing is required; 1.8.x code compiles unchanged. What a project can adopt,
-each on its own:
+Drafted as 1.9.0 and released as 2.0.0 (CF-15): the release chain refused the
+minor because `Client` had gained a public field, and the heading kept the old
+number until kyu-runner went looking for "2.0.0" and could not find it. The
+breaking half is in the CHANGELOG's Migration section — `Client` is sealed and
+built with `Client::adopted`. Everything below is additive and can be adopted
+one piece at a time:
 
 - **The kit keeps a client's declared fields** (feat-clients-2). A project
   that declares a field with `client_form_field` no longer needs a store of
