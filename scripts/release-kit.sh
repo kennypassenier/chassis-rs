@@ -86,8 +86,20 @@ echo "release-kit: $current -> $version"
 sed -i "s/^version = \"$current\"/version = \"$version\"/" crates/chassis/Cargo.toml crates/chassis-cli/Cargo.toml
 sed -i "s/version = \"$current\", default-features = false/version = \"$version\", default-features = false/" crates/chassis-cli/Cargo.toml
 sed -i "s|crates/chassis\", version = \"$current\"|crates/chassis\", version = \"$version\"|" examples/inbox/Cargo.toml
+# Every requirement inside this workspace on the kit moves to the new version,
+# not only the ones that happened to equal the old one. A dev-dependency in
+# chassis-cli had sat at 1.7.1 since that release and the bump walked past it,
+# so `cargo` refused 2.0.0 against a `^1.7.1` requirement (2026-09-10).
+sed -i -E "s|(chassis = \{ path = \"\.\./chassis\", version = \")[0-9.]+|\1$version|" crates/chassis-cli/Cargo.toml
 cargo update -w --offline >/dev/null 2>&1 || cargo update -w >/dev/null
 grep -q "^version = \"$version\"" crates/chassis/Cargo.toml || { echo "release-kit: bump did not apply"; exit 1; }
+stale=$(grep -n 'path = "\.\./chassis", version = "' crates/chassis-cli/Cargo.toml | grep -v "\"$version\"" || true)
+if [ -n "$stale" ]; then
+  echo "release-kit: a requirement on the kit inside this workspace still names another version:"
+  printf '%s\n' "$stale"
+  echo "What now: they all track the release; fix the line above and rerun."
+  exit 1
+fi
 
 before="$(git rev-parse HEAD)"
 git add CHANGELOG.md Cargo.lock crates/chassis/Cargo.toml crates/chassis-cli/Cargo.toml examples/inbox/Cargo.toml

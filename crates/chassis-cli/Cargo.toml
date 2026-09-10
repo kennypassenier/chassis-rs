@@ -40,7 +40,7 @@ proc-macro2 = "1"
 
 tempfile = { workspace = true }
 # The `clients` E2E starts a real service in-process (K30).
-chassis = { path = "../chassis", version = "1.7.1", features = ["dashboard"] }
+chassis = { path = "../chassis", version = "1.8.0", features = ["dashboard"] }
 tokio = { workspace = true }
 axum = { workspace = true }
 
