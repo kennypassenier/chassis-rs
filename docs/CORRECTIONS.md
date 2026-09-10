@@ -151,8 +151,17 @@ independently by http-switchboard, and measured here before the fix.
 6. **Enforced by.** Code: the test runs in the gates and in CI.
 7. **Measured at.** The next supervised update on a machine that uses these
    templates: the check runs with the unit's own state directory instead of
-   the compiled-in default. Almanac and http-switchboard report that from
-   their own sessions (rule 7a); queued in `docs/PENDING_MINI_ROUNDS.md`.
+   the compiled-in default. Reported from that project's own session
+   (rule 7a); queued in `docs/PENDING_MINI_ROUNDS.md`.
+
+   **Widened 2026-09-10, on kyu's point.** This field named Almanac and
+   http-switchboard, which was written when they were the only two known to
+   have the shape. Field 3 has since been corrected — all four consumers had
+   it, kyu included — so naming two projects was a proxy for "a live
+   supervised update", never a requirement that those two specifically
+   provide it. Whoever runs one first satisfies it. kyu expects to be first:
+   its own v3.2.0 release go is with Kenny, and the signed release going to
+   CT 109 is exactly this run.
 8. **Fallback.** If it still goes wrong there, the kit stops writing an
    `update_cmd` of its own and points at a script that reads the unit, so
    there is one source instead of two descriptions of one machine.

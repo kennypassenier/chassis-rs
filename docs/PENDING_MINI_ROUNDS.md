@@ -1452,7 +1452,7 @@ answered in two follow-up forms with the measurements in them.
 | feat-docs-1 | Onmisbaar | The feature chain with its weight in the generated document, and the secrets each feature makes mandatory in the migration guide. |
 | ask-1 | Allebei | The badge that breaks "active" across two lines: relayed to kp-themes with the measured selector (`overflow-wrap: anywhere` on `.kp-badge` in their bundle), plus one line here that keeps the state column whole. |
 | feat-clients-3 | Laten staan | `Caller` keeps its name; the generated document gains one line saying a client is one of its two shapes. |
-| fix-3 | Klopt | Recorded in `docs/CORRECTIONS.md`; the measurement waits on Almanac and http-switchboard. |
+| fix-3 | Klopt | Recorded in `docs/CORRECTIONS.md`. The measurement is the first live supervised update on any consumer whose unit declares `Environment=` lines — which is all four, since field 3 was corrected on 2026-09-10. kyu expects to be first: its v3.2.0 release go is with Kenny, and the signed release going to CT 109 is that run. |
 
 **Already built and landed on 2026-09-10 before the decisions came back,
 because none of it needed one:** the `update_cmd` fix with its two-file test
