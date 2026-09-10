@@ -1740,3 +1740,26 @@ Landed as `42735fe` and `9bc432f`, CI green. Built as inbox 0.1.7 → 0.1.8 in
 `dist/drill-0.1.8`, signed with the drill key; **not installed**: standing
 rule 13c (new, same evening) makes a write to a machine outside this
 repository a per-occasion permission, so the install waits on a form.
+
+## Round 6 proefdraaien on CT 118 (2026-09-10)
+
+Asked and given per standing rule 13c, which was written the same evening:
+the form named the machine and everything that would change on it. Nothing
+outside that list was touched.
+
+Installed through the `update_cmd` the scaffold promises, including the two
+`--property=Environment=` lines fix-3 added: `inbox: installed 0.1.8 over
+0.1.7; restart to run it`, exit 0. After the restart, `--healthcheck` reports
+`alive=true status=ok version=0.1.8`. The previous binary sits beside it as
+`inbox.prev`. The helper server inside the container was restarted to serve
+`/tmp/drill-0.1.8`; the update URL and the trusted key are unchanged.
+
+Claude's own check on the live page before handing it over: five column
+headings (Name, Issued, Last used, State, Messages), exactly one button
+inside `<tbody>`, `<dialog class="kp-dialog client-dialog">` present, the
+token carrying `class="secret token-line"`, dates rendering as
+`2026-09-05 07:56`, and no RFC 3339 string anywhere in the visible text.
+
+What only Kenny can judge, because no test here can see it: that the row no
+longer changes shape while `Send test` is working, and that revealing the
+token moves nothing beside it (feat-clients-5, feat-clients-4).
