@@ -286,9 +286,31 @@ because `scripts/check-consumers.sh` could not build two of the four.
    property; what varies is whether a consumer constructs it. Measured against
    the four: only `Client` is constructed outside the kit, and only in
    one-time migration code in two of them.
-4. **The measure.** To be decided with Kenny — the release is his call and so
-   is whether the kit closes this class of change permanently. Recorded here
-   so the decision is made against the measurement rather than the surprise.
+4. **The measure.** Kenny chose to close the class rather than patch the
+   instance (2026-09-10, after both options were built, compiled and
+   reverted). `Client` is `#[non_exhaustive]` and made through
+   `Client::adopted`, so what the kit adds later gets its default and no
+   caller has to know. Measured: `cargo check --workspace --all-features
+   --all-targets` is exit 0 with the attribute — it only restricts other
+   crates — and for the two consumers eight lines of struct literal become
+   one call, which is one line fewer than the minimal fix would have cost
+   them.
+
+   A second fault surfaced while writing this: the kit held its consumers to
+   a rule it did not apply to itself. `chassis release` refuses a major
+   without a Migration section; `scripts/release-kit.sh` did not. It does now.
+
+   **And a third, which is Kenny's finding and the sharper one.** He asked:
+   if this is a major, the consumers cannot build — so how can the gate ever
+   go green? `check-consumers.sh` compiles them against this working tree
+   with a cargo override and touches none of their files, so for a breaking
+   change it is red by construction until their own source changes. Their
+   source is theirs (rule 7a). The gate is therefore not wrong, but the
+   ORDER around it was never written down: a major needs the consumer
+   sessions to adapt on a branch first, then the gate goes green against
+   those branches, and only then does the kit release. That is what the
+   transition window in rule 46 buys for a minor and cannot buy here,
+   because `Client::adopted` does not exist in 1.8.0.
 5. **What the remedy costs.** One line per consumer for this instance
    (`fields: Default::default()`), in code each project owns and touches in
    its own session (rule 7a).
