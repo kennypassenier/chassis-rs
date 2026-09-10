@@ -342,6 +342,9 @@ because `scripts/check-consumers.sh` could not build two of the four.
 
 ## CF-16 · The scaffold wrote over a hook another shared source owns (2026-09-10)
 
+**Ratified by Kenny 2026-09-10: Klopt** — the measure stands as built. The loop
+stays open until field 7 is measured, which needs a release first.
+
 Found live by kyu-runner while adopting 2.0.0: `chassis sync` proposes to
 replace three files with older copies, every run, forever.
 
@@ -400,6 +403,9 @@ replace three files with older copies, every run, forever.
 9. **When we review it.** At the retrospective of batch 4.
 
 ## CF-17 · A release waited half an hour for checks that could not start (2026-09-10)
+
+**Ratified by Kenny 2026-09-10: Klopt** — the refusal stands as built. The loop
+stays open until a consumer meets it, which needs a release first.
 
 Also found by kyu-runner, releasing 0.2.2 of their own project with
 `chassis release`.

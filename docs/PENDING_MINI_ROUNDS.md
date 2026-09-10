@@ -2011,3 +2011,27 @@ covers a file that is absent. The fix is not redundant; it closes the case that
 handwork happened to cover, and the half they can report is the other one. Drilled by deleting `.githooks/check-ids.sh` from a
 freshly generated project: exit 1, `--write` puts it back, and a hook with
 different content is left untouched.
+
+## CF-16 and CF-17 ratified (2026-09-10)
+
+Kenny answered **Klopt** on both, so the two measures stand as they were
+built and landed: the three shared hooks are project-owned in the scaffold
+(written when absent, never written over), and `chassis release` reads the
+project's CI workflow before it pushes anything.
+
+Both loops stay open, and both wait on the same thing — a tag. The measures
+are on main; a consumer runs what was released. The measurements, restated so
+each names a reporter that can actually produce it:
+
+- **CF-16, the leaving-alone half:** kyu-runner, at their next bump. Expected:
+  `commit-msg` and `check-commit.sh` come back as `~` lines with exit 0, where
+  today they are diffs with exit 1.
+- **CF-16, the writing-when-absent half:** a migrated project that does not
+  carry `check-ids.sh`. kyu-runner cannot show it — theirs was brought in by
+  hand on 2026-09-09.
+- **CF-17:** the first `chassis release` on a project whose CI does not cover
+  the release branch. kyu-runner is that project today, unless the trigger is
+  restored there first; either way their report says which of the two it
+  became.
+
+Review of both measures: at the retrospective of batch 4.
