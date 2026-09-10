@@ -15,9 +15,9 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | **6 · Development loop — batch 4 built and landed 2026-09-09** (`e53d101`): K34 (kit smoke test in every new project), K35 (generated docs follow the project's features), K36 (`--knobs` filtered), K37 + HK5 (migration guide), K38 (`chassis::admin::AdminApi`). Everything sits under Unreleased; the release moment is Kenny's. The milestone report (L10) is with him |
-| Last completed gate | Consumer round 4 (Kenny, 2026-09-09): K35/K36/K37 Onmisbaar, K38 Gewenst, HK5 Allebei — all built as milestone L10. Before it: D1 Opnemen and CF-12 Klopt (the `TestApp` override fix, `e4c2691`) |
-| Next gate | The L10 milestone report (open with Kenny: five report items, four deviations, what comes next). Then the Phase 10 retro of batch 3. Waiting in the queue: a live-found fault Almanac relayed — the scaffold's `update_cmd` drops the unit's own `Environment=` lines — which needs a correction form with its fix |
+| Current phase | **6 · Development loop — round 5 built 2026-09-10** (rule 46, the four consumer reports, and Kenny's plug-and-play requirement). On `main`, unreleased: client fields kept by the kit, `App::project_config`, `Counter`/`Gauge`, one assembly for tests, `docs/API_SURFACE.txt` with its check, `chassis upgrade`, static musl on distroless, the build-target amendment, the Clients naming sweep, the `update_cmd` fix. Open: feat-dep-1 (an own registry, to be costed), then the Phase 10 retro of batch 3 |
+| Last completed gate | Round 5 (Kenny, 2026-09-10): sixteen items, six answered with measurements first. Everything rated Onmisbaar or Allebei is built and on `main`; feat-api-2 was used immediately by the deprecated `ClientsFile::issue` |
+| Next gate | The round-5 milestone report (L11). Then feat-dep-1: what an own registry costs on Kenny's infrastructure, as a separate proposal. Then the Phase 10 retro of batch 3 |
 | AFK mode | **off** since 2026-09-07 (batch 3 reported). Rule 7a in force: the four consumer projects are touched only in their own sessions |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 
