@@ -91,7 +91,7 @@ pre.snippet {
   display: flex;
   flex-direction: column;
   max-height: min(80vh, 42rem);
-  width: min(34rem, calc(100vw - 2rem));
+  width: min(42rem, calc(100vw - 2rem));
 }
 .client-dialog__head {
   display: flex;

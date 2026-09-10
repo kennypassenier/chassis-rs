@@ -201,3 +201,59 @@ is' correct is?"*
    removed and the rule falls back to discipline alone, recorded in
    §Open measurements.
 9. **When we review it.** At the retrospective of batch 4.
+
+## CF-14 · A button reported "Copied" over an untouched clipboard (2026-09-10)
+
+Found by Kenny on the live 0.1.8 on CT 118: **Copy token** and **Copy
+command** did nothing. He asked whether it was http versus https, and offered
+to test it again behind Traefik. Half of that is right, and the half that is
+wrong is the one that mattered.
+
+1. **What went wrong.** `copyLegacy` appended its scratch field to
+   `document.body`. Since feat-clients-4 those buttons live inside a modal
+   `<dialog>`, which puts itself in the top layer and makes everything outside
+   it inert — so the field could not be focused. Measured in the page by
+   wrapping `document.execCommand`: `activeElement` was `BODY`,
+   `closest('dialog')` was null, the selection was the empty string — and
+   `execCommand('copy')` **returned `true`**. The button therefore flashed
+   `Copied` over an untouched clipboard, which is worse than a button that
+   reports failure.
+2. **Which gate let it through.** None could. This is browser behaviour in a
+   real top layer; the E2E asserts the attributes are present, not what a
+   click does. The look that found it is the gate, and it worked.
+3. **Where else does the same fault sit.** Two properties, both searched.
+   (a) "code that appends to `document.body` and then needs focus or
+   selection while a modal may be open" — `Gezocht met:`
+   `grep -n 'document.body.appendChild\|document.body.append' crates/chassis/static/*.js`,
+   which returns `copyLegacy` and nothing else. (b) "a verdict that rests on a
+   return value which is true even when the operation did nothing" — this is
+   standing rule 34, and the sweep for it was
+   `grep -nE 'execCommand|\.ok\b|returned|result' crates/chassis/static/chassis.js`;
+   the other verdicts in that file read a `Response.ok` or a parsed body,
+   which do vary.
+4. **The measure.** The scratch field goes into the top-layer element when a
+   modal dialog is open (`dialog:modal`, falling back to `<body>`), and the
+   verdict is the selection rather than `execCommand`'s return value:
+   `copied && selected`. A browser that does not know `:modal` falls through
+   to the old behaviour rather than throwing.
+5. **What the remedy costs.** One extra query and one comparison per copy.
+6. **Who enforces it.** Discipline plus standing rule 34, which already says a
+   verdict may not contain an always-true term. No gate here can see a top
+   layer.
+7. **How we measure it works, and when.** At the next proefdraaien on CT 118:
+   Claude clicks both buttons in the browser and reads back what the page
+   believes, and Kenny pastes somewhere to confirm the clipboard actually
+   changed. The second half is his, because no session can read a clipboard
+   in a non-secure context.
+8. **Fallback.** If the copy still fails behind the modal, the buttons move
+   out of the dialog for the plain-http case and the token is offered as
+   selectable text instead — a reader can then copy it by hand.
+9. **When we review it.** At the retrospective of batch 4.
+
+**Kenny's own question, answered:** on `http://10.10.10.18:8080` the page is
+not a secure context — measured in the page, `window.isSecureContext` is
+`false` and `navigator.clipboard` is undefined — so the modern API genuinely
+cannot run there and everything falls to this path. Behind Traefik on https
+the modern API takes over and this fallback is not used at all. So his
+instinct was right about why the good path was unavailable; it was the
+fallback underneath that was broken, and that was ours.
