@@ -273,6 +273,27 @@ document.addEventListener('click', (event) => {
     return;
   }
 
+  // feat-clients-4: the row carries one button; everything else is in the
+  // dialog it opens. The requests load on open rather than behind a second
+  // click — the panel is already on screen there, so a toggle would only be a
+  // control that hides what the reader just asked for.
+  const manage = event.target.closest('[data-manage]');
+  if (manage) {
+    const id = manage.dataset.manage;
+    const dialog = document.getElementById(`manage-${id}`);
+    if (!dialog) return;
+    dialog.showModal();
+    const panel = dialog.querySelector(`#requests-${id}`);
+    if (panel) busy(manage, () => loadRequests(id, panel));
+    return;
+  }
+
+  const closeManage = event.target.closest('[data-close-manage]');
+  if (closeManage) {
+    closeManage.closest('dialog')?.close();
+    return;
+  }
+
   const toggle = event.target.closest('[data-requests]');
   if (toggle) {
     const id = toggle.dataset.requests;

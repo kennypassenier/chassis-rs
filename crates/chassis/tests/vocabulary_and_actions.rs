@@ -263,6 +263,31 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
         "and the exact value is still there for whoever needs it: {full}"
     );
 
+    // feat-clients-4: the row carries one control and nothing else. Kenny's
+    // case was a row up to eight buttons wide across two wrapping columns,
+    // whose height grew with whatever a project had registered. Counting the
+    // buttons inside <tbody> is the assertion that survives a project adding
+    // its own actions — those belong in the dialog now, not in the row.
+    let body = full
+        .split_once("<tbody>")
+        .and_then(|(_, rest)| rest.split_once("</tbody>"))
+        .map(|(inner, _)| inner.to_string())
+        .expect("the clients table has a tbody");
+    assert_eq!(
+        body.matches("<button").count(),
+        1,
+        "one button per row, and this page has one {}: {body}",
+        "client"
+    );
+    assert!(
+        !full.contains("<th>Token</th>"),
+        "the token column is gone from the table: {full}"
+    );
+    assert!(
+        full.contains("data-manage=") && full.contains("client-dialog"),
+        "and the row's button opens the dialog that holds the rest: {full}"
+    );
+
     // Every confirmation the kit renders is read by a person and is not
     // reached by `visible_text`, which strips attributes. Drilled red by
     // putting "caller" back in the Revoke confirmation.

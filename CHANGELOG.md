@@ -32,6 +32,26 @@ scaffold writes. A breaking change in either is a major and carries a
   table is in `docs/MIGRATION.md`.
 
 ### Changed
+- **The Clients table carries one button per row** (feat-clients-4). Name,
+  Issued, Last used, State and the project's own columns stay; the token
+  column and the row's up-to-eight controls move into a
+  `<dialog class="kp-dialog client-dialog">` per row, with a fixed head and
+  foot and a scrolling middle. The token gets a line of its own there, so
+  revealing it — twelve bullets becoming forty-eight characters — moves
+  nothing beside it. The requests load when the dialog opens instead of behind
+  a toggle. Every control keeps the `data-*` attribute its handler already
+  listened for, so the modal is a place rather than a new mechanism. The old
+  `data-requests` panel toggle is gone; a project's registered actions render
+  in the dialog under **Actions**.
+- **A timestamp is rendered for a person** (feat-ui-1). Six render sites now
+  emit `<time datetime="<exact RFC 3339>">` with a `YYYY-MM-DD HH:MM` fallback
+  from the new `human_time` filter, and `chassis.js` replaces the text with
+  the viewer's own locale, keeping the exact value in the tooltip. What the
+  filter cannot read it returns unchanged.
+- **A busy button holds its box** (feat-clients-5). A busy label narrower than
+  the rest label used to let the actions row unwrap and re-lay out under the
+  cursor; the button now measures itself once and holds that as a floor until
+  it wears its rest label again.
 - **kp-themes 5.1.0** (ask-1 amendment). Three vendored files move
   (`dist/kp-themes.css`, `js/effects.js`, `js/theme-registry.js`); the other
   112 are unchanged, and every one is verified against the release's own

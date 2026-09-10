@@ -66,7 +66,7 @@
 <table class="kp-table">
   <thead>
     <tr>
-      <th>Name</th><th>Token</th><th>Issued</th><th>Last used</th><th>State</th>
+      <th>Name</th><th>Issued</th><th>Last used</th><th>State</th>
       {% for col in declared_columns %}<th>{{ col.title }}</th>{% endfor %}
       {% for col in extra_columns %}<th>{{ col.title }}</th>{% endfor %}
       <th class="text-end"></th>
@@ -76,44 +76,82 @@
   {% for c in clients %}
   <tr id="client-{{ c.id }}">
     <td class="kp-fw-medium">{{ c.name }}</td>
-    <td>
-      {% if c.active %}
-      <div class="kp-row token-cell">
-        <span class="secret" id="token-{{ c.id }}" data-masked="••••••••••••" data-revealed="false">••••••••••••</span>
-        <button type="button" class="kp-button" data-reveal="{{ c.id }}" data-reveal-seconds="{{ reveal_seconds }}">Reveal</button>
-        <button type="button" class="kp-button" data-copy-token="{{ c.id }}">Copy token</button>
-        <button type="button" class="kp-button" data-copy-command="{{ c.id }}">Copy command</button>
-      </div>
-      {% else %}<span class="text-secondary">—</span>{% endif %}
-    </td>
     <td><time datetime="{{ c.issued_at }}">{{ c.issued_at|human_time }}</time></td>
     <td>{% if c.last_used_at %}<time datetime="{{ c.last_used_at }}">{{ c.last_used_at|human_time }}</time> <span class="text-secondary">({{ c.uses }}×)</span>{% else %}<span class="text-secondary">never</span>{% endif %}</td>
     <td class="state-cell">{% if c.active %}<span class="kp-badge kp-badge--success">active</span>{% else %}<span class="kp-badge">revoked <time datetime="{{ c.revoked_at }}">{{ c.revoked_at|human_time }}</time></span>{% endif %}</td>
     {% for cell in c.declared %}<td>{{ cell }}</td>{% endfor %}
     {% for cell in c.extra %}<td>{{ cell|safe }}</td>{% endfor %}
-    <td class="text-end">
-      <div class="kp-row kp-justify-end">
-        {% if c.active %}
-        <button type="button" class="kp-button" data-requests="{{ c.id }}">Last requests</button>
-        {% if has_test_route %}<button type="button" class="kp-button" data-test="{{ c.id }}" data-busy-label="Sending…">Send test</button>{% endif %}
+    <td class="text-end"><button type="button" class="kp-button" data-manage="{{ c.id }}">Manage</button></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{# feat-clients-4: everything that used to widen the row lives here instead.
+   One dialog per row, server-rendered, so every control keeps the data-*
+   attribute its handler already listens for — the modal is a place, not a new
+   mechanism. #}
+{% for c in clients %}
+<dialog class="kp-dialog client-dialog" id="manage-{{ c.id }}" aria-labelledby="manage-{{ c.id }}-title">
+  <div class="client-dialog__head">
+    <h2 class="kp-dialog__title" id="manage-{{ c.id }}-title">{{ c.name }}</h2>
+    {% if c.active %}<span class="kp-badge kp-badge--success">active</span>{% else %}<span class="kp-badge">revoked <time datetime="{{ c.revoked_at }}">{{ c.revoked_at|human_time }}</time></span>{% endif %}
+    <p class="kp-dialog__description">Issued <time datetime="{{ c.issued_at }}">{{ c.issued_at|human_time }}</time>{% if c.last_used_at %} · last used <time datetime="{{ c.last_used_at }}">{{ c.last_used_at|human_time }}</time> ({{ c.uses }}×){% else %} · never used{% endif %}</p>
+  </div>
+
+  <div class="client-dialog__body">
+    {% if c.active %}
+    <section class="client-dialog__section">
+      <h3 class="client-dialog__heading">Token</h3>
+      {# The token gets a line of its own: revealing it replaces the text of
+         this box and nothing else moves (Kenny, 2026-09-10). #}
+      <p class="secret token-line" id="token-{{ c.id }}" data-masked="••••••••••••" data-revealed="false">••••••••••••</p>
+      <div class="kp-row">
+        <button type="button" class="kp-button" data-reveal="{{ c.id }}" data-reveal-seconds="{{ reveal_seconds }}">Reveal</button>
+        <button type="button" class="kp-button" data-copy-token="{{ c.id }}">Copy token</button>
+        <button type="button" class="kp-button" data-copy-command="{{ c.id }}">Copy command</button>
+      </div>
+      <p class="text-secondary client-dialog__note">Hides itself again after {{ reveal_seconds }} seconds.</p>
+    </section>
+
+    <section class="client-dialog__section">
+      <h3 class="client-dialog__heading">Requests</h3>
+      {% if has_test_route %}<div class="kp-row"><button type="button" class="kp-button" data-test="{{ c.id }}" data-busy-label="Sending…">Send test</button></div>{% endif %}
+      <div class="requests" id="requests-{{ c.id }}"></div>
+    </section>
+
+    {% if c.actions %}
+    <section class="client-dialog__section">
+      <h3 class="client-dialog__heading">Actions</h3>
+      <div class="kp-row">
         {# K29: the project's own buttons, its route with this row's id filled in. #}
         {% for a in c.actions %}
         <button type="button" class="kp-button{% if a.destructive %} kp-button--destructive{% endif %}" data-post="{{ a.route|safe }}" data-method="{{ a.method }}"{% if a.busy_label %} data-busy-label="{{ a.busy_label }}"{% endif %}{% if a.destructive %} data-kp-destructive data-kp-confirm="{{ a.confirm }}"{% endif %}>{{ a.label }}</button>
         {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+    {% endif %}
+
+    <section class="client-dialog__section">
+      <h3 class="client-dialog__heading">Danger zone</h3>
+      <div class="kp-row">
+        {% if c.active %}
         <button type="button" class="kp-button" data-post="/api/clients/{{ c.id }}/reissue" data-kp-destructive data-kp-confirm="Re-issue? The current token stops working at once.">Re-issue</button>
         <button type="button" class="kp-button kp-button--destructive" data-post="/api/clients/{{ c.id }}/revoke" data-kp-destructive data-kp-confirm="Revoke this token? This {{ vocab.singular }} is locked out immediately.">Revoke</button>
         {% endif %}
         <button type="button" class="kp-button kp-button--destructive" data-post="/api/clients/{{ c.id }}" data-method="DELETE" data-kp-destructive data-kp-confirm="Delete this {{ vocab.singular }} and its history?">Delete</button>
       </div>
-    </td>
-  </tr>
-  {% if c.active %}
-  <tr><td colspan="{{ 6 + extra_columns|length }}" class="kp-py-0 kp-px-lg"><div class="requests" id="requests-{{ c.id }}" hidden></div></td></tr>
-  {% endif %}
-  {% endfor %}
-  </tbody>
-</table>
-</div>
+      <p class="text-secondary client-dialog__note">Revoking keeps the row and its history; deleting does not.</p>
+    </section>
+  </div>
+
+  <div class="kp-dialog__actions">
+    <button type="button" class="kp-button" data-close-manage>Close</button>
+  </div>
+</dialog>
+{% endfor %}
 {% else %}
 <p class="text-secondary">No {{ vocab.plural }} yet. Add one above.</p>
 {% endif %}

@@ -591,16 +591,25 @@ fn dashboard_pages_render_with_layout_and_assets() {
         html.contains("<th>Messages</th>"),
         "the project's extra client column (K16)"
     );
+    // feat-clients-4 (2026-09-10): the row carries one button now and every
+    // other control moved into the dialog it opens, so `data-requests` — the
+    // old toggle for a panel under the table — is gone on purpose. The panel
+    // itself is inside the dialog and loads when it opens.
     for needle in [
+        "data-manage=",
+        "data-close-manage",
         "data-reveal=",
         "data-copy-token=",
         "data-copy-command=",
-        "data-requests=",
         "data-test=",
         "data-kp-confirm=",
     ] {
         assert!(html.contains(needle), "clients page lacks {needle}");
     }
+    assert!(
+        !html.contains("data-requests="),
+        "the panel toggle is gone with feat-clients-4"
+    );
     assert!(
         !html.contains("Bearer "),
         "no token or command in the page HTML (K12)"

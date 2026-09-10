@@ -78,3 +78,47 @@ pre.snippet {
    protection, and kp-themes measured what dropping it costs: one unbroken
    value 485 px wide on a 360 px viewport. */
 .state-cell { --kp-badge-wrap: normal; }
+
+/* feat-clients-4 (Kenny, 2026-09-10). Everything that used to sit in the row
+   sits in a dialog now: the row carried up to eight controls across two
+   columns, both wrapped, and one row grew as tall as whichever project had
+   registered the most actions.
+
+   `display` on a <dialog> is the browser's, not ours — it flips between none
+   and block to open and close it — so the flex column is scoped to [open].
+   Without that scope the dialog would be laid out and visible while closed. */
+.client-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  max-height: min(80vh, 42rem);
+  width: min(34rem, calc(100vw - 2rem));
+}
+.client-dialog__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.client-dialog__head .kp-dialog__title { margin: 0; }
+.client-dialog__head .kp-dialog__description { flex-basis: 100%; margin: 0; }
+/* The scrolling middle. `min-height: 0` is what lets a flex child shrink
+   below its content and scroll instead of pushing the footer off-screen. */
+.client-dialog__body {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.client-dialog__section { padding: 0.75rem 0; border-top: 1px solid var(--kp-border, currentColor); }
+.client-dialog__section:first-child { border-top: 0; }
+.client-dialog__heading { font-size: 0.9rem; margin: 0 0 0.5rem; }
+.client-dialog__note { font-size: 0.8rem; margin: 0.5rem 0 0; }
+/* The token on a line of its own: revealing it swaps 12 bullets for 48
+   characters, and on the old single row that moved every button beside it. */
+.token-line {
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.6rem;
+  font-family: var(--kp-font-mono, monospace);
+  overflow-wrap: anywhere;
+  min-height: 2.4rem;
+  box-sizing: border-box;
+}

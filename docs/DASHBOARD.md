@@ -443,15 +443,33 @@ and the next); and inbox's "Clear messages" section action in
 
 ## The Clients page controls
 
-Per row of an active client (`templates/clients.html`, driven by
-`chassis.js`):
+Since feat-clients-4 (2026-09-10) the table itself carries Name, Issued,
+Last used, State, the project's declared and extra columns, and one
+unlabelled column with a single **Manage** button. Everything below lives in
+the dialog that button opens — a `<dialog class="kp-dialog client-dialog">`
+per row, server-rendered, so every control keeps the `data-*` attribute its
+handler already listened for. The dialog has a fixed head and foot with a
+scrolling middle, so the name and **Close** stay in view however many requests
+are expanded.
+
+Kenny's case: the row used to carry up to eight controls across two wrapping
+columns, and its height grew with whatever a project had registered. The
+token in particular sat in the row, where revealing it swapped twelve bullets
+for forty-eight characters and moved every button beside it; in the dialog it
+has a line of its own.
+
+The requests load when the dialog opens rather than behind a second click —
+the panel is already on screen there, so a toggle would only hide what the
+reader just asked for.
+
+Per client (`templates/clients.html`, driven by `chassis.js`):
 
 | Button | Calls | Effect |
 |---|---|---|
 | **Reveal** | `GET /api/clients/{id}/token` | Shows the token in the row for `reveal_seconds` (default 10) and turns into **Hide**. The window is a browser timer only (S9): an admin can reveal any active token at any time. |
 | **Copy token** | same | Puts only the token on the clipboard; flashes `Copied` or `Copy failed — use Reveal` (clipboard API needs https or localhost; the `execCommand` fallback works inside a real click). |
 | **Copy command** | same | Copies `curl -sS -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' -d '{}' <own address><test route path>`. |
-| **Last requests** | `GET /api/clients/{id}/requests` | Toggles a panel listing the last `capture_keep` requests: time, method, path, status, headers with `authorization`/`cookie`/`set-cookie`/`x-api-key` (and `capture_redact`) shown as `***`, the body cut at `capture_body_bytes` with a `truncated` badge, a `test` badge for Send test. In memory; empty after a restart. |
+| **Requests** (loaded when the dialog opens) | `GET /api/clients/{id}/requests` | Lists the last `capture_keep` requests: time, method, path, status, headers with `authorization`/`cookie`/`set-cookie`/`x-api-key` (and `capture_redact`) shown as `***`, the body cut at `capture_body_bytes` with a `truncated` badge, a `test` badge for Send test. In memory; empty after a restart. |
 | **Send test** | `POST /api/clients/{id}/test` | One request with this client's token to the project's test route, against the service's own address; flashes `Sent → <status>`. Only when a test route is declared. |
 | **Re-issue** | `POST /api/clients/{id}/reissue` | Confirm text `Re-issue? The current token stops working at once.`; a new token, the old one refused the same second. |
 | **Revoke** | `POST /api/clients/{id}/revoke` | Confirm text `Revoke this token? The caller is locked out immediately.`; the row stays with `revoked <time>`, the name is free again. |
