@@ -1798,3 +1798,27 @@ The number was right, the sentence around it was not.
 CT 118 runs 0.1.10, which already renders at 672px. The knob change makes no
 visible difference, so it rides along to the next install rather than costing
 another permission round.
+
+## The example now shows what round 5 built (2026-09-10)
+
+`examples/inbox` is what a new project copies from, and it used neither of the
+two facilities round 5 added for exactly that reader. Measured before writing:
+`grep -c 'Counter\|Gauge\|client_form_field' examples/inbox/src/main.rs` was 0.
+
+It now declares a `topic` field — the kit stores it, renders it as a column
+and returns it from the API, and `on_client_issued` refuses an empty one with
+`Error::invalid` (a 400, not the 503 a `config` error gives, because a blank
+form field is the caller's input rather than this service's configuration).
+And it registers a `Counter` for messages accepted, labelled by the client
+name the admin chose so the label set cannot grow without bound, plus a
+`Gauge` that follows the Clear button back down where the counter does not.
+
+Proven by `the_declared_field_and_the_project_series_are_what_a_consumer_sees`,
+made to fail first twice: `on_client_issued` returning `Ok(())` turned the 400
+into a 201, and dropping the gauge update left it at 1 after a clear.
+
+Landed as `e1769db`, CI green. Remaining on the open list: `drill-release.sh`
+choosing its target by feature rather than always glibc (deferred to the
+batch-5 report; for this example glibc is the correct build because
+`passkeys` pulls OpenSSL), and the four measurements that wait on the consumer
+sessions — CF-12, fix-3, CF-6(a) and CF-10.
