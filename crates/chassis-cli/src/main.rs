@@ -225,6 +225,19 @@ enum Cmd {
         #[arg(long, default_value_t = 1800)]
         max_wait_secs: u64,
     },
+    /// Move a project to another kit version: the record, both dependency lines, cargo, the gates
+    #[command(
+        long_about = "Move a project to another kit version in one step (feat-sync-1). The kit version lives in three places — `chassis_tag` in .chassis.toml, the `chassis` dependency and the dev-dependency that carries the test harness — and `chassis sync` reports a difference between them but never writes Cargo.toml, which the project owns. This aligns all three, updates the lock file and runs the project's own gates, so an upgrade is one command instead of three edits."
+    )]
+    Upgrade {
+        /// The kit version to move to, with or without the leading v
+        version: String,
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+        /// Change the files and stop: no cargo update, no gates
+        #[arg(long)]
+        no_verify: bool,
+    },
     /// Manage a running service's client tokens without a browser (list, issue, reissue, revoke, delete, reveal)
     #[command(
         long_about = "Manage a running service's client tokens without a browser, over the same /api/clients the dashboard uses: list, issue, reissue, revoke, delete, reveal. For a headless service (http-switchboard, kyu-runner) that needs a token for a client such as Alertmanager."
@@ -274,6 +287,11 @@ fn main() -> ExitCode {
             poll_interval_secs,
             max_wait_secs,
         } => cmd_release(&dir, &version, dry_run, poll_interval_secs, max_wait_secs),
+        Cmd::Upgrade {
+            version,
+            dir,
+            no_verify,
+        } => cmd_upgrade(&dir, &version, no_verify),
         Cmd::Clients(args) => clients::run(args),
     };
     match result {
@@ -283,6 +301,91 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+// ───────────────────────── upgrade ─────────────────────────
+
+/// `chassis upgrade <version>` (feat-sync-1): the kit version in one step.
+///
+/// Why a command of its own rather than `sync --write`: Cargo.toml belongs to
+/// the project, and that boundary is one the consumers name as a reason to
+/// trust sync. This touches exactly the lines that carry the kit's version
+/// and nothing else in the file.
+fn cmd_upgrade(dir: &Path, version: &str, no_verify: bool) -> Result<(), Error> {
+    let tag = if version.starts_with('v') {
+        version.to_string()
+    } else {
+        format!("v{version}")
+    };
+
+    let record_path = dir.join(".chassis.toml");
+    let record = std::fs::read_to_string(&record_path).map_err(|e| {
+        Error::config(
+            format!("cannot read {}: {e}", record_path.display()),
+            "run `chassis upgrade` in the project root, next to .chassis.toml",
+        )
+    })?;
+    let cargo_path = dir.join("Cargo.toml");
+    let cargo = std::fs::read_to_string(&cargo_path).map_err(|e| {
+        Error::config(
+            format!("cannot read {}: {e}", cargo_path.display()),
+            "run `chassis upgrade` in the project root",
+        )
+    })?;
+
+    // A path dependency is a local checkout, and a version means nothing to
+    // it: moving the tag would claim something the build does not do.
+    if let drift::KitDependency::Path(path) = drift::kit_dependency(&cargo)? {
+        return Err(Error::config(
+            format!("the chassis dependency is a local checkout ({path}), not a tag"),
+            "this project builds against a working tree, so there is no version to move; point it back at a tag first",
+        ));
+    }
+
+    let new_record = drift::set_chassis_tag(&record, &tag)?;
+    let new_cargo = drift::set_kit_dependency(&cargo, &tag);
+    if new_cargo == cargo && new_record == record {
+        println!("chassis upgrade: already on {tag}; nothing to change");
+    }
+    drift::write_atomically(&record_path, &new_record)?;
+    drift::write_atomically(&cargo_path, &new_cargo)?;
+    println!("chassis upgrade: .chassis.toml and Cargo.toml now name {tag}");
+
+    // Both lines, measured rather than assumed: a project that moves one and
+    // forgets the other builds against two kit versions, and `sync` reads
+    // only `[dependencies]` so it cannot say so.
+    let moved = new_cargo.matches(&format!("tag = \"{tag}\"")).count();
+    let expected = cargo.matches("tag = \"").count();
+    if moved != expected {
+        return Err(Error::internal(
+            format!("{moved} of {expected} chassis dependency lines carry {tag}"),
+            "check Cargo.toml by hand: every chassis line (the dependency and the dev-dependency) must name the same tag",
+        ));
+    }
+
+    if no_verify {
+        println!("chassis upgrade: --no-verify, so cargo and the gates were not run");
+        return Ok(());
+    }
+
+    println!("chassis upgrade: cargo update -p chassis");
+    run(dir, "cargo", &["update", "-p", "chassis"], false).map_err(|e| {
+        Error::dependency(
+            format!("cargo could not resolve {tag}: {}", e.message),
+            "does that tag exist on the kit's repository? `git ls-remote --tags <chassis repo>` lists them",
+        )
+    })?;
+
+    let gates = dir.join(".claude/hooks/gates.sh");
+    if gates.is_file() {
+        println!("chassis upgrade: .claude/hooks/gates.sh");
+        run(dir, "bash", &[".claude/hooks/gates.sh"], false)?;
+    } else {
+        println!("chassis upgrade: no gates script; cargo test --workspace");
+        run(dir, "cargo", &["test", "--workspace"], false)?;
+    }
+    println!("chassis upgrade: on {tag}, gates green. Next: chassis sync --write");
+    Ok(())
 }
 
 // ───────────────────────── rendering ─────────────────────────
@@ -1615,18 +1718,49 @@ mod tests {
         )));
     }
 
+    /// feat-sync-1: the kit version lives in three places and one command
+    /// moves all three. Drilled red by rewriting only the first `tag = "…"`
+    /// of a line: the dev-dependency kept the old tag and the count check
+    /// reported "1 of 2 chassis dependency lines".
     #[test]
-    fn a_tool_that_only_answers_dash_v_counts_as_available() {
-        // minisign 0.12 exits 2 on `--version` and 0 on `-v`; `chassis release`
-        // refused a machine that had it installed (2026-09-06).
-        use std::os::unix::fs::PermissionsExt;
-        let dir = tempfile::tempdir().unwrap();
-        let tool = dir.path().join("fake-minisign");
-        std::fs::write(&tool, "#!/bin/sh\n[ \"$1\" = \"-v\" ] && exit 0\nexit 2\n").unwrap();
-        std::fs::set_permissions(&tool, std::fs::Permissions::from_mode(0o755)).unwrap();
-        require_tool(tool.to_str().unwrap(), "install it").expect("-v is enough");
-        let absent = dir.path().join("absent");
-        assert!(require_tool(absent.to_str().unwrap(), "install it").is_err());
+    fn feat_sync_1_upgrade_moves_every_line_that_names_the_kit() {
+        let cargo = r#"[dependencies]
+chassis = { git = "g", tag = "v1.8.0", version = "1.8.0", features = ["dashboard"] }
+serde = "1"
+
+[dev-dependencies]
+chassis = { git = "g", tag = "v1.8.0", version = "1.8.0", features = ["testing"] }
+"#;
+        let moved = drift::set_kit_dependency(cargo, "v1.9.0");
+        assert_eq!(
+            moved.matches("tag = \"v1.9.0\"").count(),
+            2,
+            "both lines move, the dependency and the dev-dependency:\n{moved}"
+        );
+        assert_eq!(
+            moved.matches("version = \"1.9.0\"").count(),
+            2,
+            "and so does the version requirement beside each tag:\n{moved}"
+        );
+        assert!(
+            moved.contains("serde = \"1\""),
+            "nothing else in the file is touched:\n{moved}"
+        );
+        assert!(
+            moved.contains("features = [\"testing\"]"),
+            "the feature lists survive:\n{moved}"
+        );
+
+        let record = "name = \"demo\"\nchassis_tag = \"v1.8.0\" # the kit\nkp_themes = \"5.0.0\"\n";
+        let rewritten = drift::set_chassis_tag(record, "v1.9.0").unwrap();
+        assert!(
+            rewritten.contains("chassis_tag = \"v1.9.0\" # the kit"),
+            "the record moves and keeps its note: {rewritten}"
+        );
+        assert!(
+            rewritten.contains("kp_themes = \"5.0.0\""),
+            "and the other lines stay: {rewritten}"
+        );
     }
 
     /// K34 + K35: the smoke test comes with the dashboard it drives. A

@@ -1455,3 +1455,28 @@ documents, two of the kit's own documents and the CLI's help text said
 should have caught it read only the literal "client" and stripped
 attributes, which is exactly where the Revoke confirmation lives; it now
 forbids "caller" too and reads every confirmation text.
+
+## ask-1 answered by kp-themes: a knob, not a changed default (2026-09-10)
+
+kp-themes measured the request back and kept their default, which their own
+measurement justifies: without `overflow-wrap: anywhere` a badge holding one
+unbroken value was 485 px wide in a 360 px viewport and pushed the page
+sideways. Both cases are real, so 5.1.0 adds an escape hatch instead of
+flipping the default: `.kp-badge` reads `overflow-wrap: var(--kp-badge-wrap,
+anywhere)`.
+
+Their instruction for using it, which is better than what this kit does now:
+set the property on the COLUMN, not on the badge — custom properties inherit,
+and the place that knows its cells hold short labels is the status column, not
+the component.
+
+**Not adopted yet, deliberately.** 5.1.0 is committed and pushed in that
+project but NOT tagged; the tag waits on Kenny's own verify run. The kit
+vendors kp-themes by tag and its manifest gate compares every file against the
+release, so adopting before the tag exists would break that gate. Until then
+the kit keeps `.state-badge` from `fix(dashboard)` (2026-09-10), which is
+scoped to the kit's own five badges and leaves a consumer's badges protected.
+
+When the tag lands: bump `kp_themes` to 5.1.0, re-vendor, replace the
+`.state-badge` rule with `--kp-badge-wrap: normal` on the clients table's
+state column, and keep the test that pins the state cell does not wrap.

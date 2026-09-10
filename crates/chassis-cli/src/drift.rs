@@ -157,6 +157,52 @@ pub fn kit_features(cargo_toml: &str) -> Result<Option<Vec<String>>, Error> {
     ))
 }
 
+/// Rewrites the `chassis_tag` line of a `.chassis.toml` (feat-sync-1).
+/// Same shape as [`set_kp_themes`]: the line's own comment survives, so the
+/// record keeps whatever note it carried.
+pub fn set_chassis_tag(chassis_toml: &str, tag: &str) -> Result<String, Error> {
+    set_record_line(chassis_toml, "chassis_tag", tag)
+}
+
+/// Rewrites every kit version on a `chassis` dependency line in a
+/// `Cargo.toml` (feat-sync-1): `tag = "vX"` and `version = "X"`, on the
+/// ordinary dependency and on the dev-dependency that carries the test
+/// harness. Both lines name the kit, and a project that moves one and
+/// forgets the other builds against two versions of it — which `chassis
+/// sync` cannot report, because it only reads `[dependencies]`.
+pub fn set_kit_dependency(cargo_toml: &str, tag: &str) -> String {
+    let version = normalise(tag);
+    let mut out = String::with_capacity(cargo_toml.len());
+    for line in cargo_toml.split_inclusive('\n') {
+        if line.trim_start().starts_with("chassis = ") && line.contains("tag = \"") {
+            let mut rebuilt = String::with_capacity(line.len());
+            let mut rest = line;
+            while let Some(i) = rest.find("tag = \"") {
+                let (before, after) = rest.split_at(i + "tag = \"".len());
+                rebuilt.push_str(before);
+                let end = after.find('"').unwrap_or(0);
+                rebuilt.push_str(tag);
+                rest = &after[end..];
+            }
+            rebuilt.push_str(rest);
+            let mut second = String::with_capacity(rebuilt.len());
+            let mut rest = rebuilt.as_str();
+            while let Some(i) = rest.find("version = \"") {
+                let (before, after) = rest.split_at(i + "version = \"".len());
+                second.push_str(before);
+                let end = after.find('"').unwrap_or(0);
+                second.push_str(version);
+                rest = &after[end..];
+            }
+            second.push_str(rest);
+            out.push_str(&second);
+        } else {
+            out.push_str(line);
+        }
+    }
+    out
+}
+
 /// Reads the `chassis` dependency out of a `Cargo.toml`.
 pub fn kit_dependency(cargo_toml: &str) -> Result<KitDependency, Error> {
     let table = parse_cargo(cargo_toml)?;
@@ -281,10 +327,17 @@ pub fn kp_themes_drift(recorded: &str, vendored: &str) -> Option<Drift> {
 /// the comments on a round trip, so this is a targeted line edit that
 /// refuses when the line is not there.
 pub fn set_kp_themes(chassis_toml: &str, version: &str) -> Result<String, Error> {
+    set_record_line(chassis_toml, "kp_themes", version)
+}
+
+/// Rewrites one `key = "value"` line of `.chassis.toml`, keeping the line's
+/// own trailing comment: the record is read by people and its notes are the
+/// reason a value is what it is.
+fn set_record_line(chassis_toml: &str, key: &str, value: &str) -> Result<String, Error> {
     let mut found = false;
     let mut out = String::with_capacity(chassis_toml.len());
     for line in chassis_toml.split_inclusive('\n') {
-        if !found && line.trim_start().starts_with("kp_themes") {
+        if !found && line.trim_start().starts_with(key) {
             let comment = line
                 .split_once('#')
                 .map(|(_, c)| format!(" #{c}"))
@@ -295,7 +348,7 @@ pub fn set_kp_themes(chassis_toml: &str, version: &str) -> Result<String, Error>
                         String::new()
                     }
                 });
-            out.push_str(&format!("kp_themes = \"{version}\"{comment}"));
+            out.push_str(&format!("{key} = \"{value}\"{comment}"));
             found = true;
         } else {
             out.push_str(line);
@@ -303,8 +356,8 @@ pub fn set_kp_themes(chassis_toml: &str, version: &str) -> Result<String, Error>
     }
     if !found {
         return Err(Error::config(
-            ".chassis.toml has no kp_themes line to update",
-            format!("add `kp_themes = \"{version}\"` to .chassis.toml by hand"),
+            format!(".chassis.toml has no {key} line to update"),
+            format!("add `{key} = \"{value}\"` to .chassis.toml by hand"),
         ));
     }
     Ok(out)
