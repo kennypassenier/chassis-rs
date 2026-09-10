@@ -15,9 +15,9 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | **6 · Development loop — round 5 built 2026-09-10** (rule 46, the four consumer reports, and Kenny's plug-and-play requirement). On `main`, unreleased: client fields kept by the kit, `App::project_config`, `Counter`/`Gauge`, one assembly for tests, `docs/API_SURFACE.txt` with its check, `chassis upgrade`, static musl on distroless, the build-target amendment, the Clients naming sweep, the `update_cmd` fix. Open: feat-dep-1 (an own registry, to be costed), then the Phase 10 retro of batch 3 |
-| Last completed gate | Round 5 (Kenny, 2026-09-10): sixteen items, six answered with measurements first. Everything rated Onmisbaar or Allebei is built and on `main`; feat-api-2 was used immediately by the deprecated `ClientsFile::issue` |
-| Next gate | The round-5 milestone report (L11). Then feat-dep-1: what an own registry costs on Kenny's infrastructure, as a separate proposal. Then the Phase 10 retro of batch 3 |
+| Current phase | **10 · Retrospective of batch 3** (entered 2026-09-10). Before it: round 5 built and landed (`b9ccbbb` and after) — client fields in the kit, `App::project_config`, `Counter`/`Gauge`, one assembly for tests, the public-surface snapshot with its check, `chassis upgrade`, static musl on distroless, the build-target amendment. Everything sits under Unreleased; the release moment is Kenny's |
+| Last completed gate | Milestone L11 and feat-dep-1 (Kenny, 2026-09-10): the round-5 report Akkoord, the five build-time choices Klopt, and an own registry costed and declined with the trigger that would reverse it written down |
+| Next gate | **Phase 10 · the retrospective of batch 3** (started 2026-09-10 on Kenny's "retro eerst"): four candidates for the shared procedure, three for this project, and two measurements that can close at the retro itself. The candidates are gathered in docs/PENDING_MINI_ROUNDS.md §Ready for the retrospective |
 | AFK mode | **off** since 2026-09-07 (batch 3 reported). Rule 7a in force: the four consumer projects are touched only in their own sessions |
 | Scratch resource | CT 118 `118-app-inbox` on 10.10.5.250, ip 10.10.10.18 — adopted by the homelab 2026-09-05 (stack `inbox`, backup only); runs inbox 0.1.3 (drill build) at /opt/inbox/bin under the hardened unit, supervised |
 
