@@ -1,25 +1,24 @@
 # Adopting chassis 2.0.0 — the prompt for almanac and kyu
 
-chassis-rs 2.0.0 is a **major**, and it needs one change in two of the four
-consumers before it can be released at all. This file is what those two
-sessions need; hand it to them as is.
+chassis-rs 2.0.0 is released (tag `v2.0.0`). It is a **major**, and it asks
+one change of two of the four consumers. This file is what those two sessions
+need; hand it to them as is.
 
 http-switchboard and kyu-runner need nothing: measured on 2026-09-10 with
 `grep -rn 'clients::Client' src tests`, neither imports the type.
 
-## Why the order is unusual
+## When
 
-The kit's release chain builds all four consumers against its own working
-tree before publishing anything (standing rule 46). For a breaking change
-that check is red by construction until the consumer's own source changes —
-and a session touches only its own project (rule 7a). So:
+Whenever it suits you. chassis 2.0.0 is released; your project pins a fixed
+tag, so nothing reaches you until you move that pin yourself.
 
-1. The kit's change is on `main`, unreleased. **(done — `f8fbacf`)**
-2. Each affected consumer makes the change below **on a branch**, not merged,
-   because `Client::adopted` does not exist in the 1.8.0 they still pin.
-3. `scripts/check-consumers.sh` runs against those branches and goes green.
-4. The kit releases 2.0.0.
-5. Each consumer bumps its pin to `v2.0.0` and merges.
+That is a change from what this file said an hour earlier, and the reason is
+Kenny's: a foundation may not hold its own release hostage to four other
+projects' schedules. Standing rule 46 was rewritten the same evening — the
+frozen contract is what refuses a release now, and building the consumers
+tells the foundation what a change will cost them rather than forbidding it.
+
+So: bump the pin to `v2.0.0`, make the one change below, and you are done.
 
 ## The change
 
