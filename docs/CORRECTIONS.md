@@ -147,3 +147,57 @@ independently by http-switchboard, and measured here before the fix.
    `update_cmd` of its own and points at a script that reads the unit, so
    there is one source instead of two descriptions of one machine.
 9. **Review.** At the batch 3 retrospective of this project.
+
+## CF-13 · Three claims stated as fact that were never measured (2026-09-10)
+
+Answered by Kenny 2026-09-10: **Klopt**. Found by Kenny in the remarks of
+the batch-3 retrospective form: *"jij doet vaak uitspraken over tijd … Je
+uitspraken over tijd zijn meer fout dan dat ze waar zijn, tenzij als het
+over iets gaat dat je echt hebt gemeten. Hoe kan ik dan vertrouwen of 'De
+procedure telt hoe vaak elke regel in negentig dagen bij nummer genoemd
+is' correct is?"*
+
+1. **What went wrong.** Three figures were written into forms Kenny made
+   decisions on, none of them measured:
+
+   | written | measured | out by |
+   |---|---|---|
+   | "an assumption that stood a year in a frozen document" | 4 days — written 2026-09-05 (`9ef8ba7`), broke 2026-09-09 | 91x |
+   | "kyu's README named a workflow file for months" | 12 days — 2026-08-28 (`b0c337c`) → 2026-09-09 (`84fbe3b`) | ~8x |
+   | "48 KB is too large to render in one message" | no limit exists; the largest form rendered that session was 103.8 KB | false |
+
+   Two were impossible on their face: this repository was five days old and
+   kyu twenty-nine. The third was a claim about the tool in hand, and it
+   cost minutes of rewriting before Kenny said to split the form instead.
+2. **Which gate let it through.** None. `hooks/form-lint.py` counted bare
+   pronouns, coinages, old-shape IDs and items without an example; no check
+   touched a number. FORM_PROTOCOL §6 demands evidence for report items,
+   and all three sat in narrative explanation.
+3. **Where else.** Searched as a property — "a duration about the past with
+   no number in it, in text Claude wrote" — rather than as a place. Four
+   instances in this session's own output (`al maanden`, `maandenlang` ×2,
+   `maanden eerder`), all four unmeasured; six more in the procedure
+   repository, of which `PROCEDURE.md`'s "for months" described a gap of at
+   most nineteen days in a repository begun 2026-08-12. A wider word list
+   flagged thirteen further hits that were all correct forward-looking
+   durations ("een jaar gecachet" is a cache lifetime), which is why the
+   list that shipped is the vague past-tense forms only.
+4. **The measure.** Standing rule 24a widened from "a number offered as
+   evidence" to any figure or duration in a sentence to Kenny: it names the
+   command that produced it, or says it was not measured. `form-lint.py`
+   gained a fifth counter over eleven vague-duration words; a form carrying
+   one is refused. Text inside `<details>` or quotation marks is exempt, so
+   a form reporting such a claim does not trip over its own subject.
+5. **What it costs.** The three measurements above took three `git log`
+   commands. The word list is eleven entries.
+6. **Who enforces it.** Code for the vague words (`form-lint.py`, which
+   blocks rendering); discipline for a figure that already carries a date.
+7. **How we measure it works, and when.** At the first form built after the
+   retrospective diff lands. Done on 2026-09-10: the counter went red on
+   this session's own retro form (2 words) and green on the correction form
+   that quotes all three claims — red on the assertion, silent on the
+   report.
+8. **Fallback.** If the list catches sound sentences, the counter is
+   removed and the rule falls back to discipline alone, recorded in
+   §Open measurements.
+9. **When we review it.** At the retrospective of batch 4.
