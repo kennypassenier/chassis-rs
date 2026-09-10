@@ -7,6 +7,28 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **The transition window has a list and a check** (feat-api-2).
+  `docs/REMOVALS.md` names every `#[deprecated]` item, the version it was
+  deprecated in and the major it goes at; `scripts/check-api.sh` now compares
+  that table with the attributes the compiler sees and refuses a release where
+  they disagree — a deprecation with no row, a row whose item is already gone,
+  a `Since` that does not match, or a removal aimed at a minor. Rule 46 fixes
+  the window's length: the contract is frozen for the life of a major, so a
+  deprecated item goes at the next major.
+- The surface generator takes `--deprecated`, printing that list separately.
+  Separately on purpose: `docs/API_SURFACE.txt` is the frozen contract, and a
+  marker appearing on one of its lines would read as that line changing.
+
+### Fixed
+
+- `ClientsFile::issue` said `since = "1.9.0"`, a version that was never
+  released — the chain refused it as a mislabelled minor and it went out as
+  2.0.0. Its doc comment also promised removal "in the version after", which
+  the frozen contract does not allow; it now says 3.0.0 and points at the
+  table that holds it to that.
+
 ## [2.0.0] - 2026-09-10
 
 Batch 4 and round 5 (rule 46, the four consumer reports and the name Clients,

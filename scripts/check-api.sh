@@ -17,6 +17,11 @@
 # generator records `[sealed]` so it can tell a field that cannot be felt from
 # one that breaks every caller. See CF-15.
 #
+# It also holds the transition window (feat-api-2): every `#[deprecated]` item
+# has a row in docs/REMOVALS.md naming the major it goes at, and every row still
+# points at an item that exists. Both halves run here, and the exit status is
+# red when either is.
+#
 #   scripts/check-api.sh                compare against the contract, report
 #   scripts/check-api.sh --for 1.9.1    judge as that release would
 #   scripts/check-api.sh --write        re-freeze (a major, or the first time)
@@ -25,9 +30,11 @@ cd "$(git rev-parse --show-toplevel)"
 
 record="docs/API_SURFACE.txt"
 current="$(mktemp)"
-trap 'rm -f "$current"' EXIT
+deprecated="$(mktemp)"
+trap 'rm -f "$current" "$deprecated"' EXIT
 
 cargo run -q -p chassis-cli --example api_snapshot -- crates/chassis/src chassis > "$current"
+cargo run -q -p chassis-cli --example api_snapshot -- crates/chassis/src chassis --deprecated > "$deprecated"
 
 if [ "${1:-}" = "--write" ]; then
   # The contract carries its own identity: one line a release note or a
@@ -52,4 +59,9 @@ fi
 version="${2:-0.0.1}"
 [ "${1:-}" = "--for" ] || version="0.0.1"
 
-exec python3 scripts/contract_check.py "$record" "$current" "$version"
+# Both checks always run, and both are reported: stopping at the first would
+# hide the second until the first is fixed, and a release has to see all of it.
+status=0
+python3 scripts/contract_check.py "$record" "$current" "$version" || status=1
+python3 scripts/removals_check.py docs/REMOVALS.md "$deprecated" "$version" || status=1
+exit "$status"

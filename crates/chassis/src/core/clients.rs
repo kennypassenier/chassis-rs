@@ -168,12 +168,18 @@ impl ClientsFile {
 
     /// [`ClientsFile::issue_with_fields`] with no fields.
     ///
-    /// Kept beside the new shape for one version (feat-api-2, the first
-    /// time that rule is used): a consumer calling this still compiles and
-    /// is told where to go. It is removed in the version after the one
-    /// that introduces `issue_with_fields`.
+    /// Kept beside the new shape (feat-api-2, the first time that rule is
+    /// used): a consumer calling this still compiles and is told where to
+    /// go. It goes at 3.0.0 and not before — the recorded surface is a
+    /// contract frozen for the life of a major, so removing it in a minor
+    /// would break the promise the contract makes. The row that says so is
+    /// in `docs/REMOVALS.md`, and the release refuses a deprecation that is
+    /// missing there.
+    ///
+    /// `since` says 2.0.0 because 1.9.0 was never released: the chain
+    /// refused it as a mislabelled minor and it went out as the major.
     #[deprecated(
-        since = "1.9.0",
+        since = "2.0.0",
         note = "use issue_with_fields; a client now carries the project's declared fields"
     )]
     pub fn issue(

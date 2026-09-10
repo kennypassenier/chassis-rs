@@ -351,7 +351,8 @@ each on its own:
   column, returns it from `GET /api/clients` and removes it with the client.
   Almanac can drop its calendar-per-source table and read
   `client.fields["calendar"]`. `ClientsFile::issue` is deprecated in favour of
-  `issue_with_fields` and still works for this one version.
+  `issue_with_fields`; it keeps working until 3.0.0, which is where
+  `docs/REMOVALS.md` says it goes.
 - **The kit splits the config file** (feat-config-1). Replace the
   hand-written strip with `let config: Config = app.project_config()?;`. It
   removes the kit's knob keys AND the kit's table sections, so the
