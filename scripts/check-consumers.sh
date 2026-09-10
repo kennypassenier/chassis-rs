@@ -14,9 +14,19 @@
 #
 #   source    each consumer is compiled and tested against the WORKING
 #             TREE of this kit, patched in with cargo's own --config
-#             override so no consumer file is touched. This answers "does
-#             the API still fit", which is a source question and needs
-#             nothing but this machine.
+#             override. This answers "does the API still fit", which is a
+#             source question and needs nothing but this machine.
+#
+#             That override DOES rewrite the consumer's Cargo.lock: the
+#             patched kit resolves to a path, so cargo drops the
+#             `source = "git+..."` line from the lock in their working
+#             tree. The comment here used to promise that no consumer file
+#             was touched, and it was wrong — http-switchboard reported the
+#             disappearing line as a nameless defect on 2026-09-10 and it
+#             was this script twice over (CF-18). Every lockfile is saved
+#             before the run and restored after, including when a check
+#             fails or the script is interrupted, so a consumer's tree is
+#             exactly as it was.
 #
 #   runtime   with --image, each consumer's container is built. That
 #             matters because the machine here runs glibc 2.44 while the
@@ -50,7 +60,24 @@ fi
 
 patch="patch.\"https://github.com/kennypassenier/chassis-rs\".chassis.path=\"$crate\""
 failed=0
+
+# CF-18: the lockfiles are this script's only write into another project, so
+# they are put back no matter how it ends — a failing consumer, a Ctrl-C, or
+# the release script stopping on the contract check.
+declare -A saved=()
+restore_locks() {
+  for d in "${!saved[@]}"; do
+    [ -f "${saved[$d]}" ] && cp -p "${saved[$d]}" "$d/Cargo.lock"
+    rm -f "${saved[$d]}"
+  done
+}
+trap restore_locks EXIT INT TERM
+
 for dir in "${consumers[@]}"; do
+  if [ -f "$dir/Cargo.lock" ]; then
+    saved[$dir]="$(mktemp)"
+    cp -p "$dir/Cargo.lock" "${saved[$dir]}"
+  fi
   name="$(basename "$dir")"
   printf '%-22s ' "$name"
   if out=$(cd "$dir" && cargo test --quiet --config "$patch" 2>&1); then

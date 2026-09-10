@@ -7,6 +7,16 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed
+
+- **The consumer check no longer writes in the consumers' working trees**
+  (fix-6, CF-18). `scripts/check-consumers.sh` patches the kit in with cargo's
+  `--config patch…` override, which rewrites each consumer's `Cargo.lock`
+  where that project lives — it dropped the `source = "git+…"` line in three
+  of the four. Every lockfile is now saved and restored in a `trap`, on every
+  exit path. Reported by http-switchboard as a defect they could not
+  reproduce; it was this repository, twice in one evening.
+
 ## [2.0.1] - 2026-09-10
 
 The transition window's missing half, and two faults kyu-runner and

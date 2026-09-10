@@ -454,3 +454,56 @@ Also found by kyu-runner, releasing 0.2.2 of their own project with
    becomes a warning that still starts the wait, with a shorter first timeout
    that says what to look at.
 9. **When we review it.** At the retrospective of batch 4.
+
+## CF-18 · This repository wrote in three other projects' working trees (2026-09-10)
+
+Reported by http-switchboard as a nameless defect they could not reproduce:
+twice on 2026-09-10 their `Cargo.lock` lost the `source = "git+…"` line for
+the `chassis` package. It was this repository, twice.
+
+1. **What went wrong.** `scripts/check-consumers.sh` compiles each consumer
+   against this working tree with cargo's `--config patch…` override. The
+   patched kit resolves to a local path, so cargo rewrites the consumer's
+   lockfile to match and drops the `source` line — in their tree, not a copy.
+   Evidence, measured before repairing anything: `git -C <project> diff
+   Cargo.lock` in kyu, almanac and kyu-runner each showed exactly one deleted
+   line, `source = "git+https://github.com/kennypassenier/chassis-rs?tag=
+   v2.0.0#1190876…"`. http-switchboard was clean only because they had
+   restored it by hand. Twice is the count of runs today: one direct, one
+   inside `scripts/release-kit.sh`.
+2. **Which gate let it through.** The script's own comment claimed the
+   opposite — "patched in with cargo's own --config override so no consumer
+   file is touched" — so the thing that should have raised the question
+   answered it wrongly instead. Standing rule 7a says a consumer project is
+   touched only in its own session; nothing checks that, because nothing here
+   knew this was a write.
+3. **Where the same fault sits.** The property: **a command this repository
+   runs inside another project's directory.** `Gezocht met:` `grep -rn 'cd
+   "$dir"\|git -C\|CONSUMER_ROOT' scripts/*.sh crates/chassis-cli/src/*.rs` —
+   two hits, both in this script: `cargo test` per consumer (the one that
+   wrote) and `docker build` under `--image` (which writes nothing into the
+   tree; it reads the Dockerfile and builds in the daemon). The CLI's own
+   commands run in a project the user names, which is that project's session
+   by definition. No third instance.
+4. **How we prevent recurrence.** Every consumer's lockfile is copied aside
+   before the run and put back in a `trap` on EXIT, INT and TERM, so it
+   returns even when a consumer fails, the contract check stops the release,
+   or someone interrupts. The comment now says plainly that the override
+   writes, and what is done about it.
+5. **What the remedy costs.** One file copy per consumer, and a restored file
+   that cargo will rewrite again on their next build — which is what would
+   have happened anyway. It does not make the check slower in any way worth
+   measuring.
+6. **Who enforces it.** Code, in the script itself: the trap runs on every
+   exit path. Not test-enforced — a test would need four consumer checkouts,
+   which the test suite does not have.
+7. **How we measure that it works, and when.** Already measured, twice: the
+   three dirty lockfiles were restored with `git checkout -- Cargo.lock` and
+   the repaired script was run again — four consumers still build and pass,
+   and all four trees report zero changes to `Cargo.lock` afterwards. The
+   standing check is that the next `check-consumers.sh` run leaves them clean;
+   any consumer session reporting a mysterious lockfile change reopens this.
+8. **The fallback if it fails.** If a lockfile still moves, the check stops
+   running in the consumers' own checkouts and copies each project to a
+   scratch directory first — slower, and the reason to prefer the trap.
+9. **When we review it.** At the retrospective of batch 4.

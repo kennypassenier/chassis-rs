@@ -2059,3 +2059,36 @@ in a second project, found after the fix was already built.
 
 Released as tag `v2.0.1` = `5dc8d80` through `scripts/release-kit.sh`, checks
 green before the tag.
+
+## http-switchboard's report, and the defect that was ours (2026-09-10)
+
+Their "before" measurement of fix-4, taken with CLI 2.0.0 in their own
+checkout: all three shared hooks present at generation 3, `chassis sync`
+reporting `commit-msg` and `check-commit.sh` as full diffs with exit 1, and
+`check-ids.sh` not mentioned at all because the scaffold did not know it. That
+is exactly the state fix-4 removes; the "after" half waits on their CLI being
+updated, which is a change to Kenny's machine and therefore their question to
+him, not ours.
+
+They also sharpened one thing the tests had better cover: on the 2.0.0 sync,
+`sync --write` did not only report those two files, it **wrote** the older
+generation over them, and they restored it with `git checkout`. The end-to-end
+test covers that case directly — it calls sync with `write = true` on a shared
+hook holding its own content and asserts the bytes are unchanged.
+
+**And the nameless defect they reported was ours** (CF-18). Twice today their
+`Cargo.lock` lost the `source = "git+…"` line for the `chassis` package, and
+five candidates they tried reproduced nothing. It was
+`scripts/check-consumers.sh`: the `--config patch…` override resolves the kit
+to a local path, so cargo rewrites the lockfile in the consumer's own tree.
+Measured before repairing: kyu, almanac and kyu-runner each carried exactly
+that one deleted line; http-switchboard was clean only because they had
+already restored it. Twice is the number of runs today — one direct, one
+inside the release script. The three trees are restored, the script now saves
+and restores every lockfile in a trap, and the run after the fix leaves all
+four at zero changes.
+
+Two more things they measured that belong here: their 3.1.0 release asset is
+`static-pie linked` with zero glibc symbols, so feat-build-1 does what it
+promised and the glibc blockage on CT 109 is gone; and their split gates ran
+the release tier before the tag existed, which is the shape CF-6 asked for.
