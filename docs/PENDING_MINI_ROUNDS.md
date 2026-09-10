@@ -2248,3 +2248,85 @@ disappears but that it can be *declared* — a line in `.chassis.toml` saying
 this file deliberately differs, so `sync` reports it as a `~` and not as a
 fault. The exit code then keeps meaning the one thing it should: a kit-owned
 file drifted without anyone deciding it. Queued with the finding for batch 5.
+
+## Kept for later: a consumer's CLI harness deadlocks on the kit's own help (2026-09-10)
+
+Passed on by kyu at Kenny's instruction — recorded, nothing acted on.
+
+Upgrading to 2.0.2 turned kyu's `p7_help_lists_what_the_binary_accepts` red: it
+ran into its 10-second deadline and reported "None", the sign their harness
+uses for "the binary became a server instead of answering". It is not a kit
+regression — they confirmed `crates/chassis/src/app.rs` is byte-identical
+between v2.0.0 and v2.0.2.
+
+The mechanism is worth having written down, because nothing about it is
+specific to kyu. Their helper read the child's stdout and stderr only *after*
+waiting for it to exit. `--help` prints 8.4 KB there, which is larger than that
+sandbox's pipe buffer, so the child blocked inside `write()`, never exited, and
+`try_wait()` spun until the deadline. Two threads draining both pipes alongside
+the wait — what `Command::output` does for you — fixes it; shipped in their
+3.2.1.
+
+Why it may reach another project: that output is almost entirely the kit's.
+Measured here, `examples/inbox --help` is **7971 bytes**, and every
+`--update-*`, `--notify-*` and `--passkey-*` line in it comes from chassis. So
+a project with a hand-written CLI harness of the shape "spawn, poll `try_wait`,
+read afterwards" meets the same wall as soon as its sandbox has a small enough
+pipe buffer — no kit change required, only a growing number of knobs.
+
+The kit's own end-to-end test already avoids it and says so in place: it sends
+the child's stdout to `Stdio::null()`, reads the stderr lines it needs, and then
+leaves a thread draining the rest with the comment "Keep draining stderr so the
+child never blocks on a full pipe". So the shape to look for elsewhere is not
+"a CLI test" but **a piped stream nobody reads until after the wait**.
+
+Nothing to build here. It is written down so that the next project reporting a
+binary that "became a server" while it was really answering finds the answer in
+one place.
+
+## Kept for later: kyu-runner's list after the repairs (2026-09-10)
+
+Passed on at Kenny's instruction — stored, not acted on. He decides when
+anything happens with it. What they measured as already closed is left closed:
+the `2.0.0 additions` heading, the hooks being left alone, the release
+precondition existing and passing, and the consumer check no longer writing in
+their tree.
+
+**1 · The kit version in five strings — and `chassis upgrade` already does
+this.** Their measurement stands: `chassis_tag` in `.chassis.toml` plus four
+strings across two `chassis =` lines in `Cargo.toml`, including the
+dev-dependency a headless project only gains when it starts using `AdminApi`.
+And `chassis sync` reports the difference without writing it, unlike
+`kp_themes`, which it does write.
+
+What their report does not know is that the command they ask for shipped in
+2.0.2: `chassis upgrade <version>` (feat-sync-1) aligns all three places,
+updates the lock file and runs the project's own gates. Its own help text names
+the dev-dependency explicitly, which is the trap they warned about. So the open
+question is smaller than it looks and changes shape: not "build the command"
+but "why did three consecutive bumps happen by hand while it existed" — a
+discoverability question, and one worth asking of `sync`'s own output, which
+reports the drift without naming the command that fixes it.
+
+**2 · The exit code cannot express a declared deviation.** Already in this
+queue with their design proposal; repeated by them so the dossier is complete.
+
+**3 · `chassis release` exits 1 when it stops properly at the human step.**
+Measured tonight at `v0.2.3`: the chain ran through and stopped at
+`sign-release.sh` with "nothing after this step ran". Correct behaviour, but
+the exit code is the same 1 as a real failure, so anything that calls the chain
+and decides on the status cannot tell "waiting for Kenny's key" from "something
+broke". Their suggestion: a distinct code for the human step, or a
+machine-readable last line. Low priority, recorded as a class.
+
+**4 · Two observations without a request.** `docs/KIT.md` is rewritten on every
+bump while only the version changes — two lines out of 223 between 2.0.0 and
+2.0.2, diff noise. And the form they found most useful all evening was not a
+repair: `--dry-run` printing its preconditions on the first line, so a new check
+can be seen to exist and to pass without running the thing.
+
+**One measurement of our own, while checking theirs:** building `chassis-cli`
+without the dashboard feature warns that `crate::shell::time::human_time` is
+never used. The gates run clippy with `--all-features`, where the dashboard's
+filter uses it, so nothing here is red — but that is a warning no gate in this
+repository can see. Recorded, not acted on.
