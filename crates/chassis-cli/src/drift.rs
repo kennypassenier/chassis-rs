@@ -296,7 +296,7 @@ pub fn kit_tag_drift(dep: &KitDependency, chassis_tag: &str) -> Vec<Drift> {
 pub const KP_THEMES_MANIFEST: &str = include_str!("../../chassis/static/kp/KP_THEMES.sha256");
 
 /// The kp-themes version this kit vendors, from the manifest's first line
-/// (`# @kp-soft/themes v5.0.0 — …`).
+/// (`# @kp-soft/themes v5.1.0 — …`).
 pub fn vendored_kp_themes() -> &'static str {
     KP_THEMES_MANIFEST
         .lines()

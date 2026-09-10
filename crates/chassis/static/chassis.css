@@ -67,8 +67,14 @@ pre.snippet {
    at 485 px on a 360 px viewport, pushing the document sideways, and chose
    `anywhere` over `break-word` because only `anywhere` lowers the min-content
    contribution a flex item's automatic minimum size is measured against.
-   So this overrides it ONLY for the badges the kit itself renders, which hold
-   a fixed word or a timestamp and never a caller-supplied value (measured:
-   active, revoked <time>, ok, degraded, failing). A consumer's own badges
-   keep the package's protection. */
-.state-badge { overflow-wrap: normal; word-break: keep-all; white-space: nowrap; }
+
+   kp-themes 5.1.0 turned that default into a knob (ask-1, answered by their
+   session 2026-09-09): `.kp-badge` reads `overflow-wrap:
+   var(--kp-badge-wrap, anywhere)`, and the knob belongs on the COLUMN rather
+   than on the badge. So the kit no longer marks its own badges; it declares
+   the state cells, which hold a fixed word or a timestamp and never a
+   client-supplied value (measured: active, revoked <time>, ok, degraded,
+   failing). Anything a project renders elsewhere keeps the package's
+   protection, and kp-themes measured what dropping it costs: one unbroken
+   value 485 px wide on a 360 px viewport. */
+.state-cell { --kp-badge-wrap: normal; }

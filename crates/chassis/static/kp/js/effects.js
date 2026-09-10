@@ -190,6 +190,24 @@ export const ROOT_ATTRIBUTE = 'data-kp-effects';
 /** Set on the root once the reveals of a load have run. */
 export const DONE_ATTRIBUTE = 'data-kp-effects-done';
 
+/**
+ * The state a reveal is in, on the element that carries it [TF2, 2026-09-09].
+ *
+ * `DONE_ATTRIBUTE` says the module has finished the page; this says what
+ * happened to one element, and it stays readable afterwards. Until now the
+ * only signal was the `kp-reveal` event, which is a moment: whoever was
+ * not listening when it fired could never learn the answer. A consumer
+ * asking "is the dossier armed yet" had nowhere to look, and a test had
+ * nothing to wait for — which is how two retro tests could fail under
+ * load while passing alone.
+ *
+ * Three values, and they are the whole truth about an element:
+ *   armed  — wired to a trigger and waiting for it; nothing has run
+ *   rest   — settled without playing (reduced motion, no routine, seen)
+ *   played — the routine ran
+ */
+export const REVEAL_STATE = 'data-kp-reveal-state';
+
 /** The copy of a headline the register's slice pseudo-elements read. */
 export const TEXT_ATTRIBUTE = 'data-kp-text';
 
@@ -469,6 +487,9 @@ export function attachEffects(root = document, options = {}) {
     };
     /** @param {Element} el @param {string} reveal @param {string} routine @param {boolean} skipped */
     const announce = (el, reveal, routine, skipped) => {
+        // The readable half of the announcement [TF2]. The event is the
+        // moment; this is the record of it, and it outlives the moment.
+        el.setAttribute(REVEAL_STATE, skipped ? 'rest' : 'played');
         el.dispatchEvent(new CustomEvent(REVEAL_EVENT, { bubbles: true, detail: { reveal, routine, skipped } }));
     };
     /** @param {() => void} fn @param {number} ms */
@@ -1130,6 +1151,11 @@ export function attachEffects(root = document, options = {}) {
             // file; the register staggers the lift. A second press closes it.
             wireTrigger(trigger, marks, container, routine);
             trigger.setAttribute('aria-pressed', 'false');
+            // Armed is a state, and it was the one nobody could see: this
+            // branch announces nothing, because nothing has happened yet
+            // [TF2]. It still has to be readable, or "waiting for a click"
+            // and "never wired at all" look identical from outside.
+            container.setAttribute(REVEAL_STATE, 'armed');
             return;
         }
         if (seen(container, 'emphasis')) {
@@ -1148,6 +1174,9 @@ export function attachEffects(root = document, options = {}) {
             // the second word is the page's (data-kp-label-open), and the
             // register swaps to it while this attribute is set.
             container.toggleAttribute(HOOKS.openState, open);
+            // announce() writes 'played' here, which is right: the trigger
+            // is what makes it play. Closing it again is a play too — the
+            // marks move either way [TF2].
             announce(container, 'emphasis', routine, false);
         };
         trigger.addEventListener('click', onClick);

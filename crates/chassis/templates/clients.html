@@ -88,7 +88,7 @@
     </td>
     <td><span class="mono">{{ c.issued_at }}</span></td>
     <td>{% if c.last_used_at %}<span class="mono">{{ c.last_used_at }}</span> <span class="text-secondary">({{ c.uses }}×)</span>{% else %}<span class="text-secondary">never</span>{% endif %}</td>
-    <td>{% if c.active %}<span class="kp-badge kp-badge--success state-badge">active</span>{% else %}<span class="kp-badge state-badge">revoked {{ c.revoked_at }}</span>{% endif %}</td>
+    <td class="state-cell">{% if c.active %}<span class="kp-badge kp-badge--success">active</span>{% else %}<span class="kp-badge">revoked {{ c.revoked_at }}</span>{% endif %}</td>
     {% for cell in c.declared %}<td>{{ cell }}</td>{% endfor %}
     {% for cell in c.extra %}<td>{{ cell|safe }}</td>{% endfor %}
     <td class="text-end">

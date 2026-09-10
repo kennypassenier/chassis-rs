@@ -28,10 +28,10 @@
     </p>
     <dl>
       <dt>Overall</dt>
-      <dd>{% if health.status == "ok" %}<span class="kp-badge kp-badge--success state-badge">ok</span>{% else %}<span class="kp-badge kp-badge--destructive state-badge">degraded</span>{% endif %}</dd>
+      <dd class="state-cell">{% if health.status == "ok" %}<span class="kp-badge kp-badge--success">ok</span>{% else %}<span class="kp-badge kp-badge--destructive">degraded</span>{% endif %}</dd>
       {% for name, sub in health.subsystems|items %}
       <dt>{{ name }}</dt>
-      <dd>{% if sub.ok %}<span class="kp-badge kp-badge--success state-badge">ok</span>{% else %}<span class="kp-badge kp-badge--destructive state-badge">failing</span>{% endif %} <span class="text-secondary">{{ sub.detail }}</span></dd>
+      <dd class="state-cell">{% if sub.ok %}<span class="kp-badge kp-badge--success">ok</span>{% else %}<span class="kp-badge kp-badge--destructive">failing</span>{% endif %} <span class="text-secondary">{{ sub.detail }}</span></dd>
       {% endfor %}
     </dl>
     {% if health.subsystems|length == 0 %}<p class="kp-text-muted kp-m-0">This service registers no subsystems; liveness is the only signal.</p>{% endif %}

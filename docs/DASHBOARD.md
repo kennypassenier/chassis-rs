@@ -466,9 +466,9 @@ reveal and copy fetches it on click. Proven by:
 `dashboard_pages_render_with_layout_and_assets` (no `Bearer ` in the
 HTML), `core::clients::tests::issue_reissue_revoke_delete_lifecycle`.
 
-## kp-themes 5.0.0: what the kit vendors, and what it leaves
+## kp-themes 5.1.0: what the kit vendors, and what it leaves
 
-Since 1.8.0 the kit carries kp-themes 5.0.0 under the package's own
+Since 1.8.0 the kit carries kp-themes under the package's own
 paths — `/static/kp/dist/…`, `/static/kp/css/…`, `/static/kp/js/…`,
 `/static/kp/fonts/…` — so `fonts.css`'s relative `url('../fonts/…')` and
 the modules' `./strings.js` imports resolve unchanged and every file is the

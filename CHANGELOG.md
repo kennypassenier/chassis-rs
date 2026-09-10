@@ -32,6 +32,17 @@ scaffold writes. A breaking change in either is a major and carries a
   table is in `docs/MIGRATION.md`.
 
 ### Changed
+- **kp-themes 5.1.0** (ask-1 amendment). Three vendored files move
+  (`dist/kp-themes.css`, `js/effects.js`, `js/theme-registry.js`); the other
+  112 are unchanged, and every one is verified against the release's own
+  `SHA256SUMS` (`sha256sum -c --ignore-missing` — the manifest also names the
+  fonts the consumer tarball omits). The interim `.state-badge` rule is gone:
+  `.kp-badge` now reads `overflow-wrap: var(--kp-badge-wrap, anywhere)`, so
+  the kit declares `.state-cell { --kp-badge-wrap: normal; }` on the state
+  column and leaves the badges plain. A project's own badges keep the
+  package's protection — kp-themes measured one unbroken value 485 px wide on
+  a 360 px viewport without it. `chassis sync` reports the `kp_themes` record
+  as drift and `--write` corrects it.
 - **The scaffold builds one shape for everyone** (feat-build-1): a static
   musl binary on `gcr.io/distroless/static`, which removes the dependency on
   the container's glibc that blocked three rollouts on 2026-09-09. `passkeys`

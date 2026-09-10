@@ -210,15 +210,24 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
         full.contains("Delete this source and its history?"),
         "{full}"
     );
-    // ask-1: the kit's own state badges carry `state-badge`, which is what
-    // chassis.css narrows the wrap override to. Without the class the
-    // override would apply to a consumer's badges too, and kp-themes
-    // measured what that costs: one unbroken value at 485 px on a 360 px
-    // viewport, pushing the document sideways. Drilled red by dropping the
-    // class from clients.html.
+    // ask-1, second half (kp-themes 5.1.0): the wrap override is the
+    // package's own knob now, and it belongs on the COLUMN. The kit marks
+    // the state cell and leaves the badge plain, so a project's own badges
+    // keep the package's protection — kp-themes measured what losing it
+    // costs: one unbroken value 485 px wide on a 360 px viewport. Drilled
+    // red by dropping `state-cell` from clients.html, and again by leaving
+    // `state-badge` on the badge.
     assert!(
-        full.contains("kp-badge kp-badge--success state-badge"),
-        "the active badge is marked as a kit state badge: {full}"
+        full.contains("<td class=\"state-cell\">"),
+        "the state column declares the wrap knob: {full}"
+    );
+    assert!(
+        full.contains("<span class=\"kp-badge kp-badge--success\">active</span>"),
+        "the badge itself is plain: {full}"
+    );
+    assert!(
+        !full.contains("state-badge"),
+        "the kit's own badge class is gone with 5.1.0: {full}"
     );
 
     // Every confirmation the kit renders is read by a person and is not

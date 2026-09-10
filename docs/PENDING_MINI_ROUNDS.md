@@ -1563,3 +1563,75 @@ whether a correction can close.
 project built ON the kit, not at this one; the `drill-release.sh` linkage
 question is for the batch-5 report; and the "re-raise S6 at the retro" notes
 from Phase 7 are stale — it was raised there and closed.
+
+## Retrospective of batch 3 — held 2026-09-10
+
+**The delivery reading Kenny agreed with (m1: Akkoord).** `hooks/delivery-metrics.sh`
+over the fleet, 2026-09-10:
+
+| project | released | lead (d) | fix % | repair (h) |
+|---|---|---|---|---|
+| chassis-rs | 12 | 3 | 8 | 0 |
+| kp-themes | 13 | 3 | 15 | 0 |
+| almanac | 23 | 7 | 21 | 1 |
+| kyu | 14 | 12 | 7 | 0 |
+| homelab | 219 | 9 | 10 | 0 |
+| latch-rs | 20 | 29 | 35 | 56 |
+
+Twelve releases, a median lead time of three days — the shortest of the
+fleet together with kp-themes — an eight percent fix share and no repair
+over an hour. What the table does not explain, and what the lessons were
+about: three rollouts blocked by an assumption nobody had measured, a
+subagent that landed in the wrong repository, and two forms that asked
+Kenny to decide something that was not his to decide.
+
+**What went up to the procedure** (the diff on `~/Projects/dev-procedure`):
+rule 16a gained its second half (a form holds a real choice), 7d now wants
+a gate proven from a worktree, 11b names a foundation upgrade as a moment
+the honesty pass runs, 45 refuses an unparsed input instead of defaulting
+it, 24a covers every figure in a sentence to Kenny, FORM_PROTOCOL §1.1
+forbids splitting or shortening a form, `hooks/check-cwd.sh` makes rule 37
+mechanical (14 drills), `hooks/gates.example.sh` drops the inherited git
+variables, and `templates/parallel-agent-brief.md` is new.
+
+**Silent rules (l9: Later beslissen).** The four rules with no citation by
+number — 16a, 17, 18 and 44 — stay as they are, with no note; the question
+returns at the next retrospective.
+
+**Ecosystem entry (e1: Bijwerken).** The chassis-rs entry in ECOSYSTEM.md
+had stood at "released 1.3.0, consumers ratified but not released" for five
+releases. It now reads 1.8.0 with all four consumers measured on that pin,
+the current configuration idiom instead of the withdrawn `knob_keys()` one,
+and the two new promises a consumer can build on: the snapshotted public
+surface with its release check, and a removed shape that keeps working for
+one version.
+
+## kp-themes 5.1.0 vendored — ask-1 closed (2026-09-10)
+
+The knob kp-themes promised at ask-1 shipped in their 5.1.0, announced by
+their session with the measurements attached. Adopted the same evening.
+
+**What was verified before anything was copied.** `gh release download
+v5.1.0 -p consumer.tar -p SHA256SUMS`, then `tar -xf consumer.tar &&
+sha256sum -c --ignore-missing SHA256SUMS` — 92 files, exit 0. The
+`--ignore-missing` is not optional: the manifest also names the fonts the
+tarball deliberately leaves out, and this kit vendors those.
+
+**What actually moved.** Of the 115 files under `static/kp/`, three:
+`dist/kp-themes.css`, `js/effects.js`, `js/theme-registry.js`. The other
+112 hash identically to 5.0.0. Every one of the 115 was compared against
+the 5.1.0 manifest after the copy, and `KP_THEMES.sha256` was rewritten
+from those lines. Our file count differs from the tarball's on purpose —
+we take the fonts and leave the minified twins — and their session
+confirmed the manifest is per-file, not a list.
+
+**The badge.** `.state-badge` is gone from `chassis.css`, `status.html`
+and `clients.html`; `.state-cell { --kp-badge-wrap: normal; }` sits on the
+`<dd>` and the `<td>` instead. Three assertions in
+`vocabulary_and_actions`, two of them drilled red (dropping `state-cell`,
+and putting `state-badge` back).
+
+**Their session also answered our warning about unmeasured time claims**
+(CF-13): they searched their own documents for the property and found
+nothing — seven uses of "forever" that are guarantees rather than
+durations, and one count that already carries its figure.
