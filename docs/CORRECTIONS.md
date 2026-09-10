@@ -257,3 +257,44 @@ cannot run there and everything falls to this path. Behind Traefik on https
 the modern API takes over and this fallback is not used at all. So his
 instinct was right about why the good path was unavailable; it was the
 fallback underneath that was broken, and that was ours.
+
+## CF-15 · A field added to a public struct was released as additive (2026-09-10)
+
+Found by the release chain itself: `scripts/release-kit.sh 1.9.0` refused,
+because `scripts/check-consumers.sh` could not build two of the four.
+
+1. **What went wrong.** feat-clients-2 added `pub fields: BTreeMap<String,
+   String>` to `chassis::core::clients::Client`. Every document about it —
+   the CHANGELOG's `[1.9.0]` heading included — called the release additive.
+   It is not: a struct with public fields cannot gain one without breaking
+   every literal construction of it. Evidence, from the refused release:
+   `error[E0063]: missing field 'fields' in initializer of
+   'chassis::core::clients::Client'` at `almanac/src/shell/kit.rs:271` and
+   `kyu/src/kit.rs:237`. http-switchboard and kyu-runner build fine, because
+   they never construct one.
+2. **Which gate let it through.** The public-surface snapshot recorded the new
+   field faithfully — `field chassis::core::clients::Client.fields:
+   BTreeMap<String, String>` is line 128 of docs/API_SURFACE.txt — and that is
+   the whole problem: it reports **what changed**, not whether the change
+   breaks a caller. An addition looks additive. Rule 46's first third caught
+   what its second third could not, which is why the kit has both.
+3. **Where else does the same fault sit.** The property is "a public struct
+   whose fields a consumer can write, that the kit may want to extend".
+   `Gezocht met:` `grep -c '^field chassis::' docs/API_SURFACE.txt` → 96
+   public fields, and `grep '^field chassis::' docs/API_SURFACE.txt | cut -d.
+   -f1 | sort -u` names the structs they belong to. Every one of them has this
+   property; what varies is whether a consumer constructs it. Measured against
+   the four: only `Client` is constructed outside the kit, and only in
+   one-time migration code in two of them.
+4. **The measure.** To be decided with Kenny — the release is his call and so
+   is whether the kit closes this class of change permanently. Recorded here
+   so the decision is made against the measurement rather than the surprise.
+5. **What the remedy costs.** One line per consumer for this instance
+   (`fields: Default::default()`), in code each project owns and touches in
+   its own session (rule 7a).
+6. **Who enforces it.** `scripts/check-consumers.sh`, which is exactly what
+   stopped this — the local build of all four before anything is published.
+7. **How we measure it works, and when.** Already measured: the chain refused
+   and published nothing.
+8. **Fallback.** None needed; the gate held.
+9. **When we review it.** At the retrospective of batch 4.
