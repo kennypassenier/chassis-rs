@@ -38,8 +38,12 @@ answers is the one-item summary.
 6. **Enforced by.** Code (the test) for this pattern; discipline (the drill
    step) for the class of fault, because no gate runs a browser.
 7. **Measured at.** The next browser drill of the kit's dashboard: the
-   console shows no error for the Clients page. Queued in
-   `docs/PENDING_MINI_ROUNDS.md`.
+   console shows no error for the Clients page. **Measured and closed
+   2026-09-10** — the http-switchboard session drilled a real 3.0.0 with the
+   dashboard in Chromium (login through the form, the Recheck button, the
+   Revoke confirmation, a theme switch): zero console messages, every request
+   200, no 404, fonts included. A consumer measured it rather than this
+   project, which is the stronger form of the same check.
 8. **Fallback.** If a second console-only fault slips through, the inbox
    E2E gains a headless-browser step (Playwright is what kp-themes uses)
    that fails on any console error.

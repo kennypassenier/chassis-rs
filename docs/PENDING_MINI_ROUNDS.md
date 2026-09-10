@@ -593,7 +593,8 @@ measurement, or a decision put to him in the closing form:
 ## Phase 7 hardening form — answered 2026-09-05
 
 23× Dichten (H1–H6, H8–H17, S1–S5, S7, S8), H7 Later, S6 accepted for now
-(re-raise at the Phase 10 retro), S9 accepted as known limitation. Kenny's
+(re-raised at the Phase 10 retro and CLOSED there — Dichten in the closing
+form, shipped in kit 1.4.0), S9 accepted as known limitation. Kenny's
 additions: H4 → log rotation must be available where the service runs (LXC
 journald, docker); H16 → Kenny provides the first kit tag, the signed drill
 release, the go for the remote `chassis new` and a hostname for the Traefik
@@ -626,7 +627,8 @@ H15, H17, S1, S3, S4, S5, S7, S8, S2 (templates; CT 118 redeploy pending),
 H14 (loop test; the two update_cmd drills pending), K16 project pages.
 Pending live work (drill key, A1): H1 + H14 drills on CT 118 with
 `/opt/inbox/bin` and the hardened unit; A3 adopt if it does not stall.
-Later/accepted: H7, S6 (retro), S9. H16 waits for Kenny's tag/go per item.
+Later/accepted: H7, S6 (raised at the retro and closed there; see §Open items
+after Phase 10), S9. H16 waits for Kenny's tag/go per item.
 
 **Announcements for the Homelab Rust session (rule 7a, when it next runs):**
 the scaffold's install path moved from `/usr/local/bin/<name>` to
@@ -1132,8 +1134,14 @@ the register list `formal, woodblock, cyberpunk` growing per pick, `topo` →
 dialog; no 404 in the network log. **Live-found:** the client-name `pattern`
 invalid under the `v` flag → CF-11 (docs/CORRECTIONS.md), fixed test-first.
 
-**Open measurement (CF-11.7):** the next browser drill of the dashboard
-reads the console clean for the Clients page.
+**CF-11.7 — MEASURED AND CLOSED 2026-09-10.** The drill happened in the
+http-switchboard session on a real 3.0.0 with the dashboard, in Chromium:
+logging in through the form, the Recheck button, the Revoke confirmation
+dialog and a theme switch to Cyberpunk. Outcome: zero console messages, every
+network request 200, no 404 — including the kp-themes fonts under
+`/static/kp/fonts/`. The name pattern under the `v` flag does what it should.
+Measured by a consumer rather than here, which is the stronger form of the
+same check: that project runs the kit's dashboard as a consumer would.
 
 **For the report form:** the live look on CT 118 (rule 39) before the
 release-go; the 1.8.0 release now carries batch 3 and kp-themes 5.0.0
@@ -1499,3 +1507,59 @@ than what a project ships:
 Also recorded from the build: `drift::KIT_FEATURES` still lists `passkeys` on
 purpose. It left the scaffold's DEFAULT list, not the kit; a consumer that
 enables it must still be read correctly by `chassis sync`.
+
+## Ready for the retrospective of batch 3 (gathered 2026-09-10)
+
+The candidates are spread over four sections and two files, so they are
+listed here once, with what each one still needs. Four are candidates for the
+shared procedure, three are this project's own, and three measurements decide
+whether a correction can close.
+
+**For the procedure (dev-procedure):**
+
+1. The gates template unsets `GIT_DIR` and its four siblings after resolving
+   the toplevel. The template has no such handling, which is how a worktree
+   hijacked a commit here (CF-9.3).
+2. A brief template for parallel subagents in a worktree: the GIT_* warning,
+   one scratch subdirectory per agent, one module per group in a shared file,
+   never touch main, the repository's real number of required checks, and
+   "hold your commit until the coordinator says so". Three agents ran that way
+   on 2026-09-10 and all three reported usable work, so the template has real
+   material behind it now.
+3. A mechanical guard for standing rule 37: a check that a shell command starts
+   with an absolute `cd` or `git -C`. The rule slipped six times in one night
+   in this project, and twice more on 2026-09-10 (a subagent worktree landed in
+   the wrong repository because the session's own cwd had drifted — the same
+   fault one level out, and the strongest argument the candidate has).
+4. Rule 7d for worktrees: a gate proves itself by firing once FROM A LINKED
+   WORKTREE when a project uses them (CF-9.2).
+
+**This project's own:**
+
+5. HK5's other half: whether a kit migration's effect on a consumer's own
+   documents belongs in a per-version list in MIGRATION.md (built) or in each
+   project's Phase 8 honesty pass (the question for the retro).
+6. kyu-runner's four headless findings, kept as the record of what the first
+   headless consumer hit, now that all four are built.
+7. "An input nobody parsed treated as consent" — from the Homelab Rust
+   session, measured absent from this repository's CLI. Whether it generalises
+   is the retro's call.
+
+**Measurements that decide a closure:**
+
+- **CF-11** — closed 2026-09-10 by http-switchboard's drill (above).
+- **CF-12** — waits on kyu swapping its hand-written login POST for
+  `TestApp::login()` on a kit that carries the fix, and on Almanac pinning
+  `<PREFIX>_TOKEN` instead of reading `app.token()` back.
+- **fix-3** — waits on the next supervised update on a machine using the
+  scaffold's unit and `service.yml` pair.
+- Two older ones are recorded here rather than in `docs/CORRECTIONS.md`, which
+  is why they are easy to miss at the retro: **CF-10** (the next parallel build
+  reports no overwritten scratch file — three agents ran on 2026-09-10 and none
+  did, so this can close at the retro) and **CF-6 (a)** (the first CI run of
+  the next fresh remote project runs cargo-deny green).
+
+**Not batch 3, keep separate:** CF-6 and CF-7 point at the first retro of a
+project built ON the kit, not at this one; the `drill-release.sh` linkage
+question is for the batch-5 report; and the "re-raise S6 at the retro" notes
+from Phase 7 are stale — it was raised there and closed.
