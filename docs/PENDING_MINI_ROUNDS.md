@@ -2035,3 +2035,27 @@ each names a reporter that can actually produce it:
   became.
 
 Review of both measures: at the retrospective of batch 4.
+
+## 2.0.1 released (2026-09-10)
+
+Kenny's go carried a condition: *"enkel als er daarna geen frictie meer
+verwacht wordt met de vier zuster/dochterprojecten, ik wil eindelijk iets
+releasen dat werkt!"* So the friction was measured instead of argued.
+
+| What was checked | How | Result |
+|---|---|---|
+| Do the four still build and pass? | `scripts/check-consumers.sh` against this tree | 4 of 4 source ok |
+| Will fix-5 refuse anyone's next release? | read each `.github/workflows/ci.yml` `on:` block | 4 of 4 trigger on `["**"]` — nobody is refused |
+| Does fix-4 change anything they rely on? | `# HOOK_VERSION=` of the three files per project | 4 of 4 already on generation 3, so the kit only stops proposing a downgrade |
+| Do the live sessions agree? | asked kyu-runner and http-switchboard directly | both: no friction, go ahead |
+
+Two things came back that were worth more than a yes. kyu-runner had restored
+their CI trigger to every branch twenty minutes earlier (their `416b84d`), so
+the scenario fix-5 was built for no longer exists there — they can measure the
+release chain running through, not the refusal. And http-switchboard reported
+that `chassis sync` had rewritten two of their hooks to the older generation on
+the 2.0.0 jump, which they restored by hand: the same fault as kyu-runner's,
+in a second project, found after the fix was already built.
+
+Released as tag `v2.0.1` = `5dc8d80` through `scripts/release-kit.sh`, checks
+green before the tag.
