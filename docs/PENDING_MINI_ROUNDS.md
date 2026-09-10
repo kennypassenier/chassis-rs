@@ -1891,3 +1891,27 @@ Not started, on purpose: doing it now would itself be the breaking change it is
 meant to prevent. It is written here so the next major picks it up, with the
 measurement to repeat first — count what the four consumers import through
 `chassis::core::` and `chassis::shell::` before deciding how far to narrow.
+
+## feat-api-2 built, because its trigger fired (2026-09-10)
+
+↳ feat-api-2 = the transition window: a replaced shape stands beside the new
+one with a deprecation marker, a list of what goes when, and a check that the
+list and the code agree.
+
+It was rated **Gewenst** in round 5 with a trigger instead of a place in the
+queue — "built at the first breaking change, not before" — and 2.0.0 was that
+change. Half of it shipped with the release (the `#[deprecated]` marker on
+`ClientsFile::issue`); the list and its check were still missing, so nothing
+held the promise the marker makes. Built now rather than queued, because the
+rating was the decision and the trigger had already fired.
+
+Two things it found while being built, both in the released 2.0.0:
+
+- the marker said `since = "1.9.0"`, a version that never existed — the chain
+  refused it as a mislabelled minor and it went out as 2.0.0;
+- its doc comment promised removal "in the version after the one that
+  introduces `issue_with_fields`", which the frozen contract forbids. A
+  deprecated item can only go at the next major. `docs/REMOVALS.md` now says
+  3.0.0 and the check refuses a `Goes at` naming a minor.
+
+Landed as `b9ce464`, CI green. Nothing here waits on Kenny.
