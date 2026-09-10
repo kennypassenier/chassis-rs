@@ -342,8 +342,11 @@ because `scripts/check-consumers.sh` could not build two of the four.
 
 ## CF-16 · The scaffold wrote over a hook another shared source owns (2026-09-10)
 
-**Ratified by Kenny 2026-09-10: Klopt** — the measure stands as built. The loop
-stays open until field 7 is measured, which needs a release first.
+**Ratified by Kenny 2026-09-10: Klopt** — the measure stands as built.
+**Field 7 measured 2026-09-10** by http-switchboard on the released CLI: the
+three shared hooks are no longer mentioned by `chassis sync` at all, where the
+same command showed full diffs and exit 1 that afternoon. The writing-when-absent
+half still waits for a migrated project that lacks `check-ids.sh`.
 
 Found live by kyu-runner while adopting 2.0.0: `chassis sync` proposes to
 replace three files with older copies, every run, forever.

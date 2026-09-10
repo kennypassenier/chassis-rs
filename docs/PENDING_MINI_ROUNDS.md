@@ -2148,3 +2148,28 @@ the fault it is being told about.
 It cannot be closed from here alone: a field in the stack file is only worth
 writing when `homelab adopt` reads it, which is the homelab's half (rule 7a).
 Queued for the batch-5 round, with the measurement above as its starting point.
+## CF-16's measurement is in — from http-switchboard (2026-09-10)
+
+Recorded at Kenny's instruction, with nothing acted on yet.
+
+Their report after taking the new CLI: `chassis sync` **does not mention the
+three shared hooks at all** — not as drift, not as a `~` line — where that same
+sync showed a full diff on `commit-msg` and `check-commit.sh` and ended on exit
+1 earlier the same afternoon.
+
+That is a better outcome than field 7 predicted, and the mechanism explains
+why. The prediction was `~` lines with exit 0, which is what a project-owned
+file produces when it *differs*. Since 2.0.1 the scaffold carries the canonical
+bytes, and their copies are the canonical bytes, so the comparison matches
+before ownership is ever consulted and nothing is printed. A `~` line would now
+mean a project that deliberately keeps its own version — which is the case the
+ownership rule exists for, and not the case here.
+
+Still drifting there, by design: `.github/workflows/ci.yml`, where they run one
+job and the scaffold writes four. That is their decision about what belongs in
+CI, recorded earlier, and it stays.
+
+What this leaves open: the writing-when-absent half of fix-4 (needs a migrated
+project that lacks `check-ids.sh`; http-switchboard and kyu-runner both carry
+it), CF-17 at a consumer's next `chassis release`, CF-12's Almanac half, and
+fix-3 when the supervised update on CT 109 fires.
