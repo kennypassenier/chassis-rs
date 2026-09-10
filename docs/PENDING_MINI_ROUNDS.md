@@ -2173,3 +2173,46 @@ What this leaves open: the writing-when-absent half of fix-4 (needs a migrated
 project that lacks `check-ids.sh`; http-switchboard and kyu-runner both carry
 it), CF-17 at a consumer's next `chassis release`, CF-12's Almanac half, and
 fix-3 when the supervised update on CT 109 fires.
+
+## Both measurements delivered on a real bump — kyu-runner (2026-09-10)
+
+kyu-runner took 2.0.2 (`ccefa5f` on their main, CI green, 69 tests green) and
+reported the two loops from the bump itself.
+
+**CF-16 — measured, and closed on this half.** The three shared hooks do not
+appear in `chassis sync`'s output at all: no diff, no `~` line. On 2.0.0 they
+were three diffs that session had to restore by hand after every `--write` to
+keep Kenny's decision standing. Same result as http-switchboard's report, and
+the same mechanism: the scaffold now carries the canonical bytes, so a project
+holding those bytes matches before ownership is consulted. The
+writing-when-absent half stays open and needs a migrated project that lacks
+`check-ids.sh` — kyu-runner carries it, and the file this session left in their
+tree went in with `ccefa5f`.
+
+**CF-17 — the precondition runs and passes.** `chassis release 0.2.3 --dry-run`
+now opens with `checked: .chassis.toml present · CI runs on a push to the
+release branch · Dockerfile present where release.yml builds an image ·
+Migration section on a major`. The second clause is fix-5. It passes there
+because the CI trigger was restored that evening (`416b84d`), and the proof it
+carries through: `ccefa5f` went straight to main without a pull request, where
+0.2.2 had needed two.
+
+That closes CF-17 as far as any consumer can close it. The refusal-with-remedy
+has no reporter left — all four now trigger CI on every branch — so what stands
+behind it is the five unit tests over the reader plus this live confirmation
+that the check exists, runs and prints its verdict before anything is pushed.
+Waiting for a live refusal would mean waiting for a project to break its own CI
+first.
+
+**One finding worth a round, not worth tonight.** `chassis sync` exits 1 there
+for exactly one reason now: `.github/workflows/ci.yml`, where they run one job
+and the scaffold writes four — their deliberate choice, recorded earlier. So a
+project that deliberately keeps a kit-owned file different can never reach exit
+0 again without `--force`. The exit code conflates "the kit's file drifted, fix
+it" with "this project decided otherwise". The seven hook files got the
+ownership mechanism; nothing expresses the same thing for a kit-owned file a
+project overrides on purpose. Queued for the batch-5 round.
+
+**For the retrospective**, in their words: what helped most was not a repair but
+that `--dry-run` prints its preconditions on the first line — the new check
+could be seen to exist *and* pass without running a release to find out.
