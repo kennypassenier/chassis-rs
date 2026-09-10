@@ -1654,3 +1654,34 @@ beside a 5.1.0 bundle. Confirmed: our `css/` holds only `fonts.css`, and the
 knob sits in `dist/kp-themes.css` (hash `2e75416426dd`, twice `--kp-badge-wrap`,
 `--kp-themes-version: '5.1.0'`). Same family as CF-13: a number without the
 clause that says what it counted.
+
+## Look-drill for 1.9.0 on CT 118 (2026-09-10)
+
+Kenny asked for 1.9.0 on the scratch container so he can look before the
+release go (rule 39). Built as inbox 0.1.7 with `scripts/drill-release.sh
+0.1.7 --drill-key`, delivered into the container and installed through the
+exact `update_cmd` the scaffold promises — including the two
+`--property=Environment=` lines fix-3 added. Result: `installed 0.1.7 over
+0.1.6`, exit 0, then a restart.
+
+Live: `http://10.10.10.18:8080`, `/healthz` reports
+`{"status":"ok","version":"0.1.7","subsystems":{"store":{"detail":"writable","ok":true}}}`.
+Claude's own look-drill first: the login page renders 200, the vendored
+kp-themes 5.1.0 bundle is served at `?v=01ba11a88e8b58cd` with
+`cache-control: public, max-age=31536000, immutable`, and `state-badge`
+appears zero times.
+
+**Why the drill build is glibc and not the static musl 1.9.0 ships.** The
+example enables `passkeys`, and `cargo tree -p chassis --features passkeys -i
+openssl-sys` confirms the chain `webauthn-rs → webauthn-rs-core →
+webauthn-attestation-ca → openssl → openssl-sys`. That is exactly what the
+frozen build-target decision already says, and what the release workflow's own
+refusal message names. So today's drill matches what this service would
+actually ship. The open item narrows rather than closes: `drill-release.sh`
+builds glibc unconditionally, where it should follow the target's features —
+a passkeys-free service would get a glibc drill of a musl release. Still
+deferred to the batch-5 report.
+
+**To undo the drill wiring** when the look is over: `systemctl stop
+drill-serve` in the container, restore `/etc/inbox/inbox.env` from
+`inbox.env.pre-drill-0.1.7`, restart.
