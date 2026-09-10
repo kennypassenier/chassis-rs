@@ -7,6 +7,17 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-09-10
+
+Batch 4 and round 5 (rule 46, the four consumer reports and the name Clients,
+weighed 2026-09-10), kp-themes 5.1.0, and round 6 — the three working points
+from Kenny's own look at this release running on the scratch container.
+Additive only; a consumer upgrades by moving its pin.
+
+The transition window promised by rule 46 is in use for the first time:
+`Clients::issue` is deprecated and still works, replaced by
+`issue_with_fields`.
+
 ### Added
 - **The kit keeps a client's declared fields** (feat-clients-2). A project
   declares a field with `client_form_field` and nothing else: the kit stores
