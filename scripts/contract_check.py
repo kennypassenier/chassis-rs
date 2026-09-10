@@ -19,6 +19,13 @@ What "cannot break a caller" means, and why the generator now records
     new field or variant on an OPEN type              BREAKING
     a recorded line that is gone or changed           BREAKING
 
+A move is a break here, on purpose (Kenny, 2026-09-10). A line is the path
+that DECLARES an item, so carrying a function from `shell` to `core` reads as a
+removal plus an addition even though no caller who reaches it through a
+crate-root re-export can feel it. The judge is not loosened to see through
+that; the surface is narrowed at the next major instead, so there is less to
+move. See docs/PENDING_MINI_ROUNDS.md, "place or name".
+
 His other question, answered here rather than in code: a hash would say the
 contract moved and nothing else. Measured on this file — 829 lines — twenty
 full comparisons take 13 ms and twenty hashes take 24 ms, so there is no speed
@@ -47,6 +54,18 @@ def sealed_types(lines):
             if l.startswith(kind) and l.endswith(" [sealed]"):
                 out.add(l[len(kind) : -len(" [sealed]")])
     return out
+
+
+PATH = re.compile(r"^(\w+) (chassis(?:::\w+)*)(.*)$")
+
+
+def leaf(line):
+    """The line without its module path, so a moved item still matches itself."""
+    m = PATH.match(line)
+    if not m:
+        return line
+    kind, path, rest = m.groups()
+    return f"{kind} {path.rsplit('::', 1)[-1]}{rest}"
 
 
 def contract_hash(lines):
@@ -89,6 +108,13 @@ def main(recorded_path, current_path, version):
         why = "gone or changed" if l in gone else "added to a type that is not sealed"
         print(f"  ! {l}    ({why})")
     print()
+    moved = [l for l in gone if leaf(l) in {leaf(a) for a in added}]
+    if moved:
+        print(f"Of these, {len(moved)} item(s) only moved to another module — same name,")
+        print("same signature, another path. The contract records where an item is")
+        print("declared, so that counts as a break; narrowing the public modules is a")
+        print("candidate for the next major (docs/PENDING_MINI_ROUNDS.md, place or name).")
+        print()
     print("What now: either release this as a major (X.0.0), which re-freezes the")
     print("contract and needs a ### Migration section, or seal the type with")
     print("#[non_exhaustive] and give it a constructor so the addition cannot be felt.")

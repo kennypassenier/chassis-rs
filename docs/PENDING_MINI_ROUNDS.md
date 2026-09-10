@@ -1862,3 +1862,32 @@ new scaffold image. And the CI template triggers on every branch push again,
 which is what kyu needed — a narrowed trigger there had forced a pull request
 for a one-line change because branch protection had no check to wait for. That
 is feat-ci-1 doing what Kenny decided it should.
+
+## What the contract writes down: place or name (answered 2026-09-10)
+
+The judge reads a line as the path that *declares* an item, so moving
+`chassis::shell::time::now_rfc3339` to `chassis::core::time::now_rfc3339`
+without touching the function reads as a removal plus an addition. Measured
+before asking: rewriting every `chassis::shell::time::…` path in a copy of the
+contract and judging it as a minor refused four lines as "gone or changed",
+while `crates/chassis/src/lib.rs` re-exports 7 names at the crate root — which
+is what a consumer actually writes.
+
+**Kenny, 2026-09-10: Oppervlak versmallen bij de volgende major.** The contract
+keeps reading declaration paths; the refusal is strict but not untrue, because
+those long paths really are nameable today. What changes is the surface, at the
+next major, not the reading of it.
+
+**Candidate for 3.0.0 — make the internal modules private.** `pub mod core` and
+`pub mod shell` are public because the kit grew that way, not because a service
+was meant to reach through them: the crate doc already says "a service normally
+needs neither directly". Narrowing them to `pub(crate)` and keeping the
+crate-root re-exports as the only public path would take those 823 recorded
+items down to what the seven `pub use` lines and the public modules expose —
+after which a refactor inside `shell` moves nothing a consumer can name, and
+the question dissolves instead of being answered by a looser judge.
+
+Not started, on purpose: doing it now would itself be the breaking change it is
+meant to prevent. It is written here so the next major picks it up, with the
+measurement to repeat first — count what the four consumers import through
+`chassis::core::` and `chassis::shell::` before deciding how far to narrow.
