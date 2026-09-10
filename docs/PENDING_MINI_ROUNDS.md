@@ -2216,3 +2216,35 @@ project overrides on purpose. Queued for the batch-5 round.
 **For the retrospective**, in their words: what helped most was not a repair but
 that `--dry-run` prints its preconditions on the first line — the new check
 could be seen to exist *and* pass without running a release to find out.
+
+## The release chain ran end to end at a consumer (2026-09-10)
+
+kyu-runner ran `chassis release 0.2.3` on the released CLI and reported every
+step. It stops at the signature and nowhere else:
+
+    pushed 3da7cd78 as release-0.2.3; waiting for its checks
+    tagged v0.2.3; waiting for the Release workflow
+    scripts/sign-release.sh v0.2.3 failed: Password: get_password().
+      What now: read the message above; nothing after this step ran
+
+Exit 1, and the right one: the minisign key is Kenny's, so that is where a
+consumer's chain has to end. The assets are `kyu-runner` and `SHA256SUMS`
+without `.minisig` and `VERSION`, so the updater ignores that release until he
+signs — a safe intermediate state rather than half a rollout.
+
+What makes this the measurement and not just a green run: at 0.2.2 the same
+chain hung on "waiting for its checks" because a branch push produced no run at
+all. This time `gh run list --branch release-0.2.3` shows a run with event
+`push` on the release commit. The chain waited for something that actually came,
+fast-forwarded main without a pull request, tagged, waited out the Release
+workflow, and stopped at the signature.
+
+So CF-17's dossier holds the full path from precondition to signature. Only the
+refusal branch stays unproven live, and it has no reporter left.
+
+**Their design proposal for the exit-code finding**, which is better than
+"make the difference go away": what a project needs is not that the deviation
+disappears but that it can be *declared* — a line in `.chassis.toml` saying
+this file deliberately differs, so `sync` reports it as a `~` and not as a
+fault. The exit code then keeps meaning the one thing it should: a kit-owned
+file drifted without anyone deciding it. Queued with the finding for batch 5.
