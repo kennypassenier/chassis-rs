@@ -2299,14 +2299,27 @@ dev-dependency a headless project only gains when it starts using `AdminApi`.
 And `chassis sync` reports the difference without writing it, unlike
 `kp_themes`, which it does write.
 
-What their report does not know is that the command they ask for shipped in
-2.0.2: `chassis upgrade <version>` (feat-sync-1) aligns all three places,
-updates the lock file and runs the project's own gates. Its own help text names
-the dev-dependency explicitly, which is the trap they warned about. So the open
-question is smaller than it looks and changes shape: not "build the command"
-but "why did three consecutive bumps happen by hand while it existed" — a
-discoverability question, and one worth asking of `sync`'s own output, which
-reports the drift without naming the command that fixes it.
+What their report does not know is that the command they ask for already
+exists: `chassis upgrade <version>` (feat-sync-1) aligns all three places,
+updates the lock file and runs the project's own gates, and its help text names
+the dev-dependency explicitly — the trap they warned about.
+
+**Corrected the same evening, by them, against this entry** (verified here:
+`git tag --contains` on the commit that adds `crates/chassis-cli/src/upgrade.rs`
+gives v2.0.0, v2.0.1, v2.0.2, and the file is absent in v1.8.0). It shipped in
+**2.0.0, not 2.0.2**, so the first sentence of this paragraph was wrong by two
+releases in a direction that flattered the kit. And the count is two missed
+chances, not three: at 1.7.1 → 1.8.0 the command existed nowhere, while at
+1.8.0 → 2.0.0 and 2.0.0 → 2.0.2 it was installed and unused.
+
+They also refused the cause this entry first assigned. It said `sync` reports
+the drift without naming the command that fixes it, and pointed the finger
+here. Their answer: that improvement is real but it is not why this went wrong
+— they never re-read `chassis --help` after the kit moved from 1.8.0 to 2.0.0,
+against a standing rule of their own that says to read the automation before
+doing its work by hand. Recorded as they asked, because a wrong cause in a
+queue gets the wrong thing repaired: **the miss was theirs, and naming the
+command in `sync`'s output stays a separate, smaller improvement.**
 
 **2 · The exit code cannot express a declared deviation.** Already in this
 queue with their design proposal; repeated by them so the dossier is complete.
@@ -2330,3 +2343,70 @@ without the dashboard feature warns that `crate::shell::time::human_time` is
 never used. The gates run clippy with `--all-features`, where the dashboard's
 filter uses it, so nothing here is red — but that is a warning no gate in this
 repository can see. Recorded, not acted on.
+
+## Kept for later: http-switchboard's and Almanac's findings (2026-09-10)
+
+Both passed on with Kenny's instruction to store and not act. Nothing below is
+built, fixed or released; he decides when.
+
+### Almanac: the release command hides minisign's password prompt
+
+The sharpest diagnosis of the evening, and it explains two things that looked
+unrelated. `run()` in `crates/chassis-cli/src/main.rs:1469` passes stdin
+through with `.stdin(Stdio::inherit())` but collects the child with
+`.output()`, which buffers stdout and stderr until the process ends. So for
+`scripts/sign-release.sh` the password prompt goes into that buffer and is
+never shown, while stdin — where minisign actually reads the password — stays
+live. Confirmed here by reading the function.
+
+Almanac measured it from both sides. With a real terminal (Kenny running
+`chassis release 4.0.4` himself) the command appeared to hang for over half an
+hour at "waiting for the Release workflow" while it was in fact sitting at an
+invisible prompt: `pstree -p` and `/proc/<pid>/fd` showed fd 0 on `/dev/pts/4`
+and fds 1 and 2 on pipes, and typing the password blind worked. Without a
+terminal (stdin on `/dev/null`) it failed immediately and cleanly with
+`Password: get_password()` — which is exactly what kyu-runner reported tonight
+and what this queue recorded as "stops properly at the human step". Same cause,
+two faces.
+
+Their proposal, for when it is opened: the signing step uses `.status()`, or a
+variant that passes all three streams through, so the prompt is visible where
+there is a terminal to show it.
+
+### http-switchboard: a drift line whose remedy is a trap
+
+`chassis sync --remote` tells them, every run, that branch protection does not
+require `cargo-deny (advisories · licenses · bans)` and `container build`, and
+names `chassis sync --protect` as the remedy. Following it would break that
+repository: they deliberately run one CI job under Kenny's testing policy of
+2026-09-09, and those two checks are produced by their local release tier, not
+by GitHub. Requiring them would leave `main` waiting for checks that never
+come. Measured here: `drift::REQUIRED_CHECKS` hardcodes the scaffold's three,
+so the kit compares against jobs a project may not have.
+
+They closed it locally the only way they could — a warning block in their
+`CLAUDE.md` and a test refusing any document that names `chassis sync
+--protect` without "never run" in the same paragraph.
+
+Their observation lands on the same design as kyu-runner's: let a project
+declare which CI jobs it actually has (a key in `.chassis.toml`) and compare
+branch protection against that set. Two projects arriving at "let the project
+declare it" from different directions is the strongest signal in tonight's
+reports.
+
+### The rest of their round
+
+- **Who turned `enforce_admins` off there:** this session did, on Kenny's
+  answer, with `gh api -X DELETE …/branches/main/protection/enforce_admins` on
+  all five repositories. Not `chassis sync --protect`, which nobody ran. Their
+  documentation says "cause unknown"; this is the cause.
+- **Both of our measurements confirmed.** `chassis release --dry-run 3.1.1`
+  printed "CI runs on a push to the release branch" among its checks, and after
+  a full round including `upgrade`, `sync --write`, `sync --remote` and
+  `release`, their `Cargo.lock` still carries the `source = "git+…?tag=v2.0.2"`
+  line. fix-6 holds.
+- **A fault of theirs, recorded because it names this release:** their 3.1.1
+  changelog said 2.0.2 "stops `chassis sync --protect` from tightening the
+  branch protection". It turns `enforce_admins` off and leaves the required
+  checks alone. Corrected on their main; the wrong summary stands in their tag
+  v3.1.1.
