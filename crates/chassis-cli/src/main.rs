@@ -822,7 +822,12 @@ fn cmd_sync(
         if current == body {
             continue;
         }
-        if owned && !force {
+        // fix-4: "written once by `new`" means an absent file is still
+        // written — creating is not overwriting, and for the shared hooks a
+        // missing file is no gate at all, which is the fail-open rule 12
+        // forbids. A migrated project never ran `new`, so this is the only
+        // way it ever receives one (kyu-runner, 2026-09-10).
+        if owned && !force && dir.join(&rel).exists() {
             println!(
                 "~ {rel} (project-owned; differs from the scaffold, left alone — use --write --force to overwrite)"
             );
@@ -2144,6 +2149,38 @@ chassis = { git = "g", tag = "v1.8.0", version = "1.8.0", features = ["testing"]
             !cmd_sync(&target, false, false, false, false)
                 .unwrap()
                 .changed
+        );
+        // fix-4: a project-owned file that is GONE is written back — creating
+        // is not overwriting, and a missing hook is no gate at all (rule 12).
+        // kyu-runner asked the question that found this: a migrated project
+        // never runs `new`, so it would have waited forever for check-ids.sh.
+        std::fs::remove_file(target.join(".githooks/check-ids.sh")).unwrap();
+        assert!(
+            cmd_sync(&target, false, false, false, false)
+                .unwrap()
+                .unresolved,
+            "a missing project-owned file is drift, not silence"
+        );
+        assert!(
+            cmd_sync(&target, true, false, false, false)
+                .unwrap()
+                .changed
+        );
+        assert!(
+            target.join(".githooks/check-ids.sh").exists(),
+            "--write puts the missing hook back"
+        );
+        // ... but one that exists and differs is still left alone.
+        std::fs::write(target.join(".githooks/check-ids.sh"), "# mine\n").unwrap();
+        assert!(
+            !cmd_sync(&target, true, false, false, false)
+                .unwrap()
+                .changed,
+            "a shared hook that is present is never rewritten"
+        );
+        assert_eq!(
+            std::fs::read_to_string(target.join(".githooks/check-ids.sh")).unwrap(),
+            "# mine\n"
         );
         // A project-owned file is left alone.
         std::fs::write(target.join("src/main.rs"), "fn main() {}\n").unwrap();

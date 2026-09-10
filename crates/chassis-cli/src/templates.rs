@@ -15,7 +15,10 @@ pub struct Entry {
     pub body: &'static str,
     pub render: bool,
     pub executable: bool,
-    /// Written once by `new`; `sync` reports but never overwrites without `--force`.
+    /// Written once by `new`; `sync` reports but never overwrites without
+    /// `--force`. An absent file is still written, because creating is not
+    /// overwriting — that is how a migrated project, which never ran `new`,
+    /// receives a shared hook at all (fix-4).
     pub project_owned: bool,
 }
 

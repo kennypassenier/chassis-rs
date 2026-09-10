@@ -384,7 +384,10 @@ replace three files with older copies, every run, forever.
    both first failing on the old entries.
 7. **How we measure it works, and when.** At the next consumer that runs
    `chassis sync` after a hook generation moves — the first report saying the
-   three files appear as `~` lines and the exit code stays 0. Queued in
+   three files appear as `~` lines and the exit code stays 0. **It needs a
+   release first**: kyu-runner measured that they run 2.0.0 with
+   `chassis_tag = "v2.0.0"`, so a fix on main reaches nobody. The measurement
+   is the first consumer bump after the next tag. Queued in
    `docs/PENDING_MINI_ROUNDS.md`.
 8. **The fallback if it fails.** If a project still goes red, the kit stops
    shipping the three files entirely and `chassis new` calls dev-procedure's
@@ -431,7 +434,11 @@ Also found by kyu-runner, releasing 0.2.2 of their own project with
    dockerfile`; drilled red by making the reader answer "covered" always.
 7. **How we measure it works, and when.** At the next consumer release run
    through `chassis release` — the report either names the refusal with its
-   remedy, or says the checks were found. Queued in
+   remedy, or says the checks were found. Like CF-16 it waits on a tag, since
+   a consumer runs the released CLI. kyu-runner is the natural reporter: their
+   CI demonstrably does not cover the release branch today, so the refusal is
+   observable there unless they restore the trigger first — in which case the
+   measurement becomes the release chain running through. Queued in
    `docs/PENDING_MINI_ROUNDS.md`.
 8. **The fallback if it fails.** If a project is refused wrongly, the check
    becomes a warning that still starts the wait, with a shorter first timeout

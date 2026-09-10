@@ -31,6 +31,12 @@ scaffold writes. A breaking change in either is a major and carries a
   going red on every sync. The shipped copies were a generation behind, old
   enough that a fresh project could not commit with the house ID scheme.
   Reported by kyu-runner; the ownership question is CF-16.
+- **`chassis sync` writes a project-owned file that is missing** (fix-4).
+  "Written once by `new`" now means an absent file is still written, because
+  creating is not overwriting — a project that was migrated rather than
+  generated never ran `new`, so without this it would never receive
+  `.githooks/check-ids.sh` at all and the ID gate would silently not run. A
+  file that exists is still left alone.
 - **`chassis release` refuses a project whose CI cannot check the release
   branch** (fix-5). It pushes `release-<version>` and waits for that commit's
   checks; a workflow triggering only on `main` produces none, so the wait ran

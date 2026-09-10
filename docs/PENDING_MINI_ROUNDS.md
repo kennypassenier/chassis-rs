@@ -1978,3 +1978,31 @@ for their second finding.
 lines and the exit code stays 0), and the first `chassis release` run on a
 project whose CI does not cover the release branch (the refusal arrives before
 the push, with its remedy).
+
+## kyu-runner's second message: the measurements need a tag (2026-09-10)
+
+They confirmed the correction about the diff direction and named the reading
+error precisely: the sync header is `--- <path> (project)` / `+++ <path>
+(scaffold)`, so minus is the project and plus is the kit. At the two hooks the
+minus line carried `# HOOK_VERSION=3`, which meant the scaffold would remove
+it — the kit was behind there. At `ci.yml` the same direction read the other
+way round, and they had generalised from the hooks without checking the third
+file. Their own correction form carries the measure; the consequence landed
+here as fix-5's scenario an hour later.
+
+**What they measured about this kit's fixes: they cannot reach anyone yet.**
+`chassis --version` says 2.0.0 there and `.chassis.toml` pins
+`chassis_tag = "v2.0.0"`, while fix-4 and fix-5 sit on main at `9bc5202`. So
+both queued measurements wait on a tag, and CF-16 and CF-17's field 7 now says
+so. Whether that tag happens now is Kenny's call.
+
+**And they found a hole in fix-4 by asking one honest question.** They could
+not confirm that `check-ids.sh` reaches them, because kyu-runner was migrated
+rather than generated and never runs `chassis new`. Measured here: a
+project-owned file that is *absent* was skipped by `sync` exactly like one that
+differs, so the file would never have arrived — and the canonical `commit-msg`
+only warns when it is missing, which is the fail-open shape rule 12 forbids.
+`sync` now writes a project-owned file that is missing and still refuses to
+overwrite one that exists. Drilled by deleting `.githooks/check-ids.sh` from a
+freshly generated project: exit 1, `--write` puts it back, and a hook with
+different content is left untouched.
