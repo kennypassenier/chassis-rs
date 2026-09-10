@@ -2119,3 +2119,32 @@ projects has one uncommitted file, `.githooks/check-ids.sh`, for its own
 session to commit — this session does not commit in their repositories.
 Outside the five, ten more projects carry the same older copy and latch-rs
 carries no stamped hooks at all; measured, reported, not touched.
+
+## 2.0.2 released, and a gap the homelab found (2026-09-10)
+
+**Released**: tag `v2.0.2` = `ce7e17e`. It carries the branch-protection
+expectation — `enforce_admins` off, the one required check kept, force-push
+and deletion still blocked — so a consumer running `chassis sync --protect`
+stops undoing Kenny's decision of that evening, plus fix-6. Kenny's
+"voorlopig laatste release" before the four adopt, release themselves, and the
+homelab rolls out. CT 118 keeps its drill wiring at his choice.
+
+**Open, and it belongs to two projects at once.** The Homelab Rust session
+reported that `kyu-alert` and `kyu-backup` appear in no stack file: a service
+that ships helper units hands them to a homelab that does not know they exist.
+Measured here, because the same shape is in the kit's own scaffold:
+
+| Project | Units in `deploy/` | `service.yml` declares |
+|---|---|---|
+| kyu | `kyu.service`, `kyu-alert@.service`, `kyu-backup.service`, `kyu-backup.timer` | `kyu` |
+| almanac | `almanac.service`, `almanac-latch.service` | `almanac` |
+| http-switchboard | `http-switchboard.service` | `http-switchboard` |
+| kyu-runner | `kyu-runner.service` | `kyu-runner` |
+
+`scaffold/deploy/service.yml.tmpl` has exactly one `unit:` field, and the
+scaffold itself writes a second unit whenever `latch` is on. So the kit ships
+the fault it is being told about.
+
+It cannot be closed from here alone: a field in the stack file is only worth
+writing when `homelab adopt` reads it, which is the homelab's half (rule 7a).
+Queued for the batch-5 round, with the measurement above as its starting point.
