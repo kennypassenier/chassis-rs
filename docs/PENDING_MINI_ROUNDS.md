@@ -1915,3 +1915,31 @@ Two things it found while being built, both in the released 2.0.0:
   3.0.0 and the check refuses a `Goes at` naming a minor.
 
 Landed as `b9ce464`, CI green. Nothing here waits on Kenny.
+
+## Blocked on the consumer reports, by choice (2026-09-10)
+
+Asked at the end of the evening: open batch 5 now, or wait. **Kenny: wachten op
+de rapporten.** The session is renamed `🏗️ chassis-rs - BLOCKED BY 📬 kyu` and
+carries one standing form whose single button resumes the work.
+
+What is awaited, and why waiting is not idleness:
+
+- **fix-3's measurement** — the first live supervised update on a consumer whose
+  unit declares `Environment=` lines. kyu is first in line: their v3.2.0 release
+  go is with Kenny, and the signed release reaching CT 109 is that run.
+- **CF-12's other half** — Almanac pinning `<PREFIX>_TOKEN` instead of reading
+  `app.token()` back. kyu's half is measured.
+- **The count batch 5 needs.** Narrowing the public surface for 3.0.0 is the
+  heaviest candidate in the queue, and how far it can go depends on what the
+  four consumers actually import through `chassis::core::` and
+  `chassis::shell::`. That count lives in their repositories, not this one, so
+  opening the round first would rest the decision on an assumption about
+  someone else's system — the shape rule 6a exists to refuse.
+
+The other two candidates stay where they are: `scripts/drill-release.sh`
+choosing glibc unconditionally where it should follow the target's features,
+and the trigger that would reverse feat-dep-1.
+
+Nothing in the kit is half-finished at this point: main is green, the contract
+reports 823 items unchanged, and the transition window has its list and its
+check.
