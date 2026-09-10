@@ -7,6 +7,12 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-09-10
+
+The release that makes the branch-protection decision of 2026-09-10 reach the
+projects that build on the kit, plus one repair to the consumer check. Nothing
+here touches the public surface.
+
 ### Changed
 
 - **`chassis sync --protect` no longer forces admins to wait** (Kenny,
