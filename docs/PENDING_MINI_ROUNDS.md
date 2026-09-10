@@ -1710,3 +1710,33 @@ in docs/FEATURES.md §Round 6:
    is queued in dev-procedure's IMPROVEMENTS_QUEUE.md, because a search found
    date formatting written down nowhere — not here, not in the procedure, not
    in ECOSYSTEM.md's norms.
+
+## Round 6 built (2026-09-10)
+
+Kenny chose to build the three working points from his look before releasing
+1.9.0, and approved the modal's shape and its scrolling body from a mockup
+before any code was written.
+
+- **feat-ui-1** — `shell::time::human_time` plus the `human_time` filter and
+  `localiseTimes()` in chassis.js. Six render sites. The gate reads the page
+  the way a reader does (`visible_text` strips the `datetime` attribute) and
+  was made to fail first by rendering `{{ c.issued_at }}` without the filter,
+  which reported `2026-09-10T02:42:50Z`.
+- **feat-clients-5** — `pinWidth`/`unpinWidth` around every label change.
+  Browser behaviour with no gate that can see it; the proof is the next look
+  on CT 118. One case it deliberately does not hold: a refusal flashes a whole
+  remedy sentence and is wider than any rest label, and narrowing it would
+  hide the remedy.
+- **feat-clients-4** — one button per row, everything else in a
+  `<dialog class="kp-dialog client-dialog">` per row. Two things worth
+  remembering: `display` on a dialog belongs to the browser, so the flex
+  column is scoped to `[open]` or the dialog lays itself out while closed;
+  and `min-height: 0` on the body is what lets it scroll instead of pushing
+  the foot off-screen. The gate counts buttons inside `<tbody>` — the
+  assertion that survives a project registering its own actions — and was
+  made to fail twice.
+
+Landed as `42735fe` and `9bc432f`, CI green. Built as inbox 0.1.7 → 0.1.8 in
+`dist/drill-0.1.8`, signed with the drill key; **not installed**: standing
+rule 13c (new, same evening) makes a write to a machine outside this
+repository a per-occasion permission, so the install waits on a form.
