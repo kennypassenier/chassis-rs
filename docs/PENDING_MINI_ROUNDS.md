@@ -875,7 +875,7 @@ them. The first 3.x release must be signed with `scripts/sign-release.sh`
 | CF-6 | (a) scaffold E2E runs cargo-deny on the generated project, (b) `chassis release --dry-run` checks Dockerfile/`.chassis.toml`/Migration, (c) migration closing check, (d) measure target paths first | (a) first CI run of the next fresh remote project; (b) the next release of kyu/kyu-runner/http-switchboard/almanac; (c, d) http-switchboard's step 2 | **built, kit 1.5.1 released 2026-09-06** (`149d4fa`); **(b) measured 2026-09-06 at kyu 3.0.0**: `chassis release --dry-run` ran before the tag and reported the three checks green; (c, d) measured at kyu-runner's and http-switchboard's turns (paths measured on CT 109 before the deploy files were written); (a) still open until the next fresh remote project |
 | CF-8 | Dashboard layout: calendar names instead of ids, ids behind a toggle, one Sources page (S1), the look-drill before dashboard releases; layout affordances (spacing) with kp-themes | the almanac 4.0.2 install on CT 112: Kenny opens the pages from Chrome | **CLOSED 2026-09-06 21:15 (local)** — Kenny on almanac 4.0.2 live: "alles lijkt hier te werken"; Claude's look-drill beforehand on the local 4.0.2 (one Sources in the nav, name + calendar on the issue form, no horizontal scroll) |
 | CF-7 | CSRF guard reads `Sec-Fetch-Site` first, `referrer-policy: same-origin`, refusals to navigations render in the layout, browser-fingerprint tests, Chrome drill before dashboard-touching kit releases (TEST_PLAN §5) | the almanac 4.0.1 install on CT 112: Kenny logs in from Chrome and deletes calendar `almanac-test`; Claude measures the same beforehand with the fingerprint tests and the Chrome drill on CT 118 | **CLOSED 2026-09-06 20:40** — Claude's half 16:53 UTC on CT 112 (Chrome-header form → 200, cross-site → 403 page, script → 403 JSON); Kenny's half the same evening: logged in from Chrome on almanac.kp-soft.dev and deleted calendar `almanac-test` |
-| CF-12 | `TestApp` reads token and state directory from the environment the app actually starts with (the `extra_env` overlay wins, as `start_with_env` documents) | The moment kyu adopts the kit version with this fix: kyu's 2.x import scenario drops its hand-written login POST for `TestApp::login()` and is green; Almanac pins `<PREFIX>_TOKEN` instead of reading `app.token()` back. Both report from their own sessions (rule 7a) | open — fix on main 2026-09-09, full record in `docs/CORRECTIONS.md` |
+| CF-12 | `TestApp` reads token and state directory from the environment the app actually starts with (the `extra_env` overlay wins, as `start_with_env` documents) | The moment kyu adopts the kit version with this fix: kyu's 2.x import scenario drops its hand-written login POST for `TestApp::login()` and is green; Almanac pins `<PREFIX>_TOKEN` instead of reading `app.token()` back. Both report from their own sessions (rule 7a) | **kyu's half measured 2026-09-10** on chassis 2.0.0 (`459d1c0`, released as kyu 3.2.0): their `spawn_kit_in` overrides `KYU_TOKEN`/`KYU_SECRET_KEY` through `extra_env` to prescribe a known key for the 2.x import fixture — exactly the scenario the fix describes. The hand-rolled login POST is gone, `TestApp::login()` is used directly, and `k2_app_tokens_issued_by_2x_keep_working_after_the_import` stays green. **Open on Almanac's half.** |
 | CF-5 | Kit releases only through `chassis release`; every hand-run commit step guarded by a HEAD-changed check; a tag only from a verified `origin/main` SHA whose `git show --stat` lists the feature files | The next kit release (1.3.1 or 1.4.0): it runs through `chassis release`, and the tag's commit is checked before the GitHub release exists | **closed** — measured 2026-09-06 at kit 1.4.0: released through `scripts/release-kit.sh` (rule 36 chain), tag `v1.4.0` → `3e0a41e` verified against `origin/main` before the GitHub release existed |
 
 ### CF-2 · correction form, answered 2026-09-05
@@ -1822,3 +1822,43 @@ choosing its target by feature rather than always glibc (deferred to the
 batch-5 report; for this example glibc is the correct build because
 `passkeys` pulls OpenSSL), and the four measurements that wait on the consumer
 sessions — CF-12, fix-3, CF-6(a) and CF-10.
+
+## kyu adopted 2.0.0 — what its report measures (2026-09-10)
+
+kyu took chassis 2.0.0 (`459d1c0`, released as kyu 3.2.0) and reported from
+its own session, which closes half of one open measurement and adds an
+instance to another.
+
+**CF-12, kyu's half: measured.** Their harness had precisely the shape the fix
+describes — `spawn_kit_in` overrides `KYU_TOKEN` and `KYU_SECRET_KEY` through
+`extra_env` so the 2.x import fixture can be written with a known key. Before
+the fix they had to hand-roll a login POST; that is gone and `TestApp::login()`
+is used directly, with `k2_app_tokens_issued_by_2x_keep_working_after_the_import`
+still green. Almanac's half — pinning `<PREFIX>_TOKEN` rather than reading
+`app.token()` back — is still open.
+
+**fix-3: a fourth instance, and a gap in its own field 3.** That correction
+searched the property "two templates that together describe one machine, never
+compared with each other" and answered that http-switchboard and Almanac
+confirmed the shape in their checkouts. kyu was not in that answer, and kyu had
+it too: `deploy/kyu.service` had been setting
+`Environment=KYU_STATE_DIR=/appdata/kyu/kyu-config` and
+`Environment=KYU_TIMEOUT_STOP_SECS=60` while its `service.yml`'s `update_cmd`
+carried neither. The search had looked inside this repository for a second pair
+of scaffold files; it never asked each consumer whether its own unit declared
+`Environment=` lines. That is the honest reading: the property was right and
+the search was narrower than the property.
+
+`chassis sync --write` corrected it for them. The formal measurement stays
+open, because kyu verified that the generated `--property=Environment=` lines
+match what the unit already said — a file comparison, not a live supervised
+update. Almanac and http-switchboard remain the named reporters.
+
+**Two things that needed nothing from here.** `chassis sync --write` also took
+kyu's own musl/distroless release pipeline back into the kit's templates, so
+the Dockerfile, `release.yml` and `rust-toolchain.toml` are kit-owned again and
+kyu carries no copy; 184 tests green and the container smoke green against the
+new scaffold image. And the CI template triggers on every branch push again,
+which is what kyu needed — a narrowed trigger there had forced a pull request
+for a one-line change because branch protection had no check to wait for. That
+is feat-ci-1 doing what Kenny decided it should.

@@ -131,6 +131,16 @@ independently by http-switchboard, and measured here before the fix.
    checkouts; no second pair of scaffold files describes one machine
    together. The kit's own `service.yml` is the only file that restates what
    a unit says.
+
+   **Corrected 2026-09-10, from kyu's adoption report.** That answer was
+   narrower than the property it claimed to search. kyu had the same fault —
+   `deploy/kyu.service` set `Environment=KYU_STATE_DIR=/appdata/kyu/kyu-config`
+   and `Environment=KYU_TIMEOUT_STOP_SECS=60` while its `service.yml`'s
+   `update_cmd` carried neither — and it was not in the list, because the
+   search had looked for a second pair of scaffold files inside this
+   repository rather than asking each consumer whether its own unit declared
+   `Environment=` lines. Four of four, then, not two. `chassis sync --write`
+   corrected kyu's copy without anyone touching it by hand.
 4. **The measure.** The two lines are reproduced as
    `--property=Environment=KEY=VALUE` in the unit's own order, and the
    comment no longer promises more than the command does. The test now reads
