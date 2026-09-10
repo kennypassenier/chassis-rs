@@ -26,11 +26,17 @@ grep -q "^## \[$version\]" CHANGELOG.md || { echo "release-kit: CHANGELOG.md has
 # at the top of CHANGELOG.md and is the reason a consumer can trust a minor.
 case "$version" in
   *.0.0)
-    awk -v v="## [$version]" 'index($0, v) == 1 {inside=1; next} /^## \[/ {inside=0} inside' CHANGELOG.md \
-      | grep -q "^### Migration" || {
-        echo "release-kit: $version is a major and its CHANGELOG section has no ### Migration."
-        echo "What now: write what a consumer has to change, with the before and after, under ## [$version]."
-        exit 1; }
+    # No `| grep -q` here: grep leaves on its first match, awk takes SIGPIPE,
+    # and `set -o pipefail` then calls the whole pipeline failed — the check
+    # refused a CHANGELOG that did carry the section. Read the section into a
+    # variable and match on it instead.
+    section=$(awk -v v="## [$version]" 'index($0, v) == 1 {inside=1; next} /^## \[/ {inside=0} inside' CHANGELOG.md)
+    case "$section" in
+      *"### Migration"*) ;;
+      *) echo "release-kit: $version is a major and its CHANGELOG section has no ### Migration."
+         echo "What now: write what a consumer has to change, with the before and after, under ## [$version]."
+         exit 1 ;;
+    esac
     ;;
 esac
 git fetch -q origin main
