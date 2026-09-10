@@ -165,3 +165,14 @@ New identifiers follow the house scheme set on 2026-09-09 (`feat-<domain>-<n>`,
 | feat-clients-3 | Don't rename | **`Caller` keeps its name.** It answers who sent a request, and a client is one of its two shapes; the generated document says so in one line. | Documentation only. |
 
 Tally after round 5: Essential 48 · Desired 4 · Later 2 (W5, K33) · Don't do 4 · Open investigation 1 (feat-dep-1).
+
+## Round 6 — candidates from Kenny's look at 1.9.0 on CT 118 (raised 2026-09-10)
+
+Not weighed yet. Kenny's verdict on the look-drill was that the test passed;
+these are the three things he wants taken into the next development round.
+
+| ID | Rating | What | Proof it works |
+|---|---|---|---|
+| feat-clients-4 | to be weighed | **The Clients table is too wide and its rows are too tall.** It carries Name, Token, Issued, Last used, State, the project's declared columns, and an unlabelled column of buttons. Two of those columns hold several buttons each — Token has Reveal, Copy token, Copy command; the unlabelled one has Last requests, Send test, the project's own actions, Revoke, Delete — and both wrap, so one row becomes very tall. **Kenny's proposal:** the table keeps Name, Issued, Last used, State and the declared columns, plus one unlabelled column with a single button that opens a modal; everything else lives in that modal, laid out as a form rather than as a table. Build a mockup of the modal first; if kp-themes' components are not enough for it, ask that project for what is missing. | the table has at most six columns and one button per row; a row's height does not depend on how many actions a project registers |
+| feat-clients-5 | to be weighed | **The row must not change shape while a button works.** Clicking `Send test` re-flows the row: Revoke and Delete jump from stacked to side by side while the button is busy. A control that reports it is working (standing rule 31) may not move the layout around it. | a busy button leaves every other element in the row where it was; drilled by holding a row in its busy state |
+| feat-ui-1 | to be weighed | **Dates in the UI are read by people, not by machines.** The Clients table prints `2026-09-10T02:16:47Z`. Kenny, on seeing it live: that is not something a human wants to read. A timestamp renders in the viewer's browser locale, with the date and the time as separate readable parts rather than run together. Applies wherever the kit renders a timestamp: `issued_at`, `last_used_at`, `revoked_at`, and the status page. The machine-readable value stays available where a machine needs it. | no ISO-8601 string reaches a rendered page; a test asserts the rendered form for two different locales |

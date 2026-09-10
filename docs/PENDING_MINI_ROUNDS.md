@@ -1685,3 +1685,28 @@ deferred to the batch-5 report.
 **To undo the drill wiring** when the look is over: `systemctl stop
 drill-serve` in the container, restore `/etc/inbox/inbox.env` from
 `inbox.env.pre-drill-0.1.7`, restart.
+
+## Kenny's verdict on the 1.9.0 look-drill (2026-09-10)
+
+**"Alles lijkt te werken … voor zover ik kan zien is de test geslaagd."** The
+live look on CT 118 (inbox 0.1.7, http://10.10.10.18:8080) is the rule-39
+half that precedes a release go.
+
+Three working points, explicitly **not** to be acted on now — they go into the
+next development round as `feat-clients-4`, `feat-clients-5` and `feat-ui-1`
+in docs/FEATURES.md §Round 6:
+
+1. The Clients table is too wide and its rows too tall, because two columns
+   each hold several buttons that wrap. Kenny's own proposal: keep Name,
+   Issued, Last used, State and the declared columns, add one unlabelled
+   column with a single button that opens a modal, and put everything else in
+   that modal laid out as a form. Claude builds a mockup of the modal first;
+   if kp-themes' components are not enough, that project is asked for what is
+   missing.
+2. Clicking `Send test` re-flows the row while the button is busy. A control
+   reporting that it works may not move the layout around it.
+3. Timestamps render as `2026-09-10T02:16:47Z`. They must follow the browser
+   locale, with date and time as separate readable parts. The house-wide half
+   is queued in dev-procedure's IMPROVEMENTS_QUEUE.md, because a search found
+   date formatting written down nowhere — not here, not in the procedure, not
+   in ECOSYSTEM.md's norms.
