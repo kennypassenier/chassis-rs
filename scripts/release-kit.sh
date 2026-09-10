@@ -35,6 +35,16 @@ git fetch -q origin main
   exit 1
 }
 
+# Standing rule 46, the second third (feat-api-1): the public surface is
+# compared against what is recorded, so a shape change cannot ride out in a
+# release nobody marked as breaking. A consumer compiles against these lines
+# and lives in another repository, so this is the only place left to notice.
+# Local as well, never on a commit.
+"$root/scripts/check-api.sh" || {
+  echo "release-kit: public surface differs from docs/API_SURFACE.txt; nothing released" >&2
+  exit 1
+}
+
 current="$(grep -m1 '^version = ' crates/chassis/Cargo.toml | cut -d'"' -f2)"
 echo "release-kit: $current -> $version"
 sed -i "s/^version = \"$current\"/version = \"$version\"/" crates/chassis/Cargo.toml crates/chassis-cli/Cargo.toml
