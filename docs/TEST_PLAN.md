@@ -22,6 +22,23 @@ Gates: `.githooks/pre-commit` → `.claude/hooks/gates.sh` (fmt, clippy
 `.githooks/commit-msg` (feature IDs); CI re-runs them plus `cargo deny`
 and coverage (informational) on every branch; `main` requires both checks.
 
+**The suite is skipped when no Rust source moved** (Kenny, 2026-09-16,
+the testselectie form). Format and lint always run — measured at 0,19 s
+and 0,21 s, cheaper than deciding whether to. The suite is 9,35 s of the
+9,3 s gate, and over the last 150 commits of this repository 88 of them
+(58%) touched no `.rs` file and paid it for nothing. `gate_glob` in
+`.githooks/gate-cache.sh` hashes every tracked `*.rs`, `Cargo.toml` and
+`Cargo.lock`; an unchanged hash since the last green run means the suite
+does not run. Only a green run is remembered, the cache lives in `.git`
+and never travels, and it is ignored on the first commit of each day and
+under `GATE_FULL=1` — which `scripts/release-kit.sh` sets.
+
+Per crate was measured and rejected: `cargo test -p chassis` took 13,0 s
+against 12,6 s for the whole workspace, because cargo runs every test
+binary either way. The axis that pays is whether any Rust changed at all.
+`cargo test` here is execution, not compilation — clippy finishes in
+0,21 s, so nothing is being rebuilt.
+
 ## 2 · Proven per environment (rule 35)
 
 | Mechanism | PC (suite) | CI (Ubuntu) | CT 118 (Debian 13 LXC, systemd) | Container (debian:trixie-slim) |

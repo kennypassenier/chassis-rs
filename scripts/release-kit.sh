@@ -17,6 +17,11 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 repo="kennypassenier/chassis-rs"
 
+# Kenny, 2026-09-16 (cache-safety): the commit gate skips a check whose
+# inputs did not move, and a release is where that bookkeeping is set
+# straight. Everything this script runs, runs in full.
+export GATE_FULL=1
+
 [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ] || { echo "release-kit: not on main"; exit 1; }
 [ -z "$(git status --porcelain)" ] || { echo "release-kit: working tree not clean"; exit 1; }
 grep -q "^## \[$version\]" CHANGELOG.md || { echo "release-kit: CHANGELOG.md has no ## [$version] section"; exit 1; }
