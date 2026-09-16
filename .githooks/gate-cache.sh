@@ -55,8 +55,14 @@
 # for this file: a drill that made a check fail through the environment
 # was skipped on the very next run, which is correct behaviour and a
 # useless drill.
-set -uo pipefail
-
+# The caller's shell options are left exactly as they were. `gate` and
+# `gate_glob` return a status on purpose, and several of their own steps
+# return non-zero in normal operation, so each one turns `errexit` off
+# for the length of its body and puts it back. A project that had
+# `set -e` therefore keeps it: a failing gate aborts the chain as a bare
+# command, and one that uses `|| exit 1` works the same way. Without this
+# guard every project would have had to change its `set` line, which is
+# fourteen files of risk for no benefit.
 gate_root="$(git rev-parse --show-toplevel)"
 gate_gitdir="$(git rev-parse --absolute-git-dir)"
 gate_cachedir="$gate_gitdir/gate-cache"
@@ -106,6 +112,9 @@ gate_hash() {
 }
 
 # Whether this command is one whose reads can be recorded.
+# Put `errexit` back the way the caller had it, then hand on the status.
+_gate_return() { [ "$1" = 1 ] && set -e; return "$2"; }
+
 gate_traceable() {
   case "$1" in
     node|npx) [ -f "$gate_tracer" ] ;;
@@ -115,6 +124,7 @@ gate_traceable() {
 
 gate() {
   local name="$1"; shift
+  local had_e=0; case $- in *e*) had_e=1; set +e;; esac
   local inputs="$gate_cachedir/$name.inputs"
   local stamp="$gate_cachedir/$name.hash"
   local before=""
@@ -122,15 +132,17 @@ gate() {
   if ! gate_traceable "$1"; then
     gate_untraceable=$((gate_untraceable + 1))
     gate_ran=$((gate_ran + 1))
-    ( cd "$gate_root" && "$@" ) || return 1
-    return 0
+    ( cd "$gate_root" && "$@" )
+    _gate_return "$had_e" $?
+    return
   fi
 
   if [ "$gate_full" != 1 ] && [ -s "$inputs" ] && [ -s "$stamp" ]; then
     before="$(gate_hash "$inputs")"
     if [ "$before" = "$(cat "$stamp")" ]; then
       gate_skipped=$((gate_skipped + 1))
-      return 0
+      _gate_return "$had_e" 0
+      return
     fi
   fi
 
@@ -149,12 +161,13 @@ gate() {
     else
       rm -f "$trace" "$inputs" "$stamp"
     fi
-    return 0
+    _gate_return "$had_e" 0
+    return
   fi
   # A red run leaves no verdict behind, so the next commit runs it again
   # even if nothing changed in between.
   rm -f "$trace" "$stamp"
-  return 1
+  _gate_return "$had_e" 1
 }
 
 # A command whose inputs are named rather than recorded. The set is
@@ -162,6 +175,7 @@ gate() {
 # tracks files being added and removed without anyone editing a list.
 gate_glob() {
   local name="$1"; shift
+  local had_e=0; case $- in *e*) had_e=1; set +e;; esac
   local globs=()
   while [ "$#" -gt 0 ] && [ "$1" != "--" ]; do globs+=("$1"); shift; done
   [ "${1:-}" = "--" ] && shift
@@ -172,16 +186,18 @@ gate_glob() {
 
   if [ "$gate_full" != 1 ] && [ -s "$inputs" ] && [ -s "$stamp" ]      && [ "$(gate_hash "$inputs")" = "$(cat "$stamp")" ]; then
     gate_skipped=$((gate_skipped + 1))
-    return 0
+    _gate_return "$had_e" 0
+    return
   fi
 
   gate_ran=$((gate_ran + 1))
   if ( cd "$gate_root" && "$@" ); then
     gate_hash "$inputs" > "$stamp"
-    return 0
+    _gate_return "$had_e" 0
+    return
   fi
   rm -f "$stamp"
-  return 1
+  _gate_return "$had_e" 1
 }
 
 gate_cache_done() {
