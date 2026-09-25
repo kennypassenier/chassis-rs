@@ -2440,3 +2440,12 @@ itself from the workflow file — the case does not depend on two consumers
 asking for it. It is here, in this repository, measurable today.
 
 Still stored and not acted on, at Kenny's instruction.
+
+**Decided 2026-09-25 (Kenny, from the homelab project):** per-project checks.
+`.chassis.toml` gains `required_checks`; `sync --remote` and `--protect` read
+it and fall back to the kit's three. http-switchboard and kyu-runner set it
+to `["fmt · clippy · tests"]`, and kyu-runner gets cargo-deny in its release
+tier (it ran nowhere). kyu and almanac run all three jobs, so the default
+fits them; their protection still requires only the one, which `--protect`
+would raise safely. The kit's `ci.yml` is unchanged, so `sync` still shows
+the one-job `ci.yml` of those two projects as a diff.

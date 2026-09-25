@@ -379,8 +379,9 @@ pub fn write_atomically(path: &Path, body: &str) -> Result<(), Error> {
 
 // ───────────────────────── branch protection vs CI ─────────────────────────
 
-/// The checks `main` must wait for: the scaffold's non-informational CI
-/// job names. `protect_main` sets them and `sync --remote` compares them,
+/// The checks `main` must wait for by default: the scaffold's
+/// non-informational CI job names. A project that runs fewer of them in CI
+/// names its own subset in `.chassis.toml` `required_checks` (Kenny, 2026-09-25). `protect_main` sets them and `sync --remote` compares them,
 /// and a test checks they equal the rendered `ci.yml`, so a renamed job
 /// cannot leave the three apart (kyu's protection required `gates` for a
 /// week after CI stopped producing it).
@@ -412,9 +413,9 @@ impl Protection {
     /// for it, and force-pushing or deleting main stays blocked — that is the
     /// only irreversible thing in the set. A release is verified by the release
     /// command's own wait for green checks, not by this setting.
-    pub fn expected() -> Self {
+    pub fn expected(checks: &[String]) -> Self {
         Self {
-            checks: REQUIRED_CHECKS.iter().map(|c| c.to_string()).collect(),
+            checks: checks.to_vec(),
             strict: true,
             enforce_admins: false,
         }
@@ -535,14 +536,14 @@ pub fn fetch_protection(repo: &str) -> Result<Option<Protection>, Error> {
 }
 
 /// Everything `--remote` compares, as drift lines.
-pub fn remote_drift(repo: &str) -> Result<Vec<Drift>, Error> {
-    let expected = Protection::expected();
+pub fn remote_drift(repo: &str, checks: &[String]) -> Result<Vec<Drift>, Error> {
+    let expected = Protection::expected(checks);
     Ok(match fetch_protection(repo)? {
         Some(actual) => protection_drift(&expected, &actual),
         None => vec![Drift::new(
             "branch protection",
             "main is not protected".into(),
-            format!("the kit's checks required ({})", REQUIRED_CHECKS.join(", ")),
+            format!("the project's checks required ({})", checks.join(", ")),
             "run `chassis sync --protect` once CI has run on the repository (rule 6a)".into(),
         )],
     })
@@ -717,6 +718,11 @@ axum = "0.8"
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
+    fn kit() -> Protection {
+        let checks: Vec<String> = REQUIRED_CHECKS.iter().map(|c| c.to_string()).collect();
+        Protection::expected(&checks)
+    }
+
     fn protection(checks: &[&str], strict: bool, enforce_admins: bool) -> Protection {
         Protection {
             checks: checks.iter().map(|c| c.to_string()).collect(),
@@ -728,7 +734,7 @@ axum = "0.8"
     // Drilled red once (asserted a line for identical protection): failed, restored.
     #[test]
     fn k32_identical_protection_is_no_drift() {
-        let expected = Protection::expected();
+        let expected = kit();
         assert!(protection_drift(&expected, &expected.clone()).is_empty());
         // Order does not matter: the API returns the checks as a set.
         let mut reversed = expected.clone();
@@ -748,7 +754,7 @@ axum = "0.8"
             true,
             false,
         );
-        let drift = protection_drift(&Protection::expected(), &actual);
+        let drift = protection_drift(&kit(), &actual);
         assert_eq!(drift.len(), 1, "{drift:?}");
         assert_eq!(
             drift[0].to_string(),
@@ -760,9 +766,9 @@ axum = "0.8"
     #[test]
     fn k32_an_extra_check_is_one_line() {
         // kyu, 2026-09-06: the retired job `gates` still required next to the three.
-        let mut actual = Protection::expected();
+        let mut actual = kit();
         actual.checks.push("gates".into());
-        let drift = protection_drift(&Protection::expected(), &actual);
+        let drift = protection_drift(&kit(), &actual);
         assert_eq!(drift.len(), 1, "{drift:?}");
         assert!(
             drift[0]
@@ -777,7 +783,7 @@ axum = "0.8"
     #[test]
     fn k32_strict_false_is_one_line() {
         let actual = protection(REQUIRED_CHECKS, false, false);
-        let drift = protection_drift(&Protection::expected(), &actual);
+        let drift = protection_drift(&kit(), &actual);
         assert_eq!(drift.len(), 1, "{drift:?}");
         assert!(
             drift[0]
@@ -790,7 +796,7 @@ axum = "0.8"
         // protection that FORCES admins to wait which now reads as drift.
         let actual = protection(REQUIRED_CHECKS, true, true);
         assert_eq!(
-            protection_drift(&Protection::expected(), &actual)[0].project,
+            protection_drift(&kit(), &actual)[0].project,
             "enforce_admins = true"
         );
     }

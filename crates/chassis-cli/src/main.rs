@@ -66,6 +66,14 @@ struct Recorded {
     /// into the kit-owned `deny.toml`, so a sync keeps them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     deny_ignore: Vec<String>,
+    /// The CI checks `main` must wait for, when the project runs fewer
+    /// jobs than the kit's `ci.yml` (Kenny, 2026-09-25). Empty = all of
+    /// `drift::REQUIRED_CHECKS`. Each entry must be one of those names;
+    /// `sync --remote` compares against this list and `sync --protect`
+    /// sets it, so a project that moved cargo-deny and the image build to
+    /// its release tier is not told to require checks its CI never runs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    required_checks: Vec<String>,
     /// The LXC's vmid (1.7.1): `service.yml` names it and the hostname
     /// `<vmid>-app-<name>` the homelab validates. 0 = not adopted yet.
     #[serde(default)]
@@ -78,6 +86,34 @@ impl Recorded {
         self.env_file
             .clone()
             .unwrap_or_else(|| format!("/etc/{0}/{0}.env", self.name))
+    }
+
+    /// The checks `main` must wait for: the project's own list, or the kit's.
+    /// Refuses a name no CI job of the kit produces, since protection that
+    /// requires it would leave `main` waiting forever.
+    fn required_checks(&self) -> Result<Vec<String>, Error> {
+        if self.required_checks.is_empty() {
+            return Ok(drift::REQUIRED_CHECKS
+                .iter()
+                .map(|c| c.to_string())
+                .collect());
+        }
+        if let Some(unknown) = self
+            .required_checks
+            .iter()
+            .find(|c| !drift::REQUIRED_CHECKS.contains(&c.as_str()))
+        {
+            return Err(Error::config(
+                format!(
+                    ".chassis.toml required_checks names `{unknown}`, which is not a kit CI job"
+                ),
+                format!(
+                    "use names from the kit's ci.yml: {}",
+                    drift::REQUIRED_CHECKS.join(", ")
+                ),
+            ));
+        }
+        Ok(self.required_checks.clone())
     }
 
     /// ` --env <x>` for the latch unit, or nothing when `latch_env` is "" (M2).
@@ -531,6 +567,7 @@ fn cmd_new(
         env_file: None,
         latch_env: None,
         deny_ignore: Vec::new(),
+        required_checks: Vec::new(),
         vmid: 0,
         name,
         description,
@@ -860,7 +897,7 @@ fn cmd_sync(
         println!("{d}");
     }
     if remote {
-        for d in drift::remote_drift(&rec.repo)? {
+        for d in drift::remote_drift(&rec.repo, &rec.required_checks()?)? {
             drifted = true;
             // --protect repairs the protection right after this; without it
             // the difference is only reported.
@@ -886,8 +923,9 @@ fn cmd_sync(
 
 fn protect_main(rec: &Recorded) -> Result<(), Error> {
     require_tool("gh", "install the GitHub CLI and run `gh auth login`")?;
+    let checks = rec.required_checks()?;
     let body = serde_json::json!({
-        "required_status_checks": { "strict": true, "contexts": drift::REQUIRED_CHECKS },
+        "required_status_checks": { "strict": true, "contexts": checks },
         // Admins push straight to main when they choose (Kenny, 2026-09-10);
         // the required check still gates every other path. See
         // drift::Protection::expected.
@@ -1577,6 +1615,7 @@ mod tests {
             env_file: None,
             latch_env: None,
             deny_ignore: Vec::new(),
+            required_checks: Vec::new(),
             vmid: 0,
         }
     }
@@ -2419,6 +2458,44 @@ chassis = { git = "g", tag = "v1.8.0", version = "1.8.0", features = ["testing"]
             .unwrap()
             .1;
         assert!(ci.contains("gates.project.sh"), "{ci}");
+    }
+
+    /// Kenny, 2026-09-25: a project that runs one CI job records it, and protection is
+    /// compared against that one. http-switchboard and kyu-runner moved
+    /// cargo-deny and the image build to their release tier; the kit's
+    /// three-check list told them to require checks CI never produces.
+    #[test]
+    fn required_checks_default_to_the_kit_and_narrow_per_project() {
+        let r = rec();
+        assert_eq!(r.required_checks().unwrap(), drift::REQUIRED_CHECKS);
+
+        let mut r = rec();
+        r.required_checks = vec!["fmt · clippy · tests".into()];
+        let checks = r.required_checks().unwrap();
+        assert_eq!(checks, ["fmt · clippy · tests"]);
+        let actual = drift::Protection {
+            checks: checks.clone(),
+            strict: true,
+            enforce_admins: false,
+        };
+        let expected = drift::Protection::expected(&checks);
+        assert!(drift::protection_drift(&expected, &actual).is_empty());
+
+        let parsed: Recorded = toml::from_str(&format!(
+            "{}\nrequired_checks = [\"fmt · clippy · tests\"]\n",
+            toml::to_string_pretty(&rec()).unwrap()
+        ))
+        .unwrap();
+        assert_eq!(parsed.required_checks, ["fmt · clippy · tests"]);
+    }
+
+    /// Kenny, 2026-09-25: a name no kit job produces would leave main waiting forever.
+    #[test]
+    fn required_checks_refuse_a_name_the_kit_does_not_produce() {
+        let mut r = rec();
+        r.required_checks = vec!["gates".into()];
+        let err = r.required_checks().unwrap_err().to_string();
+        assert!(err.contains("`gates`"), "{err}");
     }
 
     /// 1.7.0: a project's reviewed advisory exceptions live in .chassis.toml
