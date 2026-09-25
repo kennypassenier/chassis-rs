@@ -543,7 +543,7 @@ pub fn remote_drift(repo: &str, checks: &[String]) -> Result<Vec<Drift>, Error> 
         None => vec![Drift::new(
             "branch protection",
             "main is not protected".into(),
-            format!("the kit's checks required ({})", checks.join(", ")),
+            format!("the project's checks required ({})", checks.join(", ")),
             "run `chassis sync --protect` once CI has run on the repository (rule 6a)".into(),
         )],
     })

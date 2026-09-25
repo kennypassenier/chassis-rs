@@ -2482,7 +2482,7 @@ chassis = { git = "g", tag = "v1.8.0", version = "1.8.0", features = ["testing"]
         assert!(drift::protection_drift(&expected, &actual).is_empty());
 
         let parsed: Recorded = toml::from_str(&format!(
-            "{}required_checks = [\"fmt · clippy · tests\"]\n",
+            "{}\nrequired_checks = [\"fmt · clippy · tests\"]\n",
             toml::to_string_pretty(&rec()).unwrap()
         ))
         .unwrap();
