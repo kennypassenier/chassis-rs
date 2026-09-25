@@ -7,6 +7,16 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **`.chassis.toml` `required_checks`** (Kenny, 2026-09-25). A project that
+  runs fewer CI jobs than the kit's `ci.yml` names the checks `main` waits
+  for; `chassis sync --remote` compares branch protection against that list
+  and `--protect` sets it. Left out, it is the kit's three. Before this, the
+  drift report told http-switchboard and kyu-runner to require
+  `cargo-deny (advisories · licenses · bans)` and `container build`, which
+  their CI never produces, so following its remedy would have blocked `main`.
+
 ## [2.0.2] - 2026-09-10
 
 The release that makes the branch-protection decision of 2026-09-10 reach the

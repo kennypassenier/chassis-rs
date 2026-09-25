@@ -341,6 +341,16 @@ Nothing is required. What a project can adopt, each on its own:
   differs from `chassis_tag`, a stale `kp_themes`, and with `--remote` a branch
   protection that names other checks than the CI does.
 
+## Unreleased additions
+
+- `.chassis.toml` `required_checks = ["fmt · clippy · tests"]`: the CI checks
+  `main` waits for, when the project runs fewer jobs than the kit's `ci.yml`
+  (cargo-deny and the container build in its release tier instead). Left
+  out, it is all three of `drift::REQUIRED_CHECKS`. `chassis sync --remote`
+  compares branch protection against this list and `--protect` sets it, so
+  the remedy no longer makes `main` wait for checks CI never produces. A name
+  that is not a kit CI job is refused.
+
 ## 2.0.0 additions
 
 Drafted as 1.9.0 and released as 2.0.0 (CF-15): the release chain refused the
