@@ -5,7 +5,10 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
-## [Unreleased]
+## [2.1.0] - 2026-09-26
+
+A minor: one addition to `.chassis.toml`, a repaired release step, and a test
+suite that passes on WSL2. Nothing on the public surface moves.
 
 ### Added
 

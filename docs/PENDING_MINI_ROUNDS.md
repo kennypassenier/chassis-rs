@@ -2485,3 +2485,21 @@ chassis-rs lines were checked against the repository:
 - **fix-8** — the suite was red on this WSL2 machine before any change:
   three tests assumed things WSL2 does not give. Repaired, see
   `docs/CORRECTIONS.md`.
+
+## Kenny's answers to the resume form (2026-09-26)
+
+- **release-kit: Nu uitbrengen als 2.1.0.** Released the same evening with
+  `scripts/release-kit.sh 2.1.0`; the CLI is reinstalled on WSL, Garuda
+  follows with the command in the thread.
+- **ct118-drill: Laten staan.** The drill wiring stays. Recorded in
+  CLAUDE.md that a restart of CT 118 removes the drill server (transient unit
+  serving `/tmp/drill-0.1.10`), after which every update check of inbox fails.
+- **runner-list: In batch 5.** kyu-runner's four kept items are batch-5
+  candidates: (1) a distinct exit code when `chassis release` stops at the
+  human signing step; (2) an exit code for a declared deviation; (3) `chassis
+  sync` naming `chassis upgrade` when the kit version lags; (4) `docs/KIT.md`
+  rewritten on every bump when only the version moves. Nothing is built now.
+- **fix-7: Klopt · fix-8: Klopt.** Both corrections ratified as written in
+  `docs/CORRECTIONS.md`. Open measurements: fix-7 at the first consumer
+  release signed with a 2.1.0 CLI; fix-8 at the first gate run on Garuda.
+
