@@ -103,6 +103,14 @@ refuses it; every refusal ends with nothing installed.
    binary's --check did not finish within N s. What now: nothing was
    installed; the release hangs on start`. The staging file is
    removed either way.
+   **`--check` writes nothing.** The probe runs the *new* version against
+   the live configuration and store while the old version still serves,
+   and possibly as another user than the service. A project's `on_check`
+   therefore opens its store read-only and never through the path that
+   migrates: kyu 3.3.0 did the latter, and the probe, run as root on CT 109,
+   applied migration 5 and left a root-owned `kyu.pre-v4.db` behind (kyu
+   fix-check-1, 2026-09-20). The kit cannot enforce this; it is the
+   contract of `App::on_check`.
 10. **State copy (K21).** If the project registered `App::state_copy`,
     the kit creates `<update_copies_dir>/<new version>/` (default
     `<state_dir>-pre-update/<version>/`), calls the hook with that path,
@@ -111,10 +119,15 @@ refuses it; every refusal ends with nothing installed.
 11. **Swap.** Remove a stale `<bin>.prev`, `hard_link(bin, bin.prev)`,
     then one `rename(staging, bin)`, then fsync the directory. A binary
     exists at every instant; `.prev` is always the old one. Needs write
-    access to the binary's directory: `cannot keep the previous binary at
-    <bin>.prev: … What now: the service user needs write access to the
-    directory holding the binary (ReadWritePaths in the unit), not only
-    to the binary`.
+    access to the binary's directory **and ownership of the binary**:
+    Linux's `fs.protected_hardlinks` refuses a hard link to a file another
+    user owns, with the same "Operation not permitted" as an unwritable
+    directory. The refusal names both: `cannot keep the previous binary at
+    <bin>.prev: … What now: the binary is owned by uid 0:gid 0; the service
+    user must own it (install it with `install -o <user> -g <group>`) …;
+    and it needs write access to <dir> (ReadWritePaths in the unit), not
+    only to the binary`. kyu met the ownership case on CT 109 (2026-09-20)
+    while the older text blamed the directory.
 12. **Drill marker**, only with `update_drill` set: `<bin>.drill` with
     `{version, kind}`.
 13. **Autonomous only:** write `update-state.json`

@@ -5,6 +5,22 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
+## [Unreleased]
+
+### Fixed
+
+- **A refused `.prev` link names the binary's owner** (fix-9; kyu, 2026-09-20).
+  "Operation not permitted" while keeping the previous binary used to blame
+  the directory only; the common cause on CT 109 was a root-owned binary,
+  which Linux will not let another user hard-link. The remedy now shows the
+  owner and says to install with `install -o <user> -g <group>`.
+
+### Documentation
+
+- **`--check` writes nothing**, stated in `docs/SELF_UPDATE.md` and on
+  `App::on_check`: open the store read-only, never through the migrating
+  path (kyu fix-check-1).
+
 ## [2.1.0] - 2026-09-26
 
 A minor: one addition to `.chassis.toml`, a repaired release step, and a test

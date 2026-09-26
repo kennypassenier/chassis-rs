@@ -486,7 +486,7 @@ impl Updater {
         std::fs::hard_link(&self.binary, &prev).map_err(|e| {
             Error::config(
                 format!("cannot keep the previous binary at {}: {e}", prev.display()),
-                "the service user needs write access to the directory holding the binary (ReadWritePaths in the unit), not only to the binary",
+                prev_link_remedy(&self.binary),
             )
         })?;
         std::fs::rename(&staging, &self.binary).map_err(|e| {
@@ -715,6 +715,28 @@ pub fn verify_signature(
         )
     })?;
     Ok(sig)
+}
+
+/// The remedy when `bin` cannot be hard-linked to `bin.prev`. Two causes
+/// give the same EPERM: a directory the service user cannot write, and a
+/// binary another user owns — Linux's `fs.protected_hardlinks` refuses a
+/// hard link to a file the caller does not own, however writable the
+/// directory is. kyu met the second on CT 109 (2026-09-20): a root-owned
+/// binary in a kyu-owned directory, while the old text blamed the directory.
+fn prev_link_remedy(binary: &Path) -> String {
+    use std::os::unix::fs::MetadataExt;
+    let owner = std::fs::metadata(binary)
+        .map(|m| format!("uid {}:gid {}", m.uid(), m.gid()))
+        .unwrap_or_else(|_| "an unknown owner".to_string());
+    let dir = binary
+        .parent()
+        .map(|d| d.display().to_string())
+        .unwrap_or_else(|| ".".to_string());
+    format!(
+        "the binary is owned by {owner}; the service user must own it (install it with `install -o <user> -g <group>`), \
+         because Linux refuses a hard link to a file another user owns; and it needs write access to {dir} \
+         (ReadWritePaths in the unit), not only to the binary"
+    )
 }
 
 fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
@@ -1514,6 +1536,21 @@ mod tests {
             version: "1.0.0".to_string(),
             detail: String::new(),
         });
+    }
+
+    #[test]
+    fn a_refused_prev_link_names_the_owner_and_the_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = installed(dir.path(), GOOD_BINARY);
+        let remedy = prev_link_remedy(&bin);
+        use std::os::unix::fs::MetadataExt;
+        let uid = std::fs::metadata(&bin).unwrap().uid();
+        assert!(remedy.contains(&format!("uid {uid}:")), "{remedy}");
+        assert!(remedy.contains("install -o"), "{remedy}");
+        assert!(
+            remedy.contains(&dir.path().display().to_string()),
+            "{remedy}"
+        );
     }
 
     /// A local port that refuses at once. A fixed low port (1, 9) is not

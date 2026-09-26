@@ -587,3 +587,33 @@ of this session: `cargo test --workspace --all-features` failed three tests in
    them in CI only.
 9. **When we review it.** At the retrospective of batch 5.
 
+## fix-9 · A refusal blamed the directory when the owner was the cause (2026-09-26)
+
+Reported by kyu, relayed at Kenny's go.
+
+1. **What went wrong.** On CT 109 (2026-09-20) the self-update printed
+   "cannot keep the previous binary … Operation not permitted" with the remedy
+   "write access to the directory". The directory was writable; the binary
+   and its `.prev` were `root:root` in a kyu-owned directory, and
+   `fs.protected_hardlinks` refuses a hard link to a file the caller does not
+   own.
+2. **Which gate let it through.** The drills ran with a service-owned binary;
+   no test installs a binary owned by another user.
+3. **Where the same fault sits.** The property: **a remedy for EPERM that
+   names one cause of several.** `Gezocht met:` `grep -n 'Error::config' -A3
+   crates/chassis/src/shell/update.rs | grep -i 'permission\|writable\|write
+   access'` — the `.prev` link is the only EPERM site whose operation is a
+   hard link; the others are rename, create and write, where directory
+   permission is the cause.
+4. **How we prevent recurrence.** `prev_link_remedy` shows the binary's owner
+   (uid:gid) and the directory, and names `install -o <user> -g <group>`.
+5. **What the remedy costs.** One `stat` on a path that already failed.
+6. **Who enforces it.** Test `a_refused_prev_link_names_the_owner_and_the_directory`,
+   seen failing against the old text first.
+7. **How we measure that it works, and when.** At the next time a consumer
+   meets the refusal; kyu fixed its install side (`install -o kyu -g kyu`,
+   kyu fe8e3cf), so this may never fire again there.
+8. **The fallback if it fails.** Read the owner with `stat` by hand; the text
+   still names both causes.
+9. **When we review it.** At the retrospective of batch 5.
+

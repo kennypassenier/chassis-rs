@@ -2520,3 +2520,20 @@ Seen failing first: a recorded item that no longer exists gave exit 1 with the
 removals check then rightly refused, because `ClientsFile::issue` is scheduled
 to go at 3.0.0 and still exists. Both edits were reverted.
 
+## Two findings from kyu, passed on at Kenny's go (2026-09-26)
+
+Kenny approved relaying them in kyu's form (relay-kit: Doorgeven aan
+chassis-rs). Both handled as work, unreleased:
+
+- **fix-9: the `.prev` refusal named the wrong cause.** On CT 109 the kit said
+  "cannot keep the previous binary … Operation not permitted" and blamed the
+  directory, which was writable. The binary was root-owned, and
+  `fs.protected_hardlinks` refuses a hard link to a file the caller does not
+  own. `prev_link_remedy` now shows the owner (uid:gid) and the directory,
+  and names `install -o`. Test
+  `a_refused_prev_link_names_the_owner_and_the_directory`, seen failing
+  against the old text first.
+- **`--check` wrote to disk at kyu.** Documented as the contract of
+  `App::on_check` and in `docs/SELF_UPDATE.md` step 9. Not enforceable by
+  the kit: the check is project code.
+

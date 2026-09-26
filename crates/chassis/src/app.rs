@@ -1507,6 +1507,10 @@ impl App {
     /// A project check that `--check` (and the self-update's staged probe)
     /// runs after the kit's own validation. It must not write: the probe
     /// runs against the live store while the old version still serves.
+    /// That includes opening the store: open it read-only here, never through
+    /// the path that migrates. kyu 3.3.0 opened it the migrating way, and the
+    /// probe, run as root on CT 109, applied a migration and left a
+    /// root-owned `kyu.pre-v4.db` behind (kyu fix-check-1, 2026-09-20).
     pub fn on_check(
         &mut self,
         f: impl FnOnce() -> Result<(), Error> + Send + 'static,
