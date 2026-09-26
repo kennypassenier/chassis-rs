@@ -226,6 +226,15 @@ mod tests {
         (format!("http://{addr}/hook"), seen)
     }
 
+    /// A local port that refuses at once. A fixed low port (1, 9) is not
+    /// that everywhere: on WSL2 a connect there hangs until the timeout.
+    fn refused_url(path: &str) -> String {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        drop(l);
+        format!("http://127.0.0.1:{port}{path}")
+    }
+
     fn cfg() -> NotifyConfig {
         NotifyConfig {
             timeout: Duration::from_secs(2),
@@ -286,7 +295,7 @@ mod tests {
         let (fallback, seen) = receiver(0).await;
         let hook = Webhook {
             events: vec!["update.rolled_back".into()],
-            url: "http://127.0.0.1:9/hook".into(), // nothing listens here
+            url: refused_url("/hook"), // nothing listens here
             method: "POST".into(),
             headers: Default::default(),
             body: None,

@@ -101,6 +101,10 @@ Answered by Kenny 2026-09-09: D1 **Opnemen** (the fix lands), CF-12 **Klopt**.
    from the environment map.
 9. **Review.** At the batch 3 retrospective of this project.
 
+**Closed 2026-09-26.** Both halves measured: kyu's earlier, Almanac's in
+their commit `21de29d` (`spawn_kit_in` asserts `app.token() == TOKEN`, seen
+failing against `KEY` first).
+
 ## fix-3 · `update_cmd` promised to reproduce the unit and left out its environment (2026-09-10)
 
 Answered by Kenny 2026-09-10: **Klopt**. Reported by the Almanac session
@@ -510,3 +514,74 @@ the `chassis` package. It was this repository, twice.
    running in the consumers' own checkouts and copies each project to a
    scratch directory first — slower, and the reason to prefer the trap.
 9. **When we review it.** At the retrospective of batch 4.
+
+## fix-7 · The release chain hid the one prompt it waits for (2026-09-26)
+
+Reported by Almanac on 2026-09-10 and kept for later at Kenny's instruction;
+listed as work in the workstation triage of 2026-09-26 and repaired then.
+
+1. **What went wrong.** `run()` in `crates/chassis-cli/src/main.rs` passes
+   stdin through but collects the child with `.output()`, which buffers stdout
+   and stderr until it exits. Step 4 of `chassis release` ran
+   `scripts/sign-release.sh` through it, so minisign's password prompt went
+   into the buffer while stdin waited. Almanac measured both faces: with a
+   terminal (`chassis release 4.0.4`) the chain sat for over half an hour at
+   "waiting for the Release workflow", fd 0 on `/dev/pts/4` and fds 1 and 2
+   on pipes; without one it failed at once with `Password: get_password()`.
+2. **Which gate let it through.** None could: the step needs Kenny's key and a
+   terminal, so no test runs it, and the release drills stopped before
+   signing or signed with an unencrypted drill key that never prompts.
+3. **Where the same fault sits.** The property: **a child that talks to the
+   person, run through a helper that buffers its output.** `Gezocht met:`
+   `grep -n 'run(\|capture(' crates/chassis-cli/src/main.rs` — every other
+   `run` call is git, cargo or the gates, none of which prompt; `capture` is
+   used for reading values only. No second instance.
+4. **How we prevent recurrence.** A separate `run_interactive` passes stdin,
+   stdout and stderr through and waits with `.status()`; the sign step uses
+   it, with a comment saying why.
+5. **What the remedy costs.** The sign script's output is no longer part of
+   the error text when it fails; it is already on the terminal above it.
+6. **Who enforces it.** Test: `fix_7_tests::the_sign_step_passes_its_prompt_through`
+   refuses the sign step going back to `run()`. It failed first against the
+   old line, then passed.
+7. **How we measure that it works, and when.** At the next kit release Kenny
+   signs with `chassis release`: the minisign prompt is visible at step 4
+   without typing blind. Loop open until then.
+8. **The fallback if it fails.** Sign by hand with
+   `scripts/sign-release.sh <tag>`, which the refusal already names.
+9. **When we review it.** At the retrospective of batch 5.
+
+## fix-8 · Three tests assumed what WSL2 does not give (2026-09-26)
+
+Found on the first run of the gates on Kenny's WSL2 machine, before any change
+of this session: `cargo test --workspace --all-features` failed three tests in
+`chassis`, and the commit hook with it.
+
+1. **What went wrong.** `notify::fallback_receives_when_the_primary_stays_down`
+   used `http://127.0.0.1:9` as a port "nothing listens on"; on WSL2 a connect
+   to ports 1, 7, 9 and 13 hangs instead of being refused (measured with
+   `/dev/tcp`, each timed out after 3 s), so four 2 s attempts outlasted the
+   2 s wait. The two autonomous-loop tests in `update` ran on tokio's paused
+   clock against a real loopback server: whenever the runtime idled waiting on
+   the socket, tokio moved the paused clock to the request's 5 s timeout and
+   the check failed. Measured with a debug print: 2625 consecutive failed
+   checks in one run.
+2. **Which gate let it through.** Every run so far was on Garuda or in CI,
+   where loopback answers fast enough and port 9 refuses.
+3. **Where the same fault sits.** `grep -rn '127.0.0.1:[0-9]\b\|start_paused'`
+   over `crates/`: port 1 in `update`'s failure-notification test (same fix),
+   and the other paused-clock tests either do no socket IO or passed five runs
+   in a row here.
+4. **How we prevent recurrence.** A `refused_url` helper binds port 0 and
+   frees it, which refuses at once everywhere; the two loop tests run on the
+   real clock with short durations and assert only lower bounds on time.
+5. **What the remedy costs.** About a second of real waiting in the suite; the
+   `chassis` lib tests went from 15 s to 1.2 s because nothing hangs any more.
+6. **Who enforces it.** The tests themselves, on every gate run and in CI.
+7. **How we measure that it works, and when.** Measured: five consecutive
+   green runs of `cargo test -p chassis --lib --all-features` here, then the
+   full gates. Next: the first gate run on Garuda after pulling this.
+8. **The fallback if it fails.** Mark the loop tests `#[ignore]` on WSL and run
+   them in CI only.
+9. **When we review it.** At the retrospective of batch 5.
+

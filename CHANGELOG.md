@@ -17,6 +17,17 @@ scaffold writes. A breaking change in either is a major and carries a
   `cargo-deny (advisories · licenses · bans)` and `container build`, which
   their CI never produces, so following its remedy would have blocked `main`.
 
+### Fixed
+
+- **`chassis release` shows minisign's password prompt** (fix-7). The sign
+  step collected its output until the script ended, so the prompt stayed
+  invisible while minisign waited for the password: with a terminal the
+  release looked hung at "waiting for the Release workflow", without one it
+  failed at once. The step now passes all three streams through.
+- **The test suite passes on WSL2** (fix-8). Three tests assumed a refused
+  connection on a fixed low port and a paused clock that waits for loopback
+  IO; neither holds there.
+
 ## [2.0.2] - 2026-09-10
 
 The release that makes the branch-protection decision of 2026-09-10 reach the

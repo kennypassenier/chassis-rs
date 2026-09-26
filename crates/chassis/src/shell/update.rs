@@ -1445,7 +1445,7 @@ mod tests {
         let bin = installed(dir.path(), GOOD_BINARY);
         let release = fake_release("1.0.0", GOOD_BINARY, "svc").await;
         let mut c = cfg(&release, Mode::Autonomous, dir.path().join("c"));
-        c.url = "http://127.0.0.1:1/".to_string();
+        c.url = refused_url("/");
         c.notify_after_failures = 2;
         let events = Arc::new(std::sync::Mutex::new(Vec::new()));
         let sink_events = events.clone();
@@ -1516,16 +1516,40 @@ mod tests {
         });
     }
 
+    /// A local port that refuses at once. A fixed low port (1, 9) is not
+    /// that everywhere: on WSL2 a connect there hangs until the timeout.
+    fn refused_url(path: &str) -> String {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        drop(l);
+        format!("http://127.0.0.1:{port}{path}")
+    }
+
+    /// Waits up to 10 s of wall time for the fake release to see `n` checks.
+    async fn wait_for_hits(hits: &std::sync::atomic::AtomicUsize, n: usize) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while hits.load(Ordering::SeqCst) < n && std::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    }
+
+    // The two loop tests below run on the real clock with short durations.
+    // They used paused time, but a check is real socket IO: whenever the
+    // runtime idled waiting on loopback, tokio auto-advanced the paused clock
+    // to the request's 5 s timeout and the check failed. On WSL2 that
+    // happened on every run; elsewhere only under load. Only lower bounds are
+    // asserted on time, so a slow machine can delay a check but not fail it.
+
     /// 1.2.0: a project's gate defers a check to the next interval instead of
     /// restarting under an investigation (Almanac's captures, AR25).
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn the_update_gate_defers_a_check_until_it_opens() {
         let release = fake_release("1.0.0", GOOD_BINARY, "svc").await;
         let dir = tempfile::tempdir().unwrap();
         let bin = installed(dir.path(), GOOD_BINARY);
         let mut c = cfg(&release, Mode::Autonomous, dir.path().join("c"));
         c.startup_delay = Duration::from_secs(0);
-        c.interval = Duration::from_secs(3600);
+        c.interval = Duration::from_millis(300);
         let open = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let gate_open = open.clone();
         c.gate = Some(Arc::new(move || {
@@ -1543,43 +1567,33 @@ mod tests {
             .unwrap(),
         );
         let hits = release.version_hits.clone();
-        let _handle = tokio::spawn(up.clone().run_autonomous());
-        for _ in 0..20 {
-            tokio::task::yield_now().await;
-        }
-        tokio::time::advance(Duration::from_secs(3599)).await;
-        for _ in 0..20 {
-            tokio::task::yield_now().await;
-        }
+        let handle = tokio::spawn(up.clone().run_autonomous());
+        // Two closed ticks: at the start and one interval later.
+        tokio::time::sleep(Duration::from_millis(450)).await;
         assert_eq!(
             hits.load(Ordering::SeqCst),
             0,
             "closed gate: no check at all"
         );
         open.store(true, Ordering::SeqCst);
-        tokio::time::advance(Duration::from_secs(2)).await;
-        for _ in 0..50 {
-            if hits.load(Ordering::SeqCst) >= 1 {
-                break;
-            }
-            tokio::task::yield_now().await;
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+        wait_for_hits(&hits, 1).await;
         assert_eq!(
             hits.load(Ordering::SeqCst),
             1,
             "open gate: the next tick checks"
         );
+        handle.abort();
     }
 
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn autonomous_loop_ticks_after_the_startup_delay_then_every_interval() {
         let release = fake_release("1.0.0", GOOD_BINARY, "svc").await;
         let dir = tempfile::tempdir().unwrap();
         let bin = installed(dir.path(), GOOD_BINARY);
         let mut c = cfg(&release, Mode::Autonomous, dir.path().join("c"));
-        c.startup_delay = Duration::from_secs(300);
-        c.interval = Duration::from_secs(6 * 3600);
+        let (delay, interval) = (Duration::from_millis(400), Duration::from_millis(600));
+        c.startup_delay = delay;
+        c.interval = interval;
         let up = Arc::new(
             Updater::new(
                 c,
@@ -1592,41 +1606,33 @@ mod tests {
             .unwrap(),
         );
         let hits = release.version_hits.clone();
+        let start = std::time::Instant::now();
         let handle = tokio::spawn(up.clone().run_autonomous());
-        // Let the loop reach its first sleep, then step just short of the delay.
-        tokio::task::yield_now().await;
-        tokio::time::advance(Duration::from_secs(299)).await;
-        tokio::task::yield_now().await;
+        tokio::time::sleep(delay / 2).await;
         assert_eq!(
             hits.load(Ordering::SeqCst),
             0,
             "no check before the startup delay"
         );
-        tokio::time::advance(Duration::from_secs(2)).await;
-        for _ in 0..50 {
-            if hits.load(Ordering::SeqCst) >= 1 {
-                break;
-            }
-            tokio::task::yield_now().await;
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+        wait_for_hits(&hits, 1).await;
         assert_eq!(
             hits.load(Ordering::SeqCst),
             1,
-            "first check right after the startup delay"
+            "first check after the startup delay"
         );
-        tokio::time::advance(Duration::from_secs(6 * 3600 + 1)).await;
-        for _ in 0..50 {
-            if hits.load(Ordering::SeqCst) >= 2 {
-                break;
-            }
-            tokio::task::yield_now().await;
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+        assert!(
+            start.elapsed() >= delay,
+            "first check came before the delay"
+        );
+        wait_for_hits(&hits, 2).await;
         assert_eq!(
             hits.load(Ordering::SeqCst),
             2,
             "second check one interval later"
+        );
+        assert!(
+            start.elapsed() >= delay + interval,
+            "second check came before delay + interval"
         );
         assert!(up.last_check().at.is_some());
         handle.abort();

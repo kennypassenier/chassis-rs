@@ -2449,3 +2449,34 @@ tier (it ran nowhere). kyu and almanac run all three jobs, so the default
 fits them; their protection still requires only the one, which `--protect`
 would raise safely. The kit's `ci.yml` is unchanged, so `sync` still shows
 the one-job `ci.yml` of those two projects as a diff.
+
+## Resumed from the workstation triage (2026-09-26)
+
+Session resumed from `~/Projects/workstation/OPEN_WORK.md` on WSL. Its seven
+chassis-rs lines were checked against the repository:
+
+- **sign-step-hides-prompt** — repaired as fix-7 (`run_interactive` for the
+  sign step), test failed first against the old line. Closes the Almanac entry
+  under "Kept for later" above. Measurement at the next signed kit release.
+- **unreleased-required-checks** — still true: 15 commits past `v2.0.2`
+  (`git log --oneline v2.0.2..HEAD`), now 16 with fix-7. The user-visible
+  ones are `required_checks` (an addition, so a minor: 2.1.0), fix-7, and the
+  rustls bump for RUSTSEC-2026-0285 in this repository's own lockfile.
+  Decision for Kenny.
+- **CT 118 drill wiring** — measured still in place: `inbox` and
+  `drill-serve` both active, `INBOX_UPDATE_URL=http://127.0.0.1:9000`, the
+  original env kept as `/etc/inbox/inbox.env.pre-drill-0.1.7`. Decision for
+  Kenny (touching CT 118 needs his go, rule 13c).
+- **kyu-runner's kept list** — items 2 to 4 and the `sync` hint naming
+  `chassis upgrade` are still unbuilt. Decision for Kenny.
+- **batch-5-surface-narrowing, fix-3, helper units, h7 passkeys** — still
+  blocked on the consumers and the homelab; nothing changed here.
+
+- **CF-12, Almanac's half** — measured and done, reported through the
+  coordinator and verified here: almanac `21de29d` on `origin/main` pins
+  `ALMANAC_TOKEN` through `extra_env` and `spawn_kit_in` asserts
+  `app.token() == TOKEN`, seen failing against `KEY` first. With kyu's half
+  measured earlier, **CF-12 is closed.**
+- **fix-8** — the suite was red on this WSL2 machine before any change:
+  three tests assumed things WSL2 does not give. Repaired, see
+  `docs/CORRECTIONS.md`.

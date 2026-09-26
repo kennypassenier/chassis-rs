@@ -1093,8 +1093,9 @@ fn cmd_release(
     );
     wait_for_release_run(&rec.repo, &tag, poll_interval, max_wait)?;
 
-    // 4. Sign locally and upload .minisig before VERSION.
-    run(dir, "scripts/sign-release.sh", &[&tag], false)?;
+    // 4. Sign locally and upload .minisig before VERSION. Interactive: minisign
+    // prints its password prompt and must be seen where there is a terminal.
+    run_interactive(dir, "scripts/sign-release.sh", &[&tag])?;
     println!("released {} {tag}", rec.name);
     Ok(())
 }
@@ -1531,6 +1532,38 @@ fn run(dir: &Path, program: &str, args: &[&str], quiet: bool) -> Result<(), Erro
     Ok(())
 }
 
+/// Runs a step that talks to the person at the terminal: all three streams are
+/// passed through, so a prompt is visible the moment it is printed. `run`
+/// buffers stdout and stderr until the child exits, which hid minisign's
+/// password prompt while stdin still waited for it (fix-7).
+fn run_interactive(dir: &Path, program: &str, args: &[&str]) -> Result<(), Error> {
+    let status = interactive_command(dir, program, args)
+        .status()
+        .map_err(|e| {
+            Error::dependency(
+                format!("cannot run {program}: {e}"),
+                format!("is {program} installed and on PATH?"),
+            )
+        })?;
+    if !status.success() {
+        return Err(Error::dependency(
+            format!("{program} {} failed ({status})", args.join(" ")),
+            "read its output above; nothing after this step ran",
+        ));
+    }
+    Ok(())
+}
+
+fn interactive_command(dir: &Path, program: &str, args: &[&str]) -> Command {
+    use std::process::Stdio;
+    let mut cmd = command(program, dir);
+    cmd.args(args)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    cmd
+}
+
 fn capture(dir: &Path, program: &str, args: &[&str]) -> Result<String, Error> {
     let out = command(program, dir).args(args).output().map_err(|e| {
         Error::dependency(
@@ -1549,6 +1582,39 @@ fn capture(dir: &Path, program: &str, args: &[&str]) -> Result<String, Error> {
         ));
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+#[cfg(test)]
+mod fix_7_tests {
+    use super::*;
+
+    const MAIN: &str = include_str!("main.rs");
+
+    #[test]
+    fn the_sign_step_passes_its_prompt_through() {
+        // Escaped quotes: these literals never match their own source line.
+        let step = "run_interactive(dir, \"scripts/sign-release.sh\", &[&tag])?;";
+        assert!(
+            MAIN.contains(step),
+            "the sign step must not buffer its output"
+        );
+        let buffered = "run(dir, \"scripts/sign-release.sh\"";
+        assert!(!MAIN.contains(buffered), "the sign step went back to run()");
+    }
+
+    #[test]
+    fn a_failing_interactive_step_is_an_error_that_names_it() {
+        let dir = std::env::temp_dir();
+        let err = run_interactive(&dir, "false", &[]).unwrap_err();
+        assert!(format!("{err:?}").contains("false"));
+    }
+
+    #[test]
+    fn a_missing_program_is_a_dependency_error() {
+        let dir = std::env::temp_dir();
+        let err = run_interactive(&dir, "chassis-no-such-program-fix7", &[]).unwrap_err();
+        assert!(format!("{err:?}").contains("cannot run"));
+    }
 }
 
 #[cfg(test)]
