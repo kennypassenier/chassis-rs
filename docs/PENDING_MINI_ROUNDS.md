@@ -2457,15 +2457,20 @@ chassis-rs lines were checked against the repository:
 
 - **sign-step-hides-prompt** — repaired as fix-7 (`run_interactive` for the
   sign step), test failed first against the old line. Closes the Almanac entry
-  under "Kept for later" above. Measurement at the next signed kit release.
+  under "Kept for later" above. Measurement at the first consumer release
+  signed with a `chassis` CLI that carries fix-7 (the kit signs nothing).
 - **unreleased-required-checks** — still true: 15 commits past `v2.0.2`
   (`git log --oneline v2.0.2..HEAD`), now 16 with fix-7. The user-visible
   ones are `required_checks` (an addition, so a minor: 2.1.0), fix-7, and the
   rustls bump for RUSTSEC-2026-0285 in this repository's own lockfile.
   Decision for Kenny.
-- **CT 118 drill wiring** — measured still in place: `inbox` and
-  `drill-serve` both active, `INBOX_UPDATE_URL=http://127.0.0.1:9000`, the
-  original env kept as `/etc/inbox/inbox.env.pre-drill-0.1.7`. Decision for
+- **CT 118 drill wiring** — measured still in place, and further along than
+  CLAUDE.md said: inbox **0.1.10** runs (`inbox --version`), `drill-serve` is
+  a transient unit serving `/tmp/drill-0.1.10` on 127.0.0.1:9000 since
+  2026-09-10 03:55 UTC, and the supervised check reads it every six hours
+  (`latest=0.1.10 running=0.1.10`, last at 10:00 UTC today). The saved env
+  `/etc/inbox/inbox.env.pre-drill-0.1.7` points at `http://10.10.10.10:9000`
+  and differs only in that URL and the drill pubkey line. Decision for
   Kenny (touching CT 118 needs his go, rule 13c).
 - **kyu-runner's kept list** — items 2 to 4 and the `sync` hint naming
   `chassis upgrade` are still unbuilt. Decision for Kenny.

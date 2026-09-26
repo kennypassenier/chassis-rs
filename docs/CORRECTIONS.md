@@ -544,9 +544,11 @@ listed as work in the workstation triage of 2026-09-26 and repaired then.
 6. **Who enforces it.** Test: `fix_7_tests::the_sign_step_passes_its_prompt_through`
    refuses the sign step going back to `run()`. It failed first against the
    old line, then passed.
-7. **How we measure that it works, and when.** At the next kit release Kenny
-   signs with `chassis release`: the minisign prompt is visible at step 4
-   without typing blind. Loop open until then.
+7. **How we measure that it works, and when.** The kit itself signs nothing
+   (`scripts/release-kit.sh`: "the kit publishes no binary"), so the
+   measurement is at the first consumer release Kenny signs with a `chassis`
+   CLI built from a kit carrying this fix: the minisign prompt is visible at
+   step 4 without typing blind. Loop open until then.
 8. **The fallback if it fails.** Sign by hand with
    `scripts/sign-release.sh <tag>`, which the refusal already names.
 9. **When we review it.** At the retrospective of batch 5.
