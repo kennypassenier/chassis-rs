@@ -2503,3 +2503,20 @@ chassis-rs lines were checked against the repository:
   `docs/CORRECTIONS.md`. Open measurements: fix-7 at the first consumer
   release signed with a 2.1.0 CLI; fix-8 at the first gate run on Garuda.
 
+## api-stability: the contract runs in CI (2026-09-26)
+
+Kenny's answer in the dev-procedure form (api-stability: Aanpassen), handed
+over by the coordinator: the build fails when the public surface changes in a
+way a caller can feel while the version does not say so. The contract check
+(feat-api-1) already existed but ran only locally and at release, by the
+2026-09-10 decision that commits stay fast. Now `scripts/check-api.sh --ci`
+runs as a CI step. The version it judges against: a `## [X.0.0]` section at the
+top of CHANGELOG.md declares a planned major; otherwise it judges the next
+patch, which allows additive items and refuses breaking ones. The commit hook
+is unchanged.
+
+Seen failing first: a recorded item that no longer exists gave exit 1 with the
+"not a major" refusal. With `## [3.0.0]` declared the contract passed, and the
+removals check then rightly refused, because `ClientsFile::issue` is scheduled
+to go at 3.0.0 and still exists. Both edits were reverted.
+

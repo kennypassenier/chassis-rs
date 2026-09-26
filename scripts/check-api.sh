@@ -25,6 +25,15 @@
 #   scripts/check-api.sh                compare against the contract, report
 #   scripts/check-api.sh --for 1.9.1    judge as that release would
 #   scripts/check-api.sh --write        re-freeze (a major, or the first time)
+#   scripts/check-api.sh --ci           judge as the next release would (CI)
+#
+# --ci (Kenny, 2026-09-26, dev-procedure api-stability): CI fails when the
+# surface changes in a way a caller can feel while nothing declares a major.
+# A planned major is declared by a `## [X.0.0]` section at the top of
+# CHANGELOG.md, the same section release-kit.sh already requires with its
+# ### Migration. Any other state is judged as the next patch, which allows
+# additive items and refuses breaking ones. This is CI, not the commit hook:
+# the 2026-09-10 decision that commits stay fast still holds.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -58,6 +67,18 @@ fi
 # person reads while developing; with one it is the release gate.
 version="${2:-0.0.1}"
 [ "${1:-}" = "--for" ] || version="0.0.1"
+if [ "${1:-}" = "--ci" ]; then
+  current_version="$(grep -m1 '^version = ' crates/chassis/Cargo.toml | cut -d'"' -f2)"
+  declared="$(grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | tr -d '#[] ' || true)"
+  if [ -n "$declared" ] && [ "$declared" != "$current_version" ] && [ "${declared#*.}" = "0.0" ]; then
+    version="$declared"
+    echo "contract: CHANGELOG.md declares $version, judged as that major"
+  else
+    IFS=. read -r ma mi pa <<< "$current_version"
+    version="$ma.$mi.$((pa + 1))"
+    echo "contract: no major declared after $current_version, judged as $version"
+  fi
+fi
 
 # Both checks always run, and both are reported: stopping at the first would
 # hide the second until the first is fixed, and a release has to see all of it.

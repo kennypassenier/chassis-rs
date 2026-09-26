@@ -44,6 +44,10 @@ jobs:
           tool: cargo-deny
       - name: Tests
         run: cargo test --workspace --all-features
+      # api-stability (Kenny, 2026-09-26): a change a caller can feel turns CI
+      # red until CHANGELOG.md declares the major it belongs to (CF-15).
+      - name: Public API contract
+        run: scripts/check-api.sh --ci
       - name: Walking-skeleton smoke (L0)
         run: |
           cargo run -q -p chassis-cli -- --version
