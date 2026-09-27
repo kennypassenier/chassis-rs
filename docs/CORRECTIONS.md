@@ -655,3 +655,53 @@ Reported by kyu through the coordinator.
    `sign-release.sh` (`--prerelease=false`), kyu's second proposal.
 9. **When we review it.** At the retrospective of batch 5.
 
+## fix-11 · The scaffold's gates ignored the gate cache (2026-09-27)
+
+Reported by kyu while adopting 2.2.0.
+
+1. **What went wrong.** `scaffold/.claude/hooks/gates.sh` ran `cargo test` on
+   every commit; the projects on the kit had moved to dev-procedure's gate
+   cache (rule 49, 2026-09-16) by hand, so `chassis sync --write` would have
+   taken it away from them.
+2. **Which gate let it through.** Rule 49 was rolled out by syncing hooks into
+   each project; nothing compared the scaffold's copy with the projects'.
+3. **Where the same fault sits.** The property: **a scaffold file that
+   dev-procedure also changes.** `Gezocht met:` `for f in commit-msg
+   check-ids.sh check-timestamps.sh gate-cache.sh trace-inputs.cjs; do cmp
+   .githooks/$f ~/Projects/dev-procedure/hooks/$f; done` plus a diff of
+   `scaffold/.githooks` — the shared hooks were at generation 3 against 4,
+   and `gate-cache.sh`, `trace-inputs.cjs` and `check-timestamps.sh` were
+   not shipped at all.
+4. **How we prevent recurrence.** The scaffold ships all five at the current
+   generation, and `gates.sh` sources the runner.
+5. **What the remedy costs.** Three more files in a new project.
+6. **Who enforces it.** Test `fix_11_the_gates_use_the_gate_cache_and_ship_it`
+   and the version-stamp test, both seen failing first; the scaffold E2E runs
+   a new project's own gates through the cache.
+7. **How we measure that it works, and when.** At kyu's next `chassis sync`:
+   no difference reported on `gates.sh` or the hooks.
+8. **The fallback if it fails.** Keep `gates.sh` project-owned, like the hooks.
+9. **When we review it.** At the retrospective of batch 5.
+
+## fix-12 · The unit's install line left the binary root-owned (2026-09-27)
+
+Reported by kyu; the cause of fix-9.
+
+1. **What went wrong.** `scaffold/deploy/service.tmpl` told the installer to
+   `install -D -m755 <bin>` and then `chown -R <name>: /opt/<name>`; kyu ran
+   the first half as root and CT 109's binary stayed root-owned.
+2. **Which gate let it through.** The instruction is a comment; no test read
+   it.
+3. **Where the same fault sits.** The property: **an install instruction that
+   sets ownership in a separate step.** `Gezocht met:` `grep -rn 'chown\|install
+   -D' scaffold/ docs/` — this comment only.
+4. **How we prevent recurrence.** One command: `install -D -m755 -o <name> -g
+   <name> …`, with the reason next to it.
+5. **What the remedy costs.** Nothing.
+6. **Who enforces it.** The render test asserts the line and the absence of
+   `chown -R`; seen failing first.
+7. **How we measure that it works, and when.** The next project deployed from
+   the scaffold: `stat -c %U` on its binary names the service user.
+8. **The fallback if it fails.** fix-9's message names the owner and the fix.
+9. **When we review it.** At the retrospective of batch 5.
+

@@ -8,8 +8,10 @@
 # the binary's directory too, or self-update verifies, downloads and then
 # fails at the swap.
 #
-# Install: install -D -m755 {{ name }} /opt/{{ name }}/bin/{{ name }} (the
-# service owns that directory: chown -R {{ name }}: /opt/{{ name }}), copy
+# Install: install -D -m755 -o {{ name }} -g {{ name }} {{ name }} /opt/{{ name }}/bin/{{ name }}
+# (the service must own the binary itself, not only its directory: Linux
+# refuses a hard link to a file another user owns, so a root-owned binary
+# stops the self-update at the swap — fix-12, kyu on CT 109), copy
 # this file to /etc/systemd/system/{{ name }}.service, create the user
 # ({{ name }}), the state dir ({{ state_dir }}) and the env file
 # ({{ env_file }}, 0640 root:{{ name }}), then

@@ -24,9 +24,17 @@ gate_tree_fingerprint() {
 }
 gate_tree_before=$(gate_tree_fingerprint)
 
+# Standing rule 49 (Kenny, 2026-09-16): format and lint always run, and the
+# suite is skipped when no Rust source moved since its last green run. The
+# cache lives in .git, is ignored on the first commit of the day and under
+# GATE_FULL=1, and only ever remembers a green run (fix-11: the scaffold ran
+# the suite on every commit while the projects built on it did not).
+. "$(git rev-parse --show-toplevel)/.githooks/gate-cache.sh"
+
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
-cargo test
+gate_glob suite '*.rs' 'Cargo.toml' 'Cargo.lock' '*/Cargo.toml' -- \
+  cargo test
 
 # Project-owned gates (chassis 1.6.0, M1): a project keeps its own checks
 # in .claude/hooks/gates.project.sh — a module-boundary grep, a version
@@ -35,6 +43,8 @@ cargo test
 if [ -x .claude/hooks/gates.project.sh ]; then
   .claude/hooks/gates.project.sh
 fi
+
+gate_cache_done
 
 if [ "$(gate_tree_fingerprint)" != "$gate_tree_before" ]; then
   {

@@ -1751,6 +1751,20 @@ mod tests {
             get("deploy/demo-svc.service").contains("StartLimitIntervalSec=0"),
             "in [Unit]"
         );
+        // fix-12: the install line sets the owner itself. A separate
+        // `chown -R` step left kyu's binary root-owned on CT 109, and the
+        // self-update cannot hard-link a file its user does not own.
+        let unit = get("deploy/demo-svc.service");
+        assert!(
+            unit.contains(
+                "install -D -m755 -o demo-svc -g demo-svc demo-svc /opt/demo-svc/bin/demo-svc"
+            ),
+            "{unit}"
+        );
+        assert!(
+            !unit.contains("chown -R"),
+            "ownership is set by install, not after it"
+        );
         assert!(
             get("deploy/service.yml").contains("update_cmd:")
                 && get("deploy/service.yml").contains("--wait --pipe --collect")

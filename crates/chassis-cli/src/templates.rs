@@ -163,6 +163,20 @@ pub const ENTRIES: &[Entry] = &[
         ".githooks/check-ids.sh",
         include_str!("../../../scaffold/.githooks/check-ids.sh"),
     ),
+    shared_hook(
+        ".githooks/check-timestamps.sh",
+        include_str!("../../../scaffold/.githooks/check-timestamps.sh"),
+    ),
+    // fix-11: gates.sh sources the runner; `gate_glob` needs nothing more,
+    // but `gate` runs node checks under the tracer, so both travel.
+    shared_hook(
+        ".githooks/gate-cache.sh",
+        include_str!("../../../scaffold/.githooks/gate-cache.sh"),
+    ),
+    shared_hook(
+        ".githooks/trace-inputs.cjs",
+        include_str!("../../../scaffold/.githooks/trace-inputs.cjs"),
+    ),
     verbatim(
         ".claude/hooks/gates.sh",
         include_str!("../../../scaffold/.claude/hooks/gates.sh"),
@@ -215,6 +229,8 @@ mod tests {
         for path in [
             ".githooks/commit-msg",
             ".githooks/check-ids.sh",
+            ".githooks/check-timestamps.sh",
+            ".githooks/gate-cache.sh",
             ".claude/hooks/check-commit.sh",
         ] {
             let entry = ENTRIES.iter().find(|e| e.path == path).unwrap();
@@ -222,6 +238,32 @@ mod tests {
                 entry.body.lines().any(|l| l.starts_with("# HOOK_VERSION=")),
                 "{path} carries no HOOK_VERSION stamp"
             );
+        }
+    }
+
+    /// fix-11: a fresh project's gates skip the suite when no Rust moved
+    /// (dev-procedure rule 49), which needs the runner it sources shipped
+    /// beside it; the scaffold still ran the suite on every commit.
+    #[test]
+    fn fix_11_the_gates_use_the_gate_cache_and_ship_it() {
+        let gates = ENTRIES
+            .iter()
+            .find(|e| e.path == ".claude/hooks/gates.sh")
+            .unwrap()
+            .body;
+        for line in [
+            ". \"$(git rev-parse --show-toplevel)/.githooks/gate-cache.sh\"",
+            "gate_glob suite '*.rs' 'Cargo.toml' 'Cargo.lock' '*/Cargo.toml' -- \\",
+            "gate_cache_done",
+        ] {
+            assert!(gates.contains(line), "gates.sh lacks: {line}");
+        }
+        for path in [".githooks/gate-cache.sh", ".githooks/trace-inputs.cjs"] {
+            let entry = ENTRIES
+                .iter()
+                .find(|e| e.path == path)
+                .unwrap_or_else(|| panic!("{path} is not shipped, gates.sh sources it"));
+            assert!(entry.project_owned, "{path} is dev-procedure's too");
         }
     }
 

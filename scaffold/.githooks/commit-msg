@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# HOOK_VERSION=3
+# HOOK_VERSION=4
 # Traceability gate (standing rule 4): every commit message names the IDs
 # it implements, so `git log` stays a map from code to decisions.
 #
@@ -43,6 +43,14 @@ if [ -n "$root" ]; then
     # commits announced the gate while `git commit -am` had left the new
     # file untracked, so it was installed nowhere and said nothing.
     echo "warning: .githooks/check-ids.sh is missing; the ID gate did not run." >&2
+    echo "         Re-run dev-procedure's hooks/sync-hooks.sh for this project." >&2
+  fi
+  # The timestamp gate (standing rule 52) travels the same way and is held
+  # to the same fail-closed warning when its file is missing.
+  if [ -x "$root/.githooks/check-timestamps.sh" ]; then
+    "$root/.githooks/check-timestamps.sh" || exit 1
+  else
+    echo "warning: .githooks/check-timestamps.sh is missing; the timestamp gate did not run." >&2
     echo "         Re-run dev-procedure's hooks/sync-hooks.sh for this project." >&2
   fi
 fi

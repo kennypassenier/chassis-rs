@@ -5,6 +5,23 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
+## [Unreleased]
+
+### Fixed
+
+- **A new project's gates skip the suite when no Rust moved** (fix-11; kyu,
+  2026-09-27). The scaffold's `gates.sh` still ran `cargo test` on every
+  commit although dev-procedure rule 49 moved every project to the gate
+  cache; it now sources `.githooks/gate-cache.sh` and runs the suite through
+  `gate_glob`. The scaffold ships the runner (`gate-cache.sh`,
+  `trace-inputs.cjs`) and `check-timestamps.sh`, and its shared hooks are
+  the current dev-procedure generation.
+- **The unit's install line sets the owner** (fix-12; kyu, 2026-09-27).
+  `deploy/<name>.service` said `install -D -m755 <bin>` and then
+  `chown -R`, which is how kyu's binary ended up root-owned on CT 109 and
+  the self-update stopped at the swap (fix-9). It now reads
+  `install -D -m755 -o <name> -g <name> …`.
+
 ## [2.2.0] - 2026-09-27
 
 A minor: kp-themes 7.2.0 behind `/static/kp/`, two repairs from kyu's

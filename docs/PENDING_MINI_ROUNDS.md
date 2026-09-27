@@ -2589,3 +2589,10 @@ release". So the release follows the kp-themes update: 2.2.0, a minor,
 carrying kp-themes 7.2.0, fix-9 and fix-10. fix-9 is ratified; fix-10 has
 not been answered yet and goes into the next form.
 
+## Two scaffold faults from kyu's 2.2.0 adoption (2026-09-27)
+
+Repaired as fix-11 (the scaffold's gates.sh without the gate cache, and the
+shared hooks one generation behind) and fix-12 (the unit's install line
+without `-o/-g`); see `docs/CORRECTIONS.md`. Unreleased; they go into the
+next release, which is a patch (2.2.1) since only scaffold files change.
+
