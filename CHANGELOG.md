@@ -5,7 +5,12 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
-## [Unreleased]
+## [2.2.0] - 2026-09-27
+
+A minor: kp-themes 7.2.0 behind `/static/kp/`, two repairs from kyu's
+deployment (fix-9, fix-10) and the `--check` contract written down. Nothing
+on the Rust surface moves; a project picks the scaffold half of fix-10 up
+with `chassis sync --write`.
 
 ### Changed
 

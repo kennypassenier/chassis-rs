@@ -2580,3 +2580,12 @@ Afterwards kyu can bump its chassis pin and drop its `:user-invalid` rule
 in `static/kyu.css`, which closes kp-themes fix-74-M1 and fix-56-M1. That
 needs a kit release; it is in the open release-patch question.
 
+## Kenny's answers to the kyu-findings form (2026-09-27)
+
+Answered on the first version of the form, before fix-10 was added:
+release-patch "Meenemen in de volgende release", fix-9 "Klopt", and the
+remark "update naar kp-themes 7.2.0 en als dat klaar is maken we een nieuwe
+release". So the release follows the kp-themes update: 2.2.0, a minor,
+carrying kp-themes 7.2.0, fix-9 and fix-10. fix-9 is ratified; fix-10 has
+not been answered yet and goes into the next form.
+
