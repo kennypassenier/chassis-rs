@@ -2596,3 +2596,10 @@ shared hooks one generation behind) and fix-12 (the unit's install line
 without `-o/-g`); see `docs/CORRECTIONS.md`. Unreleased; they go into the
 next release, which is a patch (2.2.1) since only scaffold files change.
 
+## Kenny's answers to the 2.2.1 form (2026-09-27)
+
+release-221 "Nu uitbrengen als 2.2.1"; fix-10, fix-11 and fix-12 "Klopt".
+All three corrections ratified as written; their measurements stay open
+(fix-10 at a consumer release after `chassis sync --write`, fix-11 at kyu's
+next `chassis sync`, fix-12 at the next project deployed from the scaffold).
+

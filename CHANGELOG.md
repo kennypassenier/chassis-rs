@@ -5,7 +5,10 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
-## [Unreleased]
+## [2.2.1] - 2026-09-27
+
+A patch: two scaffold repairs from kyu's 2.2.0 adoption. Nothing on the Rust
+surface moves; a project gets them with `chassis sync --write`.
 
 ### Fixed
 
