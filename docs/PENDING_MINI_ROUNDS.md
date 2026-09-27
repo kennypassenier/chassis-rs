@@ -2603,3 +2603,14 @@ All three corrections ratified as written; their measurements stay open
 (fix-10 at a consumer release after `chassis sync --write`, fix-11 at kyu's
 next `chassis sync`, fix-12 at the next project deployed from the scaffold).
 
+## fix-11 measured on kyu (2026-09-27)
+
+Reported by kyu through the coordinator (kyu `710dcf1`, pinned v2.2.1, tests
+green): the first `chassis sync` listed `gates.sh` and `deploy/kyu.service`,
+but the only differences were comment wording and one blank line; the
+gate-cache source line, `gate_glob suite …`, `gate_cache_done` and
+`install -D -m755 -o kyu -g kyu` all matched. After `chassis sync --write` a
+second sync listed neither file. **fix-11 is closed.** fix-12's file half
+holds on kyu the same way; its runtime half (`stat -c %U` on a binary
+deployed from the scaffold) stays open for the next new project.
+

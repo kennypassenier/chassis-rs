@@ -680,6 +680,9 @@ Reported by kyu while adopting 2.2.0.
    a new project's own gates through the cache.
 7. **How we measure that it works, and when.** At kyu's next `chassis sync`:
    no difference reported on `gates.sh` or the hooks.
+   **Measured 2026-09-27, closed:** kyu `710dcf1` on v2.2.1 — after
+   `chassis sync --write` a second sync lists neither `gates.sh` nor the
+   unit.
 8. **The fallback if it fails.** Keep `gates.sh` project-owned, like the hooks.
 9. **When we review it.** At the retrospective of batch 5.
 
