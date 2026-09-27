@@ -124,7 +124,7 @@
                 "scripts": ["latin"]
             }
         ],
-        "why": "OFL with Reserved Font Name 'Share': a subset is a Modified Version and may not carry that word, so the shipped faces are renamed 'KP Tech Mono' at build (R6-Q1: renamed delivery, Kenny 2026-09-07) \u2014 the tokens name the new family first and the original after it.",
+        "why": "OFL with Reserved Font Name 'Share': a subset is a Modified Version and may not carry that word, so the shipped faces are renamed 'KP Tech Mono' at build (R6-Q1: renamed delivery, Kenny 2026-09-07) — the tokens name the new family first and the original after it.",
         "renamed": "KP Tech Mono",
         "reservedWord": "Share"
     },
@@ -252,7 +252,7 @@
                 "scripts": ["latin"]
             }
         ],
-        "why": "OFL with Reserved Font Name 'Josefin Sans': a subset is a Modified Version and may not carry that word, so the shipped faces are renamed 'KP Deco Sans' at build (R6-Q1: renamed delivery, Kenny 2026-09-07) \u2014 the tokens name the new family first and the original after it.",
+        "why": "OFL with Reserved Font Name 'Josefin Sans': a subset is a Modified Version and may not carry that word, so the shipped faces are renamed 'KP Deco Sans' at build (R6-Q1: renamed delivery, Kenny 2026-09-07) — the tokens name the new family first and the original after it.",
         "renamed": "KP Deco Sans",
         "reservedWord": "Josefin Sans"
     },
@@ -269,59 +269,6 @@
                 "file": "poiretone-regular",
                 "source": "PoiretOne-Regular.ttf",
                 "weight": "400",
-                "style": "normal",
-                "scripts": ["latin"]
-            }
-        ]
-    },
-    "lora": {
-        "family": "Lora",
-        "licence": "OFL-1.1",
-        "reservedFontName": true,
-        "subset": true,
-        "themes": ["academia"],
-        "scripts": ["latin"],
-        "upstream": "ofl/lora",
-        "faces": [
-            {
-                "file": "lora-variable",
-                "source": "Lora[wght].ttf",
-                "weight": "400 700",
-                "style": "normal",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "lora-italic-variable",
-                "source": "Lora-Italic[wght].ttf",
-                "weight": "400 700",
-                "style": "italic",
-                "scripts": ["latin"]
-            }
-        ],
-        "why": "OFL with Reserved Font Name 'Lora': a subset is a Modified Version and may not carry that word, so the shipped faces are renamed 'KP Academia Serif' at build (R6-Q1: renamed delivery, Kenny 2026-09-07) \u2014 the tokens name the new family first and the original after it.",
-        "renamed": "KP Academia Serif",
-        "reservedWord": "Lora"
-    },
-    "cormorantgaramond": {
-        "family": "Cormorant Garamond",
-        "licence": "OFL-1.1",
-        "reservedFontName": false,
-        "subset": true,
-        "themes": ["academia"],
-        "scripts": ["latin"],
-        "upstream": "ofl/cormorantgaramond",
-        "faces": [
-            {
-                "file": "cormorantgaramond-italic-variable",
-                "source": "CormorantGaramond-Italic[wght].ttf",
-                "weight": "300 700",
-                "style": "italic",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "cormorantgaramond-variable",
-                "source": "CormorantGaramond[wght].ttf",
-                "weight": "300 700",
                 "style": "normal",
                 "scripts": ["latin"]
             }
@@ -419,40 +366,12 @@
             }
         ]
     },
-    "ibmplexsans": {
-        "family": "IBM Plex Sans",
-        "licence": "OFL-1.1",
-        "reservedFontName": true,
-        "subset": true,
-        "themes": ["ticker"],
-        "scripts": ["latin"],
-        "upstream": "ofl/ibmplexsans",
-        "faces": [
-            {
-                "file": "ibmplexsans-variable",
-                "source": "IBMPlexSans[wdth,wght].ttf",
-                "weight": "100 700",
-                "style": "normal",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "ibmplexsans-italic-variable",
-                "source": "IBMPlexSans-Italic[wdth,wght].ttf",
-                "weight": "100 700",
-                "style": "italic",
-                "scripts": ["latin"]
-            }
-        ],
-        "why": "OFL with Reserved Font Name 'Plex': a subset is a Modified Version and may not carry that word, so the shipped faces are renamed 'KP Ticker Sans' at build (R6-Q1: renamed delivery, Kenny 2026-09-07) \u2014 the tokens name the new family first and the original after it.",
-        "renamed": "KP Ticker Sans",
-        "reservedWord": "Plex"
-    },
     "ibmplexmono": {
         "family": "IBM Plex Mono",
         "licence": "OFL-1.1",
         "reservedFontName": true,
         "subset": true,
-        "themes": ["ticker"],
+        "themes": ["dark"],
         "scripts": ["latin"],
         "upstream": "ofl/ibmplexmono",
         "faces": [
@@ -485,61 +404,9 @@
                 "scripts": ["latin"]
             }
         ],
-        "why": "OFL with Reserved Font Name 'Plex': a subset is a Modified Version and may not carry that word, so the shipped faces are renamed 'KP Ticker Mono' at build (R6-Q1: renamed delivery, Kenny 2026-09-07) \u2014 the tokens name the new family first and the original after it.",
+        "why": "OFL with Reserved Font Name 'Plex': a subset is a Modified Version and may not carry that word, so the shipped faces are renamed 'KP Ticker Mono' at build (R6-Q1: renamed delivery, Kenny 2026-09-07) — the tokens name the new family first and the original after it.",
         "renamed": "KP Ticker Mono",
         "reservedWord": "Plex"
-    },
-    "zenkakugothicnew": {
-        "family": "Zen Kaku Gothic New",
-        "licence": "OFL-1.1",
-        "reservedFontName": false,
-        "subset": true,
-        "themes": ["woodblock"],
-        "scripts": ["latin", "japanese"],
-        "upstream": "ofl/zenkakugothicnew",
-        "faces": [
-            {
-                "file": "zenkakugothicnew-regular",
-                "source": "ZenKakuGothicNew-Regular.ttf",
-                "weight": "400",
-                "style": "normal",
-                "scripts": ["latin", "japanese"]
-            },
-            {
-                "file": "zenkakugothicnew-bold",
-                "source": "ZenKakuGothicNew-Bold.ttf",
-                "weight": "700",
-                "style": "normal",
-                "scripts": ["latin", "japanese"]
-            }
-        ],
-        "why": "Regular and bold: with both faces woodblock weighs about 2.4 MB, over the 1.5 MB the budget allows a theme. Kenny raised the budget for this theme on 2026-09-08 (R6-Q6) rather than let the browser draw a fake bold \u2014 a synthesised bold thickens a Japanese stroke where a real bold face redraws it."
-    },
-    "shipporimincho": {
-        "family": "Shippori Mincho",
-        "licence": "OFL-1.1",
-        "reservedFontName": false,
-        "subset": true,
-        "themes": ["woodblock"],
-        "scripts": ["latin", "japanese"],
-        "upstream": "ofl/shipporimincho",
-        "faces": [
-            {
-                "file": "shipporimincho-regular",
-                "source": "ShipporiMincho-Regular.ttf",
-                "weight": "400",
-                "style": "normal",
-                "scripts": ["latin", "japanese"]
-            },
-            {
-                "file": "shipporimincho-bold",
-                "source": "ShipporiMincho-Bold.ttf",
-                "weight": "700",
-                "style": "normal",
-                "scripts": ["latin", "japanese"]
-            }
-        ],
-        "why": "Regular and bold: with both faces woodblock weighs about 2.4 MB, over the 1.5 MB the budget allows a theme. Kenny raised the budget for this theme on 2026-09-08 (R6-Q6) rather than let the browser draw a fake bold \u2014 a synthesised bold thickens a Japanese stroke where a real bold face redraws it."
     },
     "sourcesans3": {
         "family": "Source Sans 3",
@@ -565,7 +432,7 @@
                 "scripts": ["latin"]
             }
         ],
-        "why": "OFL with Reserved Font Name 'Source': a subset is a Modified Version and may not carry that word, so the shipped faces are renamed 'KP Shade Sans' at build (R6-Q1: renamed delivery, Kenny 2026-09-07) \u2014 the tokens name the new family first and the original after it.",
+        "why": "OFL with Reserved Font Name 'Source': a subset is a Modified Version and may not carry that word, so the shipped faces are renamed 'KP Shade Sans' at build (R6-Q1: renamed delivery, Kenny 2026-09-07) — the tokens name the new family first and the original after it.",
         "renamed": "KP Shade Sans",
         "reservedWord": "Source"
     },
@@ -594,37 +461,12 @@
             }
         ]
     },
-    "intertight": {
-        "family": "Inter Tight",
-        "licence": "OFL-1.1",
-        "reservedFontName": false,
-        "subset": true,
-        "themes": ["mono"],
-        "scripts": ["latin"],
-        "upstream": "ofl/intertight",
-        "faces": [
-            {
-                "file": "intertight-italic-variable",
-                "source": "InterTight-Italic[wght].ttf",
-                "weight": "100 900",
-                "style": "italic",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "intertight-variable",
-                "source": "InterTight[wght].ttf",
-                "weight": "100 900",
-                "style": "normal",
-                "scripts": ["latin"]
-            }
-        ]
-    },
     "geistmono": {
         "family": "Geist Mono",
         "licence": "OFL-1.1",
         "reservedFontName": false,
         "subset": true,
-        "themes": ["mono", "blueprint"],
+        "themes": ["blueprint"],
         "scripts": ["latin"],
         "upstream": "ofl/geistmono",
         "faces": [
@@ -685,7 +527,7 @@
         "licence": "OFL-1.1",
         "reservedFontName": false,
         "subset": true,
-        "themes": ["grotesk"],
+        "themes": ["grotesk", "dark"],
         "scripts": ["latin"],
         "upstream": "ofl/archivo",
         "faces": [
@@ -806,7 +648,7 @@
         "themes": ["synthwave"],
         "scripts": ["latin"],
         "upstream": "ofl/orbitron",
-        "why": "OFL with Reserved Font Name 'Orbitron': a subset is a Modified Version and may not carry that word, so the shipped faces are renamed 'KP Outrun Display' at build (R6-Q1: renamed delivery, Kenny 2026-09-07) \u2014 the tokens name the new family first and the original after it.",
+        "why": "OFL with Reserved Font Name 'Orbitron': a subset is a Modified Version and may not carry that word, so the shipped faces are renamed 'KP Outrun Display' at build (R6-Q1: renamed delivery, Kenny 2026-09-07) — the tokens name the new family first and the original after it.",
         "faces": [
             {
                 "file": "orbitron-variable",
@@ -833,6 +675,81 @@
                 "source": "VT323-Regular.ttf",
                 "weight": "400",
                 "style": "normal",
+                "scripts": ["latin"]
+            }
+        ]
+    },
+    "sora": {
+        "family": "Sora",
+        "licence": "OFL-1.1",
+        "reservedFontName": false,
+        "subset": true,
+        "themes": ["titanium"],
+        "scripts": ["latin"],
+        "upstream": "ofl/sora",
+        "faces": [
+            {
+                "file": "sora-variable",
+                "source": "Sora[wght].ttf",
+                "weight": "100 800",
+                "style": "normal",
+                "scripts": ["latin"]
+            }
+        ]
+    },
+    "martianmono": {
+        "family": "Martian Mono",
+        "licence": "OFL-1.1",
+        "reservedFontName": false,
+        "subset": true,
+        "themes": ["titanium"],
+        "scripts": ["latin"],
+        "upstream": "ofl/martianmono",
+        "faces": [
+            {
+                "file": "martianmono-variable",
+                "source": "MartianMono[wdth,wght].ttf",
+                "weight": "100 800",
+                "style": "normal",
+                "scripts": ["latin"]
+            }
+        ]
+    },
+    "bevietnampro": {
+        "family": "Be Vietnam Pro",
+        "licence": "OFL-1.1",
+        "reservedFontName": false,
+        "subset": true,
+        "themes": ["titanium"],
+        "scripts": ["latin"],
+        "upstream": "ofl/bevietnampro",
+        "faces": [
+            {
+                "file": "bevietnampro-400",
+                "source": "BeVietnamPro-Regular.ttf",
+                "weight": "400",
+                "style": "normal",
+                "scripts": ["latin"]
+            },
+            {
+                "file": "bevietnampro-600",
+                "source": "BeVietnamPro-SemiBold.ttf",
+                "weight": "600",
+                "style": "normal",
+                "scripts": ["latin"]
+            },
+            {
+                "file": "bevietnampro-700",
+                "source": "BeVietnamPro-Bold.ttf",
+                "weight": "700",
+                "style": "normal",
+                "scripts": ["latin"]
+            },
+            {
+                "file": "bevietnampro-italic-400",
+                "source": "BeVietnamPro-Italic.ttf",
+                "weight": "400",
+                "style": "italic",
                 "scripts": ["latin"]
             }
         ]

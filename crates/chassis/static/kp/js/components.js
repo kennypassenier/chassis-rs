@@ -393,6 +393,641 @@ export function skipTo(href, root = document) {
     return true;
 }
 
+/** Fired on the control when it appears or goes away: `{ shown }`. */
+export const TO_TOP_EVENT = 'kp-to-top';
+
+/** The attribute that marks a back-to-top control [feat-page-1]. */
+export const TO_TOP = '[data-kp-to-top]';
+
+/**
+ * Wire every back-to-top control under `root` [feat-page-1].
+ *
+ * Two halves, and the second is the one usually missing: it takes the
+ * reader back, and it takes the FOCUS back. A control that only scrolls
+ * leaves a keyboard user at the bottom of the document with the view at
+ * the top, which is worse than not moving at all.
+ *
+ * Where the focus lands is `data-kp-to-top-target`, a selector, and it
+ * falls back to the document's own body — the top of the page, which is
+ * what the control is named after. It is NOT the skip link's target: on a
+ * page with anything tall above the content, focusing that landmark
+ * scrolls straight back down to it and undoes the journey. Scrolling is
+ * left to the browser: `scrollTo` follows the root's own scroll-behaviour,
+ * which is the knob feat-layout-2 already put there and which a reader who
+ * asked for less motion has already overruled.
+ *
+ * @param {ParentNode} root
+ * @param {{ strings?: Partial<import('./strings.js').Strings>, after?: number }} [options]
+ * @returns {() => void} detach
+ */
+export function attachToTop(root = document, { strings, after } = {}) {
+    /** @type {(() => void)[]} */
+    const cleanups = [];
+
+    for (const el of root.querySelectorAll(TO_TOP)) {
+        const button = /** @type {HTMLElement} */ (el);
+        if (button.dataset.kpToTopAttached !== undefined) continue;
+        button.dataset.kpToTopAttached = '';
+        const doc = button.ownerDocument;
+        const view = doc.defaultView;
+        if (!view) continue;
+
+        const threshold = after ?? Number(button.getAttribute('data-kp-to-top-after') ?? '400');
+        const target = button.getAttribute('data-kp-to-top-target') ?? '';
+        const s = { ...getStrings(), ...strings };
+        if (button.getAttribute('aria-label') === null && button.textContent?.trim() === '') {
+            button.setAttribute('aria-label', s.backToTop);
+        }
+        // An empty control gets the package's glyph [gap-12]: written the
+        // documented way it painted as an empty box. The element is empty
+        // and hidden from the accessibility tree — the arrow is drawn by
+        // css/components.css and the name above is what is read.
+        /** @type {HTMLElement | null} */
+        let glyph = null;
+        if (button.children.length === 0 && button.textContent?.trim() === '') {
+            glyph = doc.createElement('span');
+            glyph.className = 'kp-to-top__glyph';
+            glyph.setAttribute('aria-hidden', 'true');
+            button.append(glyph);
+        }
+
+        let shown = false;
+        let queued = false;
+        const decide = () => {
+            queued = false;
+            const next = view.scrollY > threshold;
+            if (next === shown) return;
+            shown = next;
+            button.toggleAttribute('data-kp-to-top-shown', next);
+            button.dispatchEvent(new CustomEvent(TO_TOP_EVENT, { bubbles: true, detail: { shown: next } }));
+        };
+        const onScroll = () => {
+            // One decision per frame: a scroll fires far more often than a
+            // page can paint, and the answer cannot change in between.
+            if (queued) return;
+            queued = true;
+            view.requestAnimationFrame(decide);
+        };
+        const onClick = () => {
+            view.scrollTo({ top: 0 });
+            // The focus goes too, and it goes WITHOUT scrolling. Focusing an
+            // element normally brings it into view, which undid the journey:
+            // on a page whose main landmark starts 2737px down, "back to
+            // top" landed back at 3476. So the target is the top of the
+            // document unless the page names another, and either way the
+            // focus moves quietly while the scroll above does the travelling.
+            const to = /** @type {HTMLElement | null} */ (target === '' ? null : doc.querySelector(target)) ?? doc.body;
+            if (!to.hasAttribute('tabindex')) to.setAttribute('tabindex', '-1');
+            to.focus({ preventScroll: true });
+        };
+
+        decide();
+        view.addEventListener('scroll', onScroll, { passive: true });
+        button.addEventListener('click', onClick);
+
+        cleanups.push(() => {
+            view.removeEventListener('scroll', onScroll);
+            button.removeEventListener('click', onClick);
+            button.removeAttribute('data-kp-to-top-shown');
+            glyph?.remove();
+            delete button.dataset.kpToTopAttached;
+        });
+    }
+
+    return () => {
+        for (const c of cleanups) c();
+    };
+}
+
+/** Fired on the nav when its toggle opens or closes it: `{ open }`. */
+export const NAV_TOGGLE_EVENT = 'kp-nav-toggle';
+
+/** The mark the React NavBar puts on a toggle it wires itself [AR29]. */
+export const NAV_OWNED = '[data-kp-nav-owner]';
+
+/**
+ * Wire the toggle a narrow navigation collapses into [scope-10, stage 1.3].
+ *
+ * Opt-in by the button being there: a nav without one keeps the behaviour
+ * it had, which is what makes this additive for every page already built.
+ * The CSS decides when the bar is narrow enough to collapse; this decides
+ * nothing about width at all, so the two cannot disagree.
+ *
+ * Every state it sets has a way out [KT6]: the toggle itself, Escape while
+ * the focus is inside the nav, a click outside it, and the `kp-nav-toggle`
+ * event for a consumer who wants to persist or veto nothing but observe.
+ * `detach` removes what attach stamped.
+ *
+ * @param {ParentNode} root
+ * @param {{ strings?: Partial<import('./strings.js').Strings>, ownedBy?: string }} [options]
+ * @returns {() => void} detach
+ */
+export function attachNavToggles(root = document, { strings, ownedBy = NAV_OWNED } = {}) {
+    /** @type {(() => void)[]} */
+    const cleanups = [];
+
+    for (const el of root.querySelectorAll('[data-kp-nav-toggle]')) {
+        const button = /** @type {HTMLElement} */ (el);
+        // AR29, and it is the fault that shipped once already: two channels
+        // wiring the same button re-armed each other's state forever. The
+        // React NavBar marks its own, and a consumer who wants this module
+        // over a React nav anyway passes `ownedBy: ''`.
+        if (ownedBy !== '' && button.matches(ownedBy)) continue;
+        if (button.dataset.kpNavToggleAttached !== undefined) continue;
+        button.dataset.kpNavToggleAttached = '';
+
+        const nav = button.closest('.kp-nav') ?? button.parentElement;
+        if (!nav) continue;
+        const links = nav.querySelector('.kp-nav__links');
+
+        // aria-controls needs an id, and a page that did not give one still
+        // deserves the association rather than silence.
+        if (links && !links.id) links.id = `kp-nav-links-${cleanups.length}-${Math.random().toString(36).slice(2, 8)}`;
+        if (links) button.setAttribute('aria-controls', links.id);
+
+        const label = () => {
+            const s = { ...getStrings(), ...strings };
+            return nav.hasAttribute('data-kp-nav-open') ? s.closeMenu : s.menu;
+        };
+        /** @param {boolean} open */
+        const write = (open) => {
+            nav.toggleAttribute('data-kp-nav-open', open);
+            button.setAttribute('aria-expanded', String(open));
+            button.setAttribute('aria-label', label());
+        };
+        /** @param {boolean} open */
+        const set = (open) => {
+            write(open);
+            nav.dispatchEvent(new CustomEvent(NAV_TOGGLE_EVENT, { bubbles: true, detail: { open } }));
+        };
+        // Attaching is not a toggle. This wrote the starting state THROUGH
+        // the dispatch, so every consumer listening heard a close that
+        // nobody performed, on every page load — found by the first test
+        // ever to listen.
+        write(nav.hasAttribute('data-kp-nav-open'));
+
+        const onClick = () => set(!nav.hasAttribute('data-kp-nav-open'));
+        /** @param {KeyboardEvent} event */
+        const onKey = (event) => {
+            if (event.key !== 'Escape' || !nav.hasAttribute('data-kp-nav-open')) return;
+            set(false);
+            button.focus();
+        };
+        /** @param {Event} event */
+        const onOutside = (event) => {
+            if (!nav.hasAttribute('data-kp-nav-open')) return;
+            if (nav.contains(/** @type {Node} */ (event.target))) return;
+            set(false);
+        };
+
+        button.addEventListener('click', onClick);
+        nav.addEventListener('keydown', /** @type {EventListener} */ (onKey));
+        document.addEventListener('click', onOutside, true);
+
+        cleanups.push(() => {
+            button.removeEventListener('click', onClick);
+            nav.removeEventListener('keydown', /** @type {EventListener} */ (onKey));
+            document.removeEventListener('click', onOutside, true);
+            nav.removeAttribute('data-kp-nav-open');
+            button.removeAttribute('aria-expanded');
+            button.removeAttribute('aria-label');
+            button.removeAttribute('aria-controls');
+            delete button.dataset.kpNavToggleAttached;
+        });
+    }
+
+    return () => {
+        for (const c of cleanups) c();
+    };
+}
+
+/** Fired on the wrapper when a sticky bar turns compact or back: `{ compact }`. */
+export const NAV_COMPACT_EVENT = 'kp-nav-compact';
+
+/** The mark the React NavBar puts on a sticky wrapper it wires itself [AR29]. */
+export const NAV_STICKY_OWNED = '[data-kp-nav-sticky-owner]';
+
+/**
+ * The box that scrolls `el`: its nearest ancestor whose block overflow
+ * scrolls, or the document's root element.
+ *
+ * @param {HTMLElement} el
+ * @returns {HTMLElement}
+ */
+function scrollerOf(el) {
+    const doc = el.ownerDocument;
+    for (let at = el.parentElement; at !== null && at !== doc.body && at !== doc.documentElement; at = at.parentElement) {
+        const overflow = getComputedStyle(at).overflowY;
+        if (overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay') return at;
+    }
+    return /** @type {HTMLElement} */ (doc.scrollingElement ?? doc.documentElement);
+}
+
+/**
+ * Wire every sticky nav bar under `root` [scope-48 wave 2].
+ *
+ * Opt-in by the modifier `.kp-nav-wrap--sticky`; the CSS makes the bar
+ * stick, this decides when it is compact and tells the scrolling box how
+ * tall it is. Two things, both undone by `detach`:
+ *
+ * - `data-kp-nav-compact` on the wrapper once the box has scrolled further
+ *   than `data-kp-nav-sticky-after` (px, and never less than the bar's own
+ *   height at rest, which is the default), and off again once it is back
+ *   within that distance less the bar's height. The gap between the two is not decoration: shrinking the
+ *   bar moves the content under it up, the browser's scroll anchoring moves
+ *   the scroll position with it, and without a gap at least that wide the
+ *   bar would flip between its two heights at the threshold.
+ * - `--kp-nav-sticky-height` and `data-kp-nav-sticky-root` on the scrolling
+ *   box (the document's root, or the nearest ancestor that scrolls), which
+ *   the box's `scroll-padding-block-start` reads, so an anchor or a focused
+ *   element lands below the bar. A page's own `--kp-scroll-offset` wins.
+ *
+ * @param {ParentNode} root
+ * @param {{ ownedBy?: string, after?: number }} [options]
+ * @returns {() => void} detach
+ */
+export function attachStickyNavs(root = document, { ownedBy = NAV_STICKY_OWNED, after } = {}) {
+    /** @type {(() => void)[]} */
+    const cleanups = [];
+    /** @type {HTMLElement[]} */
+    const found = [];
+    if (root instanceof HTMLElement && root.matches('.kp-nav-wrap--sticky')) found.push(root);
+    for (const el of root.querySelectorAll('.kp-nav-wrap--sticky')) found.push(/** @type {HTMLElement} */ (el));
+
+    for (const wrap of found) {
+        if (ownedBy !== '' && wrap.matches(ownedBy)) continue;
+        cleanups.push(stickyNav(wrap, after));
+    }
+
+    return () => {
+        for (const c of cleanups) c();
+    };
+}
+
+/**
+ * One sticky bar; the React NavBar calls this for the wrapper it renders.
+ *
+ * @param {HTMLElement} wrap the `.kp-nav-wrap--sticky` element
+ * @param {number} [after] px; overrides `data-kp-nav-sticky-after`
+ * @returns {() => void} detach
+ */
+export function stickyNav(wrap, after) {
+    if (wrap.dataset.kpNavStickyAttached !== undefined) return () => {};
+    const doc = wrap.ownerDocument;
+    const view = doc.defaultView;
+    if (!view) return () => {};
+    wrap.dataset.kpNavStickyAttached = '';
+
+    const scroller = scrollerOf(wrap);
+    const isDocument = scroller === doc.scrollingElement || scroller === doc.documentElement;
+    const target = isDocument ? view : scroller;
+    const offset = () => (isDocument ? view.scrollY : scroller.scrollTop);
+    scroller.setAttribute('data-kp-nav-sticky-root', '');
+
+    let compact = wrap.hasAttribute('data-kp-nav-compact');
+    let restHeight = wrap.getBoundingClientRect().height;
+    let queued = false;
+
+    const measure = () => {
+        const height = wrap.getBoundingClientRect().height;
+        if (!compact) restHeight = height;
+        scroller.style.setProperty('--kp-nav-sticky-height', `${height}px`);
+    };
+
+    const decide = () => {
+        queued = false;
+        const attribute = wrap.getAttribute('data-kp-nav-sticky-after');
+        const asked = after ?? (attribute !== null && attribute !== '' ? Number(attribute) : 0);
+        const threshold = Math.max(restHeight, Number.isFinite(asked) ? asked : 0);
+        const at = offset();
+        const next = compact ? at > Math.max(0, threshold - restHeight) : at > threshold;
+        if (next === compact) return;
+        compact = next;
+        wrap.toggleAttribute('data-kp-nav-compact', next);
+        wrap.dispatchEvent(new CustomEvent(NAV_COMPACT_EVENT, { bubbles: true, detail: { compact: next } }));
+    };
+    const onScroll = () => {
+        // One decision per frame, as the back-to-top control does.
+        if (queued) return;
+        queued = true;
+        view.requestAnimationFrame(decide);
+    };
+
+    const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    resize?.observe(wrap);
+    measure();
+    decide();
+    target.addEventListener('scroll', onScroll, { passive: true });
+
+    return () => {
+        target.removeEventListener('scroll', onScroll);
+        resize?.disconnect();
+        wrap.removeAttribute('data-kp-nav-compact');
+        scroller.removeAttribute('data-kp-nav-sticky-root');
+        scroller.style.removeProperty('--kp-nav-sticky-height');
+        delete wrap.dataset.kpNavStickyAttached;
+    };
+}
+
+/** What a bar item's dropdown is, as opposed to its mega menu's panel. */
+const DROPDOWN = ':scope > .kp-nav__menu:not(.kp-nav__menu--wide)';
+
+/**
+ * The box a bar's panel is actually seen in, in window coordinates
+ * [fix-39].
+ *
+ * The window is only the outermost of them. Kenny's review of 2026-09-16
+ * read the mega menu block inside the review dialog, whose stage carries
+ * `contain: strict` and `overflow: auto` (catalogue/catalogue.css,
+ * `.cat-review-dialog__stage`); the Account dropdown fitted the window by
+ * 300px and the stage cut 70 to 83px off its right side all the same,
+ * because the only reading anyone took was `clientWidth`. A consumer that
+ * puts a bar in a panel that scrolls has the same box.
+ *
+ * Every ancestor that clips narrows the answer, read at its padding box —
+ * a border and a scrollbar are not room to be seen in. The panel is
+ * absolutely positioned, so every one of them is in its containing block's
+ * chain and every one of them cuts it.
+ *
+ * @param {Element} element the panel
+ * @returns {{ left: number, right: number }} the inline edges it must stay between
+ */
+const viewBox = (element) => {
+    let left = 0;
+    let right = document.documentElement.clientWidth;
+    for (let node = element.parentElement; node; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        // `contain` counts too, and on its own: `contain: paint` clips
+        // while `overflow` still computes to `visible`.
+        if (style.overflowX === 'visible' && !/\b(paint|strict|content)\b/.test(style.contain)) continue;
+        const box = node.getBoundingClientRect();
+        left = Math.max(left, box.left + node.clientLeft);
+        right = Math.min(right, box.left + node.clientLeft + node.clientWidth);
+    }
+    return { left, right };
+};
+
+/**
+ * How far a box lies outside the box that shows it, in pixels; 0 when inside.
+ *
+ * @param {DOMRect} box
+ * @param {{ left: number, right: number }} view
+ */
+const overflowOf = (box, view) => Math.max(0, view.left - box.left) + Math.max(0, box.right - view.right);
+
+/**
+ * Slide a panel along the inline axis until it lies inside `view` [fix-39].
+ *
+ * Kenny, on the dropdown the review dialog cut: "Als er niet genoeg plaats
+ * is moet het dropdown item naar links bewegen tot zijn rechterkant de
+ * rechterkant van het venster is en alles dus zichtbaar is". So the panel
+ * moves by exactly what hangs out, and never so far that the other side
+ * leaves instead — a panel wider than the box keeps its start edge, where
+ * a reader begins, rather than being centred on a cut.
+ *
+ * Written as `--kp-nav-menu-shift` (css/components.css), so the stylesheet
+ * keeps the placement and this only corrects it.
+ *
+ * @param {Element} panel the panel, open and already on the edge it takes
+ * @param {{ left: number, right: number }} view
+ */
+const slideIntoView = (panel, view) => {
+    const element = /** @type {HTMLElement} */ (panel);
+    element.style.removeProperty('--kp-nav-menu-shift');
+    const box = element.getBoundingClientRect();
+    if (box.width === 0) return;
+    let shift = Math.min(0, view.right - box.right);
+    // The start edge wins the tie: pulling it back in undoes as much of the
+    // slide as it has to, and no more.
+    if (box.left + shift < view.left) shift = view.left - box.left;
+    // Sub-pixel shifts are the box's own rounding, not a cut.
+    if (Math.abs(shift) < 1) return;
+    element.style.setProperty('--kp-nav-menu-shift', `${Math.round(shift * 100) / 100}px`);
+};
+
+/**
+ * Hang a bar item's open dropdown from whichever edge keeps it in the
+ * window [fix-27].
+ *
+ * The panel hangs from its item's start edge. Under the last item of a bar
+ * whose links sit at the window's end, that ran it past the window's right
+ * edge in all 22 themes (grotesk's catalogue bar, Kenny's note of
+ * 2026-09-14). A stylesheet cannot see where the window ends, so this
+ * measures the open panel on both edges and keeps the one that lies less
+ * outside — the start edge when both fit — writing
+ * `data-kp-nav-menu-end` on the panel for the other. Both channels call it:
+ * the module on hover and focus, the React NavBar from its item.
+ *
+ * Changing edges is not always enough, because the box that shows the bar
+ * is not always the window [fix-39]: in a box that clips, both of an item's
+ * edges can lie inside the window while the panel under it is cut. So the
+ * edge is chosen against the box the panel is really seen in, and what
+ * still hangs out afterwards is slid back in (`slideIntoView`).
+ *
+ * @param {Element} item the `.kp-nav__links > li` that holds the dropdown
+ * @param {boolean} [retry] measure once more on the next frame when the panel is not open yet; default true
+ * @returns {boolean} whether the panel now hangs from the end edge
+ */
+export function placeNavMenu(item, retry = true) {
+    const menu = item.querySelector(DROPDOWN);
+    if (!menu) return false;
+    menu.removeAttribute('data-kp-nav-menu-end');
+    /** @type {HTMLElement} */ (menu).style.removeProperty('--kp-nav-menu-shift');
+    const start = menu.getBoundingClientRect();
+    // Not open yet: a pointer that has just entered the item is not
+    // `:hover` in the style until the next frame (measured in firefox), so
+    // the panel is measured once more then. Still closed, nothing is written.
+    if (start.width === 0) {
+        if (retry) requestAnimationFrame(() => placeNavMenu(item, false));
+        return false;
+    }
+    const view = viewBox(menu);
+    const fromStart = overflowOf(start, view);
+    let end = false;
+    if (fromStart > 0) {
+        menu.setAttribute('data-kp-nav-menu-end', '');
+        end = overflowOf(menu.getBoundingClientRect(), view) < fromStart;
+        if (!end) menu.removeAttribute('data-kp-nav-menu-end');
+    }
+    slideIntoView(menu, view);
+    return end;
+}
+
+/**
+ * Line an open mega menu's panel up with its bar's edges [scope-48].
+ *
+ * The panel is placed in whatever box contains it, and the registers
+ * disagree about which box that is: the `.kp-nav-wrap` in the base, the
+ * bar itself in eight registers, and cyberpunk's strip of links, which
+ * must stay positioned because its cut-corner plate hangs from it. So the
+ * bar is measured against that box, and the two offsets are written as
+ * `--kp-nav-mega-start` and `--kp-nav-mega-end` on the panel.
+ *
+ * Lined up with its bar the panel is normally inside whatever shows the
+ * bar, but it is placed against a box and judged against another, so it is
+ * held to the same question the dropdown is [fix-39]: a bar wider than the
+ * box that shows it would otherwise carry its panel out with it.
+ *
+ * @param {Element} panel the `.kp-nav__menu--wide`, open
+ */
+export function placeNavPanel(panel) {
+    const element = /** @type {HTMLElement} */ (panel);
+    const bar = element.closest('.kp-nav');
+    const box = element.offsetParent;
+    element.style.removeProperty('--kp-nav-menu-shift');
+    if (!bar || !box || element.getBoundingClientRect().width === 0) return;
+    const b = bar.getBoundingClientRect();
+    const c = box.getBoundingClientRect();
+    // Offsets are taken from the padding box, inside the border.
+    const left = b.left - (c.left + box.clientLeft);
+    const right = c.left + box.clientLeft + box.clientWidth - b.right;
+    const rtl = getComputedStyle(element).direction === 'rtl';
+    element.style.setProperty('--kp-nav-mega-start', `${rtl ? right : left}px`);
+    element.style.setProperty('--kp-nav-mega-end', `${rtl ? left : right}px`);
+    slideIntoView(element, viewBox(element));
+}
+
+/**
+ * Wire every bar's dropdowns and mega menus [fix-27, scope-48].
+ *
+ * Dropdowns open on hover and on focus within, in CSS; this only places an
+ * open one so it stays in the window (`placeNavMenu`), when it opens and
+ * again when the window changes size.
+ *
+ * A mega menu is a `data-kp-nav-disclosure` button beside a
+ * `.kp-nav__menu--wide` panel. The button gets `aria-expanded` and an
+ * `aria-controls` naming the panel (an id is given when the panel has
+ * none), and the panel shows while it says `true`. Every open state has a
+ * way out [KT6]: the button again, Escape while the focus is in the bar
+ * (the focus goes back to the button), a click outside the item, and the
+ * focus leaving it. One panel is open at a time: opening one closes the
+ * others. A button with no words of its own is named from the dictionary
+ * (`navDisclosure`). The React NavBar wires its own bar and marks it
+ * `data-kp-nav-owner`, so this module leaves that bar alone [AR29].
+ *
+ * @param {ParentNode} root
+ * @param {{ strings?: Partial<import('./strings.js').Strings>, ownedBy?: string }} [options]
+ * @returns {() => void} detach
+ */
+export function attachNavMenus(root = document, { strings, ownedBy = NAV_OWNED } = {}) {
+    /** @type {(() => void)[]} */
+    const cleanups = [];
+    const navs = [...(root instanceof Element && root.matches('.kp-nav') ? [root] : []), ...root.querySelectorAll('.kp-nav')];
+
+    for (const el of navs) {
+        const nav = /** @type {HTMLElement} */ (el);
+        if (ownedBy !== '' && nav.matches(ownedBy)) continue;
+        if (nav.dataset.kpNavMenusAttached !== undefined) continue;
+        nav.dataset.kpNavMenusAttached = '';
+
+        /** @param {EventTarget | null} target */
+        const itemOf = (target) => (target instanceof Element ? target.closest('.kp-nav__links > li') : null);
+
+        /** @param {Event} event */
+        const onEnter = (event) => {
+            const item = itemOf(event.target);
+            if (item && nav.contains(item) && item.querySelector(DROPDOWN)) placeNavMenu(item);
+        };
+        const placeOpen = () => {
+            for (const item of nav.querySelectorAll('.kp-nav__links > li')) if (item.querySelector(DROPDOWN)) placeNavMenu(item, false);
+            for (const panel of nav.querySelectorAll('.kp-nav__links > li > .kp-nav__menu--wide')) placeNavPanel(panel);
+        };
+
+        const buttons = /** @type {HTMLElement[]} */ ([...nav.querySelectorAll('[data-kp-nav-disclosure]')]);
+        /** @type {Map<HTMLElement, { panel: Element | null, stamped: string[] }>} */
+        const wired = new Map();
+        for (const button of buttons) {
+            const panel = button.parentElement?.querySelector(':scope > .kp-nav__menu--wide') ?? null;
+            /** @type {string[]} */
+            const stamped = ['aria-expanded'];
+            if (panel && !panel.id) panel.id = `kp-nav-panel-${Math.random().toString(36).slice(2, 10)}`;
+            if (panel && !button.hasAttribute('aria-controls')) {
+                button.setAttribute('aria-controls', panel.id);
+                stamped.push('aria-controls');
+            }
+            if (!(button.textContent ?? '').trim() && !button.hasAttribute('aria-label') && !button.hasAttribute('aria-labelledby')) {
+                button.setAttribute('aria-label', { ...getStrings(), ...strings }.navDisclosure);
+                stamped.push('aria-label');
+            }
+            button.setAttribute('aria-expanded', 'false');
+            wired.set(button, { panel, stamped });
+        }
+
+        const openButton = () => buttons.find((b) => b.getAttribute('aria-expanded') === 'true') ?? null;
+        /** @param {HTMLElement} button @param {boolean} open */
+        const set = (button, open) => {
+            if (open) for (const other of buttons) if (other !== button) other.setAttribute('aria-expanded', 'false');
+            button.setAttribute('aria-expanded', String(open));
+            const panel = wired.get(button)?.panel;
+            if (open && panel) placeNavPanel(panel);
+        };
+
+        /** @param {Event} event */
+        const onClick = (event) => {
+            const button = /** @type {HTMLElement} */ (event.currentTarget);
+            set(button, button.getAttribute('aria-expanded') !== 'true');
+        };
+        /** @param {KeyboardEvent} event */
+        const onKey = (event) => {
+            const button = openButton();
+            if (event.key !== 'Escape' || !button) return;
+            set(button, false);
+            button.focus();
+        };
+        /** @param {Event} event */
+        const onOutside = (event) => {
+            const button = openButton();
+            if (!button) return;
+            if (button.parentElement?.contains(/** @type {Node} */ (event.target))) return;
+            set(button, false);
+        };
+        /** @param {FocusEvent} event */
+        const onFocusOut = (event) => {
+            const button = openButton();
+            const to = event.relatedTarget;
+            // A press on the panel's ground moves the focus nowhere; that is not leaving.
+            if (!button || !(to instanceof Node)) return;
+            if (button.parentElement?.contains(to)) return;
+            set(button, false);
+        };
+
+        nav.addEventListener('pointerover', onEnter);
+        nav.addEventListener('focusin', onEnter);
+        nav.addEventListener('keydown', /** @type {EventListener} */ (onKey));
+        nav.addEventListener('focusout', /** @type {EventListener} */ (onFocusOut));
+        for (const button of buttons) button.addEventListener('click', onClick);
+        document.addEventListener('click', onOutside, true);
+        window.addEventListener('resize', placeOpen);
+        placeOpen();
+
+        cleanups.push(() => {
+            nav.removeEventListener('pointerover', onEnter);
+            nav.removeEventListener('focusin', onEnter);
+            nav.removeEventListener('keydown', /** @type {EventListener} */ (onKey));
+            nav.removeEventListener('focusout', /** @type {EventListener} */ (onFocusOut));
+            document.removeEventListener('click', onOutside, true);
+            window.removeEventListener('resize', placeOpen);
+            for (const [button, { stamped }] of wired) {
+                button.removeEventListener('click', onClick);
+                for (const name of stamped) button.removeAttribute(name);
+            }
+            for (const menu of nav.querySelectorAll('[data-kp-nav-menu-end]')) menu.removeAttribute('data-kp-nav-menu-end');
+            for (const menu of nav.querySelectorAll('.kp-nav__menu')) {
+                /** @type {HTMLElement} */ (menu).style.removeProperty('--kp-nav-menu-shift');
+            }
+            for (const panel of nav.querySelectorAll('.kp-nav__menu--wide')) {
+                /** @type {HTMLElement} */ (panel).style.removeProperty('--kp-nav-mega-start');
+                /** @type {HTMLElement} */ (panel).style.removeProperty('--kp-nav-mega-end');
+            }
+            delete nav.dataset.kpNavMenusAttached;
+        });
+    }
+
+    return () => {
+        for (const c of cleanups) c();
+    };
+}
+
 /**
  * Make every `.kp-skip-link` (or `[data-kp-skip]`) move focus, not only
  * the scroll position.

@@ -200,42 +200,6 @@
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* KP Academia Serif (renamed from Lora, Reserved Font Name 'Lora') — OFL-1.1, fonts/lora/LICENSE; named by academia */
-@font-face {
-    font-family: 'KP Academia Serif';
-    font-style: normal;
-    font-weight: 400 700;
-    font-display: swap;
-    src: url('../fonts/lora/lora-variable.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-    font-family: 'KP Academia Serif';
-    font-style: italic;
-    font-weight: 400 700;
-    font-display: swap;
-    src: url('../fonts/lora/lora-italic-variable.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-/* Cormorant Garamond — OFL-1.1, fonts/cormorantgaramond/LICENSE; named by academia */
-@font-face {
-    font-family: 'Cormorant Garamond';
-    font-style: italic;
-    font-weight: 300 700;
-    font-display: swap;
-    src: url('../fonts/cormorantgaramond/cormorantgaramond-italic-variable.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-    font-family: 'Cormorant Garamond';
-    font-style: normal;
-    font-weight: 300 700;
-    font-display: swap;
-    src: url('../fonts/cormorantgaramond/cormorantgaramond-variable.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
 /* Barlow — OFL-1.1, fonts/barlow/LICENSE; named by phantom */
 @font-face {
     font-family: 'Barlow';
@@ -320,25 +284,7 @@
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* KP Ticker Sans (renamed from IBM Plex Sans, Reserved Font Name 'Plex') — OFL-1.1, fonts/ibmplexsans/LICENSE; named by ticker */
-@font-face {
-    font-family: 'KP Ticker Sans';
-    font-style: normal;
-    font-weight: 100 700;
-    font-display: swap;
-    src: url('../fonts/ibmplexsans/ibmplexsans-variable.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-    font-family: 'KP Ticker Sans';
-    font-style: italic;
-    font-weight: 100 700;
-    font-display: swap;
-    src: url('../fonts/ibmplexsans/ibmplexsans-italic-variable.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-/* KP Ticker Mono (renamed from IBM Plex Mono, Reserved Font Name 'Plex') — OFL-1.1, fonts/ibmplexmono/LICENSE; named by ticker */
+/* KP Ticker Mono (renamed from IBM Plex Mono, Reserved Font Name 'Plex') — OFL-1.1, fonts/ibmplexmono/LICENSE; named by dark */
 @font-face {
     font-family: 'KP Ticker Mono';
     font-style: normal;
@@ -370,74 +316,6 @@
     font-display: swap;
     src: url('../fonts/ibmplexmono/ibmplexmono-bold.woff2') format('woff2');
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-/* Zen Kaku Gothic New — OFL-1.1, fonts/zenkakugothicnew/LICENSE; named by woodblock */
-@font-face {
-    font-family: 'Zen Kaku Gothic New';
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-    src: url('../fonts/zenkakugothicnew/zenkakugothicnew-regular-latin.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-    font-family: 'Zen Kaku Gothic New';
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-    src: url('../fonts/zenkakugothicnew/zenkakugothicnew-regular-japanese.woff2') format('woff2');
-    unicode-range: U+3000-303F, U+3040-309F, U+30A0-30FF, U+FF00-FFEF, U+4E00-9FFF;
-}
-@font-face {
-    font-family: 'Zen Kaku Gothic New';
-    font-style: normal;
-    font-weight: 700;
-    font-display: swap;
-    src: url('../fonts/zenkakugothicnew/zenkakugothicnew-bold-latin.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-    font-family: 'Zen Kaku Gothic New';
-    font-style: normal;
-    font-weight: 700;
-    font-display: swap;
-    src: url('../fonts/zenkakugothicnew/zenkakugothicnew-bold-japanese.woff2') format('woff2');
-    unicode-range: U+3000-303F, U+3040-309F, U+30A0-30FF, U+FF00-FFEF, U+4E00-9FFF;
-}
-
-/* Shippori Mincho — OFL-1.1, fonts/shipporimincho/LICENSE; named by woodblock */
-@font-face {
-    font-family: 'Shippori Mincho';
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-    src: url('../fonts/shipporimincho/shipporimincho-regular-latin.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-    font-family: 'Shippori Mincho';
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-    src: url('../fonts/shipporimincho/shipporimincho-regular-japanese.woff2') format('woff2');
-    unicode-range: U+3000-303F, U+3040-309F, U+30A0-30FF, U+FF00-FFEF, U+4E00-9FFF;
-}
-@font-face {
-    font-family: 'Shippori Mincho';
-    font-style: normal;
-    font-weight: 700;
-    font-display: swap;
-    src: url('../fonts/shipporimincho/shipporimincho-bold-latin.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-    font-family: 'Shippori Mincho';
-    font-style: normal;
-    font-weight: 700;
-    font-display: swap;
-    src: url('../fonts/shipporimincho/shipporimincho-bold-japanese.woff2') format('woff2');
-    unicode-range: U+3000-303F, U+3040-309F, U+30A0-30FF, U+FF00-FFEF, U+4E00-9FFF;
 }
 
 /* KP Shade Sans (renamed from Source Sans 3, Reserved Font Name 'Source') — OFL-1.1, fonts/sourcesans3/LICENSE; named by shade-light, shade-dark */
@@ -476,25 +354,7 @@
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Inter Tight — OFL-1.1, fonts/intertight/LICENSE; named by mono */
-@font-face {
-    font-family: 'Inter Tight';
-    font-style: italic;
-    font-weight: 100 900;
-    font-display: swap;
-    src: url('../fonts/intertight/intertight-italic-variable.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-    font-family: 'Inter Tight';
-    font-style: normal;
-    font-weight: 100 900;
-    font-display: swap;
-    src: url('../fonts/intertight/intertight-variable.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-/* Geist Mono — OFL-1.1, fonts/geistmono/LICENSE; named by mono, blueprint */
+/* Geist Mono — OFL-1.1, fonts/geistmono/LICENSE; named by blueprint */
 @font-face {
     font-family: 'Geist Mono';
     font-style: normal;
@@ -532,7 +392,7 @@
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Archivo — OFL-1.1, fonts/archivo/LICENSE; named by grotesk */
+/* Archivo — OFL-1.1, fonts/archivo/LICENSE; named by grotesk, dark */
 @font-face {
     font-family: 'Archivo';
     font-style: italic;
@@ -647,5 +507,59 @@
     font-weight: 400;
     font-display: swap;
     src: url('../fonts/vt323/vt323-regular.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Sora — OFL-1.1, fonts/sora/LICENSE; named by titanium */
+@font-face {
+    font-family: 'Sora';
+    font-style: normal;
+    font-weight: 100 800;
+    font-display: swap;
+    src: url('../fonts/sora/sora-variable.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Martian Mono — OFL-1.1, fonts/martianmono/LICENSE; named by titanium */
+@font-face {
+    font-family: 'Martian Mono';
+    font-style: normal;
+    font-weight: 100 800;
+    font-display: swap;
+    src: url('../fonts/martianmono/martianmono-variable.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Be Vietnam Pro — OFL-1.1, fonts/bevietnampro/LICENSE; named by titanium */
+@font-face {
+    font-family: 'Be Vietnam Pro';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/bevietnampro/bevietnampro-400.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Be Vietnam Pro';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('../fonts/bevietnampro/bevietnampro-600.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Be Vietnam Pro';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('../fonts/bevietnampro/bevietnampro-700.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Be Vietnam Pro';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/bevietnampro/bevietnampro-italic-400.woff2') format('woff2');
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }

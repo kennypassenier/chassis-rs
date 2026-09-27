@@ -763,8 +763,8 @@ mod tests {
         let t = themes();
         assert_eq!(
             t.len(),
-            25,
-            "kp-themes 5.0.0 ships exactly 25 themes; the vendored registry is pinned"
+            22,
+            "kp-themes 7.2.0 ships exactly 22 themes (6.0.0 removed academia, mono, ticker and woodblock); the vendored registry is pinned"
         );
         assert_eq!(t[0].name, "formal");
         assert_eq!(t[0].label, "Formal");
@@ -837,5 +837,42 @@ mod tests {
             "no inline script in the layout (CSP script-src 'self')"
         );
         assert!(!layout.contains("bunny.net"), "fonts are vendored (S8)");
+    }
+
+    /// A stored old name is mapped to a theme the vendored registry still
+    /// has: kp-themes 6.0.0 removed `woodblock`, which the 5.0.0 mapping
+    /// used as the target for `nishiki`.
+    #[test]
+    fn every_renamed_theme_maps_to_a_theme_that_exists() {
+        let boot = include_str!("../../static/theme-boot.js");
+        let line = boot
+            .lines()
+            .find(|l| l.contains("var renamed = {"))
+            .expect("the mapping line");
+        let body = line
+            .split('{')
+            .nth(1)
+            .and_then(|r| r.split('}').next())
+            .unwrap();
+        let names: Vec<&str> = themes().iter().map(|t| t.name.as_str()).collect();
+        let mut pairs = 0;
+        for pair in body.split(',') {
+            let (from, to) = pair.split_once(':').expect("from: to");
+            let to = to.trim().trim_matches('"');
+            let from = from.trim().trim_matches('"');
+            assert!(
+                names.contains(&to),
+                "{from} maps to {to}, which kp-themes no longer has"
+            );
+            assert!(
+                !names.contains(&from),
+                "{from} still exists; mapping it would override a choice"
+            );
+            pairs += 1;
+        }
+        assert!(
+            pairs >= 7,
+            "renamed and removed themes are all mapped ({pairs})"
+        );
     }
 }

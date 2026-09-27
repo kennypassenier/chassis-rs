@@ -43,6 +43,7 @@
 
 /** The attributes of the hook vocabulary [AR35]. Contract values. */
 import { getStrings } from './strings.js';
+import { asOf, presentUnder } from './as-of.js';
 
 export const HOOKS = Object.freeze({
     surface: 'data-kp-surface',
@@ -58,6 +59,18 @@ export const HOOKS = Object.freeze({
     /** Set on the container while the file is open. */
     openState: 'data-kp-open',
     navSide: 'data-kp-nav-side',
+    /**
+     * A number that counts up to what it already says [feat-count-1].
+     *
+     * The element's authored text is the truth and the module never
+     * invents one: it reads the number out of that text, counts to it,
+     * and puts the text back exactly as written. A page that never
+     * attaches this module, or a reader who asked for less movement,
+     * sees the final number and nothing else — which is the frozen bar.
+     */
+    count: 'data-kp-count',
+    /** `armed` | `running` | `done`, readable at any moment [KT16]. */
+    countState: 'data-kp-count-state',
 });
 
 /** The surfaces a section can stand on [TH116]. */
@@ -172,7 +185,42 @@ export const KNOBS = Object.freeze({
     arrivalBar: '--kp-arrival-bar',
     /** What a `{count}` in a boot line counts up to. Default 640, as a memory test reads. */
     arrivalCount: '--kp-arrival-count',
+    /**
+     * Whether a click anywhere on the arrival overlay ends it [CP1].
+     *
+     * `anywhere` (the default since 6.0.0) or `skip-only` for what it did
+     * before. The overlay is `position: fixed; inset: 0`, so until now it
+     * ate every click for up to 1100ms and only the Skip button ended it —
+     * a click elsewhere did nothing and gave no sign it had been lost.
+     * JobTracker reported that as "the theme picker does not work on
+     * phantom"; the picker was fine.
+     */
+    arrivalDismiss: '--kp-arrival-dismiss',
+    /**
+     * How fast the arrival plays, as a factor [scope-84]. Default 1.
+     *
+     * Every wait of the arrival — a boot line's step, a percentage's step,
+     * the card's hold, the pause before it switches off — is divided by
+     * it, and every CSS animation on the overlay (the CRT switching off,
+     * the card's bar and its shove) plays at it as its playback rate. So
+     * `0.5` takes twice as long and `2` half as long, and the sequence
+     * stays the same sequence. A value that is not a number above zero
+     * reads as 1. The catalogue's intro inspector (catalogue/intros.html)
+     * sets it on the root of a frame; no register declares it, and a page
+     * that never sets it plays exactly as before.
+     */
+    arrivalRate: '--kp-arrival-rate',
 });
+/**
+ * How long a counting number takes, in milliseconds [feat-count-1].
+ * A theme sets `--kp-count: 1200`; the default is 900. `0` — or the
+ * reduced-motion setting, which always wins — puts the number there at
+ * once without ever having counted.
+ */
+export const COUNT_KNOB = '--kp-count';
+/** Where a counting number starts. Default 0; a theme or a page may set another. */
+export const COUNT_FROM_KNOB = '--kp-count-from';
+
 /** The custom property the arrival bar's fill reads, 0 to 1. */
 export const BOOT_PROGRESS = '--kp-boot-progress';
 
@@ -184,6 +232,89 @@ export const MARQUEE_PAUSE_KNOB = '--kp-marquee-pause';
 /** The knob blueprint sets to run its own live dimension lines [S48, LIFT_PLAN row 6]: `--kp-measure: live`. */
 export const MEASURE_KNOB = '--kp-measure';
 
+/**
+ * The knob a theme sets to have the pointer's position written to the page
+ * [scope-16]: `--kp-pointer: track`.
+ *
+ * The spectral instrument's approved demo paints its oxide film as a conic
+ * gradient whose start angle follows the pointer — anodising does not add
+ * pigment, it grows a film whose thickness decides which wavelength
+ * survives, so the colour really does shift with the angle you look from.
+ * A gradient cannot read a pointer; something has to write the number down.
+ *
+ * Off by default, and off under reduced motion: someone asking for less
+ * movement is not asking for a colour that follows their hand. The two
+ * properties keep whatever the stylesheet declared, so the gradient is
+ * valid before the pointer has ever moved and stays valid afterwards.
+ */
+export const POINTER_KNOB = '--kp-pointer';
+
+/** The properties `POINTER_KNOB` drives, each 0 to 1 across the viewport. */
+export const POINTER = Object.freeze({ x: '--kp-px', y: '--kp-py' });
+
+/**
+ * The knob a theme sets on the surfaces the pointer LIGHTS [scope-101,
+ * from scope-25]: `--kp-light: pointer`.
+ *
+ * Kenny's sentence for the shade pair, verbatim: "the pointer is the
+ * light, and the light half throws its shade away from it while the dark
+ * half is lifted out of shade by it". A shadow's direction depends on
+ * where its element is, which the two root numbers `POINTER_KNOB` writes
+ * cannot say — so this is written per element instead of per page. It
+ * rides on that same bus: the same `--kp-pointer: track` arms it, the
+ * same `pointermove` listener feeds it, the same animation frame writes
+ * both. Off wherever the bus is off, which includes reduced motion.
+ */
+export const LIGHT_KNOB = '--kp-light';
+
+/**
+ * The six properties `LIGHT_KNOB` drives on each lit element: the
+ * direction away from the pointer (`x`, `y`), how near it is (`near`,
+ * `lift`) and where the pointer sits inside the element's own box
+ * (`atX`, `atY`). A register declares its fallback for every one of them,
+ * so a page with no pointer paints the fixed light it painted before.
+ */
+export const LIGHT = Object.freeze({
+    x: '--kp-light-x',
+    y: '--kp-light-y',
+    near: '--kp-light-near',
+    lift: '--kp-light-lift',
+    atX: '--kp-light-at-x',
+    atY: '--kp-light-at-y',
+});
+
+/** What the light can fall on, the approved demo's own list. */
+export const LIGHT_SELECTOR = ".kp-card, .kp-button:not([class*='kp-button--']), [data-kp-surface='hero']";
+
+/** Past this many pixels the shade is at full length; under it, shorter. */
+export const LIGHT_REACH = 240;
+
+/** Past this many pixels the light no longer reaches the surface at all. */
+export const LIGHT_FAR = 560;
+
+/**
+ * The knob a theme sets to have the point a press started at written to the
+ * button it started on [scope-25, built at scope-101]: `--kp-press: point`.
+ *
+ * Sepia's approved gesture is the ink spreading into the paper on a press,
+ * and ink spreads from where the nib touched down, not from the middle of
+ * the plate. CSS knows a button is being pressed; it cannot know WHERE, so
+ * something has to write the two numbers down. That is all this does — the
+ * whole gesture is the register's, and this is the coordinate it reads.
+ *
+ * Unlike `POINTER_KNOB` it stays armed under reduced motion: someone asking
+ * for less movement is not asking for the stain to appear in the wrong
+ * place, and the register gives them the same stain with no transition.
+ *
+ * Without the module, on a key press, or after `detach()`, the two
+ * properties are whatever the stylesheet declared — sepia's own default is
+ * the middle of the button, so the gesture is whole before a pointer has
+ * ever touched it [KT6].
+ */
+export const PRESS_KNOB = '--kp-press';
+
+/** The properties `PRESS_KNOB` drives: the press point inside the button's box. */
+export const PRESS = Object.freeze({ x: '--kp-press-x', y: '--kp-press-y' });
 /** Set on the root before first paint; the register keys its start states on it [AR34]. */
 export const ROOT_ATTRIBUTE = 'data-kp-effects';
 
@@ -253,6 +384,19 @@ export const TIMINGS = Object.freeze({
     // a button, the bar entering, the floor's drift and the CRT switching
     // the boot overlay off — every one once, except the drift, which moves
     // a pattern and never changes luminance.
+    // The side navigation's backdrop [feat-nav-3]: one fade in, at the
+    // theme's own duration, on a layer that is already a dimming. It runs
+    // once because the element is created when the panel opens and removed
+    // when it closes.
+    'kp-sidenav-backdrop': { durationMs: 220, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
+    // Solstice's raking light [scope-12]: one pass of a warm band across a
+    // control, on hover. The band is a gradient that fades to transparent at
+    // both ends, so no edge of it is an opposing luminance change.
+    'kp-rake': { durationMs: 620, cycles: 1, property: 'translate', luminanceSteps: [] },
+    // Titanium's headline [scope-17]: one short linear pass as the word
+    // slides square. No blur and no chromatic split — those belong to the
+    // spectral instrument. Opacity 0 to 1 once, so no opposing change.
+    'kp-mill': { durationMs: 340, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
     'kp-tracking': { durationMs: 700, cycles: 1, property: 'opacity', luminanceSteps: [1, 0] },
     'kp-shine': { durationMs: 1400, cycles: 1, property: 'background-position', luminanceSteps: [] },
     'kp-tube-on': { durationMs: 1100, cycles: 1, property: 'color', luminanceSteps: [0, 1, 0, 1] },
@@ -279,13 +423,42 @@ export const TIMINGS = Object.freeze({
     'kp-tube-off': { durationMs: 420, cycles: 1, property: 'opacity', luminanceSteps: [1, 1, 0] },
     // The cursor in the box [TM2, R6-Q7]: one character cell on and off, once a second.
     'kp-caret': { durationMs: 1000, cycles: Infinity, property: 'background-size', luminanceSteps: [1, 1, 0, 0] },
+    // The alarm [scope-94]: the plate fading in, the frame's glow breathing
+    // (one half-cycle per 1.4 s), the panel flickering in once (cyberpunk's
+    // own keyframe since scope-100, below), each letter cell's two noise glyphs and its letter (once per
+    // cell), the split copies slicing through once and then every 5 s, the
+    // headline's short dip every 5 s, the detail line fading in, the caret,
+    // the hazard stripes marching and the faint band sweeping down. Measured
+    // from rendered frames in tests/alarm.spec.mjs as well.
+    // Since scope-98 the flicker, the decode, the split, the dip, the caret,
+    // the march and the sweep are cyberpunk's alone; the package's default
+    // arrives whole: the panel settling and the headline arriving, once each.
+    // The plate's row keeps cyberpunk's 180 ms, the shorter of the two.
+    'kp-alarm-ground-in': { durationMs: 180, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
+    'kp-alarm-settle': { durationMs: 520, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
+    'kp-alarm-arrive': { durationMs: 480, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
+    'kp-alarm-pulse': { durationMs: 1400, cycles: Infinity, property: 'opacity', luminanceSteps: [0.4, 1] },
+    // Cyberpunk's panel striking like a failing tube [scope-100], in its
+    // register: 0, 0.6, a sag to 0.52 under the 10% step, 1 — one direction,
+    // where the package's kp-alarm-flicker-in (0, 1, 0.3, 1) read 3.00/s.
+    'kp-alarm-cyberpunk-flicker': { durationMs: 600, cycles: 1, property: 'opacity', luminanceSteps: [0, 0.6, 0.52, 1, 1] },
+    'kp-alarm-jitter': { durationMs: 5000, cycles: Infinity, property: 'opacity', luminanceSteps: [1, 1, 0.6, 1] },
+    'kp-alarm-slice-in': { durationMs: 600, cycles: 1, property: 'clip-path', luminanceSteps: [] },
+    'kp-alarm-slice': { durationMs: 5000, cycles: Infinity, property: 'clip-path', luminanceSteps: [] },
+    'kp-alarm-decode-letter': { durationMs: 180, cycles: 1, property: 'color', luminanceSteps: [] },
+    'kp-alarm-decode-noise': { durationMs: 90, cycles: 1, property: 'opacity', luminanceSteps: [1, 0] },
+    'kp-alarm-detail-in': { durationMs: 300, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
+    'kp-alarm-caret': { durationMs: 1000, cycles: Infinity, property: 'opacity', luminanceSteps: [1, 1, 0, 0] },
+    'kp-alarm-march': { durationMs: 1600, cycles: Infinity, property: 'background-position', luminanceSteps: [] },
+    'kp-alarm-sweep': { durationMs: 6000, cycles: Infinity, property: 'translate', luminanceSteps: [] },
     // The shade-dark register [S48, LIFT_PLAN row 24]: the headline's words
     // arriving out of a blur, the hero button and the dossier card settling
     // out of the same blur once on load, and the confirmation dialog's
     // native open/close — the last two shared with academia's, which mounts
     // its dialog the same way.
+    // One keyframe for both grains since scope-100 (the two were identical):
+    // the words at 600ms, the hero button and dossier card at 500ms.
     'kp-focus': { durationMs: 600, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
-    'kp-focus-in': { durationMs: 500, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
     'kp-dialog-in': { durationMs: 180, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
     'kp-backdrop-in': { durationMs: 180, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
     // The nostromo register [S48, LIFT_PLAN row 19]: the headline and the
@@ -296,7 +469,7 @@ export const TIMINGS = Object.freeze({
     // both scroll-bound (animation-timeline: view()), not time-based, so
     // their duration is the demo's own measured pace across the range
     // rather than a clock the browser runs.
-    'kp-resolve': { durationMs: 640, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
+    'kp-resolve': { durationMs: 640, cycles: 1, property: 'opacity', luminanceSteps: [0, 1, 1] },
     'kp-ignite': { durationMs: 600, cycles: 1, property: 'color', luminanceSteps: [0, 1] },
     'kp-sweep-in': { durationMs: 600, cycles: 1, property: 'background-position', luminanceSteps: [] },
     // The sepia register [S48, LIFT_PLAN row 9]: the confirmation dialog's
@@ -308,7 +481,7 @@ export const TIMINGS = Object.freeze({
     // over the headline, the rule draw, and the dossier's redaction lift.
     'kp-cal-slide': { durationMs: 740, cycles: 1, property: 'clip-path', luminanceSteps: [] },
     'kp-cal-rule': { durationMs: 480, cycles: 1, property: 'transform', luminanceSteps: [] },
-    'kp-cal-redact': { durationMs: 320, cycles: 1, property: 'clip-path', luminanceSteps: [] },
+    'kp-cal-redact': { durationMs: 320, cycles: 1, property: 'background-size', luminanceSteps: [] },
     // The mono register [S48, LIFT_PLAN row 11]: a hard-edge mask sweeping
     // once across a headline (the whole line, unsplit) or a redaction bar.
     // No luminance step: the mask moves, the content under it does not
@@ -334,13 +507,26 @@ export const TIMINGS = Object.freeze({
     'kp-slice-2': { durationMs: 600, cycles: 1, property: 'opacity', luminanceSteps: [1, 0, 0] },
     'kp-charge': { durationMs: 520, cycles: 1, property: 'transform', luminanceSteps: [] },
     'kp-slide-in': { durationMs: 140, cycles: 1, property: 'transform', luminanceSteps: [] },
-    'kp-rule-in': { durationMs: 420, cycles: 1, property: 'transform', luminanceSteps: [] },
+    // The base layer's shared rule draw. One keyframe, nine registers, each
+    // with its own duration: nostromo 280ms, blueprint 420ms, lapis 480ms
+    // (its --kp-rule knob, which is what runs), light and retro 480ms, deco
+    // 600ms, brutalism 620ms, terminal 900ms, shade-light its --fx-duration.
+    // The row carries the shortest, the worst case a rate is read at; it
+    // used to say 420ms, blueprint's alone [scope-100].
+    'kp-rule-in': { durationMs: 280, cycles: 1, property: 'transform', luminanceSteps: [] },
     'kp-settle': { durationMs: 140, cycles: 1, property: 'transform', luminanceSteps: [] },
     'kp-blink': { durationMs: 1000, cycles: Infinity, property: 'opacity', luminanceSteps: [1, 1, 0, 0] },
     'kp-drift': { durationMs: 40000, cycles: Infinity, property: 'background-position', luminanceSteps: [] },
     'kp-ember': { durationMs: 840, cycles: 1, property: 'box-shadow', luminanceSteps: [] },
     'kp-spin': { durationMs: 900, cycles: Infinity, property: 'transform', luminanceSteps: [] },
     'kp-pulse': { durationMs: 1600, cycles: Infinity, property: 'opacity', luminanceSteps: [1, 0.6, 1] },
+    // The indeterminate progress stripes [gap-11]: a background-position
+    // drift of one stripe period, no luminance change of its own.
+    'kp-progress-stripes': { durationMs: 1200, cycles: Infinity, property: 'background-position', luminanceSteps: [] },
+    // Cyberpunk's data stream [scope-96]: two dash tiles drifting by one
+    // tile width per loop (144px and 216px in 8000ms), no luminance change.
+    'kp-stream-144': { durationMs: 8000, cycles: Infinity, property: 'mask-position', luminanceSteps: [] },
+    'kp-stream-216': { durationMs: 8000, cycles: Infinity, property: 'mask-position', luminanceSteps: [] },
     // The shared marquee [M1, 2026-09-08]: one transform across a doubled
     // row, no luminance change of its own, and the only loop besides
     // brutalism's hatch. The duration is a knob, so this row carries the
@@ -379,7 +565,7 @@ export const TIMINGS = Object.freeze({
     'kp-mark-sweep': { durationMs: 420, cycles: 1, property: 'color', luminanceSteps: [0, 1] },
     // The grotesk register [S48, LIFT_PLAN row 12]: the headline's optical
     // resolve, a monotone blur+brightness sweep, once, on the whole,
-    // unsplit line (`kp-sharpen-in` — not `kp-focus-in`/`focus`, which the
+    // unsplit line (`kp-sharpen-in` — not `kp-focus`/`focus`, which the
     // dark and shade-dark registers already own for their own, different
     // mechanics). The confirmation dialog's one-shot open reuses the
     // `kp-dialog-in` row above, which academia, nostromo and shade-dark
@@ -392,10 +578,9 @@ export const TIMINGS = Object.freeze({
     // on a later class toggle, not keyframes, so they carry no row here —
     // the same choice terminal's own redaction made [TM1].
     'kp-headline-fade': { durationMs: 300, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
-    'kp-dim-draw': { durationMs: 500, cycles: 1, property: 'transform', luminanceSteps: [] },
+    // One fade, used twice: the brackets, then the readout behind them.
+    // The two dimension lines this replaced needed four rows [scope-18].
     'kp-dim-label': { durationMs: 300, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
-    'kp-elev-draw': { durationMs: 500, cycles: 1, property: 'transform', luminanceSteps: [] },
-    'kp-elev-label': { durationMs: 300, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
 });
 
 /**
@@ -412,12 +597,38 @@ export const TIMINGS = Object.freeze({
  * @typedef {object} EffectsHandle
  * @property {() => void} detach stop everything the module started and remove the root attribute; safe to call twice
  * @property {(element: Element) => void} observe start an element rendered after attach, and its subtree [AR34]
+ * @property {Promise<void>} ready resolves once every hook this attach asked for has been fetched and run [scope-117]
+ */
+
+/**
+ * The four variables every part of attachEffects writes [scope-117].
+ * @typedef {object} EffectsState
+ * @property {boolean} detached
+ * @property {IntersectionObserver | null} io
+ * @property {IntersectionObserver | null} ioHeadline
+ * @property {number} pending
+ */
+
+/**
+ * What a hook module receives from attachEffects [scope-117]: the closure it
+ * was cut out of, by name.
+ * @typedef {Record<string, any> & { state: EffectsState }} EffectsContext
  */
 
 /** Elements this module has started, so a second attach does not start them again [AR34]. */
 const started = new WeakSet();
 /** Fields whose caret listeners are already bound, so a second attach adds none [G16]. */
 const carets = new WeakSet();
+/**
+ * The documents whose arrival overlay is on screen, each with the headline
+ * reveals held until it has gone [scope-86]. Kept per document rather than
+ * per attach: a second attach on the same page (js/auto.js over React, the
+ * `DecipherText` wrapper) sees the arrival as already seen, but its
+ * headline must still wait for the overlay the first attach put up.
+ *
+ * @type {WeakMap<Document, Set<() => void>>}
+ */
+const arrivalsOnScreen = new WeakMap();
 
 /** The unknown hook values reported on this page, `hook=value`, for the diagnostics [AR44]. */
 const unknownReported = new Set();
@@ -462,7 +673,6 @@ export function attachEffects(root = document, options = {}) {
     };
     if (manageRoot) html.setAttribute(ROOT_ATTRIBUTE, '');
 
-    let detached = false;
     /** @type {Set<ReturnType<typeof setTimeout>>} */
     const timers = new Set();
     /** @type {Set<number>} */
@@ -471,18 +681,19 @@ export function attachEffects(root = document, options = {}) {
     const cleanups = [];
     /** @type {Array<() => void>} */
     const finishers = [];
-    /** @type {IntersectionObserver | null} */
-    let io = null;
 
-    /** The headline's own on-view watcher [S48, academia, LIFT_PLAN row 10]:
-     * kept apart from `io` (the rule hook's) so a page whose rule reveal is
-     * quiet still gets a working headline draw, and the other way round. */
-    /** @type {IntersectionObserver | null} */
-    let ioHeadline = null;
-    let pending = 0;
+    /**
+     * The closure's four mutable variables as one object [scope-117]: the
+     * hooks live in modules of their own now, and every one of them must
+     * write the same binding. `ioHeadline` is the headline's own on-view
+     * watcher [S48], kept apart from `io` (the rule hook's) so a page whose
+     * rule reveal is quiet still gets a working headline draw.
+     * @type {EffectsState}
+     */
+    const state = { detached: false, io: null, ioHeadline: null, pending: 0 };
 
     const done = () => {
-        if (detached || pending > 0) return;
+        if (state.detached || state.pending > 0) return;
         html.setAttribute(DONE_ATTRIBUTE, '');
     };
     /** @param {Element} el @param {string} reveal @param {string} routine @param {boolean} skipped */
@@ -496,7 +707,7 @@ export function attachEffects(root = document, options = {}) {
     const later = (fn, ms) => {
         const id = setTimeout(() => {
             timers.delete(id);
-            if (!detached) fn();
+            if (!state.detached) fn();
         }, ms);
         timers.add(id);
     };
@@ -584,650 +795,57 @@ export function attachEffects(root = document, options = {}) {
         }
     };
 
-    // ── The headline: decipher, then one slice burst [TH119] ───────────
-    /** @param {Element} el */
-    const headline = (el) => {
-        const text = el.textContent ?? '';
-        el.setAttribute(TEXT_ATTRIBUTE, text);
-        if (!el.hasAttribute('aria-label')) el.setAttribute('aria-label', text);
-        const asked = routineOf(el, 'headline');
-        // A name no routine answers to is reported and then treated as
-        // silence [G6]: the chain below ends at decipher, so a typo in a
-        // register used to give that theme glyph noise over its headline
-        // rather than the rest it asked for.
-        const routine =
-            asked === '' || HEADLINE_ROUTINES.includes(asked) ? asked : reportUnknownRoutine(el, ROUTINES.headline, asked, HEADLINE_ROUTINES);
-        /** @param {boolean} skipped */
-        const rest = (skipped) => {
-            el.textContent = text;
-            el.classList.add(STATE.deciphered);
-            announce(el, 'headline', routine, skipped);
-        };
-        if (routine === '' || reduced() || seen(el, 'headline')) {
-            rest(true);
-            return;
-        }
-        if (routine === 'tracking') {
-            // The synthwave headline [SW2]: the text stays whole; one tracking
-            // wipe crosses it, then one shine. The register animates the
-            // classes; without an animation the classes come off by the
-            // table's durations, so nothing waits on an event that never comes.
-            pending++;
-            let ended = false;
-            const shine = () => {
-                if (ended) return;
-                ended = true;
-                el.classList.remove(STATE.tracking);
-                el.classList.add(STATE.shine);
-                const off = () => el.classList.remove(STATE.shine);
-                el.addEventListener('animationend', off, { once: true });
-                later(off, TIMINGS['kp-shine'].durationMs + 50);
-                rest(false);
-                pending--;
+    // ── The hooks, fetched when asked for [scope-117] ──────────────────
+    // Each hook lives in js/effects/<hook>.js. A page that carries no
+    // headline never downloads the decipher; a theme that declares no
+    // pointer never downloads the light. A hook's module is fetched the
+    // first time something asks for it and installed once; `state.pending`
+    // is held while it is on its way, so the done attribute still waits for
+    // every reveal that has not started yet.
+    /** @type {Record<string, () => Promise<{ install: (ctx: EffectsContext) => Record<string, any> }>>} */
+    const loaders = {
+        headline: () => import('./effects/headline.js'),
+        emphasis: () => import('./effects/emphasis.js'),
+        rule: () => import('./effects/rule.js'),
+        count: () => import('./effects/count.js'),
+        caret: () => import('./effects/caret.js'),
+        pointer: () => import('./effects/pointer.js'),
+        measure: () => import('./effects/measure.js'),
+        marquee: () => import('./effects/marquee.js'),
+        arrival: () => import('./effects/arrival.js'),
+    };
+    /** @type {Record<string, Promise<Record<string, any>>>} */
+    const installed = {};
+    /** @type {EffectsContext} */
+    let ctx;
+    /** @param {string} name */
+    const use = (name) => (installed[name] ??= loaders[name]().then((module) => module.install(ctx)));
+    /** @type {Promise<void>[]} */
+    const arriving = [];
+    /**
+     * The page as attach found it, for the hooks asked for during attach: a
+     * hook that arrives after a React component has mounted must not wire it
+     * [js/as-of.js]. Taken once scan has run; a hook asked for later, by
+     * observe(), reads the page as it is then.
+     * @type {WeakSet<Element> | null}
+     */
+    let present = null;
+    /** @param {string} name @param {(hook: Record<string, any>) => void} fn */
+    const run = (name, fn) => {
+        state.pending++;
+        const asked = present;
+        const arrived = use(name)
+            .then((hook) => {
+                if (state.detached) return;
+                if (asked) asOf(root, asked, () => fn(hook));
+                else fn(hook);
+            })
+            .catch((error) => console.error(error))
+            .finally(() => {
+                state.pending = Math.max(0, state.pending - 1);
                 done();
-            };
-            finishers.push(shine);
-            el.classList.add(STATE.tracking);
-            const onEnd = (/** @type {Event} */ e) => {
-                if (/** @type {AnimationEvent} */ (e).animationName !== 'kp-tracking') return;
-                el.removeEventListener('animationend', onEnd);
-                shine();
-            };
-            el.addEventListener('animationend', onEnd);
-            later(shine, TIMINGS['kp-tracking'].durationMs + 50);
-            return;
-        }
-        if (routine === 'popdown') {
-            // The nostromo headline [S48, LIFT_PLAN nostromo row]: the text
-            // stays whole throughout — no glyph or word is ever touched —
-            // under a clip-path the register sweeps open top-down; the
-            // class runs it, then the element rests. Without an animation
-            // the class comes off by the table's duration.
-            pending++;
-            el.classList.add(STATE.popping);
-            let ended = false;
-            const finish = () => {
-                if (ended) return;
-                ended = true;
-                el.classList.remove(STATE.popping);
-                rest(false);
-                pending--;
-                done();
-            };
-            finishers.push(finish);
-            const onEnd = (/** @type {Event} */ e) => {
-                if (/** @type {AnimationEvent} */ (e).animationName !== 'kp-popdown') return;
-                el.removeEventListener('animationend', onEnd);
-                finish();
-            };
-            el.addEventListener('animationend', onEnd);
-            later(finish, TIMINGS['kp-popdown'].durationMs + 50);
-            return;
-        }
-        if (routine === 'draw') {
-            // The academia headline [lift row 10]: the words are never
-            // touched — no noise, no split into words. A rule beneath the
-            // heading grows in once it enters the viewport, the exact
-            // mechanism `rule()` below already performs, generalised to
-            // h1 because the approved demo drives both off one
-            // IntersectionObserver and one class ("The Reading Room",
-            // 2026-09-08). The register paints the draw; this only
-            // watches and flips the class.
-            if (!view || typeof view.IntersectionObserver !== 'function') {
-                el.classList.add(STATE.in);
-                announce(el, 'headline', routine, true);
-                return;
-            }
-            pending++;
-            finishers.push(() => {
-                el.classList.add(STATE.in);
-                announce(el, 'headline', routine, false);
             });
-            ioHeadline ??= new view.IntersectionObserver(
-                (entries) => {
-                    for (const entry of entries) {
-                        if (!entry.isIntersecting) continue;
-                        ioHeadline?.unobserve(entry.target);
-                        entry.target.classList.add(STATE.in);
-                        announce(entry.target, 'headline', routine, false);
-                        pending--;
-                        done();
-                    }
-                },
-                { threshold: cfg.threshold },
-            );
-            ioHeadline.observe(el);
-            return;
-        }
-        if (routine === 'arrive') {
-            // The formal headline [S49, LIFT_PLAN row 16]: whole and
-            // untouched — this theme does not glitch or type, it commits.
-            // Nothing here manipulates a character; the class the register
-            // reads (STATE.deciphered, same completion marker every
-            // routine sets) is held off by one frame past the next, the
-            // same two-`requestAnimationFrame` technique the approved demo
-            // used itself, so the browser paints the hidden state before a
-            // plain CSS transition (fade, rise) carries it to rest.
-            pending++;
-            let ended = false;
-            const finish = () => {
-                if (ended) return;
-                ended = true;
-                rest(false);
-                pending--;
-                done();
-            };
-            finishers.push(finish);
-            const arm = () => later(finish, 500);
-            if (view) view.requestAnimationFrame(() => view.requestAnimationFrame(arm));
-            else arm();
-            return;
-        }
-        if (routine === 'ink') {
-            // The sepia headline [S48, LIFT_PLAN row 9]: no per-word
-            // stagger — the whole line is one CSS transition, a faint
-            // ghost of the ink colour settling to the full one, because
-            // this theme (anatomy.md) is "unhurried on purpose". `settling`
-            // is transient like `dissolving`/`typing`: added, then removed
-            // once the transition has run, so a quiet theme or reduced
-            // motion — which skip straight to `rest(true)` above and never
-            // add it — render the plain, already-settled headline rather
-            // than a permanent ghost. A transition, not a keyframe
-            // animation (css/sepia-register.css carries no `@keyframes`
-            // for it, so it has no TIMINGS row).
-            pending++;
-            el.classList.add(STATE.settling);
-            let ended = false;
-            const finish = () => {
-                if (ended) return;
-                ended = true;
-                el.classList.remove(STATE.settling);
-                rest(false);
-                pending--;
-                done();
-            };
-            finishers.push(finish);
-            const onEnd = (/** @type {Event} */ e) => {
-                if (/** @type {TransitionEvent} */ (e).propertyName !== 'filter' || e.target !== el) return;
-                el.removeEventListener('transitionend', onEnd);
-                finish();
-            };
-            el.addEventListener('transitionend', onEnd);
-            // One frame at the ghost values, painted with `settling` on,
-            // before the class comes off and the transition it guards
-            // carries the properties back to their plain, settled values
-            // over the next 1050ms — the demo's own requestAnimationFrame,
-            // not a synchronous removal a browser could coalesce into the
-            // first paint and skip the transition for.
-            const off = () => el.classList.remove(STATE.settling);
-            if (view) view.requestAnimationFrame(off);
-            else off();
-            later(finish, 1050 + 50);
-            return;
-        }
-        if (routine === 'calibrate') {
-            // The solstice headline [S49, A1]: the text is whole and solid
-            // under a mix-blend-mode overlay the register paints; the class
-            // runs the overlay's one wipe, then the element rests. Without
-            // an animation the class comes off by the table's duration.
-            pending++;
-            el.classList.add(STATE.calibrating);
-            let ended = false;
-            const finish = () => {
-                if (ended) return;
-                ended = true;
-                el.classList.remove(STATE.calibrating);
-                rest(false);
-                pending--;
-                done();
-            };
-            finishers.push(finish);
-            const onEnd = (/** @type {Event} */ e) => {
-                if (/** @type {AnimationEvent} */ (e).animationName !== 'kp-cal-slide') return;
-                el.removeEventListener('animationend', onEnd);
-                finish();
-            };
-            el.addEventListener('animationend', onEnd);
-            later(finish, TIMINGS['kp-cal-slide'].durationMs + 50);
-            return;
-        }
-        if (routine === 'wipe') {
-            // The mono headline [S48, LIFT_PLAN row 6]: the text stays whole,
-            // never split into words or glyphs; the register sweeps a
-            // hard-edge mask across it once, left to right — rauno.me's
-            // verticalFade, adapted from opacity to mask-position so nothing
-            // ever flashes. The class arms the register's own animation;
-            // without one the class comes off by the table's duration.
-            pending++;
-            el.classList.add(STATE.revealed);
-            let ended = false;
-            const finish = () => {
-                if (ended) return;
-                ended = true;
-                el.classList.remove(STATE.revealed);
-                rest(false);
-                pending--;
-                done();
-            };
-            finishers.push(finish);
-            const onEnd = (/** @type {Event} */ e) => {
-                if (/** @type {AnimationEvent} */ (e).animationName !== 'kp-wipe') return;
-                el.removeEventListener('animationend', onEnd);
-                finish();
-            };
-            el.addEventListener('animationend', onEnd);
-            later(finish, TIMINGS['kp-wipe'].durationMs + 50);
-            return;
-        }
-        if (routine === 'gild') {
-            // The lapis headline [S48, LIFT_PLAN row 6]: the text is whole
-            // and already gold; the class runs one clip-path wipe left to
-            // right (the register's `kp-burnish` keyframe), then the
-            // element rests. Without an animation the class comes off by
-            // the table's duration — same shape as `dissolve`, a different
-            // keyframe, because the demo's mechanism is neither a dither
-            // nor a per-glyph type [S49].
-            pending++;
-            el.classList.add(STATE.gilding);
-            let ended = false;
-            const finish = () => {
-                if (ended) return;
-                ended = true;
-                el.classList.remove(STATE.gilding);
-                rest(false);
-                pending--;
-                done();
-            };
-            finishers.push(finish);
-            const onEnd = (/** @type {Event} */ e) => {
-                if (/** @type {AnimationEvent} */ (e).animationName !== 'kp-burnish') return;
-                el.removeEventListener('animationend', onEnd);
-                finish();
-            };
-            el.addEventListener('animationend', onEnd);
-            later(finish, TIMINGS['kp-burnish'].durationMs + 50);
-            return;
-        }
-        if (routine === 'sharpen') {
-            // The grotesk headline [S49, LIFT_PLAN row 12]: the text is whole
-            // under a blur+brightness the register paints; the class runs the
-            // one-shot optical resolve, then the element rests. Without an
-            // animation the class comes off by the table's duration. Its own
-            // routine name and keyframe, distinct from the `focus` word-
-            // stagger group and `kp-focus-in` shade-dark already owns.
-            pending++;
-            el.classList.add(STATE.sharpening);
-            let ended = false;
-            const finish = () => {
-                if (ended) return;
-                ended = true;
-                el.classList.remove(STATE.sharpening);
-                rest(false);
-                pending--;
-                done();
-            };
-            finishers.push(finish);
-            const onEnd = (/** @type {Event} */ e) => {
-                if (/** @type {AnimationEvent} */ (e).animationName !== 'kp-sharpen-in') return;
-                el.removeEventListener('animationend', onEnd);
-                finish();
-            };
-            el.addEventListener('animationend', onEnd);
-            later(finish, TIMINGS['kp-sharpen-in'].durationMs + 50);
-            return;
-        }
-
-        if (routine === 'clip') {
-            // The light headline [S48, LIFT_PLAN, A1]: the text is whole the
-            // entire time — no noise, no dither, no per-word stagger — and
-            // the register opens a rounded clip window around it once. The
-            // class runs the reveal; without an animation the class comes
-            // off by the table's duration, same shape as dissolve above.
-            pending++;
-            el.classList.add(STATE.revealing);
-            let ended = false;
-            const finish = () => {
-                if (ended) return;
-                ended = true;
-                el.classList.remove(STATE.revealing);
-                rest(false);
-                pending--;
-                done();
-            };
-            finishers.push(finish);
-            const onEnd = (/** @type {Event} */ e) => {
-                if (/** @type {AnimationEvent} */ (e).animationName !== 'kp-clip-reveal') return;
-                el.removeEventListener('animationend', onEnd);
-                finish();
-            };
-            el.addEventListener('animationend', onEnd);
-            later(finish, TIMINGS['kp-clip-reveal'].durationMs + 50);
-            return;
-        }
-
-        if (routine === 'overprint') {
-            // The pastel headline [S48, LIFT_PLAN row 6]: the text is
-            // whole; the register's ::before duplicate (the second-ink
-            // layer, already there at its rest offset for a no-script
-            // page) springs from a wide mis-registration into that rest
-            // position once. The element's own text never changes.
-            pending++;
-            el.classList.add(STATE.registering);
-            let ended = false;
-            const finish = () => {
-                if (ended) return;
-                ended = true;
-                el.classList.remove(STATE.registering);
-                rest(false);
-                pending--;
-                done();
-            };
-            finishers.push(finish);
-            const onEnd = (/** @type {Event} */ e) => {
-                if (/** @type {AnimationEvent} */ (e).animationName !== 'kp-registration') return;
-                el.removeEventListener('animationend', onEnd);
-                finish();
-            };
-            el.addEventListener('animationend', onEnd);
-            later(finish, TIMINGS['kp-registration'].durationMs + 50);
-            return;
-        }
-
-        if (routine === 'shout' || routine === 'slam' || routine === 'focus' || routine === 'resolve' || routine === 'blur') {
-            // A word routine [PH2, BR2, S48 shade-dark and dark]: every word in its own span with its
-            // index, the register animates them one after another by
-            // `--kp-i`; the element ends as its own text. The keyframe is
-            // `kp-<routine>` and its row in TIMINGS says how long one word
-            // takes; the stagger is the theme's knob. One routine names its
-            // keyframe otherwise: shade-light's `blur` runs `kp-word-in`,
-            // the name its own approved demo used [SL2, S49].
-            pending++;
-            const parts = text.split(/(\s+)/);
-            let index = 0;
-            const nodes = parts.map((part) => {
-                if (part === '') return null;
-                if (/^\s+$/.test(part)) return doc.createTextNode(part);
-                const span = doc.createElement('span');
-                span.setAttribute('data-word', '');
-                span.setAttribute('aria-hidden', 'true');
-                span.style.setProperty('--kp-i', String(index++));
-                span.textContent = part;
-                return span;
-            });
-            el.replaceChildren(...nodes.filter((n) => n !== null));
-            el.classList.add(STATE.words);
-            let ended = false;
-            const finish = () => {
-                if (ended) return;
-                ended = true;
-                el.classList.remove(STATE.words);
-                rest(false);
-                pending--;
-                done();
-            };
-            finishers.push(finish);
-            const keyframe = routine === 'blur' ? 'kp-word-in' : `kp-${routine}`;
-            later(finish, TIMINGS[keyframe].durationMs + index * cfg.wordStagger + 50);
-            return;
-        }
-        if (routine === 'dissolve') {
-            // The retro headline [RT2]: the text is whole under a dither the
-            // register paints; the class runs the dither's clearing, then the
-            // element rests. Without an animation the class comes off by the
-            // table's duration.
-            pending++;
-            el.classList.add(STATE.dissolving);
-            let ended = false;
-            const finish = () => {
-                if (ended) return;
-                ended = true;
-                el.classList.remove(STATE.dissolving);
-                rest(false);
-                pending--;
-                done();
-            };
-            finishers.push(finish);
-            const onEnd = (/** @type {Event} */ e) => {
-                if (/** @type {AnimationEvent} */ (e).animationName !== 'kp-dither-clear') return;
-                el.removeEventListener('animationend', onEnd);
-                finish();
-            };
-            el.addEventListener('animationend', onEnd);
-            later(finish, TIMINGS['kp-dither-clear'].durationMs + 50);
-            return;
-        }
-        if (routine === 'type') {
-            // The terminal headline [TM2]: typed one glyph at a time at the
-            // decipher rate, a block caret riding the last one; the caret
-            // leaves with the last glyph and the element rests as its text.
-            pending++;
-            const chars = [...text];
-            const caret = doc.createElement('span');
-            caret.setAttribute('data-caret', '');
-            caret.setAttribute('aria-hidden', 'true');
-            el.classList.add(STATE.typing);
-            el.textContent = '';
-            el.append(caret);
-            let typed = 0;
-            let ended = false;
-            const finish = () => {
-                if (ended) return;
-                ended = true;
-                el.classList.remove(STATE.typing);
-                rest(false);
-                pending--;
-                done();
-            };
-            finishers.push(finish);
-            const perChar = 1000 / Math.max(1, cfg.cps);
-            const step = () => {
-                if (ended) return;
-                typed++;
-                el.textContent = chars.slice(0, typed).join('');
-                if (typed < chars.length) {
-                    el.append(caret);
-                    later(step, perChar);
-                } else finish();
-            };
-            later(step, cfg.lead);
-            return;
-        }
-        pending++;
-        const chars = [...text];
-        const spans = chars.map((ch) => {
-            const span = doc.createElement('span');
-            span.setAttribute('data-glyph', '');
-            span.setAttribute('aria-hidden', 'true');
-            if (/\s/.test(ch)) span.textContent = ch;
-            else {
-                span.textContent = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
-                span.classList.add(STATE.noise);
-            }
-            return span;
-        });
-        el.replaceChildren(...spans);
-        const perChar = 1000 / Math.max(1, cfg.cps);
-        let start = 0;
-        let finished = false;
-        const finish = () => {
-            if (finished) return;
-            finished = true;
-            rest(false);
-            el.classList.add(STATE.glitching);
-            const off = () => el.classList.remove(STATE.glitching);
-            el.addEventListener('animationend', off, { once: true });
-            // No animation (a quiet register, or reduced motion switched on
-            // mid-run): the class comes off on its own.
-            later(off, TIMINGS['kp-slice-1'].durationMs + 50);
-            pending--;
-            done();
-        };
-        finishers.push(finish);
-        /** @param {number} now */
-        const tick = (now) => {
-            frames.delete(id);
-            if (detached || finished) return;
-            if (start === 0) start = now;
-            const t = now - start;
-            let all = true;
-            spans.forEach((span, i) => {
-                const ch = chars[i] ?? '';
-                if (/\s/.test(ch)) return;
-                if (t > cfg.lead + i * perChar) {
-                    if (span.classList.contains(STATE.noise)) {
-                        span.textContent = ch;
-                        span.classList.remove(STATE.noise);
-                    }
-                } else {
-                    all = false;
-                    if (Math.random() < cfg.swap) span.textContent = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
-                }
-            });
-            if (all) finish();
-            else id = schedule();
-        };
-        let id = 0;
-        const schedule = () => {
-            const next = view ? view.requestAnimationFrame(tick) : 0;
-            frames.add(next);
-            return next;
-        };
-        id = schedule();
-    };
-
-    // ── Emphasis: marks clear themselves, or on a trigger [TH120] ──────
-    /** @param {Element[]} marks @param {number} first @param {number} step @param {Element} on @param {string} routine */
-    const clearInSteps = (marks, first, step, on, routine) => {
-        if (marks.length === 0) return;
-        pending++;
-        finishers.push(() => {
-            for (const mark of marks) mark.classList.add(STATE.cleared);
-        });
-        marks.forEach((mark, i) => {
-            later(
-                () => {
-                    mark.classList.add(STATE.cleared);
-                    if (i === marks.length - 1) {
-                        pending--;
-                        announce(on, 'emphasis', routine, false);
-                        done();
-                    }
-                },
-                first + i * step,
-            );
-        });
-    };
-    /** @param {Element} container an element carrying data-kp-reveal="emphasis" */
-    const emphasis = (container) => {
-        const marks = [...container.querySelectorAll('mark')];
-        // A register whose plate drags the words in with it reads them
-        // from here [S49, A11, retro]: the element's own text, copied to
-        // the same attribute a headline carries, never authored copy.
-        for (const mark of marks) if (!mark.hasAttribute(TEXT_ATTRIBUTE)) mark.setAttribute(TEXT_ATTRIBUTE, mark.textContent ?? '');
-        // The emphasis knob carries the register's own vocabulary — plate,
-        // wash, redact, ignite — because the module does the same thing
-        // whatever it is called: cover the marks, clear them on the
-        // trigger. Only a name the module branches on can be wrong, which
-        // is why the headline knob is checked and this one is not.
-        const routine = routineOf(container, 'emphasis');
-        const trigger = container.querySelector(`[${HOOKS.revealTrigger}]`);
-        // A container with nothing to clear (a button that carries the hook
-        // for its own reveal) touches neither the marks nor the memo.
-        if (marks.length === 0) {
-            announce(container, 'emphasis', routine, true);
-            return;
-        }
-        const atRest = () => {
-            for (const mark of marks) mark.classList.add(STATE.cleared);
-            announce(container, 'emphasis', routine, true);
-        };
-        if (routine === '' || reduced()) {
-            atRest();
-            if (trigger) wireTrigger(trigger, marks, container, routine);
-            return;
-        }
-        if (trigger) {
-            // The dossier: the marks stay covered until the trigger opens the
-            // file; the register staggers the lift. A second press closes it.
-            wireTrigger(trigger, marks, container, routine);
-            trigger.setAttribute('aria-pressed', 'false');
-            // Armed is a state, and it was the one nobody could see: this
-            // branch announces nothing, because nothing has happened yet
-            // [TF2]. It still has to be readable, or "waiting for a click"
-            // and "never wired at all" look identical from outside.
-            container.setAttribute(REVEAL_STATE, 'armed');
-            return;
-        }
-        if (seen(container, 'emphasis')) {
-            atRest();
-            return;
-        }
-        clearInSteps(marks, cfg.delay, cfg.stagger, container, routine);
-    };
-    /** @param {Element} trigger @param {Element[]} marks @param {Element} container @param {string} routine */
-    const wireTrigger = (trigger, marks, container, routine) => {
-        const onClick = () => {
-            const open = trigger.getAttribute('aria-pressed') !== 'true';
-            trigger.setAttribute('aria-pressed', String(open));
-            for (const mark of marks) mark.classList.toggle(STATE.cleared, open);
-            // The stamp a theme changes when the file opens [S49, A11]:
-            // the second word is the page's (data-kp-label-open), and the
-            // register swaps to it while this attribute is set.
-            container.toggleAttribute(HOOKS.openState, open);
-            // announce() writes 'played' here, which is right: the trigger
-            // is what makes it play. Closing it again is a play too — the
-            // marks move either way [TF2].
-            announce(container, 'emphasis', routine, false);
-        };
-        trigger.addEventListener('click', onClick);
-        cleanups.push(() => trigger.removeEventListener('click', onClick));
-    };
-    /** The marks outside any emphasis container clear on load, one after another. */
-    /** @param {ParentNode} scope */
-    const looseMarks = (scope) => {
-        const marks = [...scope.querySelectorAll('mark')].filter((m) => m.closest(`[${HOOKS.reveal}='emphasis']`) === null && !started.has(m));
-        if (marks.length === 0) return;
-        for (const mark of marks) if (!mark.hasAttribute(TEXT_ATTRIBUTE)) mark.setAttribute(TEXT_ATTRIBUTE, mark.textContent ?? '');
-        for (const m of marks) started.add(m);
-        const first = marks[0];
-        const routine = routineOf(first, 'emphasis');
-        if (routine === '' || reduced() || seen(first, 'emphasis')) {
-            for (const mark of marks) mark.classList.add(STATE.cleared);
-            announce(first, 'emphasis', routine, true);
-            return;
-        }
-        clearInSteps(marks, cfg.delay, cfg.stagger, first, routine);
-    };
-
-    // ── The rule: drawn when its heading enters the viewport [TH122] ───
-    /** @param {Element} el */
-    const rule = (el) => {
-        const routine = routineOf(el, 'rule');
-        /** @param {boolean} skipped */
-        const draw = (skipped) => {
-            el.classList.add(STATE.in);
-            announce(el, 'rule', routine, skipped);
-        };
-        if (routine === '' || reduced() || seen(el, 'rule') || !view || typeof view.IntersectionObserver !== 'function') {
-            draw(true);
-            return;
-        }
-        pending++;
-        finishers.push(() => draw(false));
-        io ??= new view.IntersectionObserver(
-            (entries) => {
-                for (const entry of entries) {
-                    if (!entry.isIntersecting) continue;
-                    io?.unobserve(entry.target);
-                    entry.target.classList.add(STATE.in);
-                    announce(entry.target, 'rule', routine, false);
-                    pending--;
-                    done();
-                }
-            },
-            { threshold: cfg.threshold },
-        );
-        io.observe(el);
+        arriving.push(arrived);
     };
 
     // ── Dispatch ──────────────────────────────────────────────────────
@@ -1238,16 +856,53 @@ export function attachEffects(root = document, options = {}) {
         const reveal = el.getAttribute(HOOKS.reveal);
         if (reveal === null || !REVEALS.includes(reveal)) return;
         started.add(el);
-        if (reveal === 'headline') headline(el);
-        else if (reveal === 'emphasis') emphasis(el);
-        else rule(el);
+        if (reveal === 'headline') {
+            // The headline waits for the arrival [scope-86]: started under
+            // the overlay it was over before the overlay went, so a first
+            // visit never saw it. It starts when the overlay is removed,
+            // whether the arrival ran its course, was skipped or clicked
+            // away; with no arrival on screen it starts now, as before.
+            const held = arrivalsOnScreen.get(doc);
+            if (!held) {
+                run('headline', (hook) => hook.headline(el));
+                return;
+            }
+            state.pending++;
+            let waiting = true;
+            const go = () => {
+                if (!waiting) return;
+                waiting = false;
+                held.delete(go);
+                state.pending--;
+                // Detached while held: the text was never touched, so the
+                // element only needs its rest record.
+                if (state.detached) use('headline').then((hook) => hook.headline(el, true));
+                else run('headline', (hook) => hook.headline(el));
+            };
+            held.add(go);
+            finishers.push(go);
+        } else if (reveal === 'emphasis') run('emphasis', (hook) => hook.emphasis(el));
+        else run('rule', (hook) => hook.rule(el));
     };
+
     /** @param {ParentNode | Element} scope */
     const scan = (scope) => {
         if (scope instanceof Element && scope.hasAttribute(HOOKS.reveal)) startOne(scope);
         if (scope instanceof Element && scope.hasAttribute(HOOKS.surface)) checkValues(scope);
         for (const el of scope.querySelectorAll(`[${HOOKS.surface}], [${HOOKS.reveal}]`)) startOne(el);
-        looseMarks(scope);
+        // Counting numbers [feat-count-1]. Armed once each: an element
+        // already counted keeps its number when the module is attached a
+        // second time, which js/auto.js does over React.
+        if (scope instanceof Element && scope.hasAttribute(HOOKS.count) && !started.has(scope)) {
+            started.add(scope);
+            run('count', (hook) => hook.countUp(scope));
+        }
+        for (const el of scope.querySelectorAll(`[${HOOKS.count}]`)) {
+            if (started.has(el)) continue;
+            started.add(el);
+            run('count', (hook) => hook.countUp(el));
+        }
+        if ((scope instanceof Element && scope.matches('mark')) || scope.querySelector('mark')) run('emphasis', (hook) => hook.looseMarks(scope));
         done();
     };
 
@@ -1259,19 +914,19 @@ export function attachEffects(root = document, options = {}) {
         timers.clear();
         for (const id of frames) view?.cancelAnimationFrame(id);
         frames.clear();
-        io?.disconnect();
-        io = null;
+        state.io?.disconnect();
+        state.io = null;
         // Everything the module started, not only the rule's observer
         // [G8, 2026-09-08]. The draw routine keeps its own observer, the
         // marquee keeps one per band, and the caret and the measuring
         // lines hold listeners; leaving those running meant a reveal
         // still fired after somebody asked for the motion to stop, and
         // the count went negative when it did.
-        ioHeadline?.disconnect();
-        ioHeadline = null;
+        state.ioHeadline?.disconnect();
+        state.ioHeadline = null;
         for (const cleanup of cleanups.splice(0)) cleanup();
         for (const finish of finishers.splice(0)) finish();
-        pending = 0;
+        state.pending = 0;
         done();
     };
     // The subscription to the preference is deliberately not in
@@ -1280,288 +935,93 @@ export function attachEffects(root = document, options = {}) {
     // while doing so. detach() drops it explicitly [G8].
     if (query) query.addEventListener('change', onPreference);
 
+    // Whether this attach puts up the arrival, decided before the scan so
+    // the headline the scan finds already knows to wait for it [scope-86].
+    // The arrival itself is built at the end of attach, as before.
+    const arrivalAsked = rootStyle ? rootStyle.getPropertyValue(ROUTINES.arrival).trim() : '';
+    const arrivalRoutine =
+        arrivalAsked === '' || ARRIVALS.includes(arrivalAsked) ? arrivalAsked : reportUnknownRoutine(html, ROUTINES.arrival, arrivalAsked, ARRIVALS);
+    const arrivalPerformed = (arrivalRoutine === 'boot' || arrivalRoutine === 'card') && Boolean(doc.body);
+    const arrivalPlays = arrivalPerformed && !reduced() && !seen(html, 'arrival');
+    if (arrivalPlays && !arrivalsOnScreen.has(doc)) arrivalsOnScreen.set(doc, new Set());
+
+    ctx = {
+        state,
+        root,
+        options,
+        doc,
+        html,
+        manageRoot,
+        view,
+        query,
+        reduced,
+        rootStyle,
+        knob,
+        cfg,
+        timers,
+        frames,
+        cleanups,
+        finishers,
+        done,
+        announce,
+        later,
+        routineOf,
+        memoKey,
+        seen,
+        reportUnknownRoutine,
+        checkValues,
+        startOne,
+        scan,
+        onPreference,
+        arrivalRoutine,
+        arrivalPerformed,
+        arrivalPlays,
+        started,
+        carets,
+        arrivalsOnScreen,
+        unknownReported,
+    };
+
+    present = presentUnder(root);
     scan(root);
 
-    // ── The caret [TM2, R6-Q7]: a block cursor inside the focused field ─
-    // A theme answers `--kp-caret: block` on the root; the module only
-    // writes the column (`--kp-col`, in the field's own ch, clamped to the
-    // field's width) that the register paints the block at, so the cursor
-    // lives in the box at the caret and never after the label — Kenny's
-    // reading of 2026-09-08. Text-like inputs only; a textarea keeps the
-    // browser's own caret.
-    const caret = () => {
-        const routine = rootStyle ? rootStyle.getPropertyValue(CARET_KNOB).trim() : '';
-        if (routine !== 'block' || !view) return;
-        const inputs = /** @type {HTMLInputElement[]} */ ([...root.querySelectorAll('input.kp-field__input')]).filter((el) =>
-            /^(text|email|search|url|tel|password)?$/.test(el.getAttribute('type') ?? ''),
-        );
-        for (const input of inputs) {
-            // One set of listeners per field, however often the module is
-            // attached [G16]: a consumer that calls attachEffects twice —
-            // a framework remount, an explicit re-scan — used to give
-            // every field a second caret handler.
-            if (carets.has(input)) continue;
-            carets.add(input);
-            const put = () => {
-                if (!view) return;
-                const cs = view.getComputedStyle(input);
-                const probe = doc.createElement('span');
-                probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;';
-                probe.style.font = cs.font || `${cs.fontSize} ${cs.fontFamily}`;
-                probe.textContent = '0'.repeat(20);
-                doc.body?.append(probe);
-                const ch = probe.getBoundingClientRect().width / 20 || 8;
-                probe.remove();
-                const room = input.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-                const max = Math.max(0, Math.floor(room / ch) - 1);
-                const col = Math.min(input.selectionStart ?? input.value.length, max);
-                input.style.setProperty('--kp-col', String(col));
-            };
-            const clear = () => input.style.removeProperty('--kp-col');
-            const events = ['input', 'keyup', 'click', 'focus', 'select'];
-            for (const ev of events) input.addEventListener(ev, put);
-            input.addEventListener('blur', clear);
-            cleanups.push(() => {
-                for (const ev of events) input.removeEventListener(ev, put);
-                input.removeEventListener('blur', clear);
-                clear();
-            });
-        }
-    };
-    caret();
+    // The hooks a theme or the page asks for once, in the order the closure
+    // always ran them. Each module still decides for itself; the checks here
+    // only save the download when the answer is certainly no.
+    /** @param {string} name */
+    const asked = (name) => (rootStyle ? rootStyle.getPropertyValue(name).trim() : '');
+    if (asked(CARET_KNOB) === 'block' && root.querySelector('input.kp-field__input')) run('caret', (hook) => hook.caret());
+    if (asked(POINTER_KNOB) === 'track' || asked(PRESS_KNOB) === 'point')
+        run('pointer', (hook) => {
+            hook.pointerBus();
+            hook.pressBus();
+        });
+    if (asked(MEASURE_KNOB) === 'live' && root.querySelector(`[${HOOKS.reveal}='headline']`)) run('measure', (hook) => hook.measure());
+    if (root.querySelector(`[${HOOKS.marquee}]`)) run('marquee', (hook) => hook.marquee());
+    if (arrivalPerformed) run('arrival', (hook) => hook.arrival());
 
-    // ── The measurement lines [S48, LIFT_PLAN row 6]: blueprint's own ──
-    // A theme answers `--kp-measure: live` on the root. The module wraps
-    // its headline in a span it can measure and builds the two dimension
-    // lines beside it: the vertical one is sized by CSS containment alone
-    // (`top: 0; bottom: 0` inside the wrap the register gives a definite
-    // height), the horizontal one by a live pixel read set as the line's
-    // own `style.width` and printed into its label in the same breath —
-    // one measurement, two readouts, so the line is never a fixed width.
-    // Runs once, after scan() has already put the headline at its rest
-    // text, so nothing here fights the decipher/type/word routines for
-    // the same child nodes.
-    const measure = () => {
-        const routine = rootStyle ? rootStyle.getPropertyValue(MEASURE_KNOB).trim() : '';
-        if (routine !== 'live' || !view) return;
-        const words = getStrings();
-        const headlines = [...root.querySelectorAll(`[${HOOKS.reveal}='headline']`)].filter((h) => !h.closest('[data-kp-measured]'));
-        for (const h1 of headlines) {
-            const wrap = doc.createElement('span');
-            wrap.setAttribute('data-kp-measured', '');
-            h1.replaceWith(wrap);
-
-            const elevLine = doc.createElement('span');
-            elevLine.setAttribute('data-kp-elev-line', '');
-            elevLine.setAttribute('aria-hidden', 'true');
-            const elevStart = doc.createElement('span');
-            elevStart.setAttribute('data-kp-elev-tick', '');
-            const elevEnd = doc.createElement('span');
-            elevEnd.setAttribute('data-kp-elev-tick', '');
-            const elevLabel = doc.createElement('span');
-            elevLabel.setAttribute('data-kp-elev-measure', '');
-            elevLabel.textContent = words.measureLoading;
-            elevLine.append(elevStart, elevEnd, elevLabel);
-            wrap.append(elevLine, h1);
-
-            const dim = doc.createElement('span');
-            dim.setAttribute('data-kp-dim', '');
-            dim.setAttribute('aria-hidden', 'true');
-            const dimLine = doc.createElement('span');
-            dimLine.setAttribute('data-kp-dim-line', '');
-            const dimStart = doc.createElement('span');
-            dimStart.setAttribute('data-kp-dim-tick', '');
-            const dimEnd = doc.createElement('span');
-            dimEnd.setAttribute('data-kp-dim-tick', '');
-            dimLine.append(dimStart, dimEnd);
-            const dimLabel = doc.createElement('span');
-            dimLabel.setAttribute('data-kp-measure', '');
-            dimLabel.textContent = words.measureLoading;
-            dim.append(dimLine, dimLabel);
-            wrap.after(dim);
-
-            /** @type {ReturnType<typeof setTimeout>} */
-            let timer;
-            const update = () => {
-                const w = Math.round(h1.getBoundingClientRect().width);
-                dimLine.style.width = `${w}px`;
-                dimLabel.textContent = words.measureWidth(w);
-                const h = Math.round(wrap.getBoundingClientRect().height);
-                elevLabel.textContent = words.measureHeight(h);
-            };
-            update();
-            const schedule = () => {
-                clearTimeout(timer);
-                timer = setTimeout(update, 100);
-            };
-            view.addEventListener('resize', schedule);
-            cleanups.push(() => {
-                clearTimeout(timer);
-                view?.removeEventListener('resize', schedule);
-            });
-            try {
-                if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(update);
-            } catch {
-                // no font-loading API: the load-time measurement stands
-            }
-        }
-    };
-    measure();
-
-    // ── The marquee [M1, M2]: a row that runs ──────────────────────────
-    // The consumer writes the items once; a seamless loop needs the row
-    // twice, so the module builds the track, moves the items into the
-    // first run and clones it into a second the screen reader skips. The
-    // attributes it writes are what the base layer keys on, so a page
-    // without this module shows the items standing still rather than a
-    // half-built band [T17, AR34].
-    const marquee = () => {
-        for (const band of root.querySelectorAll(`[${HOOKS.marquee}]`)) {
-            if (band.hasAttribute('data-kp-marquee-ready')) continue;
-            const items = [...band.childNodes];
-            if (items.length === 0) continue;
-            const track = doc.createElement('div');
-            track.setAttribute('data-kp-marquee-track', '');
-            const run = doc.createElement('div');
-            run.setAttribute('data-kp-marquee-run', '');
-            run.append(...items);
-            const copy = /** @type {HTMLElement} */ (run.cloneNode(true));
-            copy.setAttribute('aria-hidden', 'true');
-            track.append(run, copy);
-            band.append(track);
-            band.setAttribute('data-kp-marquee-ready', '');
-            // Two runs, so the -50% pass lands exactly where it started.
-            band.setAttribute('data-kp-marquee-runs', '2');
-
-            const pause = (rootStyle ? rootStyle.getPropertyValue(MARQUEE_PAUSE_KNOB).trim() : '') || 'offscreen';
-            if (pause !== 'offscreen' || !view || !('IntersectionObserver' in view)) continue;
-            // Paused, not stopped: the animation keeps its position and
-            // carries on from it when the band comes back into view.
-            const observer = new view.IntersectionObserver(
-                (entries) => {
-                    for (const entry of entries) entry.target.toggleAttribute('data-kp-paused', !entry.isIntersecting);
-                },
-                { threshold: 0 },
-            );
-            observer.observe(band);
-            cleanups.push(() => observer.disconnect());
-        }
-    };
-    marquee();
-
-    // ── The arrival [SW2]: how the page comes on ───────────────────────
-    // A theme answers `--kp-arrival` on the root; `boot` is synthwave's:
-    // a diegetic line counting up in the overlay the register paints, a
-    // Skip button, and the CRT switching the overlay off. `card` is
-    // phantom's [PH2]: the theme's own name as the line, a bar the register
-    // runs under it, and the overlay shoved off to the left. Once per
-    // session, never under reduced motion, and every word from the
-    // dictionary [KT5] — a theme's name is data, not copy.
-    const arrival = () => {
-        const asked = rootStyle ? rootStyle.getPropertyValue(ROUTINES.arrival).trim() : '';
-        const routine = asked === '' || ARRIVALS.includes(asked) ? asked : reportUnknownRoutine(html, ROUTINES.arrival, asked, ARRIVALS);
-        if ((routine !== 'boot' && routine !== 'card') || !doc.body) return;
-        const card = routine === 'card';
-        if (reduced() || seen(html, 'arrival')) {
-            announce(html, 'arrival', routine, true);
-            return;
-        }
-        const words = getStrings();
-        const overlay = doc.createElement('div');
-        overlay.className = ARRIVAL.root;
-        const line = doc.createElement('pre');
-        line.className = ARRIVAL.line;
-        line.setAttribute('aria-live', 'polite');
-        const skip = doc.createElement('button');
-        skip.type = 'button';
-        skip.className = ARRIVAL.skip;
-        skip.textContent = words.arrivalSkip;
-        // The segmented bar retro's POST counts along [S49, A11]: built
-        // only when the theme asks for one, and painted by its register.
-        const bar = rootStyle?.getPropertyValue(KNOBS.arrivalBar).trim() === 'block' ? doc.createElement('div') : null;
-        if (bar) {
-            bar.className = ARRIVAL.bar;
-            bar.setAttribute('aria-hidden', 'true');
-            bar.style.setProperty(BOOT_PROGRESS, '0');
-        }
-        overlay.append(line, ...(bar ? [bar] : []), skip);
-        doc.body.append(overlay);
-        pending++;
-        let ended = false;
-        let pct = 0;
-        const remove = () => {
-            overlay.remove();
-            announce(html, 'arrival', routine, false);
-            pending--;
-            done();
-        };
-        const end = () => {
-            if (ended) return;
-            ended = true;
-            if (reduced()) {
-                remove();
-                return;
-            }
-            overlay.classList.add(STATE.off);
-            overlay.addEventListener('animationend', remove, { once: true });
-            later(remove, TIMINGS[card ? 'kp-load-out' : 'kp-crt-off'].durationMs + 50);
-        };
-        const step = () => {
-            if (ended) return;
-            pct = Math.min(100, pct + 7 + Math.floor(Math.random() * 9));
-            line.textContent = [words.arrivalLine, words.arrivalProgress + ' ' + pct + '%', pct === 100 ? words.arrivalReady : '']
-                .filter(Boolean)
-                .join('\n');
-            bar?.style.setProperty(BOOT_PROGRESS, String(pct / 100));
-            if (pct === 100) later(end, 220);
-            else later(step, 110);
-        };
-
-        // The lines mode [S49, A11]: a theme whose own boot is a POST
-        // shows its lines one after another, cumulatively, rather than a
-        // percentage — retro's BIOS banner and memory test, terminal's
-        // five lines. The words are the dictionary's (KT5), the cadence
-        // the demos' own 190ms, and a `{count}` counts up to the theme's
-        // declared total the way a memory test does.
-        const lines = words.arrivalLinesByTheme?.[html.getAttribute('data-theme') ?? ''] ?? null;
-        let shown = 0;
-        const total = Number(rootStyle?.getPropertyValue(KNOBS.arrivalCount)) || 640;
-        const lineStep = () => {
-            if (ended || !lines) return;
-            shown++;
-            const upto = lines.slice(0, shown);
-            line.textContent = upto
-                .map((/** @type {string} */ text, /** @type {number} */ index) =>
-                    text.replace('{count}', String(index === shown - 1 ? Math.round((total * shown) / lines.length) : total)),
-                )
-                .join('\n');
-            bar?.style.setProperty(BOOT_PROGRESS, String(shown / lines.length));
-            if (shown === lines.length) later(end, 320);
-            else later(lineStep, 190);
-        };
-        skip.addEventListener('click', end);
-        finishers.push(end);
-        cleanups.push(() => overlay.remove());
-        if (card) {
-            line.textContent = html.getAttribute('data-theme') ?? '';
-            later(end, TIMINGS['kp-bar-run'].durationMs + cfg.cardHold);
-        } else if (lines && lines.length > 0) lineStep();
-        else step();
-    };
-    arrival();
+    // What observe() asks for later reads the page as it is then.
+    present = null;
 
     return {
+        // Every hook asked for so far has arrived and run [scope-117]. A
+        // reveal still plays over its own time after that; this is only the
+        // moment the code is in, which a caller that reads straight after
+        // attach — a test, a wrapper counting listeners — waits for.
+        get ready() {
+            return Promise.all(arriving).then(() => undefined);
+        },
         detach() {
-            if (detached) return;
-            detached = true;
+            if (state.detached) return;
+            state.detached = true;
             for (const id of timers) clearTimeout(id);
             timers.clear();
             for (const id of frames) view?.cancelAnimationFrame(id);
             frames.clear();
-            io?.disconnect();
-            io = null;
-            ioHeadline?.disconnect();
-            ioHeadline = null;
+            state.io?.disconnect();
+            state.io = null;
+            state.ioHeadline?.disconnect();
+            state.ioHeadline = null;
             for (const cleanup of cleanups.splice(0)) cleanup();
             query?.removeEventListener('change', onPreference);
             // Every reveal that was still running ends at its rest state
@@ -1571,11 +1031,11 @@ export function attachEffects(root = document, options = {}) {
             // it. A consumer's route change is not a reason to leave
             // somebody's words scrambled.
             for (const finish of finishers.splice(0)) finish();
-            pending = 0;
+            state.pending = 0;
             if (manageRoot) html.removeAttribute(ROOT_ATTRIBUTE);
         },
         observe(element) {
-            if (detached) return;
+            if (state.detached) return;
             scan(element);
         },
     };

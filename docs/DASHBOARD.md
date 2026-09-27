@@ -18,7 +18,7 @@ E2E tests `dashboard_pages_render_with_layout_and_assets` and
 
 `layout.html` owns the document: fonts, the kp-themes bundle
 (`dist/kp-themes.css`: themes, components, layout, utilities and the 25
-registers), the theme picker (25 themes, parsed from the vendored `theme-registry.js`,
+registers), the theme picker (22 themes, parsed from the vendored `theme-registry.js`,
 rendered server-side), the top navigation, a skip link, and the Log out
 button. It defines four blocks a page may fill: `title`, `head`,
 `nav_extra`, `content`. Every template sees these globals: `app_name`,
@@ -505,15 +505,17 @@ gate test compares all 115 of them, fonts and licences included).
   A theme switch is one attribute; nothing loads afterwards. The kit first
   served the registers one by one and linked the active one at runtime;
   kp-themes pointed at the bundle and the loader went (D2, 2026-09-09).
-- **Fonts:** kp-themes' `fonts.css` (73 faces, 32 families, all OFL) and the
-  woff2 files behind it — 5 MB in the binary, fetched by the browser only
+- **Fonts:** kp-themes' `fonts.css` (63 faces, 29 families, all OFL) and the
+  woff2 files behind it — 2.1 MB in the binary (measured at 7.2.0), fetched by the browser only
   for the active theme's faces. Without them the themes still read (the
-  token stacks fall back to system faces); with them woodblock, lapis, deco
-  and academia keep their face.
-- **JavaScript:** the six modules whose import closure is closed
-  (`no-flash`, `theme-registry`, `theme-core`, `theme-picker`, `strings`,
-  `components`) — the set kp-themes' own `gates/check-closure.mjs` protects
-  for this consumer — plus `js/effects.js` (R2-b, 2026-09-09): on the kit's
+  token stacks fall back to system faces); with them lapis, deco and the
+  other display themes keep their face.
+- **JavaScript:** seventeen modules, the set kp-themes' own
+  `gates/check-closure.mjs` protects for this consumer since 7.0.0: the six
+  theme modules (`no-flash`, `theme-registry`, `theme-core`, `theme-picker`,
+  `strings`, `components`), `js/effects.js`, and since kp-themes 7.0.0 the
+  nine hooks under `js/effects/` plus `js/as-of.js`, which `effects.js`
+  imports on demand (R2-b, 2026-09-09): on the kit's
   pages it does the terminal theme's block cursor inside a focused field
   (the register paints the cell, the module writes the column) and the
   themes' arrivals (terminal boots once per browser session per page, with
@@ -524,10 +526,12 @@ gate test compares all 115 of them, fonts and licences included).
   `detach()` does not forget the fields it bound (measured; asked of
   kp-themes). A gate test (`vendored_javascript_imports_only_vendored_modules`)
   keeps the import graph closed.
-- **Renamed themes:** `topo` → `forest`, `tazhib` → `lapis`, `nishiki` →
-  `woodblock`. `theme-boot.js` maps a stored old name once and writes the
-  new one back, so a visitor keeps their theme instead of falling back to
-  `formal`. `cyberpunk` is a different theme under the same name (signal
+- **Renamed and removed themes:** `topo` → `forest`, `tazhib` → `lapis`
+  (kp-themes 5.0.0); `academia`, `mono`, `ticker` and `woodblock` were
+  removed in 6.0.0 and map to `formal`, and so does `nishiki`, which 5.0.0
+  had renamed to `woodblock`. `theme-boot.js` maps a stored old name once
+  and writes the new one back, so a visitor gets no console warning on
+  every visit. `cyberpunk` is a different theme under the same name (signal
   yellow instead of neon-on-violet).
 - **Left aside, on purpose:** the minified twins (`dist/kp-themes.min.css`,
   45 % smaller) — they reference a source map the kit does not serve, and

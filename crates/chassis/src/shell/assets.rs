@@ -1,8 +1,10 @@
 //! Static assets (K15): the vendored @kp-soft/themes tree — the release's
 //! own bundle `dist/kp-themes.css` (themes, components, layout, utilities
-//! and all twenty-five theme registers, each scoped to its theme), the
-//! fonts stylesheet and the woff2 files behind it (S8: nothing loads from
-//! a third party), seven JavaScript modules — plus the kit's own CSS/JS,
+//! and every theme register, each scoped to its theme), the fonts
+//! stylesheet and the woff2 files behind it (S8: nothing loads from a third
+//! party), seventeen JavaScript modules (since kp-themes 7.0.0 the effect
+//! hooks are separate files `js/effects.js` imports on demand, with
+//! `js/as-of.js` beside them) — plus the kit's own CSS/JS,
 //! embedded with `include_bytes!` and served under a content-hash query so
 //! browsers may cache them for a year.
 //!
@@ -20,7 +22,7 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 /// The kp-themes version the kit vendors (C3: one place).
-pub const KP_THEMES_VERSION: &str = "5.1.0";
+pub const KP_THEMES_VERSION: &str = "7.2.0";
 
 /// name → (content type, bytes). Explicit list, no path joining (kyu's
 /// traversal-proof shape).
@@ -69,6 +71,56 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/effects.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/effects.js"),
+    ),
+    (
+        "kp/js/as-of.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/as-of.js"),
+    ),
+    (
+        "kp/js/effects/arrival.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/effects/arrival.js"),
+    ),
+    (
+        "kp/js/effects/caret.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/effects/caret.js"),
+    ),
+    (
+        "kp/js/effects/count.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/effects/count.js"),
+    ),
+    (
+        "kp/js/effects/emphasis.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/effects/emphasis.js"),
+    ),
+    (
+        "kp/js/effects/headline.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/effects/headline.js"),
+    ),
+    (
+        "kp/js/effects/marquee.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/effects/marquee.js"),
+    ),
+    (
+        "kp/js/effects/measure.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/effects/measure.js"),
+    ),
+    (
+        "kp/js/effects/pointer.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/effects/pointer.js"),
+    ),
+    (
+        "kp/js/effects/rule.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/effects/rule.js"),
     ),
     (
         "kp/fonts/archivo/archivo-italic-variable.woff2",
@@ -166,23 +218,31 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/fonts/barlowcondensed/barlowcondensed-semibold.woff2"),
     ),
     (
+        "kp/fonts/bevietnampro/bevietnampro-400.woff2",
+        "font/woff2",
+        include_bytes!("../../static/kp/fonts/bevietnampro/bevietnampro-400.woff2"),
+    ),
+    (
+        "kp/fonts/bevietnampro/bevietnampro-600.woff2",
+        "font/woff2",
+        include_bytes!("../../static/kp/fonts/bevietnampro/bevietnampro-600.woff2"),
+    ),
+    (
+        "kp/fonts/bevietnampro/bevietnampro-700.woff2",
+        "font/woff2",
+        include_bytes!("../../static/kp/fonts/bevietnampro/bevietnampro-700.woff2"),
+    ),
+    (
+        "kp/fonts/bevietnampro/bevietnampro-italic-400.woff2",
+        "font/woff2",
+        include_bytes!("../../static/kp/fonts/bevietnampro/bevietnampro-italic-400.woff2"),
+    ),
+    (
         "kp/fonts/bigshouldersdisplay/bigshouldersdisplay-variable.woff2",
         "font/woff2",
         include_bytes!(
             "../../static/kp/fonts/bigshouldersdisplay/bigshouldersdisplay-variable.woff2"
         ),
-    ),
-    (
-        "kp/fonts/cormorantgaramond/cormorantgaramond-italic-variable.woff2",
-        "font/woff2",
-        include_bytes!(
-            "../../static/kp/fonts/cormorantgaramond/cormorantgaramond-italic-variable.woff2"
-        ),
-    ),
-    (
-        "kp/fonts/cormorantgaramond/cormorantgaramond-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/cormorantgaramond/cormorantgaramond-variable.woff2"),
     ),
     (
         "kp/fonts/fraunces/fraunces-italic-variable.woff2",
@@ -220,16 +280,6 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/fonts/ibmplexmono/ibmplexmono-regular.woff2"),
     ),
     (
-        "kp/fonts/ibmplexsans/ibmplexsans-italic-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/ibmplexsans/ibmplexsans-italic-variable.woff2"),
-    ),
-    (
-        "kp/fonts/ibmplexsans/ibmplexsans-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/ibmplexsans/ibmplexsans-variable.woff2"),
-    ),
-    (
         "kp/fonts/instrumentsans/instrumentsans-italic-variable.woff2",
         "font/woff2",
         include_bytes!("../../static/kp/fonts/instrumentsans/instrumentsans-italic-variable.woff2"),
@@ -260,16 +310,6 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/fonts/inter/inter-variable.woff2"),
     ),
     (
-        "kp/fonts/intertight/intertight-italic-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/intertight/intertight-italic-variable.woff2"),
-    ),
-    (
-        "kp/fonts/intertight/intertight-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/intertight/intertight-variable.woff2"),
-    ),
-    (
         "kp/fonts/josefinsans/josefinsans-italic-variable.woff2",
         "font/woff2",
         include_bytes!("../../static/kp/fonts/josefinsans/josefinsans-italic-variable.woff2"),
@@ -280,16 +320,6 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/fonts/josefinsans/josefinsans-variable.woff2"),
     ),
     (
-        "kp/fonts/lora/lora-italic-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/lora/lora-italic-variable.woff2"),
-    ),
-    (
-        "kp/fonts/lora/lora-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/lora/lora-variable.woff2"),
-    ),
-    (
         "kp/fonts/markazitext/markazitext-variable-arabic.woff2",
         "font/woff2",
         include_bytes!("../../static/kp/fonts/markazitext/markazitext-variable-arabic.woff2"),
@@ -298,6 +328,11 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/fonts/markazitext/markazitext-variable-latin.woff2",
         "font/woff2",
         include_bytes!("../../static/kp/fonts/markazitext/markazitext-variable-latin.woff2"),
+    ),
+    (
+        "kp/fonts/martianmono/martianmono-variable.woff2",
+        "font/woff2",
+        include_bytes!("../../static/kp/fonts/martianmono/martianmono-variable.woff2"),
     ),
     (
         "kp/fonts/michroma/michroma-regular.woff2",
@@ -345,26 +380,9 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/fonts/sharetechmono/sharetechmono-regular.woff2"),
     ),
     (
-        "kp/fonts/shipporimincho/shipporimincho-bold-japanese.woff2",
+        "kp/fonts/sora/sora-variable.woff2",
         "font/woff2",
-        include_bytes!("../../static/kp/fonts/shipporimincho/shipporimincho-bold-japanese.woff2"),
-    ),
-    (
-        "kp/fonts/shipporimincho/shipporimincho-bold-latin.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/shipporimincho/shipporimincho-bold-latin.woff2"),
-    ),
-    (
-        "kp/fonts/shipporimincho/shipporimincho-regular-japanese.woff2",
-        "font/woff2",
-        include_bytes!(
-            "../../static/kp/fonts/shipporimincho/shipporimincho-regular-japanese.woff2"
-        ),
-    ),
-    (
-        "kp/fonts/shipporimincho/shipporimincho-regular-latin.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/shipporimincho/shipporimincho-regular-latin.woff2"),
+        include_bytes!("../../static/kp/fonts/sora/sora-variable.woff2"),
     ),
     (
         "kp/fonts/sourcesans3/sourcesans3-italic-variable.woff2",
@@ -425,32 +443,6 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/fonts/vt323/vt323-regular.woff2",
         "font/woff2",
         include_bytes!("../../static/kp/fonts/vt323/vt323-regular.woff2"),
-    ),
-    (
-        "kp/fonts/zenkakugothicnew/zenkakugothicnew-bold-japanese.woff2",
-        "font/woff2",
-        include_bytes!(
-            "../../static/kp/fonts/zenkakugothicnew/zenkakugothicnew-bold-japanese.woff2"
-        ),
-    ),
-    (
-        "kp/fonts/zenkakugothicnew/zenkakugothicnew-bold-latin.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/zenkakugothicnew/zenkakugothicnew-bold-latin.woff2"),
-    ),
-    (
-        "kp/fonts/zenkakugothicnew/zenkakugothicnew-regular-japanese.woff2",
-        "font/woff2",
-        include_bytes!(
-            "../../static/kp/fonts/zenkakugothicnew/zenkakugothicnew-regular-japanese.woff2"
-        ),
-    ),
-    (
-        "kp/fonts/zenkakugothicnew/zenkakugothicnew-regular-latin.woff2",
-        "font/woff2",
-        include_bytes!(
-            "../../static/kp/fonts/zenkakugothicnew/zenkakugothicnew-regular-latin.woff2"
-        ),
     ),
     (
         "chassis.css",
@@ -604,26 +596,44 @@ mod tests {
             let dir = name.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
             for line in body.lines() {
                 let line = line.trim();
-                if !line.starts_with("import ") && !line.starts_with("export ") {
+                // Comments carry JSDoc type imports (`import('../effects.js').X`)
+                // that load nothing.
+                if line.starts_with("//") || line.starts_with('*') || line.starts_with("/*") {
                     continue;
                 }
-                let Some(from) = line.split(" from ").nth(1) else {
-                    continue;
-                };
-                let target = from.trim().trim_end_matches(';').trim_matches(['\'', '"']);
-                let Some(rel) = target.strip_prefix("./") else {
-                    panic!("{name} imports {target}: only ./ imports are servable");
-                };
-                let key = if dir.is_empty() {
-                    rel.to_string()
-                } else {
-                    format!("{dir}/{rel}")
-                };
-                assert!(
-                    ASSETS.iter().any(|(n, _, _)| *n == key),
-                    "{name} imports {target}, which the binary does not serve"
-                );
-                checked += 1;
+                // kp-themes 7.0.0 loads the effect hooks with
+                // `() => import('./effects/caret.js')`, which a static-only
+                // reading would miss with all nine files absent.
+                let mut targets: Vec<&str> = line
+                    .split("import(")
+                    .skip(1)
+                    .filter_map(|rest| rest.split(')').next())
+                    .map(|t| t.trim().trim_matches(['\'', '"']))
+                    .collect();
+                if (line.starts_with("import ") || line.starts_with("export "))
+                    && let Some(from) = line.split(" from ").nth(1)
+                {
+                    targets.push(from.trim().trim_end_matches(';').trim_matches(['\'', '"']));
+                }
+                for target in targets {
+                    let (base, rel) = if let Some(rel) = target.strip_prefix("../") {
+                        (dir.rsplit_once('/').map(|(d, _)| d).unwrap_or(""), rel)
+                    } else if let Some(rel) = target.strip_prefix("./") {
+                        (dir, rel)
+                    } else {
+                        panic!("{name} imports {target}: only ./ and ../ imports are servable");
+                    };
+                    let key = if base.is_empty() {
+                        rel.to_string()
+                    } else {
+                        format!("{base}/{rel}")
+                    };
+                    assert!(
+                        ASSETS.iter().any(|(n, _, _)| *n == key),
+                        "{name} imports {target}, which the binary does not serve"
+                    );
+                    checked += 1;
+                }
             }
         }
         assert!(

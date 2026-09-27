@@ -7,6 +7,24 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed
+
+- **kp-themes 7.2.0 vendored** (from 5.1.0; kp-themes asked, 2026-09-27).
+  Brings kp-themes fix-74, the `:user-invalid` repair kyu reported, so a
+  project serving the kit's `/static/kp/` can drop its own override. Two
+  majors in between, what they change for a page on the kit:
+  - 6.0.0 removed `academia`, `mono`, `ticker` and `woodblock` (22 themes
+    remain). `theme-boot.js` maps a stored removed name to `formal`, and
+    `nishiki`, which 5.0.0 renamed to `woodblock`, maps to `formal` too.
+    `dark` is a rebuilt theme under the same name.
+  - 7.0.0 loads the effect hooks on demand: `js/effects.js` imports nine
+    files under `js/effects/` plus `js/as-of.js`, all now served. Six font
+    families left the package and three arrived; the fonts in the binary
+    went from 115 vendored files to 112 (2.1 MB of woff2).
+  Measured in Chromium on the inbox example under `terminal`: the block
+  caret follows the typed text (`--kp-col` 3 after three characters),
+  `/static/kp/js/effects/caret.js` answers 200, no console error.
+
 ### Fixed
 
 - **A refused `.prev` link names the binary's owner** (fix-9; kyu, 2026-09-20).

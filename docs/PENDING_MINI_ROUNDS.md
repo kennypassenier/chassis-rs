@@ -2547,3 +2547,36 @@ fix-10 (scaffold `release.yml` `make_latest: false`, `sign-release.sh`
 `chassis sync --write`, which makes the open release-patch question more
 urgent than when it was asked.
 
+## kp-themes 7.2.0 vendored (2026-09-27)
+
+Asked by kp-themes through the coordinator: 7.2.0 carries fix-74 (the
+`:user-invalid` repair kyu reported), and kyu gets `/static/kp/*` from the
+kit. Done as kp-themes' MIGRATION.md "Task for chassis-rs" (scope-119)
+describes:
+
+1. The ten effect files copied beside `js/effects.js` with their paths, and
+   the other vendored files refreshed; `KP_THEMES.sha256` rewritten from the
+   7.2.0 `SHA256SUMS` (112 files, verified with `sha256sum -c`).
+2. One `ASSETS` entry per file; fonts follow the package (six families out,
+   three in).
+3. `vendored_javascript_imports_only_vendored_modules` now reads dynamic
+   `import('./…')` and `../` paths, skipping JSDoc type imports. Drilled:
+   with `kp/js/effects/caret.js` left out of `ASSETS` it failed with
+   "kp/js/effects.js imports ./effects/caret.js, which the binary does not
+   serve".
+4. Measured in Chromium (Playwright from kp-themes' node_modules) on the
+   inbox example, login page, theme `terminal`: `--kp-col` read 3 after
+   typing three characters, `/static/kp/js/effects/caret.js` and
+   `/static/kp/js/effects/arrival.js` answered 200, no console errors. A
+   stored `woodblock` became `formal` in storage and on the page.
+
+Found on the way: kp-themes 6.0.0 removed `woodblock`, which `theme-boot.js`
+used as the target for `nishiki`. A new test,
+`every_renamed_theme_maps_to_a_theme_that_exists`, failed first on exactly
+that; removed names now map to `formal`. The theme-count test moved from 25
+to 22.
+
+Afterwards kyu can bump its chassis pin and drop its `:user-invalid` rule
+in `static/kyu.css`, which closes kp-themes fix-74-M1 and fix-56-M1. That
+needs a kit release; it is in the open release-patch question.
+

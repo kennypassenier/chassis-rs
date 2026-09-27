@@ -56,6 +56,19 @@ export const BEFORE_THEME_EVENT = 'kp-theme-before-change';
  * what the silence used to cost.
  */
 export const UNKNOWN_THEME_EVENT = 'kp-theme-unknown';
+/**
+ * The theme a change is being HELD for, on the root [scope-50].
+ *
+ * A listener on BEFORE_THEME_EVENT can say no for two reasons, and a
+ * caller needs to tell them apart: a refusal (the change will not happen)
+ * and a hold (it will, once something has arrived — js/lazy-register.js
+ * holds a change until the new theme's register has loaded, because
+ * tokens without their register are a theme that is not that theme).
+ * A holding listener writes the requested name here before it cancels;
+ * `applyTheme()` removes it whenever a theme is actually put on the root,
+ * so a later choice supersedes a held one. `pendingTheme()` reads it.
+ */
+export const PENDING_THEME_ATTRIBUTE = 'data-theme-pending';
 
 /** @typedef {{ root?: Element, darkClass?: string | null, storageKey?: string }} ThemeConfig */
 
@@ -203,6 +216,18 @@ export function currentTheme({ root } = {}) {
 }
 
 /**
+ * The theme a change is being held for, or null when none is [scope-50].
+ * While it is set, `currentTheme()` is still the theme the root wears.
+ *
+ * @param {{ root?: Element }} [options]
+ * @returns {ThemeName | null}
+ */
+export function pendingTheme({ root } = {}) {
+    if (typeof document === 'undefined') return null;
+    return asTheme(rootOf(root).getAttribute(PENDING_THEME_ATTRIBUTE));
+}
+
+/**
  * Put a theme on the root and tell everyone.
  *
  * Validation lives here rather than in each caller: this is the exported
@@ -213,7 +238,10 @@ export function currentTheme({ root } = {}) {
  * @param {unknown} theme
  * @param {{ root?: Element, darkClass?: string | null, strict?: boolean, announce?: boolean }} [options]
  *   strict: throw on an unknown name instead of substituting the default; announce: dispatch the events (default true)
- * @returns {ThemeName} the theme actually applied — DEFAULT_THEME for anything unknown
+ * @returns {ThemeName} the theme actually applied — DEFAULT_THEME for anything unknown.
+ *   When a listener refused or HELD the change, the theme the root still wears: with
+ *   js/lazy-register.js attached that is the previous theme until the new register has
+ *   loaded, and `pendingTheme()` names the one on its way [scope-50].
  */
 export function applyTheme(theme, { root, darkClass, strict = false, announce = true } = {}) {
     const known = asTheme(theme);
@@ -231,6 +259,10 @@ export function applyTheme(theme, { root, darkClass, strict = false, announce = 
         if (!element.dispatchEvent(ask)) return previous ?? DEFAULT_THEME;
     }
     element.setAttribute('data-theme', next);
+    // Whatever was held is superseded by what was just put on the root —
+    // including a choice of the theme already worn, which announces
+    // nothing and would otherwise let a held theme land after it.
+    element.removeAttribute(PENDING_THEME_ATTRIBUTE);
     // The `dark` class is what a consumer's existing `dark:` variants key
     // on. Kept as a contract value [TH26], derived from the token source
     // rather than from a hand-kept list: kyu believed in four dark themes

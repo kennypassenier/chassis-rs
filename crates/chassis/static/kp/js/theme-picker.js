@@ -28,7 +28,7 @@
 // Pure since 3.0.0 [KT6]: importing this file attaches nothing. Call
 // attachThemePickers() when the markup is in the DOM, or load js/auto.js.
 
-import { applyTheme, currentTheme, initializeTheme, onThemeChange, storeTheme, THEMES } from './theme-core.js';
+import { applyTheme, currentTheme, initializeTheme, onThemeChange, pendingTheme, storeTheme, THEMES } from './theme-core.js';
 import { getStrings } from './strings.js';
 
 const PICKER = '[data-kp-theme-picker]';
@@ -115,10 +115,14 @@ export function attachThemePickers(root = document, { persist = true, closePopov
             if (!option || !picker.contains(option)) return;
             const next = /** @type {HTMLElement} */ (option).dataset.kpTheme;
             if (!next) return;
+            // A change held for its register [scope-50] leaves the root on
+            // the previous theme for now; the choice is still this one, and
+            // storing the theme still worn would undo it on the next load.
             const applied = applyTheme(next);
-            const stored = persist ? storeTheme(applied) : true;
+            const chosen = pendingTheme() ?? applied;
+            const stored = persist ? storeTheme(chosen) : true;
             showSaveState(status ?? picker.parentNode ?? document, !stored);
-            picker.dispatchEvent(new CustomEvent(PICK_EVENT, { bubbles: true, detail: { theme: applied, stored } }));
+            picker.dispatchEvent(new CustomEvent(PICK_EVENT, { bubbles: true, detail: { theme: chosen, stored } }));
             // A picker inside a menu closes it: leaving the menu open
             // after a choice makes it look as though the click missed.
             /** @type {HTMLElement | null} */
