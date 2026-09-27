@@ -274,6 +274,12 @@ impl Updater {
                 "is the release host reachable from here? check update_url and DNS",
             )
         })?;
+        if res.status() == reqwest::StatusCode::NOT_FOUND && name == "VERSION" {
+            return Err(Error::dependency(
+                format!("GET {url} answered 404"),
+                "the newest release is published but not signed yet (sign-release.sh adds VERSION last); nothing to install until it is, and the next check retries",
+            ));
+        }
         if !res.status().is_success() {
             return Err(Error::dependency(
                 format!("GET {url} answered {}", res.status()),
@@ -1536,6 +1542,31 @@ mod tests {
             version: "1.0.0".to_string(),
             detail: String::new(),
         });
+    }
+
+    /// fix-10: `releases/latest/download/VERSION` answers 404 while the newest
+    /// release is published but not signed yet; the check says so.
+    #[tokio::test]
+    async fn a_missing_version_says_the_release_is_not_signed_yet() {
+        let release = fake_release("1.0.0", GOOD_BINARY, "svc").await;
+        let dir = tempfile::tempdir().unwrap();
+        let bin = installed(dir.path(), GOOD_BINARY);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, axum::Router::new()).await.unwrap() });
+        let mut c = cfg(&release, Mode::Supervised, dir.path().join("c"));
+        c.url = format!("http://{addr}");
+        let up = Updater::new(
+            c,
+            bin,
+            dir.path().join("s"),
+            Version::parse("1.0.0").unwrap(),
+            Arc::new(|_| {}),
+            None,
+        )
+        .unwrap();
+        let err = format!("{:?}", up.latest().await.unwrap_err());
+        assert!(err.contains("not signed yet"), "{err}");
     }
 
     #[test]

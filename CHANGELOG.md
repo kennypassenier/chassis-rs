@@ -15,6 +15,15 @@ scaffold writes. A breaking change in either is a major and carries a
   which Linux will not let another user hard-link. The remedy now shows the
   owner and says to install with `install -o <user> -g <group>`.
 
+- **Only a signed release is `latest`** (fix-10; kyu, 2026-09-27). The
+  scaffold's `release.yml` published every release as `latest` with only the
+  binary and `SHA256SUMS`, so between tagging and signing every updater read
+  `releases/latest/download/VERSION` as a 404 (kyu 4.0.0: from 22:09 to
+  02:59 UTC). The workflow now passes `make_latest: false`,
+  `sign-release.sh` runs `gh release edit --latest` after uploading
+  `VERSION`, and a 404 on `VERSION` says the release is not signed yet. A
+  project picks the scaffold half up with `chassis sync --write`.
+
 ### Documentation
 
 - **`--check` writes nothing**, stated in `docs/SELF_UPDATE.md` and on

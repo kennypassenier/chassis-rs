@@ -42,7 +42,11 @@ the module is off`. Proven by:
 `update_url` is a directory holding four assets: `VERSION` (`x.y.z`),
 `SHA256SUMS`, `SHA256SUMS.minisig`, and the binary named `update_asset`
 (default: the service name). Unset, it derives from `AppSpec.repository`
-as `https://github.com/<owner>/<repo>/releases/latest/download`. With a
+as `https://github.com/<owner>/<repo>/releases/latest/download`. Only a
+signed release is `latest`: the scaffold's `release.yml` publishes with
+`make_latest: false`, and `sign-release.sh` marks the release latest after
+uploading `VERSION` (fix-10). A 404 on `VERSION` reads "the newest release
+is published but not signed yet". With a
 mode other than `off` and neither set, `--check` refuses:
 `update_mode is on but neither update_url nor AppSpec.repository says
 where releases live`. A plain `http://` host is refused unless

@@ -2537,3 +2537,13 @@ chassis-rs). Both handled as work, unreleased:
   `App::on_check` and in `docs/SELF_UPDATE.md` step 9. Not enforceable by
   the kit: the check is project code.
 
+## fix-10: only a signed release is `latest` (2026-09-27)
+
+Relayed from kyu: an unsigned kyu v4.0.0 was `latest` from 22:09 to 02:59
+UTC and CT 109's nightly update check read a 404 for `VERSION`. Repaired as
+fix-10 (scaffold `release.yml` `make_latest: false`, `sign-release.sh`
+`--latest` after `VERSION`, a named 404 in the updater); see
+`docs/CORRECTIONS.md`. Reaches a consumer through a kit release and
+`chassis sync --write`, which makes the open release-patch question more
+urgent than when it was asked.
+

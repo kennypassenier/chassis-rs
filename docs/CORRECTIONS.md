@@ -617,3 +617,41 @@ Reported by kyu, relayed at Kenny's go.
    still names both causes.
 9. **When we review it.** At the retrospective of batch 5.
 
+## fix-10 · An unsigned release became `latest` (2026-09-27)
+
+Reported by kyu through the coordinator.
+
+1. **What went wrong.** kyu v4.0.0 was tagged at 22:03 UTC; the scaffold's
+   `release.yml` (softprops/action-gh-release, default `make_latest`)
+   published it as `latest` at 22:09 with only the binary and `SHA256SUMS`.
+   `SHA256SUMS.minisig` and `VERSION` arrived at 02:59 when
+   `sign-release.sh` ran. The updater reads
+   `releases/latest/download/VERSION`, so CT 109's nightly check got a 404
+   in between.
+2. **Which gate let it through.** Critic #15 ordered the assets (minisig
+   before VERSION) but nobody asked which release `latest` names while the
+   assets are incomplete; every drill signed within minutes of tagging.
+3. **Where the same fault sits.** The property: **a published state that an
+   updater reads before the release is complete.** `Gezocht met:`
+   `grep -rn 'latest\|prerelease\|make_latest' scaffold/ crates/chassis/src/app.rs`
+   — the one `latest` reader is `app.rs` building the default URL; the one
+   writer is `release.yml`. The kit's own release publishes no binary.
+4. **How we prevent recurrence.** `make_latest: false` in `release.yml`;
+   `gh release edit --latest` in `sign-release.sh` after `VERSION`; the
+   updater names the cause on a 404 for `VERSION`.
+5. **What the remedy costs.** One API call when signing; `latest` keeps
+   naming the previous signed release until then, which is what the updater
+   should install anyway.
+6. **Who enforces it.** Tests: the scaffold render test refuses a
+   `release.yml` without `make_latest: false` and a `sign-release.sh` whose
+   `--latest` does not follow the `VERSION` upload;
+   `a_missing_version_says_the_release_is_not_signed_yet`. Both seen failing
+   first.
+7. **How we measure that it works, and when.** At the first consumer release
+   after `chassis sync --write` with the kit carrying fix-10: between tagging
+   and signing, `gh release view --json isLatest` is false for the new tag
+   and the nightly check logs no 404.
+8. **The fallback if it fails.** Publish as a prerelease and clear it in
+   `sign-release.sh` (`--prerelease=false`), kyu's second proposal.
+9. **When we review it.** At the retrospective of batch 5.
+

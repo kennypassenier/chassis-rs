@@ -1766,6 +1766,20 @@ mod tests {
             "GitHub expressions survive the template engine: {token_lines:?}"
         );
         assert!(get("scripts/sign-release.sh").contains(RELEASE_PUBKEY));
+        // fix-10: `latest` names a signed release only. The workflow publishes
+        // without taking `latest`; signing takes it after VERSION is up.
+        assert!(
+            release_yml.contains("make_latest: false"),
+            "an unsigned release must not become latest"
+        );
+        let sign = get("scripts/sign-release.sh");
+        let version_up = sign
+            .find("--clobber \"$work/VERSION\"")
+            .expect("VERSION upload");
+        let latest = sign
+            .find("--latest")
+            .expect("sign-release.sh marks the release latest");
+        assert!(latest > version_up, "latest only after VERSION is uploaded");
         // K27: the generated kit documentation renders with the project's
         // names and the kit's version.
         let kit_md = get("docs/KIT.md");
