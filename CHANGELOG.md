@@ -5,7 +5,10 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
-## [Unreleased]
+## [2.3.0] - 2026-09-28
+
+A minor: two optional features for a project whose dashboard is a static
+browser app, both off by default. Nothing a project uses today changes.
 
 ### Added
 

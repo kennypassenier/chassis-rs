@@ -2636,3 +2636,7 @@ released**: a release cascades to the four consumers, so Kenny decides when.
   binaries are not byte-identical (the kit's path changed between builds),
   the size is.
 
+## Kenny's answer: release 2.3.0 (2026-09-28)
+
+release-230 "Nu uitbrengen als 2.3.0": `webapp` and `live` go out as 2.3.0.
+
