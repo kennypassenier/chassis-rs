@@ -41,7 +41,11 @@ app.webapp(WebApp::embedded(FILES));            // served under /app/
   connections from this origin only). `.csp("…")` replaces it for the
   app's responses only. kp-themes' framework-free modules run under the
   default, and the vendored kp-themes files are served at `/static/kp/…`
-  (`/static/kp/dist/kp-themes.css`, `/static/kp/js/…`).
+  (`/static/kp/dist/kp-themes.css`, `/static/kp/js/…`). With `webapp` that
+  is the whole framework-free module set of the vendored release (the
+  wizard, the data table, the palette, the date picker, `auto.js`, …), not
+  only the modules the kit's own pages use; without it those modules are
+  not in the binary.
 - **Refusals at start and `--check`.** A mount that is `/` or starts with
   one of the kit's routes (`/login`, `/logout`, `/static`, `/api`,
   `/clients`, `/passkeys`, `/healthz`, `/metrics`); an embedded app without

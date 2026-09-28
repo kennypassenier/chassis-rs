@@ -466,6 +466,145 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
     ),
 ];
 
+/// feat-webapp-1: the rest of kp-themes' framework-free modules (the wizard,
+/// the data table, the palette, the date picker, …) for a project's own
+/// browser app. Only with the `webapp` feature: the kit's own pages use none
+/// of them, and a service without a browser app should not carry half a
+/// megabyte of JavaScript it never serves (kyu-runner's size, measured).
+#[cfg(feature = "webapp")]
+pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
+    (
+        "kp/js/alarm.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/alarm.js"),
+    ),
+    (
+        "kp/js/auto.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/auto.js"),
+    ),
+    (
+        "kp/js/colorpicker.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/colorpicker.js"),
+    ),
+    (
+        "kp/js/combobox.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/combobox.js"),
+    ),
+    (
+        "kp/js/contrast.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/contrast.js"),
+    ),
+    (
+        "kp/js/datatable.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/datatable.js"),
+    ),
+    (
+        "kp/js/datepicker.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/datepicker.js"),
+    ),
+    (
+        "kp/js/diagnostics.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/diagnostics.js"),
+    ),
+    (
+        "kp/js/forms.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/forms.js"),
+    ),
+    (
+        "kp/js/gridlayout.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/gridlayout.js"),
+    ),
+    (
+        "kp/js/lazy-register.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/lazy-register.js"),
+    ),
+    (
+        "kp/js/listbox.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/listbox.js"),
+    ),
+    (
+        "kp/js/locale.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/locale.js"),
+    ),
+    (
+        "kp/js/log.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/log.js"),
+    ),
+    (
+        "kp/js/overlays.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/overlays.js"),
+    ),
+    (
+        "kp/js/palette.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/palette.js"),
+    ),
+    (
+        "kp/js/patterns.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/patterns.js"),
+    ),
+    (
+        "kp/js/remember.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/remember.js"),
+    ),
+    (
+        "kp/js/sidenav.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/sidenav.js"),
+    ),
+    (
+        "kp/js/structure.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/structure.js"),
+    ),
+    (
+        "kp/js/tables.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/tables.js"),
+    ),
+    (
+        "kp/js/top-layer.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/top-layer.js"),
+    ),
+    (
+        "kp/js/upload.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/upload.js"),
+    ),
+    (
+        "kp/js/wizard.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/wizard.js"),
+    ),
+];
+
+/// Every asset this build serves: the kit's own set, plus the full
+/// kp-themes module set when the `webapp` feature is on.
+pub fn all_assets() -> impl Iterator<Item = &'static (&'static str, &'static str, &'static [u8])> {
+    #[cfg(feature = "webapp")]
+    let extra = WEBAPP_KP_ASSETS.iter();
+    #[cfg(not(feature = "webapp"))]
+    let extra = [].iter();
+    ASSETS.iter().chain(extra)
+}
+
 /// The vendored manifest, for the gate test and `--print-config`'s
 /// "built with kp-themes x.y.z" line.
 pub const KP_THEMES_MANIFEST: &str = include_str!("../../static/kp/KP_THEMES.sha256");
@@ -502,7 +641,7 @@ pub async fn serve(Path(name): Path<String>, RawQuery(query): RawQuery) -> Respo
     } else {
         "public, max-age=86400"
     };
-    match ASSETS.iter().find(|(n, _, _)| *n == name) {
+    match all_assets().find(|(n, _, _)| *n == name) {
         Some((_, ct, body)) => (
             [(header::CONTENT_TYPE, *ct), (header::CACHE_CONTROL, cache)],
             *body,
@@ -532,7 +671,7 @@ mod tests {
             }
             let (hash, name) = line.split_once("  ").expect("sha256sum line");
             let key = format!("kp/{name}");
-            let actual = match ASSETS.iter().find(|(n, _, _)| *n == key) {
+            let actual = match all_assets().find(|(n, _, _)| *n == key) {
                 Some((_, _, body)) => {
                     embedded += 1;
                     hex::encode(Sha256::digest(body))
@@ -540,10 +679,15 @@ mod tests {
                 None => {
                     let bytes = std::fs::read(root.join(name))
                         .unwrap_or_else(|e| panic!("manifest names {name}, missing on disk: {e}"));
+                    // Without `webapp` the component modules are vendored
+                    // but not embedded; with it (the gates build every
+                    // feature) every served kind of file must be.
+                    let webapp_only = !cfg!(feature = "webapp") && name.starts_with("js/");
                     assert!(
-                        !name.ends_with(".css")
-                            && !name.ends_with(".js")
-                            && !name.ends_with(".woff2"),
+                        webapp_only
+                            || (!name.ends_with(".css")
+                                && !name.ends_with(".js")
+                                && !name.ends_with(".woff2")),
                         "{name} is a served kind of file but not embedded"
                     );
                     hex::encode(Sha256::digest(bytes))
@@ -555,8 +699,7 @@ mod tests {
             );
             checked += 1;
         }
-        let kp_assets = ASSETS
-            .iter()
+        let kp_assets = all_assets()
             .filter(|(n, _, _)| n.starts_with("kp/"))
             .count();
         assert_eq!(
@@ -585,8 +728,7 @@ mod tests {
     /// from ASSETS: failed, restored.
     #[test]
     fn vendored_javascript_imports_only_vendored_modules() {
-        let js: Vec<(&str, &str)> = ASSETS
-            .iter()
+        let js: Vec<(&str, &str)> = all_assets()
             .filter(|(n, _, _)| n.ends_with(".js"))
             .map(|(n, _, b)| (*n, std::str::from_utf8(b).expect("utf-8")))
             .collect();
@@ -608,10 +750,17 @@ mod tests {
                     .split("import(")
                     .skip(1)
                     .filter_map(|rest| rest.split(')').next())
-                    .map(|t| t.trim().trim_matches(['\'', '"']))
+                    .map(str::trim)
+                    // Only a string literal loads a module; `import(x)`
+                    // with a variable is not something the kit can check.
+                    .filter(|t| t.starts_with(['\'', '"']))
+                    .map(|t| t.trim_matches(['\'', '"']))
                     .collect();
+                // `export function f(a, from = x)` has " from " too; a module
+                // specifier is always a string literal.
                 if (line.starts_with("import ") || line.starts_with("export "))
                     && let Some(from) = line.split(" from ").nth(1)
+                    && from.trim_start().starts_with(['\'', '"'])
                 {
                     targets.push(from.trim().trim_end_matches(';').trim_matches(['\'', '"']));
                 }
@@ -629,7 +778,7 @@ mod tests {
                         format!("{base}/{rel}")
                     };
                     assert!(
-                        ASSETS.iter().any(|(n, _, _)| *n == key),
+                        all_assets().any(|(n, _, _)| *n == key),
                         "{name} imports {target}, which the binary does not serve"
                     );
                     checked += 1;

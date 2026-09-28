@@ -20,6 +20,11 @@ browser app, both off by default. Nothing a project uses today changes.
   revalidation, and a CSP of its own (the kit's unless `.csp()` names
   another). `WebApp::dir(path)` reads from disk for development. See
   `docs/WEBAPP.md`.
+  With `webapp` the kit also serves the whole kp-themes 7.2.0 module set
+  under `/static/kp/js/` (24 more modules: the wizard, the data table, the
+  palette, the date picker, `auto.js`, …, verified against the release's
+  `SHA256SUMS`), so a project's app takes kp-themes from the kit instead of
+  vendoring a second copy.
 - **`live` feature: Server-Sent Events** (feat-live-1). Off by default.
   `Live::publish` sends JSON to every subscribed browser; a slow or
   reconnecting browser gets a `resync` event instead of a replay buffer.

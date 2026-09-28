@@ -2640,3 +2640,21 @@ released**: a release cascades to the four consumers, so Kenny decides when.
 
 release-230 "Nu uitbrengen als 2.3.0": `webapp` and `live` go out as 2.3.0.
 
+## The whole kp-themes module set behind `webapp` (2026-09-28)
+
+Asked by the dashboard thread while the 2.3.0 chain ran (Kenny's kp-intake
+answer there: kp-themes comes through chassis-rs, no second copy). The chain
+was stopped during the consumer check, before any commit or tag. The
+interrupted check left kyu's `Cargo.lock` without its `source` line (the
+CF-18 signature: the TERM arrived while bash waited on cargo, so the trap
+ran too late or not at all); restored with `git checkout -- Cargo.lock`, the
+only change in that file. Worth a look at the next batch: the restore trap
+does not survive an interrupted cargo child.
+
+The 24 remaining modules of the 7.2.0 `js/` directory are vendored
+(`sha256sum -c` against the release's `SHA256SUMS`, and the manifest test),
+embedded only with `webapp` in `WEBAPP_KP_ASSETS`. The import-closure test
+now reads only string-literal specifiers: `contrast.js` has
+`export function tokenColour(token, from = …)`, whose " from " the old
+parser read as an import.
+

@@ -50,6 +50,13 @@ async fn the_app_and_its_live_channel_sit_behind_the_login() {
     assert_eq!(status, 200, "a client-side route gets the index");
     assert!(body.contains("js/main.js"));
 
+    // With `webapp` the whole kp-themes module set is served for the app,
+    // not only the modules the kit's own pages use.
+    for module in ["wizard.js", "datatable.js", "palette.js", "auto.js"] {
+        let (status, body) = app.page(&format!("/static/kp/js/{module}")).await;
+        assert_eq!(status, 200, "{module}: {body}");
+    }
+
     // The kit's own pages are untouched by the mount.
     let (status, body) = app.page("/").await;
     assert_eq!(status, 200);
