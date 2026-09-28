@@ -47,31 +47,13 @@ esac
 git fetch -q origin main
 [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || { echo "release-kit: local main is not origin/main"; exit 1; }
 
-# Standing rule 46: the kit proves its consumers before it releases. A
-# precondition, so nothing is committed, tagged or published if a project
-# downstream stops building. Local by Kenny's condition (2026-09-09) — it
-# runs here, never on a commit. Pass --image to also build each consumer's
-# container, which is where the Debian-versus-Arch question is answered:
-# the Dockerfiles build inside rust:1.97-slim-trixie, so that artifact is
-# the one that ships.
-# Kenny, 2026-09-10: a red consumer NEVER blocks. Their pins are fixed tags —
-# measured that day, all seven chassis dependency lines across the four — so a
-# new tag reaches nobody until they move it themselves. Holding the kit until
-# four other projects have time is what a major version number exists to
-# avoid. What a failure IS: the measured list of what a consumer will have to
-# change, which belongs in the Migration section. The contract check below is
-# what refuses a release.
-if ! "$root/scripts/check-consumers.sh" ${CHECK_CONSUMERS_ARGS:-}; then
-  echo
-  echo "release-kit: consumers above did not build against this tree."
-  case "$version" in
-    *.0.0) echo "release-kit: $version is a major, so this is expected — check that each"
-           echo "             failing consumer is named in the ### Migration section." ;;
-    *)     echo "release-kit: $version is NOT a major. The contract check below decides,"
-           echo "             but read those failures first: they are what a consumer feels." ;;
-  esac
-  echo
-fi
+# Kenny, 2026-09-28: the release no longer builds the four consumers against
+# this tree. They build on the kit, not the other way round, and the same
+# people develop all five, so a change is known when it is made; the check
+# cost minutes on every release and had not refused one since it was
+# demoted to informing (2026-09-10). What refuses a release stays: the
+# public-surface contract below and CI on the release commit.
+# scripts/check-consumers.sh is kept for a deliberate run by hand.
 
 # Standing rule 46, the second third (feat-api-1): the public surface is
 # compared against what is recorded, so a shape change cannot ride out in a

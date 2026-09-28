@@ -2683,3 +2683,17 @@ released.
 release-240 "Nu uitbrengen als 2.4.0": `request-guard` and the live recheck
 go out as 2.4.0.
 
+## Releases no longer build the consumers (2026-09-28)
+
+Kenny, during the 2.4.0 chain: "kunnen we ook stoppen met de vier projecten
+tegen de kit te bouwen? dat is omgekeerde logica, zij baseren zich op ons
+[…] Wij zijn de devs van alle projecten dus we weten wanneer er iets
+veranderd is." Project-only change (chassis-rs's release script, not the
+dev procedure). `scripts/release-kit.sh` no longer runs
+`scripts/check-consumers.sh`; the contract check and CI on the release
+commit still refuse a release. The script stays for a deliberate run by
+hand. 2.4.0 itself still ran the check (it was halfway when he asked, and
+interrupting it had dirtied kyu's lockfile that morning): four of four
+source ok. Standing rule 46's consumer half now applies to chassis-rs only
+by hand.
+
