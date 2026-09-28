@@ -16,6 +16,8 @@ pub mod guards;
 pub mod health;
 pub mod http;
 pub mod lifecycle;
+#[cfg(feature = "live")]
+pub mod live;
 pub mod logging;
 pub mod metrics;
 #[cfg(feature = "notify")]
@@ -26,3 +28,5 @@ pub mod store;
 pub mod time;
 #[cfg(feature = "self-update")]
 pub mod update;
+#[cfg(feature = "webapp")]
+pub mod webapp;

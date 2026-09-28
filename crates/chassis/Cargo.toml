@@ -22,6 +22,12 @@ dashboard = ["core", "assets"]
 passkeys = ["dashboard", "dep:webauthn-rs"]
 self-update = ["core", "dep:minisign-verify", "dep:backon"]
 notify = ["core", "dep:backon"]
+# feat-webapp-1: a project's own static browser app (HTML, ES modules, CSS)
+# under one path, behind the dashboard's login; hence it implies it.
+webapp = ["dashboard"]
+# feat-live-1: a Server-Sent Events channel a project publishes to. Needs
+# only the core; the project decides which router (login or token) guards it.
+live = ["core", "dep:futures-util"]
 # K25: the in-process test harness (`chassis::testing`), for a project's
 # dev-dependencies. Implies `dashboard` because logging in and issuing a
 # client are what it wraps; `minisign` signs the fake release server's
@@ -30,6 +36,10 @@ testing = ["dashboard", "dep:tempfile", "dep:minisign"]
 
 [dependencies]
 axum = { workspace = true }
+# feat-live-1: turns the broadcast receiver into the stream `Sse` reads.
+# Already in the tree through axum; optional so a service without `live`
+# links nothing new.
+futures-util = { version = "0.3", default-features = false, optional = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -5,6 +5,26 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
+## [Unreleased]
+
+### Added
+
+- **`webapp` feature: a project's own browser app behind the login**
+  (feat-webapp-1; Kenny, 2026-09-28, for the homelab admin dashboard). Off
+  by default, implies `dashboard`. `App::webapp(WebApp::embedded(FILES))`
+  serves HTML, ES modules and CSS under `/app` (`.at()` moves it) with the
+  kit's login in front, `index.html` for client-side routes, `ETag`
+  revalidation, and a CSP of its own (the kit's unless `.csp()` names
+  another). `WebApp::dir(path)` reads from disk for development. See
+  `docs/WEBAPP.md`.
+- **`live` feature: Server-Sent Events** (feat-live-1). Off by default.
+  `Live::publish` sends JSON to every subscribed browser; a slow or
+  reconnecting browser gets a `resync` event instead of a replay buffer.
+  The project mounts `Live::router(path)` behind the login or a token.
+
+A service with neither feature compiles none of it: kyu-runner's release
+binary measured 10,813,496 bytes before and after.
+
 ## [2.2.1] - 2026-09-27
 
 A patch: two scaffold repairs from kyu's 2.2.0 adoption. Nothing on the Rust

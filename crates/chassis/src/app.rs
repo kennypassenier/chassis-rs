@@ -670,6 +670,9 @@ pub struct App {
     router: Router,
     api_router: Router,
     dashboard_router: Router,
+    /// feat-webapp-1: the project's own browser app, if it registered one.
+    #[cfg(feature = "webapp")]
+    webapp: Option<crate::shell::webapp::WebApp>,
     checks: Vec<Hook>,
     flush: Option<Box<dyn FnOnce() + Send>>,
     /// Run once the listener is bound and READY is sent (1.1.0): where a
@@ -792,6 +795,8 @@ impl App {
             router,
             api_router: Router::new(),
             dashboard_router: Router::new(),
+            #[cfg(feature = "webapp")]
+            webapp: None,
             checks: Vec::new(),
             flush: None,
             start_hooks: Vec::new(),
@@ -1157,6 +1162,8 @@ impl App {
             router,
             api_router: Router::new(),
             dashboard_router: Router::new(),
+            #[cfg(feature = "webapp")]
+            webapp: None,
             checks: Vec::new(),
             flush: None,
             start_hooks: Vec::new(),
@@ -1326,6 +1333,19 @@ impl App {
     /// Routes only a logged-in admin may open (dashboard pages, L4).
     pub fn dashboard_routes(&mut self, router: Router) -> &mut Self {
         self.dashboard_router = self.dashboard_router.clone().merge(router);
+        self
+    }
+
+    /// feat-webapp-1: serve a static browser app (HTML, ES modules, CSS)
+    /// under its mount path (`/app` unless [`WebApp::at`] says otherwise),
+    /// behind the admin login like the kit's own pages. A mount that would
+    /// hide a kit route, or an app without `index.html`, is refused at
+    /// start and at `--check`.
+    ///
+    /// [`WebApp::at`]: crate::shell::webapp::WebApp::at
+    #[cfg(feature = "webapp")]
+    pub fn webapp(&mut self, app: crate::shell::webapp::WebApp) -> &mut Self {
+        self.webapp = Some(app);
         self
     }
 
@@ -1693,6 +1713,10 @@ impl App {
             Some(Control::Check) => {
                 #[cfg(feature = "dashboard")]
                 self.require_dashboard_secrets()?;
+                #[cfg(feature = "webapp")]
+                if let Some(w) = &self.webapp {
+                    w.validate()?;
+                }
                 // H11 (rule 12, fail-closed): the state directory must exist
                 // and take a write NOW, not at the first login. The only
                 // thing --check touches is a zero-byte probe, removed at once.
@@ -2027,6 +2051,15 @@ impl App {
         let html_errors: Option<crate::shell::http::HtmlErrorRenderer>;
         #[cfg(feature = "dashboard")]
         {
+            // feat-webapp-1: the project's browser app joins the project's
+            // own pages, so the mount puts the same admin login in front.
+            #[cfg(feature = "webapp")]
+            let dashboard_router = match self.webapp {
+                Some(w) => self.dashboard_router.merge(w.router()?),
+                None => self.dashboard_router,
+            };
+            #[cfg(not(feature = "webapp"))]
+            let dashboard_router = self.dashboard_router;
             let (protected, flush, html) =
                 crate::app_dashboard::mount(crate::app_dashboard::MountInput {
                     spec: &self.spec,
@@ -2035,7 +2068,7 @@ impl App {
                     guards: guards.clone(),
                     addr,
                     api_router: self.api_router,
-                    dashboard_router: self.dashboard_router,
+                    dashboard_router,
                     test_route: self.test_route.clone(),
                     client_store: self.client_store.clone(),
                     registry: self.dash,

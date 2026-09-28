@@ -2614,3 +2614,25 @@ second sync listed neither file. **fix-11 is closed.** fix-12's file half
 holds on kyu the same way; its runtime half (`stat -c %U` on a binary
 deployed from the scaffold) stays open for the next new project.
 
+## feat-webapp-1 and feat-live-1 built (2026-09-28)
+
+Asked by the homelab deployment thread for its admin dashboard; Kenny
+approved there ("kit-webapp: Klopt", 2026-09-28 10:48). Built on main, **not
+released**: a release cascades to the four consumers, so Kenny decides when.
+
+- `webapp` (implies `dashboard`) and `live` (core + `futures-util`, already
+  in the tree through axum), both off by default. Usage in `docs/WEBAPP.md`.
+- The web app is merged into the project pages before the mount, so it gets
+  the same `require_admin` layer; `MountInput` did not change, which kept
+  the API contract additive (15 new items, nothing removed or changed). A
+  first attempt added a field to `MountInput` and the CI contract check
+  refused it as a break, which is what it is for.
+- Drills: the directory source's root guard removed made the symlink test
+  red; the login layer removed made the end-to-end test red.
+- Success criterion S3 of the homelab admin scope, measured: kyu-runner
+  (features `core`, `self-update`) built in release against this tree and
+  against main before the change, 10,813,496 bytes both times; `cargo tree -e
+  features` shows neither `webapp`, `live` nor `dashboard` enabled. The two
+  binaries are not byte-identical (the kit's path changed between builds),
+  the size is.
+
