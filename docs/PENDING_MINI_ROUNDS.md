@@ -2678,3 +2678,8 @@ released.
   unstripped 72 bytes larger (LLVM local symbol names), stripped 32 bytes
   smaller. No code of the features is compiled in.
 
+## Kenny's answer: release 2.4.0 (2026-09-28)
+
+release-240 "Nu uitbrengen als 2.4.0": `request-guard` and the live recheck
+go out as 2.4.0.
+
