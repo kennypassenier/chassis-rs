@@ -321,13 +321,17 @@ pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
 
     // K16: a project's page handlers render inside the layout through the
     // `Dashboard` extension; admin login is required as for the kit's pages.
+    // feat-live-1: the auth state rides along so a live stream can ask again
+    // later whether its caller is still logged in.
     let project_pages = dashboard_router
         .layer(axum::Extension(dash.clone()))
+        .layer(axum::Extension(auth.clone()))
         .layer(from_fn_with_state(auth.clone(), require_admin));
 
     // Outermost first: identify the caller, then throttle it per token (K10,
     // H3), then capture the request for its row.
     let api_routes = api_router
+        .layer(axum::Extension(auth.clone()))
         .layer(from_fn_with_state(captures, capture_requests))
         .layer(from_fn_with_state(
             token_limit,

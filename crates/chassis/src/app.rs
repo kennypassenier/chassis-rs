@@ -683,6 +683,11 @@ pub struct App {
     subsystems: Vec<Arc<dyn Subsystem>>,
     scrape_sources: Vec<Arc<dyn ScrapeSource>>,
     timeout_exempt: HashSet<String>,
+    /// feat-guard-1: the project's checks in front of every route.
+    #[cfg(feature = "request-guard")]
+    request_guards: Vec<crate::shell::request_guard::RequestGuard>,
+    #[cfg(feature = "request-guard")]
+    request_guard_exempt: Vec<String>,
     #[cfg(feature = "dashboard")]
     test_route: Option<crate::shell::clients_api::TestRoute>,
     #[cfg(feature = "dashboard")]
@@ -803,6 +808,10 @@ impl App {
             subsystems: Vec::new(),
             scrape_sources: Vec::new(),
             timeout_exempt: HashSet::new(),
+            #[cfg(feature = "request-guard")]
+            request_guards: Vec::new(),
+            #[cfg(feature = "request-guard")]
+            request_guard_exempt: Vec::new(),
             #[cfg(feature = "dashboard")]
             test_route: None,
             #[cfg(feature = "dashboard")]
@@ -1170,6 +1179,10 @@ impl App {
             subsystems: Vec::new(),
             scrape_sources: Vec::new(),
             timeout_exempt: HashSet::new(),
+            #[cfg(feature = "request-guard")]
+            request_guards: Vec::new(),
+            #[cfg(feature = "request-guard")]
+            request_guard_exempt: Vec::new(),
             #[cfg(feature = "dashboard")]
             test_route: None,
             #[cfg(feature = "dashboard")]
@@ -1565,6 +1578,39 @@ impl App {
     /// `/metrics` verbatim (K7; how kyu keeps its dynamic label sets).
     pub fn metrics_source(&mut self, s: impl ScrapeSource + 'static) -> &mut Self {
         self.scrape_sources.push(Arc::new(s));
+        self
+    }
+
+    /// feat-guard-1: run `guard` before every route the service serves, the
+    /// kit's own included (`/login`, `/static`, `/api`, the web app), after
+    /// the proxy handling and before any login. `Ok(())` lets the request
+    /// through; `Err(response)` is sent as it is. Guards run in registration
+    /// order and the first refusal wins. `/healthz` is always exempt; see
+    /// [`App::request_guard_exempt`] for more. A header a proxy sets
+    /// (`Cf-Connecting-IP`, `Cf-Access-Jwt-Assertion`) is only worth reading
+    /// when [`GuardRequest::from_trusted_proxy`] is true.
+    ///
+    /// [`GuardRequest::from_trusted_proxy`]: crate::shell::request_guard::GuardRequest::from_trusted_proxy
+    #[cfg(feature = "request-guard")]
+    pub fn request_guard<F, Fut>(&mut self, guard: F) -> &mut Self
+    where
+        F: Fn(crate::shell::request_guard::GuardRequest) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = Result<(), axum::response::Response>> + Send + 'static,
+    {
+        let guard = Arc::new(guard);
+        self.request_guards.push(Arc::new(move |r| {
+            let guard = guard.clone();
+            Box::pin(async move { guard(r).await })
+        }));
+        self
+    }
+
+    /// feat-guard-1: paths under this prefix skip the request guards (a
+    /// whole segment: `/metrics` covers `/metrics` and `/metrics/x`, not
+    /// `/metricsx`). `/healthz` is exempt without asking.
+    #[cfg(feature = "request-guard")]
+    pub fn request_guard_exempt(&mut self, path_prefix: impl Into<String>) -> &mut Self {
+        self.request_guard_exempt.push(path_prefix.into());
         self
     }
 
@@ -2087,6 +2133,15 @@ impl App {
         if let Some(f) = self.flush {
             flushes.push(f);
         }
+        // feat-guard-1: innermost of the kit's layers, so the proxy handling
+        // has run and nothing else has: every route, the kit's own included.
+        #[cfg(feature = "request-guard")]
+        let router = crate::shell::request_guard::apply(
+            router,
+            self.request_guards,
+            self.request_guard_exempt,
+            guards.trusted_proxies.clone(),
+        );
         let router = with_kit_layers(
             router,
             guards,

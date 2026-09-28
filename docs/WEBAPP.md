@@ -1,6 +1,6 @@
-# A browser app and a live channel (`webapp`, `live`)
+# A browser app, a live channel and a gate in front (`webapp`, `live`, `request-guard`)
 
-Two optional features for a project whose dashboard is a static browser
+Three optional features for a project whose dashboard is a static browser
 application rather than server-rendered pages. Both are off by default; a
 service that does not name them compiles none of their code.
 
@@ -82,3 +82,49 @@ events.addEventListener('resync', () => reloadEverything());
 - The router is not protected by itself: mount it with `dashboard_routes`
   (admin login) or `api_routes` (client token), whichever fits what it
   carries.
+- Mounted that way, an open stream asks again every 5 seconds
+  (`Live::new(256).recheck_every(…)` changes it) whether its caller is still
+  allowed: a logged-out or expired session, or a revoked client token, ends
+  the stream, and `EventSource`'s reconnect then meets the login like any
+  other request. The check reads the session without extending it, so an
+  open tab does not keep a session alive by itself.
+
+## `request-guard`: a gate in front of every route
+
+For a service that must refuse a request before the kit does anything with
+it: before `/login` renders, before `/static` answers, before a token is
+read. The homelab admin dashboard's case: a valid Cloudflare Access
+assertion and the house's public address, then the kit's login.
+
+```rust
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+
+app.request_guard(|r| async move {
+    // A proxy's header counts only from a trusted proxy.
+    let ip = r.headers.get("cf-connecting-ip")
+        .filter(|_| r.from_trusted_proxy)
+        .and_then(|v| v.to_str().ok());
+    if ip == Some("203.0.113.7") {
+        Ok(())
+    } else {
+        Err((StatusCode::FORBIDDEN, "not from the house").into_response())
+    }
+});
+app.request_guard(check_cloudflare_access);   // runs second
+```
+
+- A guard gets a `GuardRequest` (`method`, `path`, `headers`, `peer`,
+  `from_trusted_proxy`, `client_ip`) and answers `Ok(())` or
+  `Err(response)`; the response is sent as it is, and nothing behind it runs.
+- Guards run in registration order; the first refusal wins.
+- They sit inside the kit's proxy handling and in front of every route, the
+  kit's own included, and in front of the web app and the live channel.
+- `/healthz` is always exempt, so a monitor can probe;
+  `app.request_guard_exempt("/metrics")` exempts more (a whole path
+  segment: `/metrics` and `/metrics/…`, not `/metricsx`).
+- `from_trusted_proxy` is true only when the TCP peer is in
+  `<PREFIX>_TRUSTED_PROXIES`; set it to Traefik's address, or every
+  `Cf-*` header is whatever the client sent.
+- Without the feature, or with it and no guard registered, nothing is added
+  to the router.

@@ -71,6 +71,16 @@ impl SessionsFile {
         }
     }
 
+    /// Is this cookie a live session, WITHOUT sliding its expiry: for a
+    /// check that repeats on its own (an open live stream), which must not
+    /// keep a session alive that nobody uses.
+    pub fn is_live(&self, cookie_value: &str, now: u64) -> bool {
+        let hash = sha256_hex(cookie_value.as_bytes());
+        self.sessions
+            .iter()
+            .any(|s| s.id_hash == hash && s.expires_at > now)
+    }
+
     /// Logout: remove the row for this cookie.
     pub fn remove(&mut self, cookie_value: &str) -> bool {
         let hash = sha256_hex(cookie_value.as_bytes());

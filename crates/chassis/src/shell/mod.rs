@@ -24,6 +24,8 @@ pub mod metrics;
 pub mod notify;
 #[cfg(feature = "passkeys")]
 pub mod passkeys;
+#[cfg(feature = "request-guard")]
+pub mod request_guard;
 pub mod store;
 pub mod time;
 #[cfg(feature = "self-update")]

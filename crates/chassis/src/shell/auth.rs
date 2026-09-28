@@ -172,6 +172,32 @@ pub async fn identify(state: &AuthState, headers: &HeaderMap) -> Option<Caller> 
     None
 }
 
+/// Whether the caller these headers identified is still allowed in, read
+/// without touching anything: no session's expiry slides and no client's
+/// last-used time moves. For checks that repeat by themselves (feat-live-1:
+/// an open stream ends at logout, expiry or revocation).
+pub async fn still_valid(state: &AuthState, headers: &HeaderMap) -> bool {
+    let Some(secrets) = &state.secrets else {
+        return true;
+    };
+    if let Some(token) = bearer(headers) {
+        return ct_eq(
+            token.as_bytes(),
+            secrets.login_token.expose_secret().as_bytes(),
+        ) || state.clients.snapshot().by_token(&token).is_some();
+    }
+    let jar = CookieJar::from_headers(headers);
+    match jar.get(&state.cookie_name()) {
+        Some(cookie) => state
+            .sessions
+            .state
+            .read()
+            .await
+            .is_live(cookie.value(), now_epoch()),
+        None => false,
+    }
+}
+
 /// Middleware for API routes: any authenticated caller passes and is
 /// attached as `Caller`; otherwise a JSON 401.
 pub async fn require_caller(

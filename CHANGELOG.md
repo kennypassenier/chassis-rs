@@ -5,6 +5,22 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
+## [Unreleased]
+
+### Added
+
+- **`request-guard` feature: a gate in front of every route** (feat-guard-1;
+  the homelab admin dashboard, reached through a Cloudflare tunnel and only
+  from home). Off by default. `App::request_guard` runs a project's check
+  after the proxy handling and before every route, the kit's own login,
+  assets and API included; `/healthz` stays open. See `docs/WEBAPP.md`.
+
+### Changed
+
+- **A live stream ends at logout** (feat-live-1). Mounted behind the login
+  or a token, an open stream re-checks every 5 s (`Live::recheck_every`)
+  whether its caller is still allowed, without extending the session.
+
 ## [2.3.0] - 2026-09-28
 
 A minor: two optional features for a project whose dashboard is a static

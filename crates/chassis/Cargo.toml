@@ -28,6 +28,9 @@ webapp = ["dashboard"]
 # feat-live-1: a Server-Sent Events channel a project publishes to. Needs
 # only the core; the project decides which router (login or token) guards it.
 live = ["core", "dep:futures-util"]
+# feat-guard-1: a project's own checks in front of every route (Cloudflare
+# Access, an address allow-list), before the kit's login runs.
+request-guard = ["core"]
 # K25: the in-process test harness (`chassis::testing`), for a project's
 # dev-dependencies. Implies `dashboard` because logging in and issuing a
 # client are what it wraps; `minisign` signs the fake release server's

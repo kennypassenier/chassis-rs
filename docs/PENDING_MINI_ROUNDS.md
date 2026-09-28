@@ -2658,3 +2658,23 @@ now reads only string-literal specifiers: `contrast.js` has
 `export function tokenColour(token, from = …)`, whose " from " the old
 parser read as an import.
 
+## feat-guard-1 and the live recheck built (2026-09-28)
+
+Asked by the homelab dashboard thread (Kenny's exposure decision: tunnel +
+Traefik, only from home; three locks in order: Cloudflare Access assertion,
+the house's public address, then the kit's login). Built on main, not
+released.
+
+- `request-guard` (core, off by default). The layer is applied to the router
+  just before `with_kit_layers`, so it runs inside the kit's proxy, CSRF and
+  limit layers and in front of every route; `with_kit_layers`' signature did
+  not change. `GuardRequest` is `#[non_exhaustive]`: the contract check
+  refused its public fields as additions to an unsealed type until it was.
+- The live stream's recheck needs the auth state, so the mount now layers an
+  `Extension(AuthState)` on the project pages and the API routes; the check
+  (`auth::still_valid`, `SessionsFile::is_live`) reads without sliding the
+  session or touching a client's last use.
+- kyu-runner measured again: no symbol of the new code in the binary (`nm`);
+  unstripped 72 bytes larger (LLVM local symbol names), stripped 32 bytes
+  smaller. No code of the features is compiled in.
+

@@ -23,6 +23,8 @@
 //! the project decides who may read it.
 
 use std::convert::Infallible;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
@@ -50,7 +52,11 @@ struct Message {
 pub struct Live {
     tx: broadcast::Sender<Message>,
     next: Arc<AtomicU64>,
+    recheck: Duration,
 }
+
+/// Re-asks whether the stream's caller may still read it; `false` ends it.
+type StillAllowed = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = bool> + Send>> + Send + Sync>;
 
 impl Live {
     /// `capacity` events are held for a slow browser before it is told to
@@ -61,7 +67,17 @@ impl Live {
         Live {
             tx,
             next: Arc::new(AtomicU64::new(1)),
+            recheck: Duration::from_secs(5),
         }
+    }
+
+    /// How often an open stream asks again whether its caller is still
+    /// logged in (or its client token still valid); 5 s unless set. The
+    /// check reads the session without extending it, so an open stream
+    /// never keeps a session alive by itself.
+    pub fn recheck_every(mut self, every: Duration) -> Self {
+        self.recheck = every.max(Duration::from_millis(10));
+        self
     }
 
     /// Send `data` as JSON under the event name `event`. Returns how many
@@ -102,39 +118,85 @@ impl Live {
             .with_state(self.clone())
     }
 
-    fn stream(&self, reconnected: bool) -> impl Stream<Item = Result<Event, Infallible>> + use<> {
+    fn stream(
+        &self,
+        reconnected: bool,
+        allowed: Option<StillAllowed>,
+    ) -> impl Stream<Item = Result<Event, Infallible>> + use<> {
         let rx = self.tx.subscribe();
+        let every = self.recheck;
         // A reconnecting browser missed whatever was sent while it was
         // away, and nothing is kept to replay: it starts with a resync.
         let first = reconnected.then(|| Event::default().event("resync").data("reconnected"));
-        futures_util::stream::unfold((rx, first), |(mut rx, first)| async move {
-            if let Some(e) = first {
-                return Some((Ok(e), (rx, None)));
-            }
-            let e = match rx.recv().await {
-                Ok(m) => Event::default()
-                    .id(m.id.to_string())
-                    .event(&*m.name)
-                    .data(&*m.data),
-                // Behind by `n`: say so once instead of buffering without
-                // bound; the browser fetches the state again.
-                Err(broadcast::error::RecvError::Lagged(n)) => {
-                    Event::default().event("resync").data(n.to_string())
+        futures_util::stream::unfold(
+            (rx, first, allowed),
+            move |(mut rx, first, allowed)| async move {
+                if let Some(e) = first {
+                    return Some((Ok(e), (rx, None, allowed)));
                 }
-                Err(broadcast::error::RecvError::Closed) => return None,
-            };
-            Some((Ok(e), (rx, None)))
-        })
+                loop {
+                    let received = match &allowed {
+                        None => rx.recv().await,
+                        Some(check) => tokio::select! {
+                            r = rx.recv() => r,
+                            _ = tokio::time::sleep(every) => {
+                                // Logged out, expired or revoked: the stream
+                                // ends, and EventSource's reconnect meets the
+                                // login like any other request.
+                                if !check().await {
+                                    return None;
+                                }
+                                continue;
+                            }
+                        },
+                    };
+                    let e = match received {
+                        Ok(m) => Event::default()
+                            .id(m.id.to_string())
+                            .event(&*m.name)
+                            .data(&*m.data),
+                        // Behind by `n`: say so once instead of buffering
+                        // without bound; the browser fetches the state again.
+                        Err(broadcast::error::RecvError::Lagged(n)) => {
+                            Event::default().event("resync").data(n.to_string())
+                        }
+                        Err(broadcast::error::RecvError::Closed) => return None,
+                    };
+                    return Some((Ok(e), (rx, None, allowed)));
+                }
+            },
+        )
     }
 }
 
 async fn subscribe(
     State(live): State<Live>,
-    headers: HeaderMap,
+    req: axum::extract::Request,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    let reconnected = headers.contains_key("last-event-id");
-    Sse::new(live.stream(reconnected))
+    let reconnected = req.headers().contains_key("last-event-id");
+    let allowed = still_allowed(&req);
+    Sse::new(live.stream(reconnected, allowed))
         .keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))
+}
+
+/// Mounted behind the kit's login or token check, the stream re-asks the
+/// same question on an interval with the headers it was opened with.
+#[cfg(feature = "dashboard")]
+fn still_allowed(req: &axum::extract::Request) -> Option<StillAllowed> {
+    let auth = req
+        .extensions()
+        .get::<crate::shell::auth::AuthState>()?
+        .clone();
+    let headers: HeaderMap = req.headers().clone();
+    Some(Arc::new(move || {
+        let (auth, headers) = (auth.clone(), headers.clone());
+        Box::pin(async move { crate::shell::auth::still_valid(&auth, &headers).await })
+    }))
+}
+
+#[cfg(not(feature = "dashboard"))]
+fn still_allowed(_: &axum::extract::Request) -> Option<StillAllowed> {
+    None
 }
 
 #[cfg(test)]
@@ -157,7 +219,7 @@ mod tests {
     #[tokio::test]
     async fn a_subscriber_receives_what_is_published_in_order() {
         let live = Live::new(8);
-        let mut s = Box::pin(live.stream(false));
+        let mut s = Box::pin(live.stream(false, None));
         assert_eq!(live.subscribers(), 1);
         assert_eq!(
             live.publish("stack", &serde_json::json!({"name": "media"}))
@@ -174,7 +236,7 @@ mod tests {
     #[tokio::test]
     async fn a_slow_subscriber_is_told_to_resync_instead_of_buffered() {
         let live = Live::new(2);
-        let mut s = Box::pin(live.stream(false));
+        let mut s = Box::pin(live.stream(false, None));
         for i in 0..5 {
             live.publish_raw("n", &i.to_string());
         }
@@ -231,8 +293,27 @@ mod tests {
     #[tokio::test]
     async fn a_reconnecting_browser_starts_with_a_resync() {
         let live = Live::new(8);
-        let mut s = Box::pin(live.stream(true));
+        let mut s = Box::pin(live.stream(true, None));
         let e = next_text(&mut s).await;
         assert!(e.contains("resync") && e.contains("reconnected"), "{e}");
+    }
+
+    #[tokio::test]
+    async fn a_stream_ends_when_its_caller_is_no_longer_allowed() {
+        let live = Live::new(8).recheck_every(Duration::from_millis(20));
+        let flag = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let f2 = flag.clone();
+        let check: StillAllowed = Arc::new(move || {
+            let f = f2.clone();
+            Box::pin(async move { f.load(Ordering::SeqCst) })
+        });
+        let mut s = Box::pin(live.stream(false, Some(check)));
+        live.publish_raw("a", "1");
+        assert!(next_text(&mut s).await.contains('1'));
+        flag.store(false, Ordering::SeqCst);
+        let end = tokio::time::timeout(Duration::from_secs(5), s.next())
+            .await
+            .expect("the stream ends within 5 s");
+        assert!(end.is_none(), "logged out: the stream is over");
     }
 }

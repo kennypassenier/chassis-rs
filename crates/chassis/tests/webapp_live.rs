@@ -27,7 +27,7 @@ fn spec() -> AppSpec {
 
 #[tokio::test]
 async fn the_app_and_its_live_channel_sit_behind_the_login() {
-    let live = Live::new(16);
+    let live = Live::new(16).recheck_every(std::time::Duration::from_millis(100));
     let events = live.clone();
     let mut app = TestApp::start_with(spec(), Router::new(), move |app| {
         app.webapp(WebApp::embedded(FILES));
@@ -88,4 +88,27 @@ async fn the_app_and_its_live_channel_sit_behind_the_login() {
     let text = String::from_utf8_lossy(&chunk);
     assert!(text.contains("event: stack"), "{text}");
     assert!(text.contains(r#"data: {"name":"media"}"#), "{text}");
+
+    // Logging out ends the open stream: the recheck finds no session.
+    let logout = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap()
+        .post(app.url("/logout"))
+        .header(reqwest::header::COOKIE, app.session_cookie().unwrap())
+        .send()
+        .await
+        .unwrap();
+    assert!(logout.status().is_redirection(), "{}", logout.status());
+    let ended = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            match res.chunk().await {
+                Ok(Some(c)) if String::from_utf8_lossy(&c).starts_with(':') => continue,
+                Ok(Some(_)) => continue,
+                Ok(None) | Err(_) => break,
+            }
+        }
+    })
+    .await;
+    assert!(ended.is_ok(), "the stream ended after logout");
 }
