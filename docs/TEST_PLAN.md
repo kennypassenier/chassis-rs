@@ -8,7 +8,7 @@ What is proven where, what is proven in which environment (standing rule
 
 ## 1 · The suites
 
-`cargo test --workspace --all-features` (also the commit gate and CI):
+`cargo test --workspace --all-features` (also the commit gate and `scripts/release-kit.sh`):
 
 | Suite | Where | Count | What it drives |
 |---|---|---|---|
@@ -19,8 +19,10 @@ What is proven where, what is proven in which environment (standing rule
 
 Gates: `.githooks/pre-commit` → `.claude/hooks/gates.sh` (fmt, clippy
 `--all-targets --all-features -D warnings`, the suite, tree fingerprint);
-`.githooks/commit-msg` (feature IDs); CI re-runs them plus `cargo deny`
-and coverage (informational) on every branch; `main` requires both checks.
+`.githooks/commit-msg` (feature IDs); `scripts/release-kit.sh` re-runs
+them plus `cargo deny`, the API contract and the `--version` smokes before
+a release. Until 3.0.0 CI re-ran them on every branch and `main` required
+its checks; there is no CI since (Kenny, 2026-09-29).
 
 **The suite is skipped when no Rust source moved** (Kenny, 2026-09-16,
 the testselectie form). Format and lint always run — measured at 0,19 s

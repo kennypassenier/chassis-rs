@@ -149,7 +149,9 @@ cargo test --workspace --all-features
 ```
 
 Commits run fmt, clippy (warnings are errors) and the full suite, and must
-name feature ids in brackets. CI repeats the gates on every branch; `main`
-is protected and moves by fast-forward after green.
+name feature ids in brackets. There is no GitHub Actions CI:
+`scripts/release-kit.sh` runs the full gate (fmt, clippy, the whole suite,
+cargo-deny, the API contract, the `--version` smoke) before it moves `main`
+and tags.
 
 Licensed MIT OR Apache-2.0.

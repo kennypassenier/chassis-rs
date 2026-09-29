@@ -15,7 +15,7 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 | Field | Value |
 |---|---|
-| Current phase | **2.4.1 released 2026-09-29** (tag `v2.4.1` = `6336481`) on Kenny's release-241 answer: kp-themes 8.0.0 vendored (through 7.3.0) and fix-13 (unhashed `/static` assets revalidate with an ETag instead of caching a day). **2.4.0** (2026-09-28, `1206d77`): `request-guard`, live streams end at logout. **2.3.0** (`ba7223a`): `webapp`, `live`; docs/WEBAPP.md. Releases no longer build the four consumers (Kenny, 2026-09-28); the contract (`scripts/check-api.sh`, also in CI) and CI refuse a release. A kp-themes-only update may be released without a form (Kenny, 2026-09-29). History of 2.0.x–2.2.x in docs/PENDING_MINI_ROUNDS.md |
+| Current phase | **2.4.1 released 2026-09-29** (tag `v2.4.1` = `6336481`) on Kenny's release-241 answer: kp-themes 8.0.0 vendored (through 7.3.0) and fix-13 (unhashed `/static` assets revalidate with an ETag instead of caching a day). **2.4.0** (2026-09-28, `1206d77`): `request-guard`, live streams end at logout. **2.3.0** (`ba7223a`): `webapp`, `live`; docs/WEBAPP.md. Releases no longer build the four consumers (Kenny, 2026-09-28); the contract (`scripts/check-api.sh`) and CI refused a release until 3.0.0; since then `scripts/release-kit.sh` runs the full gate locally (no GitHub Actions). A kp-themes-only update may be released without a form (Kenny, 2026-09-29). History of 2.0.x–2.2.x in docs/PENDING_MINI_ROUNDS.md |
 | Last completed gate | **release-241 form 2026-09-29** (Kenny): kp-themes 8.0.0 and fix-13 as 2.4.1. Before that, release-240 and release-230 |
 | Next gate | **Unblock**, when the first consumer report lands. Awaited: kyu's first live supervised update once Kenny signs their v3.2.0 and the signed release reaches CT 109 (fix-3's measurement); Almanac's half of CF-12 landed 2026-09-26 and closed it. Batch 5 opens after that, because its heaviest candidate — narrowing the public surface for 3.0.0 — needs a count of what the four consumers import through `chassis::core::` and `chassis::shell::`, which only their own sessions can give (rule 6a). The four consumers adopt in their own sessions; fix-3 closes on kyu's report. The design question about a moved item is answered (Kenny, 2026-09-10): the contract keeps reading declaration paths, and the surface is narrowed at the next major instead — `pub mod core` and `pub mod shell` become `pub(crate)`, so a refactor moves nothing a consumer can name. Written down as the 3.0.0 candidate in docs/PENDING_MINI_ROUNDS.md; the refusal message now says when a break is only a move |
 | Next action | waiting on Kenny: nothing in progress here. Open measurements: fix-7, fix-8, fix-10, fix-12 runtime half, fix-13 (an open dashboard tab shows the new kp-themes after a reload). The CLI follows releases through workstation `bin/ws-tools`. Still blocked: batch 5, fix-3, helper units, h7 passkeys |
@@ -39,8 +39,10 @@ gates hold from any session or terminal. After a fresh clone, run:
 
 Commits are blocked by `.claude/hooks/check-commit.sh` unless
 `.claude/hooks/gates.sh` passes and the message carries IDs in
-brackets (`[W12]`, `[L4b]`, `[meta]`). CI re-runs the same gates on
-every push; red blocks merge.
+brackets (`[W12]`, `[L4b]`, `[meta]`). There is no GitHub Actions CI
+(3.0.0, Kenny 2026-09-29: tests and builds run locally); `scripts/release-kit.sh`
+runs the full gate — fmt, clippy, the whole suite, cargo-deny, the API
+contract, the `--version` smoke — before it tags.
 
 ## Context worth knowing before touching anything
 

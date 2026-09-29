@@ -47,6 +47,12 @@ locally, then the result is uploaded; GitHub Actions builds nothing.
 - `chassis release --poll-interval-secs` and `--max-wait-secs`.
 - `drift::REQUIRED_CHECKS`. `.chassis.toml` `required_checks` still parses,
   and `sync` reports a non-empty one until it is deleted.
+- The kit's own `.github/workflows/ci.yml`. `scripts/release-kit.sh` runs
+  its steps on this machine instead (fmt, clippy, the whole suite with
+  cargo-deny installed, the API contract, the `--version` smokes) plus
+  `cargo deny check` on the kit, and pushes the release commit straight to
+  `main` instead of through a `release-<version>` branch and a wait for its
+  checks.
 
 ### Migration
 

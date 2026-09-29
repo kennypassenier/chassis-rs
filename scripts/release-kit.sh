@@ -9,13 +9,15 @@
 #
 #   scripts/release-kit.sh 1.4.0
 #
+# Everything runs on this machine (3.0.0): the full gate below replaces CI
+# on the release commit, and nothing waits for GitHub Actions.
+#
 # Preconditions: on main, clean tree, CHANGELOG.md has a `## [X.Y.Z]`
 # section. The kit publishes no binary, so there is nothing to sign.
 set -euo pipefail
 version="${1:?usage: scripts/release-kit.sh <version>}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
-repo="kennypassenier/chassis-rs"
 
 # Kenny, 2026-09-16 (cache-safety): the commit gate skips a check whose
 # inputs did not move, and a release is where that bookkeeping is set
@@ -52,8 +54,26 @@ git fetch -q origin main
 # people develop all five, so a change is known when it is made; the check
 # cost minutes on every release and had not refused one since it was
 # demoted to informing (2026-09-10). What refuses a release stays: the
-# public-surface contract below and CI on the release commit.
+# public-surface contract below and the full gate.
 # scripts/check-consumers.sh is kept for a deliberate run by hand.
+
+# The full gate, here (3.0.0; Kenny, 2026-09-29: tests and release builds run
+# locally, GitHub Actions builds nothing). Everything the kit's CI workflow
+# ran on the release commit, in its order, plus `cargo deny check` on the kit
+# itself, which deny.toml promises. cargo-deny is required rather than
+# optional: the scaffold E2E skips its cargo-deny half without it, and CI
+# installed it so that half always ran.
+cargo deny --version >/dev/null 2>&1 || {
+  echo "release-kit: cargo-deny is not installed. What now: cargo install cargo-deny --locked" >&2
+  exit 1
+}
+echo "release-kit: gate — fmt, clippy, tests, cargo-deny, smoke"
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo deny check
+cargo run -q -p chassis-cli -- --version
+cargo run -q -p inbox -- --version
 
 # Standing rule 46, the second third (feat-api-1): the public surface is
 # compared against what is recorded, so a shape change cannot ride out in a
@@ -97,26 +117,12 @@ after="$(git rev-parse HEAD)"
 [ "$after" != "$before" ] || { echo "release-kit: the commit did not happen (gate blocked it?)"; exit 1; }
 git show --stat --oneline HEAD | grep -q 'crates/chassis/Cargo.toml' || { echo "release-kit: the release commit does not touch the crate manifest"; exit 1; }
 
-branch="release-$version"
-git push -q origin "HEAD:refs/heads/$branch"
-echo "release-kit: pushed $after as $branch; waiting for its checks (rule 6b: by SHA)"
-deadline=$((SECONDS + 1500))
-while :; do
-  json="$(gh api "repos/$repo/commits/$after/check-runs" --jq '[.check_runs[] | {status, conclusion}]' 2>/dev/null || echo '[]')"
-  total="$(echo "$json" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
-  done_ok="$(echo "$json" | python3 -c 'import json,sys; r=json.load(sys.stdin); print(int(bool(r) and all(x["status"]=="completed" and x["conclusion"]=="success" for x in r)))')"
-  failed="$(echo "$json" | python3 -c 'import json,sys; r=json.load(sys.stdin); print(int(any(x["status"]=="completed" and x["conclusion"] not in ("success",None) for x in r)))')"
-  if [ "$failed" = "1" ]; then echo "release-kit: a check failed on $after — nothing published"; exit 1; fi
-  if [ "$total" -gt 0 ] && [ "$done_ok" = "1" ]; then break; fi
-  [ $SECONDS -lt $deadline ] || { echo "release-kit: checks did not finish in time"; exit 1; }
-  sleep 30
-done
-echo "release-kit: checks green"
-
+# No release branch and no wait for checks (3.0.0): the gate above ran on
+# this tree, and the commit hook ran the gates once more on the release
+# commit. main moves by fast-forward; a push that is not one is refused.
 git push -q origin "HEAD:main"
 git fetch -q origin main
 [ "$(git rev-parse origin/main)" = "$after" ] || { echo "release-kit: origin/main is not the release commit"; exit 1; }
-git push -q origin --delete "$branch" || true
 git tag -a "v$version" "$after" -m "chassis-rs $version"
 git push -q origin "v$version"
 [ "$(git ls-remote --tags origin "v$version^{}" | cut -f1)" = "$after" ] || { echo "release-kit: the remote tag does not point at the release commit"; exit 1; }

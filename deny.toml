@@ -1,5 +1,6 @@
-# Dependency policy (T4: pragmatic, policed). Checked in CI on every push
-# and again weekly, because advisories move without our code moving.
+# Dependency policy (T4: pragmatic, policed). Checked by
+# scripts/release-kit.sh before every release (`cargo deny check`); run it by
+# hand in between, because advisories move without our code moving.
 
 [advisories]
 yanked = "deny"

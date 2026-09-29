@@ -3,7 +3,9 @@
 # clippy with warnings as errors, the full test suite across the
 # workspace, and the clean-tree check. Called by .githooks/pre-commit for
 # every commit and by .claude/hooks/check-commit.sh before Claude's
-# commits; non-zero exit blocks the commit. cargo-deny runs in CI only.
+# commits; non-zero exit blocks the commit. cargo-deny, the API contract and
+# the smoke checks run in scripts/release-kit.sh before a release (there is
+# no CI since 3.0.0).
 set -uo pipefail
 
 cd "$(git rev-parse --show-toplevel)"

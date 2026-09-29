@@ -25,15 +25,17 @@
 #   scripts/check-api.sh                compare against the contract, report
 #   scripts/check-api.sh --for 1.9.1    judge as that release would
 #   scripts/check-api.sh --write        re-freeze (a major, or the first time)
-#   scripts/check-api.sh --ci           judge as the next release would (CI)
+#   scripts/check-api.sh --ci           judge as the next release would
 #
-# --ci (Kenny, 2026-09-26, dev-procedure api-stability): CI fails when the
+# --ci (Kenny, 2026-09-26, dev-procedure api-stability): fails when the
 # surface changes in a way a caller can feel while nothing declares a major.
+# It was a CI step until 3.0.0 removed CI; a person runs it before pushing,
+# and scripts/release-kit.sh runs the stricter `--for <version>`.
 # A planned major is declared by a `## [X.0.0]` section at the top of
 # CHANGELOG.md, the same section release-kit.sh already requires with its
 # ### Migration. Any other state is judged as the next patch, which allows
-# additive items and refuses breaking ones. This is CI, not the commit hook:
-# the 2026-09-10 decision that commits stay fast still holds.
+# additive items and refuses breaking ones. Not the commit hook: the
+# 2026-09-10 decision that commits stay fast still holds.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
