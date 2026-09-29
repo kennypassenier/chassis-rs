@@ -7,6 +7,18 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed
+
+- **kp-themes 7.3.0 vendored** (from 7.2.0). Five files changed, none added
+  or removed, 22 themes as before: the bundle, `datatable.js`, `effects.js`,
+  `strings.js`, `theme-registry.js`. What a page on the kit sees: a required
+  field no longer loads red (fix-74, so kyu can drop its own `:user-invalid`
+  rule); nav-bar ghost and icon buttons use the bar's ink (fix-77/82); the
+  select picker has a width cap (fix-78); datatables get a first-load
+  spinner, a failed slot with Try again and a one-line multi-sort bar
+  (fix-80, 83, 84, 85); the effects module arms its pointer and press buses
+  on a later theme switch (fix-81). kp-themes' own fix numbers.
+
 ### Fixed
 
 - **A kp-themes bump reaches an open tab at its next reload** (fix-13; the

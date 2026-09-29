@@ -1,5 +1,5 @@
-# @kp-soft/themes v7.2.0 — lines copied verbatim from the release's own SHA256SUMS
-# (gh release download v7.2.0 --repo kennypassenier/kp-themes -p SHA256SUMS), for
+# @kp-soft/themes v7.3.0 — lines copied verbatim from the release's own SHA256SUMS
+# (gh release download v7.3.0 --repo kennypassenier/kp-themes -p SHA256SUMS), for
 # every file vendored under static/kp/ with the package's own paths kept, so the
 # relative url('../fonts/…') references and the JS import closure stay valid.
 # Checked by a unit test, so the gate holds offline: these hashes say "our copies
@@ -13,7 +13,7 @@
 # dist/kp-themes.css is the release's own bundle of themes, components, layout,
 # utilities and every register (D2, 2026-09-09) — see docs/DASHBOARD.md.
 b2c96ec9ec695d4c9f9a876a73b394d63216ed5b9f8b45f3cd735e41c3a7aab3  css/fonts.css
-78c091ec378cfb3bb452372a2b2e369b37465b6328da57b82e8768002d8678a7  dist/kp-themes.css
+085a36491e192c1c9d7b7da606b382773ff377d8e592d25d6690e021f2b116e9  dist/kp-themes.css
 108b4e57c9c796d3d38d0428ca7ee39de47ad93187302718d9b2d8864b9b716b  fonts/archivo/LICENSE
 cc013bad1c1f61f6375da91d4942ce0b2469d09667105f5fc915004609cedf54  fonts/archivo/archivo-italic-variable.woff2
 6f4f59f1d0435992e9a73541c2bd98bdf75c8145adb6b7b9cad08eb8e8a65580  fonts/archivo/archivo-variable.woff2
@@ -114,10 +114,10 @@ ddc0b1f20b241b87382b0607e0a9daf6e21dc59f32923fd1d8924dfdbb838108  js/auto.js
 8e885e47c2580cca91e4453131f1105e400e085f8610575e11c907595298eb9a  js/combobox.js
 ee3d169488fa3ed8889c321a09632f0a340d98b5d58f1c21482543b9b78ed0cb  js/components.js
 b78ed5d05265787ae563b904ed1744e9391bf9fc04ab120655988b35ea42883c  js/contrast.js
-20c0f44d89bd414e434c63a0db715e50aef96669885f8b58d51a575e1e82b9f2  js/datatable.js
+b47e440e54a0dd5bb7d5b9acec91bde411cbd5e0ba2d8858e99f585b06ed45df  js/datatable.js
 a486ab3acd94c6d8ac3fd7e3208b3d6ca9b2a876b2232d38b9dd5763834ee4d1  js/datepicker.js
 f908e34ea79601359e5d8dc594bbb72da15fbbc4117d52c6b3a28aae705f9ff6  js/diagnostics.js
-a3b39436031ee442f4898a0ff82e963a6727d69ddd665adab50525c08a5453ae  js/effects.js
+a329478b26262f0b6da23f3170c1098bfedad241dbca6eb22972d61b880c3e96  js/effects.js
 e6d13a349263dc7a64235287e16992ef6f92a435b0b44ad4426e06762ed7b276  js/effects/arrival.js
 b2de301fb33ed0b5f05f7a7357b1b9907c3f6978d1fd97e7a31fe7b026a839cb  js/effects/caret.js
 014155e0a52502f0c19cc2c10c7a50646df0db50b5c6f77cabaddf48edf26bc4  js/effects/count.js
@@ -139,12 +139,12 @@ fff96a525ff834e14f64c9b6a3a08ec4d4388fdfee03051a4e91ffc6aad8562d  js/palette.js
 5330d18f58455a8ae067e82fbade0c94be299580a4bb019b8e21db5355d1b795  js/patterns.js
 652215eada737d9f4ea383a7412279e396af9d9d784d2ce9da338ef29fc68ed1  js/remember.js
 bdd09c6e7ef740badcac2a3c9833b90dfccf17309c509cf9e8c985896d6a34a2  js/sidenav.js
-70485f90ac049e257d67c94221e907aa72ca67b5d38cbd54296e44440bbd8464  js/strings.js
+8964ed2976373088e99021afadf5a11b70e44e8cf72361087754ca93ac89868b  js/strings.js
 8c63806a3202046b0af1b09c6073d5205553868b1f634c42c3859ed287f6f0f2  js/structure.js
 6a335d7f186473e88782e4bf7f91cbf6c873b957850f9030a3d0b406f632da54  js/tables.js
 89aef0f00a870825f27a7e62ea368685092a544b09ca9f6de9d32566bf5d9429  js/theme-core.js
 231dfbdba65c10b5d66f2dcf79933635ba02c0fabbbc77d3b8523edd84d05216  js/theme-picker.js
-4d4660ffcb6cdc83065e616a9987aaac596c1cc7730ec7b7650577c82ddc5eae  js/theme-registry.js
+3c4ab2a4c1f8bed236ba8dd79913665aa463783a13a4e30def7f85617e1c350c  js/theme-registry.js
 f6fd1941181ce849b3b465a47ebaefed1a29be9f3da40cfeaf2fb1288932238d  js/top-layer.js
 6ef601ac25785afc4b71bf2f51cf69c592663f300429e1e9cbfed94e8d32ed1b  js/upload.js
 a3d1fca5d75ee3c8e3267b6ab652f412fb1bf8bb6eb1de0e4c73f9ff8b1d5120  js/wizard.js

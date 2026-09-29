@@ -123,6 +123,8 @@
  * @property {(column: string, direction: 'ascending' | 'descending', kind: string) => string} tableSortKey  One key of a multi-column sort in words; `kind` is text, number, date or order
  * @property {(keys: string[]) => string} tableSortedBy  The multi-sort summary, from the keys in order
  * @property {string} tableNotSorted
+ * @property {string} tableSortReset
+ * @property {(seconds: number) => string} tableBusyElapsed
  * @property {string} tableColumns          The column menu's button
  * @property {string} tableColumnsLabel     The column menu's name
  * @property {(column: string) => string} tableColumnLocked  A column that cannot be hidden, in the menu
@@ -390,6 +392,8 @@ export const DEFAULT_STRINGS = Object.freeze({
     },
     tableSortedBy: (keys) => `Sorted by ${keys.join(', then ')}.`,
     tableNotSorted: 'Not sorted.',
+    tableSortReset: 'Reset the sort',
+    tableBusyElapsed: (seconds) => (seconds < 60 ? `${seconds} s so far` : `${Math.floor(seconds / 60)} min ${seconds % 60} s so far`),
     tableColumns: 'Columns',
     tableColumnsLabel: 'Visible columns',
     tableColumnLocked: (column) => `${column} (always shown)`,

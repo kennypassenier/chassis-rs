@@ -642,6 +642,8 @@ const defaultFilter = (row, query) => (row.textContent ?? '').toLowerCase().incl
  * @property {(keys: readonly string[]) => void} expand  the rows to open, by key
  * @property {(density: Density) => void} density
  * @property {(state: State) => void} state  loading, failed, or ready again
+ * @property {(words?: string | null | { text?: string | null, since?: number | Date | null }) => void} busy  the status line's words while the table loads, kept across refresh(), shown only while loading, cleared with no text [fix-80]; with `since` (a time or a Date) the table counts how long it has been loading by itself, in a part the live region does not announce [fix-84]
+ * @property {(reason?: string | null) => void} fail  the failed state with the app's reason in the failed slot's words, and Try again under them; any table, not only a server's [fix-85]
  * @property {() => void} reload  ask the server again for what the table shows
  * @property {(key: string, column: number) => void} edit  open a cell's editor
  * @property {() => void} cancelEdit
@@ -897,6 +899,22 @@ export function attachDataTables(
         let sorts = [];
         /** @type {State} */
         let state = /** @type {State} */ (['loading', 'failed'].includes(wrap.dataset.kpState ?? '') ? wrap.dataset.kpState : 'ready');
+        /** The consumer's own words for the status line while it loads (busy(), fix-80); null is the dictionary's busy word. @type {string | null} */
+        let busyText = null;
+        /** Why the table failed, in the app's words (fail(), fix-85); null is the dictionary's. @type {string | null} */
+        let failReason = null;
+        /** When the load began, for a count the table keeps itself (busy({ since }), fix-84); null is no count. @type {number | null} */
+        let busySince = null;
+        /** The timer that moves that count, only while a counting table loads. @type {ReturnType<typeof setInterval> | null} */
+        let busyTimer = null;
+        /** The element the count is written into, so the tick touches nothing else. @type {HTMLElement | null} */
+        let busyClock = null;
+        const busySeconds = () => Math.max(0, Math.floor((Date.now() - /** @type {number} */ (busySince)) / 1000));
+        const stopBusyClock = () => {
+            if (busyTimer !== null) clearInterval(busyTimer);
+            busyTimer = null;
+            busyClock = null;
+        };
         /** The server's count, in a server-backed table. */
         let total = Number.parseInt(wrap.dataset.kpTotal ?? '', 10);
         const emptyWasHidden = empty?.hidden ?? false;
@@ -1255,13 +1273,28 @@ export function attachDataTables(
         // ── The multi-sort summary (#multi-sort) ───────────────────────
         /** @type {HTMLElement | null} */
         let sortSummary = null;
+        /** The opening sort, as a key, once it is known; the way back to it is shown only when the sort differs [fix-83]. @type {string | null} */
+        let openingSort = null;
         if (multi) {
             sortSummary = /** @type {HTMLElement | null} */ (wrap.querySelector(SORT_SUMMARY));
             if (sortSummary === null) {
-                sortSummary = add(make('p', 'kp-datatable__status kp-datatable__sort-summary'));
+                // A line of its own under the toolbar, one line high whatever it
+                // says. It used to be prepended to the toolbar and grew with its
+                // words, so the search shrank and moved with every key added
+                // [fix-83].
+                const line = add(make('div', 'kp-datatable__bar kp-datatable__sort-line'));
+                sortSummary = make('p', 'kp-datatable__status kp-datatable__sort-summary');
                 sortSummary.dataset.kpDatatableSortSummary = '';
                 sortSummary.setAttribute('aria-live', 'polite');
-                ensureTopBar().prepend(sortSummary);
+                line.append(sortSummary);
+                if (wrap.querySelector(SORT_RESET) === null) {
+                    const back = /** @type {HTMLButtonElement} */ (make('button', 'kp-button kp-button--ghost kp-button--sm'));
+                    back.type = 'button';
+                    back.dataset.kpDatatableSortReset = '';
+                    back.textContent = getStrings().tableSortReset;
+                    line.append(back);
+                }
+                wrap.insertBefore(line, tableBlock);
             }
         }
 
@@ -1331,13 +1364,17 @@ export function attachDataTables(
             putUnder(gridReadout);
         }
 
-        // ── A failed slot for a server-backed table that wrote none ────
-        if (serverMode && failedSlot === null) {
+        // ── A failed slot for any table that wrote none ────────────────
+        // Every table can fail, not only one that asks a server: a page that
+        // loads its own rows and calls state('failed') or fail() showed only
+        // "Showing 0 of 0" [fix-85]. The reason goes in the words.
+        if (failedSlot === null) {
             failedSlot = add(make('div', 'kp-alert kp-alert--destructive'));
             failedSlot.dataset.kpDatatableFailed = '';
             failedSlot.setAttribute('role', 'alert');
             failedSlot.hidden = true;
             const text = make('p');
+            text.dataset.kpDatatableFailedReason = '';
             text.textContent = s0.tableFailed;
             const retry = /** @type {HTMLButtonElement} */ (make('button', 'kp-button'));
             retry.type = 'button';
@@ -1571,6 +1608,10 @@ export function attachDataTables(
                 mark.textContent = String(index + 1);
                 (header.querySelector('button') ?? header).append(mark);
             });
+            if (openingSort !== null) {
+                const atOpening = JSON.stringify(sorts) === openingSort;
+                for (const back of wrap.querySelectorAll(SORT_RESET)) back.toggleAttribute('data-kp-datatable-at-opening', atOpening);
+            }
             if (sortSummary !== null) {
                 sortSummary.textContent =
                     sorts.length === 0
@@ -1584,6 +1625,8 @@ export function attachDataTables(
                                   ),
                               ),
                           );
+                // One line: the whole of it on hover when it is cut [fix-83].
+                sortSummary.title = sortSummary.textContent ?? '';
             }
         };
 
@@ -1672,17 +1715,34 @@ export function attachDataTables(
             const s = getStrings();
             if (status !== null) {
                 status.textContent = '';
-                if (state === 'loading' && all.length > 0) {
-                    // Refreshing: the old rows stay, dimmed, and a spinner says it is working [#states].
+                if (state === 'loading') {
+                    // Loading, first or again: a spinner says it is working
+                    // [#states]. It used to come only on a refresh, so a first
+                    // load that took minutes showed no sign of life [fix-80].
                     const spinner = make('span', 'kp-spinner');
                     spinner.setAttribute('aria-hidden', 'true');
                     status.append(spinner, ' ');
                 }
                 status.append(
                     state === 'loading'
-                        ? s.busy
+                        ? (busyText ?? s.busy)
                         : s.tableShowing(pageRows.length === 0 ? 0 : from + 1, from + pageRows.length, count, serverMode ? count : all.length),
                 );
+                // A count the table keeps itself, in a part the live region
+                // does not announce: a screen reader hears the words when they
+                // change, not a number every second, and the tick rewrites
+                // this one element rather than rendering the table [fix-84].
+                stopBusyClock();
+                if (state === 'loading' && busySince !== null) {
+                    busyClock = make('span', 'kp-datatable__busy-clock');
+                    busyClock.dataset.kpBusyClock = '';
+                    busyClock.setAttribute('aria-hidden', 'true');
+                    busyClock.textContent = s.tableBusyElapsed(busySeconds());
+                    status.append(' ', busyClock);
+                    busyTimer = setInterval(() => {
+                        if (busyClock !== null) busyClock.textContent = getStrings().tableBusyElapsed(busySeconds());
+                    }, 1000);
+                }
             }
             if (pager !== null) {
                 pager.textContent = '';
@@ -1694,7 +1754,19 @@ export function attachDataTables(
                 pager.append(label);
                 pager.append(pagerButton(s.next, page < pages - 1, () => (page += 1)));
             }
-            if (empty !== null) empty.hidden = count > 0 || state !== 'ready';
+            if (empty !== null) {
+                empty.hidden = count > 0 || state !== 'ready';
+                // Nothing yet, or nothing matching: each of the slot's two
+                // optional parts says its own thing and offers its own way
+                // out [fix-85].
+                const narrowing = query.trim() !== '' || filters.size > 0;
+                for (const part of empty.querySelectorAll('[data-kp-datatable-empty-none]')) /** @type {HTMLElement} */ (part).hidden = narrowing;
+                for (const part of empty.querySelectorAll('[data-kp-datatable-empty-nomatch]')) /** @type {HTMLElement} */ (part).hidden = !narrowing;
+            }
+            if (failedSlot !== null) {
+                const reason = failedSlot.querySelector('[data-kp-datatable-failed-reason]');
+                if (reason !== null) reason.textContent = failReason ?? s.tableFailed;
+            }
             // After a search or a filter the ticked row may be gone from the
             // page, and the header box must say so [gap-13].
             syncSelectAll();
@@ -2860,6 +2932,7 @@ export function attachDataTables(
             .map(({ header, at }) => ({ column: at, direction: /** @type {'ascending' | 'descending'} */ (header.getAttribute('aria-sort')) }))
             .slice(0, multi ? undefined : 1);
         sorts = initialSorts.map((key) => ({ ...key }));
+        openingSort = JSON.stringify(initialSorts);
         // A filter the markup declared as already set: `data-kp-filter-value`,
         // a list for a choice, "from,to" for a range or a date.
         for (const at of filterColumns) {
@@ -2945,6 +3018,18 @@ export function attachDataTables(
             density: setDensity,
             state: (next) => {
                 state = next;
+                if (next !== 'failed') failReason = null;
+                render();
+            },
+            fail: (reason) => {
+                failReason = reason ?? null;
+                state = 'failed';
+                render();
+            },
+            busy: (words) => {
+                const given = typeof words === 'object' && words !== null ? words : { text: words };
+                busyText = given.text ?? null;
+                busySince = given.since === undefined || given.since === null ? null : Number(given.since);
                 render();
             },
             reload: () => (serverMode ? request() : applyFilter({ keepPage: true })),
@@ -2972,6 +3057,7 @@ export function attachDataTables(
         created.push(handle);
 
         cleanups.push(() => {
+            stopBusyClock();
             clearTimeout(pending);
             controller?.abort();
             resize?.disconnect();

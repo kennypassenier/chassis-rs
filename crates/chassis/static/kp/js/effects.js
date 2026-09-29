@@ -990,12 +990,37 @@ export function attachEffects(root = document, options = {}) {
     // only save the download when the answer is certainly no.
     /** @param {string} name */
     const asked = (name) => (rootStyle ? rootStyle.getPropertyValue(name).trim() : '');
-    if (asked(CARET_KNOB) === 'block' && root.querySelector('input.kp-field__input')) run('caret', (hook) => hook.caret());
-    if (asked(POINTER_KNOB) === 'track' || asked(PRESS_KNOB) === 'point')
+    // The pointer and press buses depend on the theme, and a theme can
+    // arrive after attach: the reader switches, a lazily loaded register
+    // lands, a framework renders its own switcher. They used to be armed
+    // only if the theme active at attach asked, so dark's oxide film stood
+    // still in every app that attached before dark was on [fix-81]. Each is
+    // armed once, the first time a theme asks for it.
+    let pointerArmed = false;
+    let pressArmed = false;
+    const armThemeBuses = () => {
+        const wantPointer = !pointerArmed && asked(POINTER_KNOB) === 'track';
+        const wantPress = !pressArmed && asked(PRESS_KNOB) === 'point';
+        if (!wantPointer && !wantPress) return;
+        pointerArmed ||= wantPointer;
+        pressArmed ||= wantPress;
         run('pointer', (hook) => {
-            hook.pointerBus();
-            hook.pressBus();
+            if (wantPointer) hook.pointerBus();
+            if (wantPress) hook.pressBus();
         });
+    };
+    if (asked(CARET_KNOB) === 'block' && root.querySelector('input.kp-field__input')) run('caret', (hook) => hook.caret());
+    armThemeBuses();
+    if (rootStyle && typeof MutationObserver === 'function') {
+        const watch = new MutationObserver(() => armThemeBuses());
+        watch.observe(html, { attributes: true, attributeFilter: ['data-theme'] });
+        const onRegister = () => armThemeBuses();
+        html.addEventListener('kp-register-load', onRegister);
+        cleanups.push(() => {
+            watch.disconnect();
+            html.removeEventListener('kp-register-load', onRegister);
+        });
+    }
     if (asked(MEASURE_KNOB) === 'live' && root.querySelector(`[${HOOKS.reveal}='headline']`)) run('measure', (hook) => hook.measure());
     if (root.querySelector(`[${HOOKS.marquee}]`)) run('marquee', (hook) => hook.marquee());
     if (arrivalPerformed) run('arrival', (hook) => hook.arrival());
