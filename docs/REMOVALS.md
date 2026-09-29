@@ -21,7 +21,11 @@ Removing a row is part of the commit that removes the item.
 
 | Item | Since | Goes at | Replaced by |
 |---|---|---|---|
-| `chassis::core::clients::ClientsFile::issue` | 2.0.0 | 3.0.0 | `issue_with_fields`, which carries the project's declared client fields |
+| `chassis::core::clients::ClientsFile::issue` | 2.0.0 | 4.0.0 | `issue_with_fields`, which carries the project's declared client fields |
+
+`Goes at` moved from 3.0.0 to 4.0.0 on 2026-09-29: Kenny released 3.0.0
+for the local build path alone ("Nu als 3.0.0") and left the planned
+surface narrowing, this removal with it, for the next major.
 
 ## Nothing has been removed yet
 

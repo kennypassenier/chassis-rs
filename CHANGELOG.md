@@ -15,6 +15,11 @@ locally, then the result is uploaded; GitHub Actions builds nothing.
 
 ### Changed
 
+- **`ClientsFile::issue` now goes at 4.0.0, not 3.0.0** (docs/REMOVALS.md).
+  This major is the local build path only; the surface narrowing planned
+  for 3.0.0, this removal included, moves to the next major. Nothing a
+  consumer calls disappears in 3.0.0.
+
 - **`chassis release` gates and builds on this machine** (feat-build-2).
   It runs what the scaffold's `ci.yml` ran (fmt, clippy `-D warnings`,
   tests, `.claude/hooks/gates.project.sh` with `CHASSIS_RELEASE_GATE=1`,
