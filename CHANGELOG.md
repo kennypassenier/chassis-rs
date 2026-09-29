@@ -9,7 +9,10 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Changed
 
-- **kp-themes 7.3.0 vendored** (from 7.2.0). Five files changed, none added
+- **kp-themes 8.0.0 vendored** (from 7.2.0, through 7.3.0). 8.0.0 is the
+  theme-repo split: it drops kp-themes' `ha/`, `vscode/` and `tui/`
+  exports, none of which the kit vendors; for the kit only the version
+  stamp moved. 7.3.0 before it: Five files changed, none added
   or removed, 22 themes as before: the bundle, `datatable.js`, `effects.js`,
   `strings.js`, `theme-registry.js`. What a page on the kit sees: a required
   field no longer loads red (fix-74, so kyu can drop its own `:user-invalid`

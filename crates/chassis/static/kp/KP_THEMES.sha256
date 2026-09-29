@@ -1,5 +1,5 @@
-# @kp-soft/themes v7.3.0 — lines copied verbatim from the release's own SHA256SUMS
-# (gh release download v7.3.0 --repo kennypassenier/kp-themes -p SHA256SUMS), for
+# @kp-soft/themes v8.0.0 — lines copied verbatim from the release's own SHA256SUMS
+# (gh release download v8.0.0 --repo kennypassenier/kp-themes -p SHA256SUMS), for
 # every file vendored under static/kp/ with the package's own paths kept, so the
 # relative url('../fonts/…') references and the JS import closure stay valid.
 # Checked by a unit test, so the gate holds offline: these hashes say "our copies
@@ -13,7 +13,7 @@
 # dist/kp-themes.css is the release's own bundle of themes, components, layout,
 # utilities and every register (D2, 2026-09-09) — see docs/DASHBOARD.md.
 b2c96ec9ec695d4c9f9a876a73b394d63216ed5b9f8b45f3cd735e41c3a7aab3  css/fonts.css
-085a36491e192c1c9d7b7da606b382773ff377d8e592d25d6690e021f2b116e9  dist/kp-themes.css
+7ad5292941863d6f9d65aff59d4842c753ad2c12d75700e5cb34891e2a3b1dfb  dist/kp-themes.css
 108b4e57c9c796d3d38d0428ca7ee39de47ad93187302718d9b2d8864b9b716b  fonts/archivo/LICENSE
 cc013bad1c1f61f6375da91d4942ce0b2469d09667105f5fc915004609cedf54  fonts/archivo/archivo-italic-variable.woff2
 6f4f59f1d0435992e9a73541c2bd98bdf75c8145adb6b7b9cad08eb8e8a65580  fonts/archivo/archivo-variable.woff2
@@ -144,7 +144,7 @@ bdd09c6e7ef740badcac2a3c9833b90dfccf17309c509cf9e8c985896d6a34a2  js/sidenav.js
 6a335d7f186473e88782e4bf7f91cbf6c873b957850f9030a3d0b406f632da54  js/tables.js
 89aef0f00a870825f27a7e62ea368685092a544b09ca9f6de9d32566bf5d9429  js/theme-core.js
 231dfbdba65c10b5d66f2dcf79933635ba02c0fabbbc77d3b8523edd84d05216  js/theme-picker.js
-3c4ab2a4c1f8bed236ba8dd79913665aa463783a13a4e30def7f85617e1c350c  js/theme-registry.js
+493f61fc7ea5d59315d96481dca4ce8b781dd17b671b4f3907b6bd7e9e187f1c  js/theme-registry.js
 f6fd1941181ce849b3b465a47ebaefed1a29be9f3da40cfeaf2fb1288932238d  js/top-layer.js
 6ef601ac25785afc4b71bf2f51cf69c592663f300429e1e9cbfed94e8d32ed1b  js/upload.js
 a3d1fca5d75ee3c8e3267b6ab652f412fb1bf8bb6eb1de0e4c73f9ff8b1d5120  js/wizard.js
