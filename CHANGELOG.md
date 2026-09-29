@@ -5,7 +5,11 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
-## [Unreleased]
+## [2.4.1] - 2026-09-29
+
+A patch: kp-themes 8.0.0 behind `/static/kp/`, and unhashed kit assets
+revalidate instead of caching for a day (fix-13), so the new themes reach an
+open tab at its next reload.
 
 ### Changed
 

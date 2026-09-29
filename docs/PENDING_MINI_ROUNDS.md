@@ -2697,3 +2697,8 @@ interrupting it had dirtied kyu's lockfile that morning): four of four
 source ok. Standing rule 46's consumer half now applies to chassis-rs only
 by hand.
 
+## Kenny's answer: release 2.4.1 (2026-09-29)
+
+release-241 "Nu uitbrengen als 2.4.1": kp-themes (7.3.0, then 8.0.0, which
+changed only the version stamp for the kit) and fix-13 go out together.
+
