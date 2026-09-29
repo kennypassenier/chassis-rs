@@ -5,6 +5,17 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
+## [Unreleased]
+
+### Fixed
+
+- **A kp-themes bump reaches an open tab at its next reload** (fix-13; the
+  homelab dashboard thread, 2026-09-29). `/static/…` URLs without the
+  `?v=` hash (a font reached from `fonts.css`, a module a project's app
+  imports from `/static/kp/js/`) were cached for a day; they now get
+  `no-cache` with a strong `ETag`, and an unchanged file answers 304.
+  Hashed URLs keep a year, `immutable`.
+
 ## [2.4.0] - 2026-09-28
 
 A minor: an optional gate in front of every route, and live streams that

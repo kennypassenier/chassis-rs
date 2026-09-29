@@ -39,7 +39,7 @@ project's entries in registration order.
 | `GET /clients` | admin | The clients table with the row controls below. |
 | `GET/POST /api/clients`, `/api/clients/{id}/{reissue,revoke,token,requests,test}`, `DELETE /api/clients/{id}` | admin | The JSON the buttons call. |
 | `GET /passkeys`, `/passkeys/*`, `/api/passkeys*` | admin (login/start+finish: anyone) | Only over HTTPS via a trusted proxy; else 404 with a remedy. |
-| `GET /static/{*name}` | anyone | Embedded assets: `Cache-Control: public, max-age=31536000, immutable` when the URL carries the `?v=<hash>` the layout adds, `public, max-age=86400` for a font reached from `fonts.css` without it. |
+| `GET /static/{*name}` | anyone | Embedded assets: `Cache-Control: public, max-age=31536000, immutable` when the URL carries the `?v=<hash>` the layout adds, `no-cache` with a strong `ETag` (304 when unchanged) for a URL without it, such as a font reached from `fonts.css` or a module a project's app imports (fix-13). |
 
 An anonymous browser on an admin route is redirected to `/login` (303);
 a **client token** on an admin route gets a JSON 401 `a client token

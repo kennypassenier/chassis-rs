@@ -18,7 +18,7 @@
 //! tests.
 
 use axum::extract::{Path, RawQuery};
-use axum::http::{StatusCode, header};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 /// The kp-themes version the kit vendors (C3: one place).
@@ -631,24 +631,50 @@ pub fn fnv_version<'a>(parts: impl Iterator<Item = (&'a str, &'a [u8])>) -> Stri
 
 /// `GET /static/{name}`.
 pub async fn serve(Path(name): Path<String>, RawQuery(query): RawQuery) -> Response {
-    // The layout links every asset with `?v=<content hash>`, so those URLs
-    // may be cached for a year. Fonts are reached from inside fonts.css
-    // without the hash; a kp-themes bump can change them under the same
-    // name, so those get a day.
+    serve_conditional(Path(name), RawQuery(query), HeaderMap::new()).await
+}
+
+/// `GET /static/{name}` with revalidation (fix-13). The layout links every
+/// asset with `?v=<content hash>`, so those URLs may be cached for a year.
+/// A URL without it — a font reached from inside fonts.css, a project's app
+/// importing `/static/kp/js/…` — gets `no-cache` and a strong `ETag`, and an
+/// unchanged file answers 304: a kp-themes bump reaches an open tab at its
+/// next reload, where the old one-day cache kept the old files for a day.
+pub async fn serve_conditional(
+    Path(name): Path<String>,
+    RawQuery(query): RawQuery,
+    headers: HeaderMap,
+) -> Response {
     let versioned = query.as_deref().is_some_and(|q| q.contains("v="));
-    let cache = if versioned {
-        "public, max-age=31536000, immutable"
-    } else {
-        "public, max-age=86400"
+    let Some((_, ct, body)) = all_assets().find(|(n, _, _)| *n == name) else {
+        return (StatusCode::NOT_FOUND, "no such asset").into_response();
     };
-    match all_assets().find(|(n, _, _)| *n == name) {
-        Some((_, ct, body)) => (
-            [(header::CONTENT_TYPE, *ct), (header::CACHE_CONTROL, cache)],
+    if versioned {
+        return (
+            [
+                (header::CONTENT_TYPE, *ct),
+                (header::CACHE_CONTROL, "public, max-age=31536000, immutable"),
+            ],
             *body,
         )
-            .into_response(),
-        None => (StatusCode::NOT_FOUND, "no such asset").into_response(),
+            .into_response();
     }
+    let etag = format!("\"{}\"", fnv_version(std::iter::once(("", *body))));
+    let unchanged = headers
+        .get(header::IF_NONE_MATCH)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.split(',').any(|t| t.trim() == etag));
+    let mut res = if unchanged {
+        StatusCode::NOT_MODIFIED.into_response()
+    } else {
+        ([(header::CONTENT_TYPE, *ct)], *body).into_response()
+    };
+    let h = res.headers_mut();
+    h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    if let Ok(v) = HeaderValue::from_str(&etag) {
+        h.insert(header::ETAG, v);
+    }
+    res
 }
 
 #[cfg(test)]
@@ -815,15 +841,32 @@ mod tests {
             res.headers()["cache-control"],
             "public, max-age=31536000, immutable"
         );
-        // A font reached from inside fonts.css carries no hash: a day, not a year.
+        // fix-13: a URL without the hash (a font reached from fonts.css, a
+        // project app importing /static/kp/js/…) is revalidated on every
+        // load, so a kp-themes bump reaches an open tab at its next reload
+        // instead of a day later.
         let res = serve(
             Path("kp/fonts/instrumentsans/instrumentsans-variable.woff2".into()),
             RawQuery(None),
         )
         .await;
         assert_eq!(res.status(), StatusCode::OK);
-        assert_eq!(res.headers()["cache-control"], "public, max-age=86400");
+        assert_eq!(res.headers()["cache-control"], "no-cache");
         assert_eq!(res.headers()["content-type"], "font/woff2");
+        let etag = res.headers()["etag"].to_str().unwrap().to_string();
+        let mut again = HeaderMap::new();
+        again.insert(header::IF_NONE_MATCH, etag.parse().unwrap());
+        let res = serve_conditional(
+            Path("kp/fonts/instrumentsans/instrumentsans-variable.woff2".into()),
+            RawQuery(None),
+            again,
+        )
+        .await;
+        assert_eq!(
+            res.status(),
+            StatusCode::NOT_MODIFIED,
+            "unchanged: no body again"
+        );
         assert_eq!(
             serve(Path("../etc/passwd".into()), RawQuery(None))
                 .await

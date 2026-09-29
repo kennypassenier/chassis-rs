@@ -708,3 +708,32 @@ Reported by kyu; the cause of fix-9.
 8. **The fallback if it fails.** fix-9's message names the owner and the fix.
 9. **When we review it.** At the retrospective of batch 5.
 
+## fix-13 · Unhashed kit assets were cached for a day (2026-09-29)
+
+Reported by the homelab dashboard thread before Kenny's next kp-themes
+update.
+
+1. **What went wrong.** `/static/kp/*` without `?v=` answered
+   `Cache-Control: public, max-age=86400`. The kit's own layout hashes its
+   links, but fonts are reached from `fonts.css` and a project's app
+   (feat-webapp-1) imports `/static/kp/js/…` directly, so after a kp-themes
+   bump an open tab kept the old styles and modules for up to a day.
+2. **Which gate let it through.** The one-day rule was written when only
+   fonts arrived unhashed; `webapp` (2.3.0) made every module arrive that
+   way, and nobody revisited the cache rule.
+3. **Where the same fault sits.** The property: **a served file whose URL
+   does not change when its bytes do, cached without revalidation.**
+   `Gezocht met:` `grep -rn 'max-age' crates/chassis/src` — the kit's
+   `/static` handler only; `/app` already sent `no-cache` + `ETag`.
+4. **How we prevent recurrence.** Unhashed `/static` URLs get `no-cache` and
+   a strong `ETag`; a matching `If-None-Match` answers 304.
+5. **What the remedy costs.** One conditional request per unhashed asset per
+   page load, answered with an empty 304 on a LAN.
+6. **Who enforces it.** `serve_sets_immutable_cache_and_404s_unknown`, seen
+   failing first.
+7. **How we measure that it works, and when.** At the next kp-themes bump in
+   a released kit: an open dashboard tab shows the new styles after a reload.
+8. **The fallback if it fails.** Put the kp-themes version in the path
+   (`/static/kp/<version>/…`).
+9. **When we review it.** At the retrospective of batch 5.
+

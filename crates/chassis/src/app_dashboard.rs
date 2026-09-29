@@ -228,7 +228,7 @@ pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
     let pages_public = Router::new()
         .route("/login", get(dashboard::login_get))
         // `{*name}`: the vendored fonts live under `static/fonts/…` (S8).
-        .route("/static/{*name}", get(assets::serve))
+        .route("/static/{*name}", get(assets::serve_conditional))
         .with_state(dash.clone());
     let login = Router::new()
         .route("/login", post(dashboard::login_post))
