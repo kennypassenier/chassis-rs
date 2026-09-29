@@ -737,3 +737,35 @@ update.
    (`/static/kp/<version>/…`).
 9. **When we review it.** At the retrospective of batch 5.
 
+## fix-14 · `chassis sync --write` dropped a project's unit directive (2026-09-29)
+
+Reported by the local-builds thread after http-switchboard's 3.0.0 sync.
+
+1. **What went wrong.** `deploy/<name>.service` is kit-owned and rendered
+   whole; http-switchboard had added `ExecReload=/bin/kill -HUP $MAINPID`
+   (its feat-reload-1) by hand, and `sync --write` removed it. Restored by
+   hand in http-switchboard `06639a1`; plain `sync` still called it drift.
+2. **Which gate let it through.** The unit had no place for a project's
+   own lines, and `--write` overwrote a kit-owned file without looking at
+   what it removed.
+3. **Where the same fault sits.** The property: **a kit-owned rendered file
+   a project has a legitimate reason to extend.** `Gezocht met:` `grep -n
+   'rendered(' crates/chassis-cli/src/templates.rs` — `deny.toml` already
+   takes the project's part from `.chassis.toml` (`deny_ignore`), the other
+   rendered files carry nothing a project adds; the two unit templates did
+   not.
+4. **How we prevent recurrence.** `unit_service` in `.chassis.toml`, rendered
+   after `ExecStart=` in both unit templates; `--write` refuses a unit whose
+   directives the render would drop, names them and the key.
+5. **What the remedy costs.** One record key; `--force` is needed to drop a
+   line on purpose.
+6. **Who enforces it.** `a_projects_own_unit_directive_is_never_dropped_by_sync`
+   (drilled red with the guard off) and
+   `dropped_directives_are_lines_not_comments_or_sections`.
+7. **How we measure that it works, and when.** http-switchboard records its
+   line as `unit_service` on the release carrying fix-14; the next
+   `chassis sync` reports the unit in sync and `--write` keeps `ExecReload=`.
+8. **The fallback if it fails.** Make `deploy/<name>.service` project-owned
+   like the hooks.
+9. **When we review it.** At the retrospective of batch 5.
+

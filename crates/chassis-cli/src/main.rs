@@ -70,6 +70,12 @@ struct Recorded {
     /// into the kit-owned `deny.toml`, so a sync keeps them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     deny_ignore: Vec<String>,
+    /// fix-14: the project's own `[Service]` directives (http-switchboard's
+    /// `ExecReload=/bin/kill -HUP $MAINPID`), rendered into the kit-owned
+    /// unit after `ExecStart=`, so `sync --write` keeps them. A comment
+    /// line (`# …`) may explain one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    unit_service: Vec<String>,
     /// Obsolete since 3.0.0: the CI checks `main` waited for, when the
     /// project ran fewer jobs than the kit's `ci.yml` (Kenny, 2026-09-25).
     /// The kit ships no CI any more, so there is nothing to require; still
@@ -123,6 +129,7 @@ impl Recorded {
             env_file => self.env_file(),
             latch_env_flag => self.latch_env_flag(),
             deny_ignore => self.deny_ignore.clone(),
+            unit_service => self.unit_service.clone(),
             release_pubkey => RELEASE_PUBKEY,
             vmid => self.vmid,
             stack => self.name,
@@ -431,6 +438,20 @@ fn render_all(
     Ok(out)
 }
 
+/// fix-14: directive lines (`Key=value`, not comments) in the project's
+/// unit that the rendered unit does not contain.
+fn dropped_unit_directives(current: &str, rendered: &str) -> Vec<String> {
+    let kept: std::collections::HashSet<&str> = rendered.lines().map(str::trim).collect();
+    current
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#') && !l.starts_with(';'))
+        .filter(|l| !l.starts_with('[') && l.contains('='))
+        .filter(|l| !kept.contains(l))
+        .map(str::to_string)
+        .collect()
+}
+
 fn render_str(name: &str, src: &str, ctx: &minijinja::Value) -> Result<String, Error> {
     let mut env = minijinja::Environment::new();
     env.set_keep_trailing_newline(true);
@@ -541,6 +562,7 @@ fn cmd_new(
         env_file: None,
         latch_env: None,
         deny_ignore: Vec::new(),
+        unit_service: Vec::new(),
         required_checks: Vec::new(),
         vmid: 0,
         name,
@@ -841,6 +863,30 @@ fn cmd_sync(
         if owned && !force && dir.join(&rel).exists() {
             println!(
                 "~ {rel} (project-owned; differs from the scaffold, left alone — use --write --force to overwrite)"
+            );
+            continue;
+        }
+        // fix-14: a unit directive the project added and the record does not
+        // carry would vanish on --write. Refuse that file, name the lines and
+        // where they belong, unless --force says to drop them.
+        let dropped = if rel.starts_with("deploy/") && rel.ends_with(".service") {
+            dropped_unit_directives(&current, &body)
+        } else {
+            Vec::new()
+        };
+        if !dropped.is_empty() && !force {
+            changed = true;
+            unresolved = true;
+            println!(
+                "! {rel}: the project's own directives would be lost by --write, so it is left alone:"
+            );
+            for line in &dropped {
+                println!("    {line}");
+            }
+            let quoted: Vec<String> = dropped.iter().map(|l| format!("{l:?}")).collect();
+            println!(
+                "  What now: add them to .chassis.toml as unit_service = [{}], then sync again (--write --force drops them instead)",
+                quoted.join(", ")
             );
             continue;
         }
@@ -1546,6 +1592,7 @@ mod tests {
             env_file: None,
             latch_env: None,
             deny_ignore: Vec::new(),
+            unit_service: Vec::new(),
             required_checks: Vec::new(),
             vmid: 0,
         }
@@ -2060,6 +2107,73 @@ chassis = { git = "g", tag = "v1.8.0", version = "1.8.0", features = ["testing"]
                 v("2.0.0")
             )
             .is_ok()
+        );
+    }
+
+    /// fix-14: a directive the project added to its unit survives
+    /// `sync --write` once it is recorded, and until then --write leaves the
+    /// unit alone instead of dropping it (http-switchboard's ExecReload,
+    /// removed by 3.0.0's sync).
+    #[test]
+    fn a_projects_own_unit_directive_is_never_dropped_by_sync() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("demo-svc");
+        cmd_new(
+            "demo-svc".into(),
+            "A demo".into(),
+            None,
+            Some(target.clone()),
+            true,
+            None,
+            Some("v0.1.0".into()),
+            false,
+        )
+        .unwrap();
+        let unit_path = target.join("deploy/demo-svc.service");
+        let reload = "ExecReload=/bin/kill -HUP $MAINPID";
+        let unit = std::fs::read_to_string(&unit_path).unwrap();
+        let edited = unit.replacen("Restart=always", &format!("{reload}\nRestart=always"), 1);
+        std::fs::write(&unit_path, &edited).unwrap();
+
+        // Not recorded yet: --write refuses this file and keeps the line.
+        let out = cmd_sync(&target, true, false, false, false).unwrap();
+        assert!(out.unresolved, "the refusal is drift that is still there");
+        assert!(
+            std::fs::read_to_string(&unit_path)
+                .unwrap()
+                .contains(reload)
+        );
+
+        // Recorded: the kit renders it, and the project is in sync.
+        let toml_path = target.join(".chassis.toml");
+        let toml = std::fs::read_to_string(&toml_path).unwrap();
+        std::fs::write(&toml_path, format!("{toml}unit_service = [\"{reload}\"]\n")).unwrap();
+        cmd_sync(&target, true, false, false, false).unwrap();
+        let after = std::fs::read_to_string(&unit_path).unwrap();
+        assert!(after.contains(reload), "{after}");
+        assert!(
+            !cmd_sync(&target, false, false, false, false)
+                .unwrap()
+                .changed,
+            "recorded and rendered: nothing left to report"
+        );
+        // --force still means what it says.
+        std::fs::write(&toml_path, &toml).unwrap();
+        cmd_sync(&target, true, true, false, false).unwrap();
+        assert!(
+            !std::fs::read_to_string(&unit_path)
+                .unwrap()
+                .contains(reload)
+        );
+    }
+
+    #[test]
+    fn dropped_directives_are_lines_not_comments_or_sections() {
+        let current = "[Service]\n# a note\nExecStart=/x\nExecReload=/bin/kill -HUP $MAINPID\n";
+        let rendered = "[Service]\nExecStart=/x\n";
+        assert_eq!(
+            dropped_unit_directives(current, rendered),
+            ["ExecReload=/bin/kill -HUP $MAINPID"]
         );
     }
 

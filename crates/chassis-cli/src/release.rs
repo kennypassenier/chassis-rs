@@ -512,6 +512,7 @@ mod tests {
             env_file: None,
             latch_env: None,
             deny_ignore: Vec::new(),
+            unit_service: Vec::new(),
             required_checks: Vec::new(),
             vmid: 0,
         }

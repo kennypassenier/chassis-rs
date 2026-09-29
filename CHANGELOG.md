@@ -5,6 +5,19 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
+## [Unreleased]
+
+### Fixed
+
+- **`chassis sync --write` no longer drops a project's own unit directive**
+  (fix-14; http-switchboard, 2026-09-29). 3.0.0's sync rewrote
+  `deploy/http-switchboard.service` from the scaffold and removed its
+  `ExecReload=/bin/kill -HUP $MAINPID` (feat-reload-1). A project now
+  records such lines in `.chassis.toml` as `unit_service = ["…"]`; the
+  scaffold renders them after `ExecStart=`, so sync keeps them. A directive
+  in the unit that the record lacks makes `--write` leave that file alone
+  and name the line and the key (`--write --force` still drops it).
+
 ## [3.0.0] - 2026-09-29
 
 A **major (3.0.0)**: the scaffold's file set changes (the two GitHub Actions

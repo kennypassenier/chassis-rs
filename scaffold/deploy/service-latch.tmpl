@@ -21,7 +21,8 @@ EnvironmentFile={{ env_file }}
 WorkingDirectory={{ state_dir }}
 ExecStartPre=/usr/local/bin/latch run{{ latch_env_flag }} -- /opt/{{ name }}/bin/{{ name }} --check
 ExecStart=/usr/local/bin/latch run{{ latch_env_flag }} -- /opt/{{ name }}/bin/{{ name }}
-Restart=always
+{% for line in unit_service %}{{ line }}
+{% endfor %}Restart=always
 RestartSec=5s
 KillSignal=SIGTERM
 TimeoutStopSec=60
