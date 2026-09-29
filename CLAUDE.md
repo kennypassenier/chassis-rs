@@ -52,4 +52,8 @@ every push; red blocks merge.
 - The Homelab Rust session answered eight questions about what the
   homelab expects (update_cmd contract, /healthz version field, state
   root, unit hardening); the answers are folded into SCOPE.md.
+- **Standing go (Kenny, 2026-09-29):** a request that is ONLY a kp-themes
+  update may be vendored and released without a release form. Anything
+  else in the same release still needs his go; a bump that forces a change
+  a consumer can feel stops and asks.
 - Session title convention: `🏗️ chassis-rs - Fase <N> - <phase name>`.
