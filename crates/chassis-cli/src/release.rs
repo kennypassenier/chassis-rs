@@ -101,26 +101,53 @@ pub fn cargo_plugin_available(dir: &Path, sub: &str) -> bool {
         .is_ok_and(|s| s.success())
 }
 
+/// Kenny, 2026-09-29: "drie keer dezelfde testrun is dom, dat moet naar
+/// één". The scaffold's pre-commit hook stamps the tree its gates saw green
+/// (`~/Projects/workstation/bin/gate-stamp`); when HEAD's clean tree is that
+/// tree, fmt, clippy and the tests have run on it already. A missing helper
+/// or any failure means "not fresh", so the gate runs.
+fn gate_stamp_fresh(dir: &Path) -> bool {
+    let Some(home) = std::env::var_os("HOME") else {
+        return false;
+    };
+    let helper = Path::new(&home).join("Projects/workstation/bin/gate-stamp");
+    helper.is_file()
+        && std::process::Command::new(&helper)
+            .arg("fresh")
+            .current_dir(dir)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
+}
+
 /// Everything the scaffold's `ci.yml` ran, in its order, on this machine.
 ///
 /// The three required jobs (gates, cargo-deny, container build) refuse the
 /// release; coverage was informational in CI (`continue-on-error: true`) and
 /// stays informational here: it reports and never stops.
 pub fn gate(dir: &Path, rec: &Recorded) -> Result<(), Error> {
-    // Job `fmt · clippy · tests`.
-    step(
-        dir,
-        "format check",
-        "cargo",
-        &["fmt", "--all", "--", "--check"],
-    )?;
-    step(
-        dir,
-        "clippy (warnings are errors)",
-        "cargo",
-        &["clippy", "--all-targets", "--", "-D", "warnings"],
-    )?;
-    step(dir, "tests", "cargo", &["test"])?;
+    // Job `fmt · clippy · tests`, unless the commit gate already ran it on
+    // exactly this tree (one full test run per release).
+    if gate_stamp_fresh(dir) {
+        println!(
+            "chassis release: fmt · clippy · tests already green on this tree at commit (gate-stamp); not run again"
+        );
+    } else {
+        step(
+            dir,
+            "format check",
+            "cargo",
+            &["fmt", "--all", "--", "--check"],
+        )?;
+        step(
+            dir,
+            "clippy (warnings are errors)",
+            "cargo",
+            &["clippy", "--all-targets", "--", "-D", "warnings"],
+        )?;
+        step(dir, "tests", "cargo", &["test"])?;
+    }
     let project_gates = dir.join(".claude/hooks/gates.project.sh");
     if is_executable(&project_gates) {
         step_env(

@@ -5,7 +5,7 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
-## [Unreleased]
+## [3.0.0] - 2026-09-29
 
 A **major (3.0.0)**: the scaffold's file set changes (the two GitHub Actions
 workflows are gone and `chassis sync --write` deletes them from a project),
@@ -28,6 +28,14 @@ locally, then the result is uploaded; GitHub Actions builds nothing.
   (title = tag, the workflow's body "built locally from `<sha>`",
   `--latest=false`, fix-10 unchanged) and run `scripts/sign-release.sh`.
   No release branch, no waiting on check runs or on a Release run.
+- **One full test run per release.** Kenny, 2026-09-29: "drie keer
+  dezelfde testrun is dom, dat moet naar één". The scaffold's pre-commit
+  hook goes through `~/Projects/workstation/bin/gate-stamp`: a commit that
+  only moves the version lines (the one `chassis release` makes) skips the
+  suite, and a green gate stamps the tree it tested. `chassis release` (and
+  the kit's own `scripts/release-kit.sh`) skip fmt, clippy and the tests
+  when HEAD's clean tree is that stamped tree. Without workstation, or on
+  any doubt, everything runs as before.
 - **`--dry-run` runs the gate and every build** on the bumped version and
   stops before any commit, tag, push or upload, putting `Cargo.toml` and
   `Cargo.lock` back. The old print-only behaviour is `--plan`.

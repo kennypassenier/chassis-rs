@@ -68,9 +68,16 @@ cargo deny --version >/dev/null 2>&1 || {
   exit 1
 }
 echo "release-kit: gate — fmt, clippy, tests, cargo-deny, smoke"
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features
+# One full test run per release (Kenny, 2026-09-29): skipped when the commit
+# gate already saw exactly this tree green (workstation/bin/gate-stamp).
+gate_stamp="$HOME/Projects/workstation/bin/gate-stamp"
+if [ -x "$gate_stamp" ] && "$gate_stamp" fresh; then
+  echo "release-kit: fmt · clippy · tests already green on this tree at commit (gate-stamp)"
+else
+  cargo fmt --all -- --check
+  cargo clippy --workspace --all-targets --all-features -- -D warnings
+  cargo test --workspace --all-features
+fi
 cargo deny check
 cargo run -q -p chassis-cli -- --version
 cargo run -q -p inbox -- --version
