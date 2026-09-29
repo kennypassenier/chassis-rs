@@ -5,6 +5,70 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
+## [Unreleased]
+
+A **major (3.0.0)**: the scaffold's file set changes (the two GitHub Actions
+workflows are gone and `chassis sync --write` deletes them from a project),
+and `chassis release` changes what it needs on the machine it runs on. The
+Rust API is unchanged. Kenny, 2026-09-29: tests and release builds run
+locally, then the result is uploaded; GitHub Actions builds nothing.
+
+### Changed
+
+- **`chassis release` gates and builds on this machine** (feat-build-2).
+  It runs what the scaffold's `ci.yml` ran (fmt, clippy `-D warnings`,
+  tests, `.claude/hooks/gates.project.sh` with `CHASSIS_RELEASE_GATE=1`,
+  `--version`, `cargo deny check all`, the image build with its `--version`
+  and closed-port `--healthcheck` smoke, coverage as information), bumps and
+  commits through the hooks, tags locally, and builds what `release.yml`
+  built: the static musl binary in the same `rust:<toolchain>-slim-trixie`
+  docker invocation, refused on any `=>` in `ldd`, `dist/<name>` +
+  `dist/SHA256SUMS`, and `ghcr.io/<repo>:v<version>` + `:latest`. Only then
+  does it push main and the tag, push the image, create the GitHub release
+  (title = tag, the workflow's body "built locally from `<sha>`",
+  `--latest=false`, fix-10 unchanged) and run `scripts/sign-release.sh`.
+  No release branch, no waiting on check runs or on a Release run.
+- **`--dry-run` runs the gate and every build** on the bumped version and
+  stops before any commit, tag, push or upload, putting `Cargo.toml` and
+  `Cargo.lock` back. The old print-only behaviour is `--plan`.
+- **The release preflight** no longer requires `.github/workflows/ci.yml`
+  (fix-5's check is retired with the workflow); it refuses a project without
+  a `Dockerfile` or `scripts/sign-release.sh`, and a tag that exists here or
+  on origin.
+- **Branch protection**: `chassis sync --protect` sets no required checks
+  (none can arrive) and keeps "no force-push, no deletion"; `--remote`
+  reports every required check as drift.
+
+### Removed
+
+- `scaffold/.github/workflows/ci.yml` and `release.yml`. `chassis sync`
+  reports both as obsolete in a project that still has them; `--write`
+  removes them, and `.github/workflows` once it is empty.
+- `chassis release --poll-interval-secs` and `--max-wait-secs`.
+- `drift::REQUIRED_CHECKS`. `.chassis.toml` `required_checks` still parses,
+  and `sync` reports a non-empty one until it is deleted.
+
+### Migration
+
+Per project, after installing the 3.0.0 `chassis` CLI:
+
+1. `chassis upgrade 3.0.0`, then `chassis sync --write`: the two workflow
+   files go; `deny.toml`, `rust-toolchain.toml`, `.claude/hooks/gates.sh`
+   and `scripts/sign-release.sh` change only in comments and messages.
+2. Delete `required_checks` from `.chassis.toml` if present.
+3. `chassis sync --protect` once, so `main` stops requiring
+   `fmt · clippy · tests`, which no job produces any more.
+4. On the release machine: `docker login ghcr.io -u <owner>` with a token
+   that has `write:packages` (the push no longer uses the workflow's
+   `GITHUB_TOKEN`), and `cargo install cargo-deny --locked`.
+   `cargo-llvm-cov` is optional.
+5. A project gate that keyed a heavier check on `CI=true` reads
+   `CHASSIS_RELEASE_GATE=1` instead.
+6. Scripts that polled CI or the Release workflow, and runbooks that say
+   "the Release workflow builds …", point at `chassis release <version>`
+   (`--dry-run` to rehearse). Before: `chassis release 1.2.0 --max-wait-secs
+   2400`. After: `chassis release 1.2.0`.
+
 ## [2.4.1] - 2026-09-29
 
 A patch: kp-themes 8.0.0 behind `/static/kp/`, and unhashed kit assets

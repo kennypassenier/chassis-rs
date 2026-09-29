@@ -35,7 +35,7 @@ file, login, tokens, health, metrics, shutdown — is the kit's.
 chassis new inbox --description "Clients post JSON messages"   # scaffold + repo
 chassis sync                                                    # diff against the current scaffold
 chassis sync --remote                                           # …and compare branch protection (needs gh)
-chassis release 0.2.0                                           # bump, tag, wait for CI, sign, upload
+chassis release 0.2.0                                           # gate, bump, tag, build, publish, sign — all local
 chassis clients issue alertmanager --url http://10.10.10.13:8080 --token-env SWITCHBOARD_TOKEN
                                                                 # a client token without a browser
 ```
@@ -46,16 +46,25 @@ files) and then the drift that is not a file (K32): the kit tag
 `Cargo.toml` pins against `.chassis.toml`'s `chassis_tag` (a path
 dependency is noted, not drift), `.chassis.toml`'s `kp_themes` against the
 kp-themes version this kit vendors (`--write` corrects the record; the kit
-is the source of truth there), and with `--remote` the checks `main`'s
-branch protection requires against the scaffold's CI job names, plus
-`strict` and `enforce_admins` (`--protect` repairs). Every such difference
+is the source of truth there), the two GitHub Actions workflows an older kit
+wrote (obsolete since 3.0.0; `--write` removes them), and with `--remote`
+`main`'s branch protection against what `--protect` sets: no required
+checks (there is no CI), not strict, admins not enforced. Every such difference
 is one line, `! <what>: <project value> vs <expected> — <remedy>`, printed
 next to the file diffs (`kp_themes` first, because that record feeds
 the rendered files such as `docs/KIT.md`). Exit 0 = in sync (or every difference applied with
 `--write`); exit 1 = drift found and not applied, or the command itself
 could not run (unparseable file, missing tool — stderr carries the remedy).
-Without `--remote` sync needs no network and no token, so a CI job can run
+Without `--remote` sync needs no network and no token, so a script can run
 it as a drift check; `--remote` is the only part that needs `gh` and a login.
+
+`release` runs on this machine from start to finish (3.0.0): the gate the
+CI workflow used to run (fmt, clippy, tests, the project's own gates,
+`--version`, cargo-deny, the image smoke, coverage as information), the
+bump, commit and tag, then the static musl binary, `SHA256SUMS` and the
+image, and only then the pushes, the GitHub release (not `latest` until
+signed) and `scripts/sign-release.sh`. `--dry-run` stops after the builds;
+`--plan` prints the steps.
 
 Every project also carries `docs/KIT.md`: what it gets from the kit — the
 door (tokens, the two secrets), the dashboard pages, `/healthz` and

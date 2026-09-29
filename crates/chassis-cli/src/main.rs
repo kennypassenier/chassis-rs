@@ -8,12 +8,15 @@
 //! - `sync`: render the current scaffold with the recorded inputs and show
 //!   a unified diff per kit-owned file, then report the drift that is not a
 //!   file (K32: kit tag vs `Cargo.toml`, `kp_themes` vs what the kit
-//!   vendors, and with `--remote` branch protection vs the CI job names);
-//!   `--write` applies; `--protect` turns on branch protection once CI has
-//!   run (rule 6a).
-//! - `release <version>`: bump, changelog, commit, tag, push, wait for the
-//!   tag's Release run, then sign and upload with `scripts/sign-release.sh`.
-//!   `--dry-run` prints every external command instead of running it.
+//!   vendors, files the kit no longer ships, and with `--remote` branch
+//!   protection vs what the kit sets); `--write` applies; `--protect` sets
+//!   branch protection (no required checks since 3.0.0: there is no CI).
+//! - `release <version>`: the full gate on this machine, bump, changelog,
+//!   commit, tag, the static binary + `SHA256SUMS` + image built here, push,
+//!   GitHub release, then sign and upload with `scripts/sign-release.sh`
+//!   (3.0.0: nothing runs on GitHub Actions; see `release.rs`).
+//!   `--dry-run` runs the gate and builds every asset, then stops before
+//!   any commit, tag, push or upload; `--plan` prints the steps only.
 //! - `clients <verb>`: manage a running service's client tokens over its
 //!   own `/api/clients` (K30), for services without a dashboard operator
 //!   at hand; see `clients.rs`.
@@ -26,6 +29,7 @@
 mod clients;
 mod drift;
 mod kit_docs;
+mod release;
 mod templates;
 
 use std::path::{Path, PathBuf};
@@ -66,12 +70,11 @@ struct Recorded {
     /// into the kit-owned `deny.toml`, so a sync keeps them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     deny_ignore: Vec<String>,
-    /// The CI checks `main` must wait for, when the project runs fewer
-    /// jobs than the kit's `ci.yml` (Kenny, 2026-09-25). Empty = all of
-    /// `drift::REQUIRED_CHECKS`. Each entry must be one of those names;
-    /// `sync --remote` compares against this list and `sync --protect`
-    /// sets it, so a project that moved cargo-deny and the image build to
-    /// its release tier is not told to require checks its CI never runs.
+    /// Obsolete since 3.0.0: the CI checks `main` waited for, when the
+    /// project ran fewer jobs than the kit's `ci.yml` (Kenny, 2026-09-25).
+    /// The kit ships no CI any more, so there is nothing to require; still
+    /// read so an old record parses, and `sync` reports a non-empty list as
+    /// drift until the line is deleted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     required_checks: Vec<String>,
     /// The LXC's vmid (1.7.1): `service.yml` names it and the hostname
@@ -86,34 +89,6 @@ impl Recorded {
         self.env_file
             .clone()
             .unwrap_or_else(|| format!("/etc/{0}/{0}.env", self.name))
-    }
-
-    /// The checks `main` must wait for: the project's own list, or the kit's.
-    /// Refuses a name no CI job of the kit produces, since protection that
-    /// requires it would leave `main` waiting forever.
-    fn required_checks(&self) -> Result<Vec<String>, Error> {
-        if self.required_checks.is_empty() {
-            return Ok(drift::REQUIRED_CHECKS
-                .iter()
-                .map(|c| c.to_string())
-                .collect());
-        }
-        if let Some(unknown) = self
-            .required_checks
-            .iter()
-            .find(|c| !drift::REQUIRED_CHECKS.contains(&c.as_str()))
-        {
-            return Err(Error::config(
-                format!(
-                    ".chassis.toml required_checks names `{unknown}`, which is not a kit CI job"
-                ),
-                format!(
-                    "use names from the kit's ci.yml: {}",
-                    drift::REQUIRED_CHECKS.join(", ")
-                ),
-            ));
-        }
-        Ok(self.required_checks.clone())
     }
 
     /// ` --env <x>` for the latch unit, or nothing when `latch_env` is "" (M2).
@@ -239,27 +214,27 @@ enum Cmd {
         /// Also rewrite project-owned files (Cargo.toml, src/main.rs, README, CHANGELOG)
         #[arg(long)]
         force: bool,
-        /// Enable branch protection on main requiring the CI checks (needs gh)
+        /// Set branch protection on main: no force-push, no deletion, no required checks (needs gh)
         #[arg(long)]
         protect: bool,
-        /// Also compare main's branch protection with the CI job names (needs gh; sync is offline without it)
+        /// Also compare main's branch protection with what --protect sets (needs gh; sync is offline without it)
         #[arg(long)]
         remote: bool,
     },
-    /// Bump, tag, wait for CI, sign and upload the release
+    /// Gate, bump, tag, build, publish, sign and upload the release, all from this machine
+    #[command(
+        long_about = "Release the project from this machine (3.0.0). Runs the full gate the kit's CI workflow used to run (fmt, clippy -D warnings, tests, .claude/hooks/gates.project.sh, --version, cargo deny, the image build with its --version and --healthcheck smoke, coverage as information), bumps Cargo.toml and CHANGELOG.md, commits through the hooks and tags, then builds what the release workflow used to build: the static musl binary in rust:<toolchain>-slim-trixie, refused on any dynamic link, dist/<name> + dist/SHA256SUMS, and the image ghcr.io/<repo>:v<version> + :latest. Then it pushes main and the tag, pushes the image, creates the GitHub release without taking `latest`, and runs scripts/sign-release.sh, which signs, uploads SHA256SUMS.minisig and VERSION and marks the release latest. Needs git, cargo, cargo-deny, docker (logged in to ghcr.io with write:packages), gh and minisign."
+    )]
     Release {
         version: String,
         #[arg(long, default_value = ".")]
         dir: PathBuf,
-        /// Print the external commands instead of running them
-        #[arg(long)]
+        /// Run the gate and build every asset (binary, SHA256SUMS, image), then stop: no commit, tag, push or upload
+        #[arg(long, conflicts_with = "plan")]
         dry_run: bool,
-        /// Seconds between polls of the release run
-        #[arg(long, default_value_t = 15)]
-        poll_interval_secs: u64,
-        /// Give up waiting for the release run after this many seconds
-        #[arg(long, default_value_t = 1800)]
-        max_wait_secs: u64,
+        /// Print every step without running any of them (no gate, no build)
+        #[arg(long)]
+        plan: bool,
     },
     /// Move a project to another kit version: the record, both dependency lines, cargo, the gates
     #[command(
@@ -320,9 +295,8 @@ fn main() -> ExitCode {
             version,
             dir,
             dry_run,
-            poll_interval_secs,
-            max_wait_secs,
-        } => cmd_release(&dir, &version, dry_run, poll_interval_secs, max_wait_secs),
+            plan,
+        } => cmd_release(&dir, &version, dry_run, plan),
         Cmd::Upgrade {
             version,
             dir,
@@ -671,7 +645,7 @@ fn cmd_new(
         )?;
         println!("created https://github.com/{} and pushed main", rec.repo);
         println!(
-            "What now: after the first CI run is green, `chassis sync --protect` turns on branch protection (rule 6a)."
+            "What now: `chassis sync --protect` protects main against a force-push or a deletion (no required checks: the gates run locally)."
         );
     }
     println!(
@@ -882,6 +856,39 @@ fn cmd_sync(
             println!("  written");
         }
     }
+    // 3.0.0: files the kit wrote once and ships no more. They are kit-owned,
+    // so a sync that only stopped writing them would leave them running —
+    // a CI workflow nobody waits for and a release workflow racing the
+    // local build for the same tag.
+    for obsolete in drift::OBSOLETE_FILES {
+        let path = dir.join(obsolete.path);
+        if !path.exists() {
+            continue;
+        }
+        changed = true;
+        unresolved |= !write;
+        println!("{}", obsolete.drift());
+        if write {
+            std::fs::remove_file(&path).map_err(|e| io_err(&path, e))?;
+            // An emptied `.github/workflows` (and `.github`) goes too; one
+            // that still holds a project's own workflow stays.
+            let mut parent = path.parent();
+            while let Some(p) = parent {
+                if p == dir || std::fs::remove_dir(p).is_err() {
+                    break;
+                }
+                parent = p.parent();
+            }
+            println!("  removed");
+        }
+    }
+    if let Some(d) = drift::required_checks_drift(&rec.required_checks) {
+        // .chassis.toml keeps its comments, and the line usually carries one
+        // explaining it; deleting it is left to the person reading this.
+        drifted = true;
+        unresolved = true;
+        println!("{d}");
+    }
     // K32: the remaining drift that is not a file, after the diffs and in one shape.
     let dep = drift::kit_dependency(&cargo)?;
     if let drift::KitDependency::Path(path) = &dep {
@@ -897,7 +904,7 @@ fn cmd_sync(
         println!("{d}");
     }
     if remote {
-        for d in drift::remote_drift(&rec.repo, &rec.required_checks()?)? {
+        for d in drift::remote_drift(&rec.repo)? {
             drifted = true;
             // --protect repairs the protection right after this; without it
             // the difference is only reported.
@@ -923,12 +930,12 @@ fn cmd_sync(
 
 fn protect_main(rec: &Recorded) -> Result<(), Error> {
     require_tool("gh", "install the GitHub CLI and run `gh auth login`")?;
-    let checks = rec.required_checks()?;
     let body = serde_json::json!({
-        "required_status_checks": { "strict": true, "contexts": checks },
-        // Admins push straight to main when they choose (Kenny, 2026-09-10);
-        // the required check still gates every other path. See
+        // 3.0.0: no required checks. The gates run on this machine before a
+        // commit and before a release; a required check no workflow produces
+        // would leave every non-admin path to main waiting forever. See
         // drift::Protection::expected.
+        "required_status_checks": null,
         "enforce_admins": false,
         "required_pull_request_reviews": null,
         "restrictions": null,
@@ -963,59 +970,146 @@ fn protect_main(rec: &Recorded) -> Result<(), Error> {
                 "branch protection was refused: {}",
                 String::from_utf8_lossy(&out.stderr).trim()
             ),
-            "the CI checks must have run at least once on this repository first (rule 6a); push a commit and retry",
+            "is gh logged in with admin rights on this repository (`gh auth status`)? Then retry",
         ));
     }
     // Rule 13a: read it back.
-    let read = Command::new("gh")
-        .args(["api", &endpoint, "--jq", ".required_status_checks.contexts"])
-        .output()
-        .map_err(|e| Error::dependency(format!("gh api failed: {e}"), "retry"))?;
-    println!(
-        "branch protection on {} main now requires: {}",
-        rec.repo,
-        String::from_utf8_lossy(&read.stdout).trim()
-    );
+    match drift::fetch_protection(&rec.repo)? {
+        Some(actual) => {
+            let left = drift::protection_drift(&drift::Protection::expected(), &actual);
+            if !left.is_empty() {
+                for d in &left {
+                    println!("{d}");
+                }
+                return Err(Error::dependency(
+                    "branch protection was written but reads back different",
+                    "run `gh api repos/<owner>/<name>/branches/main/protection` and compare with the lines above",
+                ));
+            }
+            println!(
+                "branch protection on {} main: no force-push, no deletion, no required checks",
+                rec.repo
+            );
+        }
+        None => {
+            return Err(Error::dependency(
+                "branch protection was written but main reads back unprotected",
+                "retry; if it persists, set it in the repository's branch settings",
+            ));
+        }
+    }
     Ok(())
 }
 
 // ───────────────────────── release ─────────────────────────
 
-fn cmd_release(
-    dir: &Path,
-    version: &str,
-    dry_run: bool,
-    poll_interval: u64,
-    max_wait: u64,
-) -> Result<(), Error> {
+/// Every step of a release, in order, as the commands it runs.
+fn release_plan(rec: &Recorded, v: &str, tag: &str) -> Vec<String> {
+    let [image_tag, image_latest] = release::image_tags(&rec.repo, tag);
+    vec![
+        "gate: cargo fmt --all -- --check · cargo clippy --all-targets -- -D warnings · cargo test · .claude/hooks/gates.project.sh (when present) · cargo run -q -- --version".into(),
+        format!("gate: cargo deny check all · docker build -t {0}:ci . · docker run --rm {0}:ci --version · --healthcheck must refuse a closed port · cargo llvm-cov --summary-only (informational)", rec.name),
+        format!("write Cargo.toml version = \"{v}\" and a {v} section in CHANGELOG.md; cargo update -w"),
+        format!("git commit -am 'chore(release): {v} [meta]' && git tag {tag}   # the commit runs the project's hooks"),
+        format!("check: tag {tag} names the version Cargo.toml says"),
+        format!("docker run … rust:{}-slim-trixie cargo build --release --locked --target {} → dist/{} + dist/SHA256SUMS; refuse any `=>` in ldd", rec.toolchain, release::MUSL_TARGET, rec.name),
+        format!("docker build -t {image_tag} -t {image_latest} . && docker run --rm {image_tag} --version"),
+        format!("git push origin HEAD:main && git push origin {tag}"),
+        format!("docker push {image_tag} && docker push {image_latest}"),
+        format!("gh {}", release::release_create_args(rec, tag).join(" ")),
+        format!("scripts/sign-release.sh {tag}   # minisign asks for the key password; uploads .minisig then VERSION, then marks it latest"),
+    ]
+}
+
+fn cmd_release(dir: &Path, version: &str, dry_run: bool, plan: bool) -> Result<(), Error> {
     let rec = read_recorded(dir)?;
     let v = chassis::core::update::Version::parse(version)?;
     let tag = format!("v{v}");
-    check_release_files(dir, &format!("release-{v}"))?;
+    check_release_files(dir)?;
+    if plan {
+        let cargo_path = dir.join("Cargo.toml");
+        let cargo = std::fs::read_to_string(&cargo_path).map_err(|e| io_err(&cargo_path, e))?;
+        let changelog = std::fs::read_to_string(dir.join("CHANGELOG.md")).unwrap_or_default();
+        check_major_has_migration(&changelog, current_version(&cargo)?, v)?;
+        println!(
+            "checked: .chassis.toml present · Dockerfile and scripts/sign-release.sh present · Migration section on a major"
+        );
+        println!(
+            "plan for {} {tag} (nothing below runs with --plan; --dry-run runs the gate and the builds):",
+            rec.name
+        );
+        for s in release_plan(&rec, &v.to_string(), &tag) {
+            println!("  {s}");
+        }
+        return Ok(());
+    }
+
+    // 0. Everything the release needs, before it changes anything.
+    require_tool("git", "install git")?;
+    require_tool(
+        "docker",
+        "install docker (the release binary and the image are built in containers)",
+    )?;
+    if !release::cargo_plugin_available(dir, "deny") {
+        return Err(Error::config(
+            "`cargo deny` is not available on this machine",
+            "cargo install cargo-deny --locked (the release gate runs it, as CI did)",
+        ));
+    }
     if !dry_run {
-        require_tool("git", "install git")?;
         require_tool("gh", "install the GitHub CLI and run `gh auth login`")?;
         require_tool(
             "minisign",
             "install minisign (the signing key stays on this machine)",
         )?;
-        let status = capture(dir, "git", &["status", "--porcelain"])?;
-        if !status.trim().is_empty() {
-            return Err(Error::invalid(
-                "the working tree is not clean",
-                "commit or stash first; a release is cut from a committed tree",
-            ));
-        }
-        let branch = capture(dir, "git", &["rev-parse", "--abbrev-ref", "HEAD"])?;
-        if branch.trim() != "main" {
+    }
+    // Clean in both modes: a dry run puts Cargo.toml and Cargo.lock back
+    // afterwards, which is only safe over a tree that held nothing else.
+    let status = capture(dir, "git", &["status", "--porcelain"])?;
+    if !status.trim().is_empty() {
+        return Err(Error::invalid(
+            "the working tree is not clean",
+            "commit or stash first; a release is cut from a committed tree",
+        ));
+    }
+    let branch = capture(dir, "git", &["rev-parse", "--abbrev-ref", "HEAD"])?;
+    if branch.trim() != "main" {
+        if !dry_run {
             return Err(Error::invalid(
                 format!("on branch `{}`, not main", branch.trim()),
                 "release from main so the tag lands on the mainline (PROCEDURE: tag the merge commit)",
             ));
         }
+        println!(
+            "chassis release: dry run on branch `{}`; a real release refuses anything but main",
+            branch.trim()
+        );
     }
-
-    // 1. Bump Cargo.toml and the changelog.
+    if capture(
+        dir,
+        "git",
+        &["rev-parse", "-q", "--verify", &format!("refs/tags/{tag}")],
+    )
+    .is_ok()
+    {
+        return Err(Error::invalid(
+            format!("tag {tag} already exists here"),
+            "pick the next version; a released tag is never moved",
+        ));
+    }
+    if !dry_run {
+        let remote = capture(
+            dir,
+            "git",
+            &["ls-remote", "--tags", "origin", &format!("refs/tags/{tag}")],
+        )?;
+        if !remote.trim().is_empty() {
+            return Err(Error::invalid(
+                format!("tag {tag} already exists on origin"),
+                "pick the next version; a released tag is never moved",
+            ));
+        }
+    }
     let cargo_path = dir.join("Cargo.toml");
     let cargo = std::fs::read_to_string(&cargo_path).map_err(|e| io_err(&cargo_path, e))?;
     let current = current_version(&cargo)?;
@@ -1023,81 +1117,133 @@ fn cmd_release(
     let changelog_path = dir.join("CHANGELOG.md");
     let changelog = std::fs::read_to_string(&changelog_path).unwrap_or_default();
     check_major_has_migration(&changelog, current, v)?;
-    let dated = release_changelog(&changelog, &v.to_string(), &today());
-    let steps = [
-        format!("git commit -am 'chore(release): {v} [meta]'"),
-        format!(
-            "git push origin HEAD:refs/heads/release-{v}   # CI must be green before main moves (rule 6)"
-        ),
-        format!(
-            "wait for the checks of that commit, then: git push origin HEAD:main && git push origin --delete release-{v}"
-        ),
-        format!("git tag {tag} && git push origin {tag}"),
-        format!(
-            "wait for the Release workflow run whose head_branch == {tag} (poll every {poll_interval}s, at most {max_wait}s)"
-        ),
-        format!(
-            "scripts/sign-release.sh {tag}   # minisign asks for the key password; uploads .minisig then VERSION"
-        ),
-    ];
-    if dry_run {
-        println!(
-            "checked: .chassis.toml present · CI runs on a push to the release branch · Dockerfile present where release.yml builds an image · Migration section on a major"
-        );
-        println!(
-            "dry run: would write Cargo.toml version = \"{v}\" and a {v} section in CHANGELOG.md, then:"
-        );
-        for s in &steps {
-            println!("  {s}");
-        }
-        return Ok(());
-    }
+
+    // 1. The gate: everything the kit's CI workflow ran, on this tree.
+    release::gate(dir, &rec)?;
+
+    // 2. Bump Cargo.toml (and, for real, the changelog). A dry run builds
+    // the bumped version too, so the binary and the image it proves answer
+    // with the version being released, and then puts both files back.
+    let lock_path = dir.join("Cargo.lock");
+    let _restore = dry_run.then(|| Restore::snapshot(&[&cargo_path, &lock_path]));
     std::fs::write(&cargo_path, bumped).map_err(|e| io_err(&cargo_path, e))?;
-    std::fs::write(&changelog_path, dated).map_err(|e| io_err(&changelog_path, e))?;
+    if !dry_run {
+        let dated = release_changelog(&changelog, &v.to_string(), &today());
+        std::fs::write(&changelog_path, dated).map_err(|e| io_err(&changelog_path, e))?;
+    }
     // The lock file must carry the new version or the gates refuse the tree (rule 7).
     run(dir, "cargo", &["update", "-w", "--offline"], true)
         .or_else(|_| run(dir, "cargo", &["update", "-w"], false))?;
 
-    // 2. Commit through the gates, push a work branch, wait, fast-forward.
-    run(
-        dir,
-        "git",
-        &["commit", "-qam", &format!("chore(release): {v} [meta]")],
-        false,
-    )?;
+    // 3. Commit through the hooks and tag, locally. Nothing leaves this
+    // machine until every asset is built and verified.
+    if !dry_run {
+        run(
+            dir,
+            "git",
+            &["commit", "-qam", &format!("chore(release): {v} [meta]")],
+            false,
+        )?;
+        run(dir, "git", &["tag", &tag], false)?;
+    }
     let sha = capture(dir, "git", &["rev-parse", "HEAD"])?
         .trim()
         .to_string();
-    let work = format!("release-{v}");
-    run(
-        dir,
-        "git",
-        &["push", "-q", "origin", &format!("HEAD:refs/heads/{work}")],
-        false,
-    )?;
-    println!("pushed {sha} as {work}; waiting for its checks");
-    wait_for_checks(&rec.repo, &sha, poll_interval, max_wait)?;
-    run(dir, "git", &["push", "-q", "origin", "HEAD:main"], false)?;
-    let _ = run(
-        dir,
-        "git",
-        &["push", "-q", "origin", "--delete", &work],
-        true,
+    let undo = format!(
+        "nothing was pushed. Undo the local release with `git tag -d {tag} && git reset --hard HEAD~1`, fix it, and run `chassis release {v}` again"
     );
+    let built = (|| -> Result<[String; 2], Error> {
+        // release.yml's first step: the tag names the version Cargo.toml says.
+        let at_tag = if dry_run {
+            std::fs::read_to_string(&cargo_path).map_err(|e| io_err(&cargo_path, e))?
+        } else {
+            capture(dir, "git", &["show", &format!("{tag}:Cargo.toml")])?
+        };
+        release::check_tag_matches(&tag, &current_version(&at_tag)?.to_string())?;
+        // 4. What release.yml built: the static binary, SHA256SUMS, the image.
+        release::build_binary(dir, &rec)?;
+        let images = release::build_image(dir, &rec, &tag)?;
+        release::write_notes(dir, &sha)?;
+        Ok(images)
+    })();
+    let images = match built {
+        Ok(images) => images,
+        Err(e) if !dry_run => {
+            return Err(Error::dependency(
+                e.message,
+                format!("{} — {undo}", e.remedy),
+            ));
+        }
+        Err(e) => return Err(e),
+    };
 
-    // 3. Tag the commit on main, push the tag, wait for the Release run.
-    run(dir, "git", &["tag", &tag], false)?;
+    if dry_run {
+        println!("chassis release: dry run for {tag} complete. Built and verified:");
+        println!(
+            "  dist/{}  dist/SHA256SUMS  (static, no dynamic links)",
+            rec.name
+        );
+        println!("  {}  {}", images[0], images[1]);
+        println!("Cargo.toml and Cargo.lock are back as they were. A real release would now:");
+        println!(
+            "  write the {v} section in CHANGELOG.md, git commit -am 'chore(release): {v} [meta]', git tag {tag}"
+        );
+        println!("  git push origin HEAD:main && git push origin {tag}");
+        println!("  docker push {} && docker push {}", images[0], images[1]);
+        println!(
+            "  gh {}",
+            release::release_create_args(&rec, &tag).join(" ")
+        );
+        println!(
+            "  scripts/sign-release.sh {tag}   # minisign asks for the key password; uploads .minisig then VERSION"
+        );
+        return Ok(());
+    }
+
+    // 5. Publish: main, the tag, the image, the release.
+    run(dir, "git", &["push", "-q", "origin", "HEAD:main"], false).map_err(|e| {
+        Error::dependency(
+            e.message,
+            format!("main did not move (is origin/main ahead of this checkout?); {undo}"),
+        )
+    })?;
     run(dir, "git", &["push", "-q", "origin", &tag], false)?;
-    println!(
-        "tagged {tag}; waiting for the Release workflow (critic #15: by head_branch, never by sha)"
-    );
-    wait_for_release_run(&rec.repo, &tag, poll_interval, max_wait)?;
+    println!("chassis release: pushed {sha} to main and tagged it {tag}");
+    release::publish(dir, &rec, &tag, &images)?;
 
-    // 4. Sign locally and upload .minisig before VERSION. Interactive: minisign
+    // 6. Sign locally and upload .minisig before VERSION. Interactive: minisign
     // prints its password prompt and must be seen where there is a terminal.
     run_interactive(dir, "scripts/sign-release.sh", &[&tag])?;
     println!("released {} {tag}", rec.name);
     Ok(())
+}
+
+/// A dry run's promise to leave the tree as it found it: the bumped files
+/// are put back byte for byte when the release returns, success or not.
+struct Restore {
+    files: Vec<(PathBuf, Option<Vec<u8>>)>,
+}
+
+impl Restore {
+    fn snapshot(paths: &[&Path]) -> Self {
+        Self {
+            files: paths
+                .iter()
+                .map(|p| (p.to_path_buf(), std::fs::read(p).ok()))
+                .collect(),
+        }
+    }
+}
+
+impl Drop for Restore {
+    fn drop(&mut self) {
+        for (path, bytes) in &self.files {
+            let _ = match bytes {
+                Some(b) => std::fs::write(path, b),
+                None => std::fs::remove_file(path),
+            };
+        }
+    }
 }
 
 fn current_version(cargo_toml: &str) -> Result<chassis::core::update::Version, Error> {
@@ -1119,177 +1265,22 @@ fn current_version(cargo_toml: &str) -> Result<chassis::core::update::Version, E
     ))
 }
 
-/// CF-6 (2026-09-06): the release must satisfy the workflow it is about to
-/// trigger. kyu-runner's first v0.2.0 run failed on a Dockerfile that the
-/// image job expected and the repository did not have — one tag deleted and
-/// re-created. So: when `.github/workflows/release.yml` builds an image, a
-/// `Dockerfile` must exist, and the dry run says so before any tag.
-/// fix-5: would this workflow run for a push to `branch`?
-///
-/// `chassis release` pushes a `release-<version>` branch and waits for that
-/// commit's checks. A workflow triggering only on `main` produces none, so the
-/// wait runs to its timeout and the Actions tab has nothing to show — half an
-/// hour spent on checks that could never arrive (kyu-runner, 2026-09-10,
-/// CF-17). This reads just enough of the `on:` block to answer that one
-/// question; anything it cannot understand is read as "covered", so an unusual
-/// workflow is never refused on a guess.
-fn ci_runs_on_push_to(workflow: &str, branch: &str) -> bool {
-    let mut in_on = false;
-    let mut push_indent: Option<usize> = None;
-    let mut list_indent: Option<usize> = None;
-    let mut push_seen = false;
-    let mut allow: Vec<String> = Vec::new();
-    let mut ignore: Vec<String> = Vec::new();
-    let mut collecting_ignore = false;
-
-    for line in workflow.lines() {
-        let body = line.trim_start();
-        if body.is_empty() || body.starts_with('#') {
-            continue;
-        }
-        let indent = line.len() - body.len();
-
-        if indent == 0 {
-            in_on = body.starts_with("on:");
-            push_indent = None;
-            list_indent = None;
-            if in_on {
-                // The one-line forms carry no branch filter at all:
-                // `on: push`, `on: [push, pull_request]`.
-                let rest = body["on:".len()..].trim();
-                if !rest.is_empty() {
-                    return rest.contains("push");
-                }
-            }
-            continue;
-        }
-        if !in_on {
-            continue;
-        }
-
-        if let Some(li) = list_indent {
-            if indent > li && body.starts_with("- ") {
-                let pat = unquote(body[2..].trim());
-                if collecting_ignore {
-                    ignore.push(pat);
-                } else {
-                    allow.push(pat);
-                }
-                continue;
-            }
-            list_indent = None;
-        }
-
-        if let Some(pi) = push_indent
-            && indent <= pi
-        {
-            push_indent = None;
-        }
-
-        if body.starts_with("push:") && push_indent.is_none() {
-            push_seen = true;
-            push_indent = Some(indent);
-            continue;
-        }
-
-        let Some(pi) = push_indent else { continue };
-        if indent <= pi {
-            continue;
-        }
-        for (key, into_ignore) in [("branches-ignore:", true), ("branches:", false)] {
-            if let Some(rest) = body.strip_prefix(key) {
-                collecting_ignore = into_ignore;
-                let rest = rest.trim();
-                if rest.is_empty() {
-                    list_indent = Some(indent);
-                } else {
-                    for pat in rest.trim_matches(['[', ']']).split(',') {
-                        let pat = unquote(pat.trim());
-                        if pat.is_empty() {
-                            continue;
-                        }
-                        if into_ignore {
-                            ignore.push(pat);
-                        } else {
-                            allow.push(pat);
-                        }
-                    }
-                }
-                break;
-            }
-        }
-    }
-
-    if !push_seen {
-        return false;
-    }
-    if ignore.iter().any(|p| branch_matches(p, branch)) {
-        return false;
-    }
-    allow.is_empty() || allow.iter().any(|p| branch_matches(p, branch))
-}
-
-fn unquote(s: &str) -> String {
-    s.trim_matches(['\'', '"']).to_string()
-}
-
-/// GitHub's branch filter globbing, in the two forms a workflow uses: `*`
-/// stops at a `/`, `**` does not.
-fn branch_matches(pattern: &str, branch: &str) -> bool {
-    fn go(p: &[u8], b: &[u8]) -> bool {
-        match p.first() {
-            None => b.is_empty(),
-            Some(b'*') => {
-                let (rest, crosses_slash) = if p.get(1) == Some(&b'*') {
-                    (&p[2..], true)
-                } else {
-                    (&p[1..], false)
-                };
-                for i in 0..=b.len() {
-                    if !crosses_slash && b[..i].contains(&b'/') {
-                        break;
-                    }
-                    if go(rest, &b[i..]) {
-                        return true;
-                    }
-                }
-                false
-            }
-            Some(c) => !b.is_empty() && b[0] == *c && go(&p[1..], &b[1..]),
-        }
-    }
-    go(pattern.as_bytes(), branch.as_bytes())
-}
-
-fn check_release_files(dir: &Path, work_branch: &str) -> Result<(), Error> {
-    // fix-5: refuse before the push rather than after the wait.
-    let ci = dir.join(".github/workflows/ci.yml");
-    match std::fs::read_to_string(&ci) {
-        Ok(w) if !ci_runs_on_push_to(&w, work_branch) => {
-            return Err(Error::config(
-                format!(
-                    ".github/workflows/ci.yml does not run on a push to `{work_branch}`, and that is the branch this release pushes and waits for"
-                ),
-                "run `chassis sync --write` to take the kit's workflow (it triggers on every branch), or add the branch to the push filter; without it the wait ends in a timeout and the Actions tab shows no run at all",
-            ));
-        }
-        Ok(_) => {}
-        Err(_) => {
-            return Err(Error::config(
-                "the repository has no .github/workflows/ci.yml, so a release has no checks to wait for",
-                "run `chassis sync --write` to add the kit's CI workflow, then release again",
-            ));
-        }
-    }
-
-    let workflow = dir.join(".github/workflows/release.yml");
-    let builds_image = std::fs::read_to_string(&workflow)
-        .map(|w| w.contains("build-push-action") || w.contains("docker build"))
-        .unwrap_or(false);
-    if builds_image && !dir.join("Dockerfile").exists() {
+/// CF-6 (2026-09-06): a release builds the container image, so a project
+/// without a `Dockerfile` is refused before anything is gated, bumped or
+/// tagged (kyu-runner's first v0.2.0 lost a tag to exactly that). Since
+/// 3.0.0 the image is always built, here, so the check no longer depends on
+/// what a workflow file happens to say, and no CI workflow is required.
+fn check_release_files(dir: &Path) -> Result<(), Error> {
+    if !dir.join("Dockerfile").exists() {
         return Err(Error::config(
-            "release.yml builds a container image but the repository has no Dockerfile",
-            "run `chassis sync --write` to add the scaffold Dockerfile (and .dockerignore), or remove the image job from release.yml",
+            "the release builds a container image but the repository has no Dockerfile",
+            "run `chassis sync --write` to add the scaffold Dockerfile (and .dockerignore)",
+        ));
+    }
+    if !dir.join("scripts/sign-release.sh").exists() {
+        return Err(Error::config(
+            "the release ends with scripts/sign-release.sh, and the repository has none",
+            "run `chassis sync --write` to add the scaffold's sign script",
         ));
     }
     Ok(())
@@ -1374,87 +1365,6 @@ fn chrono_free_today() -> String {
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if m <= 2 { y + 1 } else { y };
     format!("{y:04}-{m:02}-{d:02}")
-}
-
-fn wait_for_checks(repo: &str, sha: &str, poll: u64, max_wait: u64) -> Result<(), Error> {
-    let started = std::time::Instant::now();
-    loop {
-        let out = capture(
-            Path::new("."),
-            "gh",
-            &[
-                "api",
-                &format!("repos/{repo}/commits/{sha}/check-runs"),
-                "--jq",
-                "[.check_runs[] | {name, status, conclusion}]",
-            ],
-        )?;
-        let runs: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap_or_default();
-        let required: Vec<&serde_json::Value> = runs
-            .iter()
-            .filter(|r| !r["name"].as_str().unwrap_or("").contains("informational"))
-            .collect();
-        let all_done = !required.is_empty() && required.iter().all(|r| r["status"] == "completed");
-        if all_done {
-            if required.iter().all(|r| r["conclusion"] == "success") {
-                return Ok(());
-            }
-            return Err(Error::dependency(
-                format!("a required check failed on {sha}: {out}"),
-                "fix it, commit, and run `chassis release` again; the tag was not pushed",
-            ));
-        }
-        if started.elapsed().as_secs() > max_wait {
-            return Err(Error::dependency(
-                format!("checks on {sha} did not finish within {max_wait}s"),
-                "look at the Actions tab; rerun `chassis release` once they are green",
-            ));
-        }
-        std::thread::sleep(std::time::Duration::from_secs(poll));
-    }
-}
-
-fn wait_for_release_run(repo: &str, tag: &str, poll: u64, max_wait: u64) -> Result<(), Error> {
-    let started = std::time::Instant::now();
-    loop {
-        let out = capture(
-            Path::new("."),
-            "gh",
-            &[
-                "run",
-                "list",
-                "--repo",
-                repo,
-                "--workflow",
-                "Release",
-                "--branch",
-                tag,
-                "--limit",
-                "1",
-                "--json",
-                "status,conclusion",
-            ],
-        )?;
-        let runs: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap_or_default();
-        if let Some(r) = runs.first()
-            && r["status"] == "completed"
-        {
-            if r["conclusion"] == "success" {
-                return Ok(());
-            }
-            return Err(Error::dependency(
-                format!("the Release run for {tag} ended with {}", r["conclusion"]),
-                "open the Actions tab, fix the workflow or the build, and re-run the workflow for the tag; then run `scripts/sign-release.sh` by hand",
-            ));
-        }
-        if started.elapsed().as_secs() > max_wait {
-            return Err(Error::dependency(
-                format!("no completed Release run for {tag} within {max_wait}s"),
-                "check the Actions tab; when the run is green, `scripts/sign-release.sh` finishes the release",
-            ));
-        }
-        std::thread::sleep(std::time::Duration::from_secs(poll));
-    }
 }
 
 // ───────────────────────── processes ─────────────────────────
@@ -1618,51 +1528,6 @@ mod fix_7_tests {
 }
 
 #[cfg(test)]
-mod fix_5_tests {
-    use super::*;
-
-    const KIT_CI: &str = include_str!("../../../scaffold/.github/workflows/ci.yml");
-
-    #[test]
-    fn fix_5_the_kit_workflow_covers_the_release_branch() {
-        assert!(ci_runs_on_push_to(KIT_CI, "release-1.2.3"));
-    }
-
-    #[test]
-    fn fix_5_a_main_only_workflow_does_not() {
-        let w = "name: CI\non:\n  push:\n    branches: [main]\n  pull_request:\njobs: {}\n";
-        assert!(!ci_runs_on_push_to(w, "release-1.2.3"));
-        assert!(ci_runs_on_push_to(w, "main"));
-    }
-
-    #[test]
-    fn fix_5_a_block_list_naming_the_pattern_does() {
-        let w = "on:\n  push:\n    branches:\n      - main\n      - 'release-*'\njobs: {}\n";
-        assert!(ci_runs_on_push_to(w, "release-1.2.3"));
-    }
-
-    #[test]
-    fn fix_5_push_without_a_branch_filter_covers_everything() {
-        assert!(ci_runs_on_push_to(
-            "on:\n  push:\njobs: {}\n",
-            "release-1.2.3"
-        ));
-        assert!(ci_runs_on_push_to(
-            "on: [push, pull_request]\njobs: {}\n",
-            "release-1.2.3"
-        ));
-    }
-
-    #[test]
-    fn fix_5_a_workflow_that_never_runs_on_push_is_refused() {
-        assert!(!ci_runs_on_push_to(
-            "on:\n  pull_request:\njobs: {}\n",
-            "release-1.2.3"
-        ));
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1770,22 +1635,10 @@ mod tests {
                 && get("deploy/service.yml").contains("--wait --pipe --collect")
         );
         assert!(get("Dockerfile").contains("DEMO_SVC_LISTEN"));
-        let release_yml = get(".github/workflows/release.yml");
-        let token_lines: Vec<&str> = release_yml
-            .lines()
-            .filter(|l| l.contains("GITHUB_TOKEN") || l.contains("github.actor"))
-            .collect();
-        assert!(
-            release_yml.contains("${{ secrets.GITHUB_TOKEN }}"),
-            "GitHub expressions survive the template engine: {token_lines:?}"
-        );
         assert!(get("scripts/sign-release.sh").contains(RELEASE_PUBKEY));
-        // fix-10: `latest` names a signed release only. The workflow publishes
-        // without taking `latest`; signing takes it after VERSION is up.
-        assert!(
-            release_yml.contains("make_latest: false"),
-            "an unsigned release must not become latest"
-        );
+        // fix-10: `latest` names a signed release only. `chassis release`
+        // creates the release without taking `latest` (release.rs); signing
+        // takes it after VERSION is up.
         let sign = get("scripts/sign-release.sh");
         let version_up = sign
             .find("--clobber \"$work/VERSION\"")
@@ -1830,36 +1683,25 @@ mod tests {
         assert_eq!(KP_THEMES, drift::vendored_kp_themes());
     }
 
-    /// K32: the checks protection requires are the scaffold's CI job names;
-    /// this test is what keeps `REQUIRED_CHECKS` and `ci.yml` one list.
-    // Drilled red once (dropped `container build` from the expected list): failed, restored.
+    /// 3.0.0 (Kenny, 2026-09-29): the scaffold ships no GitHub Actions
+    /// workflow; the gate and the release build run in `chassis release`.
+    /// A file the scaffold renders again would be written back by every
+    /// `sync --write` right after `OBSOLETE_FILES` removed it.
     #[test]
-    fn k32_required_checks_are_the_scaffold_ci_job_names() {
-        let ci = render_all(&rec(), &scaffold_features())
-            .unwrap()
-            .into_iter()
-            .find(|(p, ..)| p == ".github/workflows/ci.yml")
-            .unwrap()
-            .1;
-        // Job names sit at four spaces (`    name: …`); step names are list
-        // items deeper in. A job with `continue-on-error: true` is
-        // informational and never required.
-        let mut jobs: Vec<(String, bool)> = Vec::new();
-        for line in ci.lines() {
-            if let Some(name) = line.strip_prefix("    name: ") {
-                jobs.push((name.trim().to_string(), false));
-            } else if line == "    continue-on-error: true"
-                && let Some(last) = jobs.last_mut()
-            {
-                last.1 = true;
-            }
+    fn the_scaffold_ships_no_workflow_and_sync_names_the_old_ones() {
+        let files = render_all(&rec(), &scaffold_features()).unwrap();
+        assert!(
+            !files.iter().any(|(p, ..)| p.starts_with(".github/")),
+            "no workflow in the scaffold: {:?}",
+            files.iter().map(|(p, ..)| p).collect::<Vec<_>>()
+        );
+        for o in drift::OBSOLETE_FILES {
+            assert!(
+                !templates::ENTRIES.iter().any(|e| e.path == o.path),
+                "{} is both shipped and obsolete",
+                o.path
+            );
         }
-        let required: Vec<String> = jobs
-            .into_iter()
-            .filter(|(_, informational)| !informational)
-            .map(|(n, _)| n)
-            .collect();
-        assert_eq!(required, drift::REQUIRED_CHECKS, "{ci}");
     }
 
     /// feat-build-1: one build shape for everyone — a statically linked
@@ -1880,24 +1722,16 @@ mod tests {
                 .unwrap_or_else(|| panic!("{p} missing"))
         };
 
-        let release = get(".github/workflows/release.yml");
+        // The release binary's build and its `ldd` refusal live in
+        // release.rs since 3.0.0 and are pinned by its own tests.
+        let release = release::musl_build_args(Path::new("/p"), TOOLCHAIN, 0, 0).join(" ");
         assert!(
             release.contains("cargo build --release --locked --target x86_64-unknown-linux-musl"),
             "the released binary is built for musl:\n{release}"
         );
-        // The install line, not the word: the comment above it names
-        // musl-tools too, and a comment compiles nothing.
         assert!(
             release.contains("install -y -qq musl-tools"),
             "`ring` compiles C, so the builder needs the musl C compiler:\n{release}"
-        );
-        assert!(
-            release.contains("cp target-musl/x86_64-unknown-linux-musl/release/demo-svc dist/"),
-            "the release ships the musl binary, not a stale glibc one:\n{release}"
-        );
-        assert!(
-            release.contains("ldd dist/demo-svc") && release.contains("grep -q '=>'"),
-            "a step refuses a binary with a resolved shared library:\n{release}"
         );
 
         let dockerfile = get("Dockerfile");
@@ -2246,7 +2080,10 @@ chassis = { git = "g", tag = "v1.8.0", version = "1.8.0", features = ["testing"]
         .unwrap();
         assert!(target.join(".chassis.toml").exists());
         assert!(target.join(".git").exists());
-        assert!(target.join(".github/workflows/ci.yml").exists());
+        assert!(
+            !target.join(".github").exists(),
+            "3.0.0: no workflow is written"
+        );
         // K27: `new` writes the kit documentation and `sync` sees it as
         // in sync (the clean-sync assertion below covers the second half).
         assert!(target.join("docs/KIT.md").exists(), "docs/KIT.md written");
@@ -2390,48 +2227,70 @@ chassis = { git = "g", tag = "v1.8.0", version = "1.8.0", features = ["testing"]
         );
     }
 
+    /// CF-6: the release always builds an image, so no Dockerfile is refused
+    /// before the gate runs. 3.0.0: no CI workflow is required any more.
     #[test]
-    fn a_release_workflow_that_builds_an_image_needs_a_dockerfile() {
-        let dir = std::env::temp_dir().join(format!("chassis-cf6-{}", std::process::id()));
-        let wf = dir.join(".github/workflows");
-        std::fs::create_dir_all(&wf).unwrap();
-        std::fs::write(
-            wf.join("release.yml"),
-            "steps:\n  - uses: docker/build-push-action@sha # v6\n",
-        )
-        .unwrap();
-        // fix-5 runs first, so the project needs a CI workflow that would
-        // actually check the branch this release pushes.
-        std::fs::write(
-            wf.join("ci.yml"),
-            "on:\n  push:\n    branches: [\"**\"]\njobs: {}\n",
-        )
-        .unwrap();
-        let err = check_release_files(&dir, "release-1.0.0").unwrap_err();
+    fn a_release_needs_a_dockerfile_and_the_sign_script_but_no_workflow() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = check_release_files(dir.path()).unwrap_err();
         assert!(err.to_string().contains("no Dockerfile"), "{err}");
-        std::fs::write(dir.join("Dockerfile"), "FROM scratch\n").unwrap();
-        check_release_files(&dir, "release-1.0.0").unwrap();
-        // A workflow without an image job needs no Dockerfile.
-        std::fs::remove_file(dir.join("Dockerfile")).unwrap();
-        std::fs::write(wf.join("release.yml"), "steps:\n  - run: cargo build\n").unwrap();
-        check_release_files(&dir, "release-1.0.0").unwrap();
-        // fix-5: a workflow that only watches main is refused before the push,
-        // instead of the release waiting out its timeout on checks that never
-        // start (kyu-runner, 2026-09-10).
-        std::fs::write(
-            wf.join("ci.yml"),
-            "on:\n  push:\n    branches: [main]\njobs: {}\n",
+        std::fs::write(dir.path().join("Dockerfile"), "FROM scratch\n").unwrap();
+        let err = check_release_files(dir.path()).unwrap_err();
+        assert!(err.to_string().contains("sign-release.sh"), "{err}");
+        std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+        std::fs::write(dir.path().join("scripts/sign-release.sh"), "").unwrap();
+        check_release_files(dir.path()).unwrap();
+        assert!(!dir.path().join(".github").exists());
+    }
+
+    /// 3.0.0: a project made by an older kit carries both workflows; `sync`
+    /// reports them (exit 1), `sync --write` removes them and the emptied
+    /// directories, and leaves a project's own workflow alone.
+    // Drilled red once (skipped the remove_file): the workflows stayed,
+    // failed, restored.
+    #[test]
+    fn sync_write_removes_the_obsolete_workflows() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("demo-svc");
+        cmd_new(
+            "demo-svc".into(),
+            "A demo".into(),
+            None,
+            Some(target.clone()),
+            true,
+            None,
+            Some("v0.1.0".into()),
+            false,
         )
         .unwrap();
-        let err = check_release_files(&dir, "release-1.0.0").unwrap_err();
-        assert!(err.to_string().contains("does not run on a push"), "{err}");
-        std::fs::remove_file(wf.join("ci.yml")).unwrap();
-        let err = check_release_files(&dir, "release-1.0.0").unwrap_err();
+        let wf = target.join(".github/workflows");
+        std::fs::create_dir_all(&wf).unwrap();
+        std::fs::write(wf.join("ci.yml"), "name: CI\n").unwrap();
+        std::fs::write(wf.join("release.yml"), "name: Release\n").unwrap();
+        let outcome = cmd_sync(&target, false, false, false, false).unwrap();
+        assert!(outcome.unresolved, "an obsolete workflow is drift");
+        assert!(wf.join("ci.yml").exists(), "a plain sync writes nothing");
+
+        std::fs::write(wf.join("audit.yml"), "name: Audit\n").unwrap();
+        let outcome = cmd_sync(&target, true, false, false, false).unwrap();
+        assert!(!outcome.unresolved);
+        assert!(!wf.join("ci.yml").exists() && !wf.join("release.yml").exists());
         assert!(
-            err.to_string().contains("no .github/workflows/ci.yml"),
-            "{err}"
+            wf.join("audit.yml").exists(),
+            "a project's own workflow is not the kit's to remove"
         );
-        std::fs::remove_dir_all(&dir).unwrap();
+        std::fs::remove_file(wf.join("audit.yml")).unwrap();
+        std::fs::write(wf.join("ci.yml"), "name: CI\n").unwrap();
+        cmd_sync(&target, true, false, false, false).unwrap();
+        assert!(
+            !target.join(".github").exists(),
+            "an emptied .github goes with its last workflow"
+        );
+        assert!(
+            !cmd_sync(&target, false, false, false, false)
+                .unwrap()
+                .unresolved
+        );
     }
 
     /// M3: project entries under the marker survive a sync.
@@ -2546,50 +2405,20 @@ chassis = { git = "g", tag = "v1.8.0", version = "1.8.0", features = ["testing"]
             .unwrap()
             .1;
         assert!(gates.contains("gates.project.sh"), "{gates}");
-        let ci = &fresh
-            .iter()
-            .find(|(p, ..)| p == ".github/workflows/ci.yml")
-            .unwrap()
-            .1;
-        assert!(ci.contains("gates.project.sh"), "{ci}");
     }
 
-    /// Kenny, 2026-09-25: a project that runs one CI job records it, and protection is
-    /// compared against that one. http-switchboard and kyu-runner moved
-    /// cargo-deny and the image build to their release tier; the kit's
-    /// three-check list told them to require checks CI never produces.
+    /// 3.0.0: `required_checks` is obsolete but an old record still parses,
+    /// and `sync` reports it until the line is deleted.
     #[test]
-    fn required_checks_default_to_the_kit_and_narrow_per_project() {
-        let r = rec();
-        assert_eq!(r.required_checks().unwrap(), drift::REQUIRED_CHECKS);
-
-        let mut r = rec();
-        r.required_checks = vec!["fmt · clippy · tests".into()];
-        let checks = r.required_checks().unwrap();
-        assert_eq!(checks, ["fmt · clippy · tests"]);
-        let actual = drift::Protection {
-            checks: checks.clone(),
-            strict: true,
-            enforce_admins: false,
-        };
-        let expected = drift::Protection::expected(&checks);
-        assert!(drift::protection_drift(&expected, &actual).is_empty());
-
+    fn an_old_required_checks_line_parses_and_is_reported() {
         let parsed: Recorded = toml::from_str(&format!(
             "{}\nrequired_checks = [\"fmt · clippy · tests\"]\n",
             toml::to_string_pretty(&rec()).unwrap()
         ))
         .unwrap();
         assert_eq!(parsed.required_checks, ["fmt · clippy · tests"]);
-    }
-
-    /// Kenny, 2026-09-25: a name no kit job produces would leave main waiting forever.
-    #[test]
-    fn required_checks_refuse_a_name_the_kit_does_not_produce() {
-        let mut r = rec();
-        r.required_checks = vec!["gates".into()];
-        let err = r.required_checks().unwrap_err().to_string();
-        assert!(err.contains("`gates`"), "{err}");
+        assert!(drift::required_checks_drift(&parsed.required_checks).is_some());
+        assert!(drift::required_checks_drift(&rec().required_checks).is_none());
     }
 
     /// 1.7.0: a project's reviewed advisory exceptions live in .chassis.toml

@@ -25,13 +25,18 @@ lines as foundation rather than product.
   (off / supervised / autonomous). `notify` provides per-event webhooks.
 - **G2 · A scaffold command for what a crate cannot carry.** A small
   CLI, `chassis`, with `new` (write a new project AND create and
-  configure its GitHub repository via `gh`: branch protection, required
-  checks), `sync` (diff an existing project against the current
-  scaffold) and `release` (bump and tag, wait for CI, download and
-  verify the artefacts, sign locally with minisign, upload `.minisig`
-  and `VERSION`). It writes the CI and release workflows, Dockerfile,
+  configure its GitHub repository via `gh`: branch protection), `sync`
+  (diff an existing project against the current scaffold) and `release`
+  (run the full gate, bump and tag, build the static binary,
+  `SHA256SUMS` and the container image, publish them, sign locally with
+  minisign, upload `.minisig` and `VERSION`). It writes the Dockerfile,
   systemd unit, `service.yml` for the homelab, sign script, git hooks,
   `deny.toml`, toolchain pin, a minimal `main.rs` and `Cargo.toml`.
+  *Amended 3.0.0 (Kenny, 2026-09-29: tests and release builds run
+  locally, GitHub Actions builds nothing):* until then the scaffold also
+  wrote CI and release workflows, `new` set required checks, and
+  `release` waited for both workflows on GitHub instead of running the
+  gate and the build itself.
 - **G3 · v1 proves itself on an example service before anyone
   migrates.** The first release is tested on a new, small example
   service created with `chassis new`, running under systemd on a
@@ -118,8 +123,8 @@ lines as foundation rather than product.
   tests assert it (standing rule 10).
 - **H3 · Semver over the kit API and the scaffold files.** The version
   follows semver over two contracts: the Rust API projects call, and the
-  shape of the files the scaffold writes (workflow names, unit fields,
-  `service.yml`). A breaking change in either is a major, with a
+  shape of the files the scaffold writes (which files it writes, unit
+  fields, `service.yml`). A breaking change in either is a major, with a
   migration note in the CHANGELOG saying what a project must change.
 - **H4 · The dev procedure with every gate, no paid tooling.** All
   eleven phases with their forms, git-native hooks and branch protection
@@ -150,8 +155,10 @@ phase re-derives them from memory. Feature IDs are assigned in Phase 2.
   migrations stay readable one version back; update card on the status
   page and a latest-release check even when off.
 - Releases: binary, `SHA256SUMS`, `SHA256SUMS.minisig`, `VERSION`;
-  CI builds and publishes with `GITHUB_TOKEN` (no PAT); Kenny signs
-  locally via one command.
+  since 3.0.0 `chassis release` builds and publishes them from Kenny's
+  machine (docker logged in to GHCR with `write:packages`, `gh`) and
+  signs in the same command; until then CI built and published with
+  `GITHUB_TOKEN`.
 - Notifications: a fixed list of kit events (update ok / failed /
   rolled back, health degraded, started) plus project events; per event
   one or more webhooks (URL, method, headers, body template; secrets

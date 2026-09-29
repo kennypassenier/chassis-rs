@@ -103,14 +103,9 @@ pub const ENTRIES: &[Entry] = &[
         "tests/kit_smoke.rs",
         include_str!("../../../scaffold/tests/kit_smoke.rs.tmpl"),
     ),
-    rendered(
-        ".github/workflows/ci.yml",
-        include_str!("../../../scaffold/.github/workflows/ci.yml"),
-    ),
-    rendered(
-        ".github/workflows/release.yml",
-        include_str!("../../../scaffold/.github/workflows/release.yml"),
-    ),
+    // No `.github/workflows/` since 3.0.0: the gate and the release build
+    // run in `chassis release` on this machine, and `sync` removes the two
+    // files an older kit wrote (drift::OBSOLETE_FILES).
     rendered("Dockerfile", include_str!("../../../scaffold/Dockerfile")),
     rendered(
         "deploy/{{ name }}.service",

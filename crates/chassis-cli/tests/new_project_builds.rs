@@ -118,8 +118,9 @@ fn a_new_project_compiles_and_answers_version() {
     // CF-6 (2026-09-06): the generated project must also pass cargo-deny.
     // The first remote project was red on it (a git dependency without a
     // version requirement) while every local gate above was green; the
-    // gate that predicts CI has to run what CI runs. Runs when cargo-deny
-    // is installed (the kit's CI installs it) and says so loudly otherwise.
+    // gate that predicts the release has to run what the release runs.
+    // Runs when cargo-deny is installed (`chassis release` requires it) and
+    // says so loudly otherwise.
     let deny_available = Command::new("cargo")
         .args(["deny", "--version"])
         .output()
@@ -139,7 +140,7 @@ fn a_new_project_compiles_and_answers_version() {
         );
     } else {
         eprintln!(
-            "new_project_builds: cargo-deny is not installed — the cargo-deny check on the generated project was SKIPPED (CI runs it)"
+            "new_project_builds: cargo-deny is not installed — the cargo-deny check on the generated project was SKIPPED (install it: cargo install cargo-deny --locked)"
         );
     }
 
@@ -234,14 +235,17 @@ fn a_new_project_compiles_and_answers_version() {
         "clean again after restoring Cargo.toml"
     );
 
-    // A dry-run release names every step without touching git or gh.
+    // A release plan names every step without running any of them. (The
+    // `--dry-run` that runs the gate and builds the assets needs docker and
+    // a project that builds inside a container, which a `--chassis-path`
+    // project is not; release.rs pins its pieces instead.)
     let out = chassis()
         .args([
             "release",
             "0.2.0",
             "--dir",
             project.to_str().unwrap(),
-            "--dry-run",
+            "--plan",
         ])
         .output()
         .unwrap();
@@ -253,19 +257,26 @@ fn a_new_project_compiles_and_answers_version() {
     let plan = String::from_utf8_lossy(&out.stdout);
     for needle in [
         "Cargo.toml version = \"0.2.0\"",
-        "release-0.2.0",
+        "cargo deny check all",
         "git tag v0.2.0",
+        "--target x86_64-unknown-linux-musl",
+        "docker push ghcr.io/kennypassenier/demo-svc:v0.2.0",
+        "--latest=false",
         "sign-release.sh v0.2.0",
     ] {
         assert!(plan.contains(needle), "release plan lacks {needle}: {plan}");
     }
+    assert!(
+        !plan.contains("release-0.2.0"),
+        "3.0.0: no release branch, no wait for CI: {plan}"
+    );
     assert_eq!(
         std::fs::read_to_string(project.join("Cargo.toml"))
             .unwrap()
             .matches("0.2.0")
             .count(),
         0,
-        "dry run wrote nothing"
+        "the plan wrote nothing"
     );
 
     // It builds and runs: the generated main.rs against this kit.

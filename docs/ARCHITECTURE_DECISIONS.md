@@ -18,8 +18,8 @@ someone revisits the decision.
 
 ### T1 · Language and toolchain
 Rust, edition 2024, toolchain pinned to **1.97** in `rust-toolchain.toml`
-with `rust-version = "1.97"` in every `Cargo.toml`; CI installs that exact
-version. Same as kyu, Almanac, HTTPSwitchboard and kyu-runner, so a
+with `rust-version = "1.97"` in every `Cargo.toml`; the gates and the
+release build use that exact version (CI did until 3.0.0). Same as kyu, Almanac, HTTPSwitchboard and kyu-runner, so a
 migrating project never changes compiler and kit in one step. Raising it
 is a deliberate commit that bumps both places.
 
@@ -31,7 +31,7 @@ chassis-rs/
   crates/chassis-cli/     the `chassis` binary (new · sync · release), embeds the scaffold templates
   examples/inbox/         the example service (workspace member, K26)
   crates/chassis/examples/minimal.rs   the one-file service (K24, ≤40 lines)
-  scaffold/               template files the CLI embeds (workflows, unit, Dockerfile, hooks…)
+  scaffold/               template files the CLI embeds (unit, Dockerfile, hooks…; no workflows since 3.0.0)
   docs/
 ```
 `core` is a default feature; `dashboard`, `self-update` and `notify` are
@@ -74,7 +74,7 @@ candidate if we change our mind).
 
 ### T4 · Dependency policy
 Pragmatic (Q5): a well-known crate over hand-written code, gated by
-`cargo-deny` in CI (kyu's `deny.toml`: permissive licenses only,
+`cargo-deny` (in CI until 3.0.0, in `chassis release`'s gate since; kyu's `deny.toml`: permissive licenses only,
 `wildcards = deny`, `unknown-git = deny`, advisories weekly). Adding a
 dependency is a one-line reason in T3 in the same commit.
 
@@ -84,19 +84,21 @@ MIT OR Apache-2.0 (Q7), `LICENSE-MIT` and `LICENSE-APACHE` in the repo.
 ### T6 · Platforms (Q3)
 Linux x86_64 only. Runs as a native binary under systemd in Debian LXCs
 on Proxmox (glibc), optionally as a container image. Development on
-Kenny's Garuda PC, CI on GitHub Actions Ubuntu. No Windows, macOS or ARM.
+Kenny's Garuda PC (and WSL Arch); since 3.0.0 the gates and release builds
+run there too, and GitHub Actions builds nothing. No Windows, macOS or ARM.
 
 ### T7 · Environments and what differs between them (standing rule 35)
 
 | Environment | Has | Lacks / differs |
 |---|---|---|
 | PC (Garuda) | cargo 1.97, gh token, minisign key, LAN reach, keyring | — |
-| CI (Ubuntu runner) | cargo 1.97, `GITHUB_TOKEN` | no minisign key, no LAN, no systemd unit, ephemeral fs |
+| CI (Ubuntu runner) — retired at 3.0.0 | cargo 1.97, `GITHUB_TOKEN` | no minisign key, no LAN, no systemd unit, ephemeral fs |
 | CT 118 / production LXC (Debian 13, unprivileged) | systemd, journald, LAN, glibc 2.41 | no cargo, no gh; uid mapping (+100000 on the host); no curl by default |
 | Container (`gcr.io/distroless/static:nonroot` since 2026-09-10; `debian:trixie-slim` before) | the statically linked binary, nothing else | no shell tools, rename swap not persistent → self-update forced off |
 
 Phase 7 tests each mechanism from the environment it runs in: the update
-swap and rollback on CT 118, the CI release job in CI, the scaffold's
+swap and rollback on CT 118, the release build with `chassis release
+--dry-run` on the PC (the CI release job in CI until 3.0.0), the scaffold's
 `gh` calls against a scratch repository.
 
 ### T8 · Release build target
@@ -387,6 +389,20 @@ commit on main, pushes, polls the **tag's** check runs (rule 6b), downloads
 **Code-enforced** by an E2E run against a scratch repository (drilled in
 Phase 6, not in CI: CI has no minisign key).
 
+**Amendment 3.0.0 (Kenny, 2026-09-29: tests and release builds run locally,
+GitHub Actions builds nothing).** The scaffold writes no workflow and `new`
+sets no required check; `sync --protect` keeps "no force-push, no deletion"
+and requires no check, and `sync` reports the two workflows an older kit
+wrote as obsolete (`--write` removes them). `release <version>` no longer
+pushes a branch and polls check runs: it runs the full gate the CI workflow
+ran on the PC, commits and tags locally, builds the release (AR16's
+amendment), and only then pushes main, the tag, the image and the release,
+and signs. `--dry-run` runs the gate and every build and stops before any
+commit, tag, push or upload; `--plan` prints the steps. Requires `docker`,
+`cargo-deny`, `gh` and `minisign` on the PC. **Code-enforced** by
+`release.rs`'s unit tests and the scaffold E2E's `--plan`; the build half is
+proven by a `--dry-run` in a consumer's tree.
+
 ### AR15 · Lifecycle: startup, readiness, shutdown
 Order: parse args → `--version` answers before anything else (AR20) →
 config → hooks registered by the project → control commands dispatched in
@@ -404,6 +420,16 @@ touch the state dir).
 ### AR16 · Release layout and CI/CD
 Tag `v*` → CI job builds the glibc binary in `rust:1.97-slim-trixie`,
 computes `SHA256SUMS`, builds and pushes `ghcr.io/kennypassenier/<name>:<version>` and `:latest` with `GITHUB_TOKEN` (permissions `contents: write, packages: write`), creates the GitHub release with binary + `SHA256SUMS`. `chassis release` adds `.minisig` + `VERSION` from Kenny's machine (AR14). The updater fetches `releases/latest/download/VERSION`; the four asset names are a contract (rule 27 exception). **Code-enforced** in CI; the signing half is a documented manual step by design (J2).
+
+**Amendment 3.0.0:** the same steps run in `chassis release` on Kenny's
+machine instead of a tag-triggered job: the static musl binary (T8's
+amendment) in the same `rust:<toolchain>-slim-trixie` docker invocation,
+the `ldd` refusal, `SHA256SUMS`, the image under `:v<version>` and
+`:latest` pushed with docker's own GHCR login (a token with
+`write:packages` instead of `GITHUB_TOKEN`), and `gh release create
+--latest=false` with the workflow's title and body. The tag-vs-`Cargo.toml`
+check runs before the build. The asset names are unchanged, so the updater
+sees no difference.
 
 ### AR17 · Golden systemd unit (scaffold)
 From the homelab's answer, verbatim in `scaffold/systemd/<name>.service`:
@@ -492,7 +518,7 @@ ratifies the set in R4.
 | `retry_after_secs` / `rate_limit_login_burst` / `rate_limit_token_burst` | 5 / 5 / 100 | K10 |
 | `clients_persist_secs` | 30 | #13 |
 | `notify_debounce_secs` | 60 | #20 |
-| CLI: `--poll-interval-secs` / `--max-wait-secs` for `chassis release` | 15 / 1800 | AR14 |
+| CLI: `--poll-interval-secs` / `--max-wait-secs` for `chassis release` (removed at 3.0.0: nothing to wait for) | 15 / 1800 | AR14 |
 | Scaffold config (listed as such, not kit knobs): `RestartSec=5s`, `TimeoutStopSec=60`, Dockerfile HEALTHCHECK interval/timeout/retries 30s/5s/3 | — | AR17 |
 
 Pinned on purpose (rule 27 exception): nonce size, store format version,

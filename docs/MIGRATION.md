@@ -26,7 +26,7 @@ and `examples/inbox/src/main.rs`, which uses every one of them.
 | Dashboard chrome | `shell::dashboard`, `templates/`, `static/` | layout, theme picker, kp-themes vendoring, login page, clients page |
 | Self-update | `core::update`, `shell::update` | Almanac's `core/update.rs` + `shell/update.rs` (the kit is the port) |
 | Notifications | `core::notify`, `shell::notify` | ad-hoc webhook code, backoff |
-| Release & scaffold files | `chassis new/sync/release`, `scaffold/` | your CI/release workflows, unit, Dockerfile, sign script |
+| Release & scaffold files | `chassis new/sync/release`, `scaffold/` | your CI/release workflows (retired at 3.0.0: `chassis release` gates and builds locally), unit, Dockerfile, sign script |
 
 ## 2 · What stays project code
 
@@ -159,8 +159,8 @@ The kit's own `CHANGELOG.md` keeps a **Migration** section under
 before bumping the tag.
 
 - Four assets per release: `<name>`, `SHA256SUMS`, `SHA256SUMS.minisig`,
-  `VERSION`; CI makes the first two with `GITHUB_TOKEN`, `chassis release`
-  the last two from the PC (SELF_UPDATE.md).
+  `VERSION`; since 3.0.0 `chassis release` makes all four from the PC
+  (until then CI made the first two with `GITHUB_TOKEN`; SELF_UPDATE.md).
 - **The trusted comment is now required**: the updater accepts a
   signature only if its comment reads `<owner/repo> v<version>`.
   Almanac's existing releases carry minisign's default comment
@@ -168,9 +168,8 @@ before bumping the tag.
   kit-based Almanac cannot update *from* them; the first kit release of
   each project must be signed with `scripts/sign-release.sh` (via
   `chassis release`), and so must every later one.
-- The tag must equal `Cargo.toml`'s version (the Release workflow
-  refuses otherwise); a major bump needs a `Migration` section in
-  `CHANGELOG.md`.
+- The tag must equal `Cargo.toml`'s version (`chassis release` refuses
+  otherwise); a major bump needs a `Migration` section in `CHANGELOG.md`.
 - The homelab reads `service.yml`: `binary: /opt/<name>/bin/<name>`,
   `update_cmd` via `systemd-run --wait --pipe --collect …`, `data_dirs:
   [<state root>]`. The install path moved from `/usr/local/bin` to
@@ -200,13 +199,13 @@ before bumping the tag.
    per OPERATIONS.md §7, and — once a signed release exists — the
    supervised swap per SELF_UPDATE.md.
 6. **Closing check before "gates green" is reported** (CF-6, 2026-09-06):
-   `chassis release <next> --dry-run` is green (it checks `.chassis.toml`,
-   that CI runs on a push to the `release-<version>` branch the release
-   pushes and waits for, the Dockerfile the image job expects, and the
-   Migration section on a major), and the Release workflow has run once on a test tag of the
-   branch. Discipline-enforced: the migration is not reported done without
-   both lines in its PENDING entry. Three migrations were reported green on
-   2026-09-05 and none of them could release the next day.
+   `chassis release <next> --dry-run` is green (since 3.0.0 it runs the
+   full gate and builds the static binary, `SHA256SUMS` and the image on
+   the branch, then stops before any commit, tag or upload; before 3.0.0 it
+   only checked the files and the Release workflow had to run once on a
+   test tag). Discipline-enforced: the migration is not reported done
+   without that line in its PENDING entry. Three migrations were reported
+   green on 2026-09-05 and none of them could release the next day.
 7. **Deploy files come from measured paths** (CF-6 d): before writing the
    unit, `service.yml` or an env file for a target machine, read what is
    there (`systemctl cat <unit>`, `ls` of the state root and the binary
@@ -341,15 +340,40 @@ Nothing is required. What a project can adopt, each on its own:
   differs from `chassis_tag`, a stale `kp_themes`, and with `--remote` a branch
   protection that names other checks than the CI does.
 
-## Unreleased additions
+## 3.0.0: releases are gated and built locally
 
-- `.chassis.toml` `required_checks = ["fmt · clippy · tests"]`: the CI checks
-  `main` waits for, when the project runs fewer jobs than the kit's `ci.yml`
-  (cargo-deny and the container build in its release tier instead). Left
-  out, it is all three of `drift::REQUIRED_CHECKS`. `chassis sync --remote`
-  compares branch protection against this list and `--protect` sets it, so
-  the remedy no longer makes `main` wait for checks CI never produces. A name
-  that is not a kit CI job is refused.
+Kenny, 2026-09-29: tests and release builds run on this machine and the
+result is uploaded; GitHub Actions builds nothing. The steps, per project:
+
+1. Install the `chassis` CLI of 3.0.0 (workstation `bin/ws-tools`), then
+   `chassis upgrade 3.0.0` and `chassis sync --write`. The sync removes
+   `.github/workflows/ci.yml` and `.github/workflows/release.yml` (and the
+   directory once it is empty; a workflow of your own stays) and rewrites
+   the kit-owned files whose comments stopped naming CI.
+2. Delete `required_checks` from `.chassis.toml` if it is there; `sync`
+   reports it until you do.
+3. `chassis sync --protect` once: branch protection keeps "no force-push,
+   no deletion" and drops the required check, which no job produces any
+   more. Until then a non-admin path to `main` (a pull request, a
+   dependabot merge) waits forever.
+4. Docker on the release machine logs in to GHCR once with a token that has
+   `write:packages` (`docker login ghcr.io -u <owner>`); `cargo-deny` is
+   installed (`cargo install cargo-deny --locked`). `cargo-llvm-cov` is
+   optional: coverage was informational in CI and still is.
+5. A project gate that ran something heavier only in CI (kyu's container
+   smoke under `CI=true`) reads `CHASSIS_RELEASE_GATE=1` instead, which the
+   release gate sets when it runs `.claude/hooks/gates.project.sh`.
+6. Scripts and documents that waited for CI or for the Release workflow (a
+   `check-ci.sh`, a Makefile tag target, a runbook's release section) now
+   point at `chassis release <version>`; `--dry-run` is the rehearsal and
+   `--plan` prints the steps. `--poll-interval-secs` and `--max-wait-secs`
+   are gone.
+
+Claims in your own documents that 3.0.0 made false: "CI builds and
+publishes the release", "the Release workflow refuses …", "`chassis
+release` waits for CI", "branch protection requires `fmt · clippy ·
+tests`", and any link to the Actions tab as the place a release is seen
+to pass.
 
 ## 2.0.0 additions
 

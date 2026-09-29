@@ -33,7 +33,7 @@ environment only, never from the file.
 
 `deploy/{{ name }}.service` is the systemd unit (`Type=notify`, hardened);
 `deploy/service.yml` is the homelab's stack file for `homelab adopt`;
-`Dockerfile` builds the container image CI pushes to GHCR.
+`Dockerfile` builds the container image `chassis release` pushes to GHCR.
 The image runs as its own user and owns `/var/lib/{{ name }}`; a **named
 volume** inherits that owner, a **bind mount** does not — `chown` the host
 directory to the container's uid first, or the first login fails with a
@@ -46,14 +46,14 @@ compose file.
 
 ```bash
 chassis sync            # diff the kit-owned files, check the kit tag and kp_themes
-chassis sync --remote   # also compare main's branch protection with CI (needs gh)
+chassis sync --remote   # also compare main's branch protection with the kit's (needs gh)
 chassis sync --write    # apply the kit's files and correct kp_themes
 ```
 
 Exit 1 means drift: a file diff, or a `! …` line naming what differs and
 how to fix it (kit tag in `Cargo.toml` vs `.chassis.toml`, `kp_themes`,
-required checks). Without `--remote` it needs no network, so a CI job can
-run it as a drift check.
+a workflow file the kit no longer ships). Without `--remote` it needs no
+network, so a script can run it as a drift check.
 
 ## Release
 
@@ -61,9 +61,15 @@ run it as a drift check.
 chassis release 0.2.0
 ```
 
-bumps the version, tags, waits for CI to build and publish, signs the
-manifest with your minisign key and uploads `SHA256SUMS.minisig` and
-`VERSION` — the four assets the self-updater needs.
+runs the full gate on this machine (fmt, clippy, tests, the project's own
+gates, cargo-deny, the image smoke), bumps the version, commits and tags,
+builds the static binary, `SHA256SUMS` and the image here, pushes main, the
+tag and the image, creates the GitHub release, then signs the manifest with
+your minisign key and uploads `SHA256SUMS.minisig` and `VERSION` — the four
+assets the self-updater needs. `chassis release 0.2.0 --dry-run` runs the
+gate and builds every asset, then stops before any commit, tag or upload.
+It needs docker logged in to `ghcr.io` with a token that has
+`write:packages`, `gh`, `cargo-deny` and `minisign`.
 
 ## Development
 

@@ -5,11 +5,13 @@
 //! `.chassis.toml`'s `kp_themes` claimed a version nothing verified. This
 //! module compares each of them and reports every difference in one shape,
 //! `! <what>: <project value> vs <expected> — <remedy>`, printed after the
-//! file diffs and counted as drift (exit 1).
+//! file diffs and counted as drift (exit 1). Since 3.0.0 it also names the
+//! kit-owned files the kit no longer ships (the two GitHub Actions
+//! workflows, whose work `chassis release` now does locally).
 //!
 //! Every comparison is a pure function over strings or lists, so the tests
 //! need no network; only `fetch_protection` talks to GitHub, and only when
-//! `sync --remote` asks for it — CI runs a plain `sync` offline.
+//! `sync --remote` asks for it — a plain `sync` stays offline.
 
 use std::fmt;
 use std::path::Path;
@@ -377,19 +379,58 @@ pub fn write_atomically(path: &Path, body: &str) -> Result<(), Error> {
     std::fs::rename(&tmp, path).map_err(fail)
 }
 
-// ───────────────────────── branch protection vs CI ─────────────────────────
+// ───────────────────────── files the kit no longer ships ─────────────────────────
 
-/// The checks `main` must wait for by default: the scaffold's
-/// non-informational CI job names. A project that runs fewer of them in CI
-/// names its own subset in `.chassis.toml` `required_checks` (Kenny, 2026-09-25). `protect_main` sets them and `sync --remote` compares them,
-/// and a test checks they equal the rendered `ci.yml`, so a renamed job
-/// cannot leave the three apart (kyu's protection required `gates` for a
-/// week after CI stopped producing it).
-pub const REQUIRED_CHECKS: &[&str] = &[
-    "fmt · clippy · tests",
-    "cargo-deny (advisories · licenses · bans)",
-    "container build",
+/// A kit-owned file a project received from an earlier kit and must not keep.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Obsolete {
+    pub path: &'static str,
+    /// Why it went and what took its place.
+    pub why: &'static str,
+}
+
+impl Obsolete {
+    pub fn drift(&self) -> Drift {
+        Drift::new(
+            "obsolete file",
+            format!("{} is still here", self.path),
+            format!("not shipped by the kit since 3.0.0 ({})", self.why),
+            "`chassis sync --write` removes it".into(),
+        )
+    }
+}
+
+/// Kenny, 2026-09-29: tests and release builds run locally, and GitHub
+/// Actions builds nothing. Left in place, `ci.yml` would keep running on
+/// every push with nobody waiting for it, and `release.yml` would race
+/// `chassis release` for the same tag: both building, both pushing the
+/// image, the second `gh release create` failing.
+pub const OBSOLETE_FILES: &[Obsolete] = &[
+    Obsolete {
+        path: ".github/workflows/ci.yml",
+        why: "`chassis release` runs the same gate on this machine",
+    },
+    Obsolete {
+        path: ".github/workflows/release.yml",
+        why: "`chassis release` builds and publishes the release on this machine",
+    },
 ];
+
+/// `.chassis.toml` `required_checks` named CI jobs `main` waited for
+/// (Kenny, 2026-09-25). With no CI there is no job to wait for, and a
+/// record that still lists one reads as if something checks it.
+pub fn required_checks_drift(recorded: &[String]) -> Option<Drift> {
+    (!recorded.is_empty()).then(|| {
+        Drift::new(
+            ".chassis.toml required_checks",
+            format!("lists {}", recorded.join(", ")),
+            "no CI checks (the kit ships no CI workflow since 3.0.0)".into(),
+            "delete the line (and its comment); `chassis sync --protect` drops the requirement from main".into(),
+        )
+    })
+}
+
+// ───────────────────────── branch protection ─────────────────────────
 
 /// The part of GitHub's branch protection the kit owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -403,20 +444,19 @@ pub struct Protection {
 impl Protection {
     /// What `chassis sync --protect` sets.
     ///
-    /// `enforce_admins` is FALSE since 2026-09-10 (Kenny: "beheerders erlangs
-    /// laten"). With it on, the two people who touch these repositories had to
-    /// push a branch, wait for its checks and only then move main — for every
-    /// commit, including a one-line document fix. What it bought was small and
-    /// measurable: 4 red runs out of 248 in this repository, all of them on the
-    /// first two days, none in the last hundred. The check itself stays
-    /// required, so anything that is not a deliberate admin push still waits
-    /// for it, and force-pushing or deleting main stays blocked — that is the
-    /// only irreversible thing in the set. A release is verified by the release
-    /// command's own wait for green checks, not by this setting.
-    pub fn expected(checks: &[String]) -> Self {
+    /// No required checks since 3.0.0 (Kenny, 2026-09-29: tests and release
+    /// builds run locally). A required check that no workflow produces
+    /// leaves every path to `main` but an admin's direct push waiting
+    /// forever, so the list is empty and `strict` with it. What protection
+    /// still holds is the only irreversible part: no force-push, no
+    /// deletion of `main`.
+    ///
+    /// `enforce_admins` stays FALSE (Kenny, 2026-09-10: "beheerders erlangs
+    /// laten"): the two people who touch these repositories push to main.
+    pub fn expected() -> Self {
         Self {
-            checks: checks.to_vec(),
-            strict: true,
+            checks: Vec::new(),
+            strict: false,
             enforce_admins: false,
         }
     }
@@ -452,7 +492,7 @@ pub fn parse_protection(json: &str) -> Result<Protection, Error> {
     })
 }
 
-const PROTECT_REMEDY: &str = "run `chassis sync --protect` (sets the kit's checks, strict and enforce_admins, and reads them back)";
+const PROTECT_REMEDY: &str = "run `chassis sync --protect` (sets the kit's protection: no required checks, not strict, admins not enforced, and reads it back)";
 
 /// Compares what protection requires with what the kit sets: one line per
 /// missing check, extra check, and per flag that differs.
@@ -466,7 +506,7 @@ pub fn protection_drift(expected: &Protection, actual: &Protection) -> Vec<Drift
         out.push(Drift::new(
             "branch protection",
             format!("does not require `{missing}`"),
-            "a CI job of that name that main must wait for".into(),
+            "a check of that name that main must wait for".into(),
             PROTECT_REMEDY.into(),
         ));
     }
@@ -478,7 +518,8 @@ pub fn protection_drift(expected: &Protection, actual: &Protection) -> Vec<Drift
         out.push(Drift::new(
             "branch protection",
             format!("requires `{extra}`"),
-            "no CI job of that name (main could never merge on it)".into(),
+            "no CI job produces it (the kit ships no CI since 3.0.0; main could never merge on it)"
+                .into(),
             PROTECT_REMEDY.into(),
         ));
     }
@@ -536,15 +577,15 @@ pub fn fetch_protection(repo: &str) -> Result<Option<Protection>, Error> {
 }
 
 /// Everything `--remote` compares, as drift lines.
-pub fn remote_drift(repo: &str, checks: &[String]) -> Result<Vec<Drift>, Error> {
-    let expected = Protection::expected(checks);
+pub fn remote_drift(repo: &str) -> Result<Vec<Drift>, Error> {
+    let expected = Protection::expected();
     Ok(match fetch_protection(repo)? {
         Some(actual) => protection_drift(&expected, &actual),
         None => vec![Drift::new(
             "branch protection",
             "main is not protected".into(),
-            format!("the project's checks required ({})", checks.join(", ")),
-            "run `chassis sync --protect` once CI has run on the repository (rule 6a)".into(),
+            "main protected against a force-push and a deletion".into(),
+            "run `chassis sync --protect`".into(),
         )],
     })
 }
@@ -719,8 +760,7 @@ axum = "0.8"
     }
 
     fn kit() -> Protection {
-        let checks: Vec<String> = REQUIRED_CHECKS.iter().map(|c| c.to_string()).collect();
-        Protection::expected(&checks)
+        Protection::expected()
     }
 
     fn protection(checks: &[&str], strict: bool, enforce_admins: bool) -> Protection {
@@ -737,68 +777,73 @@ axum = "0.8"
         let expected = kit();
         assert!(protection_drift(&expected, &expected.clone()).is_empty());
         // Order does not matter: the API returns the checks as a set.
-        let mut reversed = expected.clone();
+        let mut two = protection(&["a", "b"], false, false);
+        let mut reversed = two.clone();
         reversed.checks.reverse();
-        assert!(protection_drift(&expected, &reversed).is_empty());
+        assert!(protection_drift(&two, &reversed).is_empty());
+        two.checks.clear();
+        assert_eq!(two, kit());
     }
 
-    // Drilled red once (expected zero lines for the missing check): failed, restored.
+    /// 3.0.0: the kit ships no CI, so a required check is one no job can
+    /// satisfy. Every one still required is a line; so is `strict`.
     #[test]
-    fn k32_a_missing_check_is_one_line() {
-        // chassis-rs itself, measured 2026-09-06: no `container build`.
-        let actual = protection(
-            &[
-                "fmt · clippy · tests",
-                "cargo-deny (advisories · licenses · bans)",
-            ],
-            true,
-            false,
-        );
+    fn a_required_check_is_drift_now_that_there_is_no_ci() {
+        // All five repositories, measured 2026-09-29: this exact protection.
+        let actual = protection(&["fmt · clippy · tests"], true, false);
         let drift = protection_drift(&kit(), &actual);
-        assert_eq!(drift.len(), 1, "{drift:?}");
-        assert_eq!(
-            drift[0].to_string(),
-            "! branch protection: does not require `container build` vs a CI job of that name that main must wait for — run `chassis sync --protect` (sets the kit's checks, strict and enforce_admins, and reads them back)"
-        );
-    }
-
-    // Drilled red once (expected zero lines for the extra check): failed, restored.
-    #[test]
-    fn k32_an_extra_check_is_one_line() {
-        // kyu, 2026-09-06: the retired job `gates` still required next to the three.
-        let mut actual = kit();
-        actual.checks.push("gates".into());
-        let drift = protection_drift(&kit(), &actual);
-        assert_eq!(drift.len(), 1, "{drift:?}");
+        assert_eq!(drift.len(), 2, "{drift:?}");
         assert!(
-            drift[0]
-                .to_string()
-                .starts_with("! branch protection: requires `gates` vs no CI job of that name"),
+            drift[0].to_string().starts_with(
+                "! branch protection: requires `fmt · clippy · tests` vs no CI job produces it"
+            ),
             "{}",
             drift[0]
         );
-    }
-
-    // Drilled red once (expected zero lines for strict = false): failed, restored.
-    #[test]
-    fn k32_strict_false_is_one_line() {
-        let actual = protection(REQUIRED_CHECKS, false, false);
-        let drift = protection_drift(&kit(), &actual);
-        assert_eq!(drift.len(), 1, "{drift:?}");
         assert!(
-            drift[0]
+            drift[1]
                 .to_string()
-                .starts_with("! branch protection: strict = false vs strict = true — "),
+                .starts_with("! branch protection: strict = true vs strict = false — "),
             "{}",
-            drift[0]
+            drift[1]
         );
-        // Since 2026-09-10 the kit expects admins to be allowed past, so it is
-        // protection that FORCES admins to wait which now reads as drift.
-        let actual = protection(REQUIRED_CHECKS, true, true);
+        // Admins forced to wait is drift too (Kenny, 2026-09-10).
+        let actual = protection(&[], false, true);
         assert_eq!(
             protection_drift(&kit(), &actual)[0].project,
             "enforce_admins = true"
         );
+        // And a check the kit wants but protection lacks is still reported,
+        // should the kit ever require one again.
+        let wants = protection(&["x"], false, false);
+        assert_eq!(protection_drift(&wants, &kit()).len(), 1);
+    }
+
+    /// 3.0.0: the two workflows are reported until `sync --write` removes them.
+    #[test]
+    fn the_workflows_are_obsolete_and_say_what_replaced_them() {
+        let paths: Vec<&str> = OBSOLETE_FILES.iter().map(|o| o.path).collect();
+        assert_eq!(
+            paths,
+            [".github/workflows/ci.yml", ".github/workflows/release.yml"]
+        );
+        let line = OBSOLETE_FILES[1].drift().to_string();
+        assert!(
+            line.starts_with("! obsolete file: .github/workflows/release.yml is still here vs not shipped by the kit since 3.0.0"),
+            "{line}"
+        );
+        assert!(
+            line.ends_with("— `chassis sync --write` removes it"),
+            "{line}"
+        );
+    }
+
+    #[test]
+    fn a_recorded_required_checks_list_is_drift() {
+        assert!(required_checks_drift(&[]).is_none());
+        let d = required_checks_drift(&["fmt · clippy · tests".to_string()]).unwrap();
+        assert_eq!(d.project, "lists fmt · clippy · tests");
+        assert!(d.remedy.starts_with("delete the line"), "{d}");
     }
 
     // Drilled red once (asserted `strict: false` on the real payload): failed, restored.

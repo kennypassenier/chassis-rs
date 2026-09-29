@@ -43,8 +43,8 @@ the module is off`. Proven by:
 `SHA256SUMS`, `SHA256SUMS.minisig`, and the binary named `update_asset`
 (default: the service name). Unset, it derives from `AppSpec.repository`
 as `https://github.com/<owner>/<repo>/releases/latest/download`. Only a
-signed release is `latest`: the scaffold's `release.yml` publishes with
-`make_latest: false`, and `sign-release.sh` marks the release latest after
+signed release is `latest`: `chassis release` creates the release with
+`--latest=false`, and `sign-release.sh` marks the release latest after
 uploading `VERSION` (fix-10). A 404 on `VERSION` reads "the newest release
 is published but not signed yet". With a
 mode other than `off` and neither set, `--check` refuses:
@@ -292,23 +292,33 @@ on purpose. Proven by: `the_compiled_in_key_verifies_a_real_almanac_release`.
 
 ## Signing a release
 
-CI (`.github/workflows/release.yml` from the scaffold) builds the static
-musl binary on a `v*` tag, refuses to publish one with a resolved shared
-library, writes `SHA256SUMS`, pushes the image and creates the GitHub
-release with those two assets. The release body states the linkage, so a
-deploy can refuse a binary its machine cannot run. It checks that the tag equals
-`Cargo.toml`'s version. The signature and `VERSION` are added from the
-PC by `chassis release <version>`, which (dry-run output, verbatim):
+`chassis release <version>` does the whole release from the PC (3.0.0;
+until then `.github/workflows/release.yml` built the release on a `v*` tag
+and the command waited for it). It runs the full gate, builds the static
+musl binary, refuses to publish one with a resolved shared library, writes
+`SHA256SUMS`, builds and pushes the image and creates the GitHub release
+with those two assets. The release body states the linkage, so a deploy can
+refuse a binary its machine cannot run. It checks that the tag equals
+`Cargo.toml`'s version. Then it adds the signature and `VERSION`
+(`--plan` output for the example service, verbatim):
 
 ```text
-dry run: would write Cargo.toml version = "0.2.0" and a 0.2.0 section in CHANGELOG.md, then:
-  git commit -am 'chore(release): 0.2.0 [meta]'
-  git push origin HEAD:refs/heads/release-0.2.0   # CI must be green before main moves (rule 6)
-  wait for the checks of that commit, then: git push origin HEAD:main && git push origin --delete release-0.2.0
-  git tag v0.2.0 && git push origin v0.2.0
-  wait for the Release workflow run whose head_branch == v0.2.0 (poll every 15s, at most 1800s)
-  scripts/sign-release.sh v0.2.0   # minisign asks for the key password; uploads .minisig then VERSION
+plan for inbox v0.2.0 (nothing below runs with --plan; --dry-run runs the gate and the builds):
+  gate: cargo fmt --all -- --check · cargo clippy --all-targets -- -D warnings · cargo test · .claude/hooks/gates.project.sh (when present) · cargo run -q -- --version
+  gate: cargo deny check all · docker build -t inbox:ci . · docker run --rm inbox:ci --version · --healthcheck must refuse a closed port · cargo llvm-cov --summary-only (informational)
+  write Cargo.toml version = "0.2.0" and a 0.2.0 section in CHANGELOG.md; cargo update -w
+  git commit -am 'chore(release): 0.2.0 [meta]' && git tag v0.2.0   # the commit runs the project's hooks
+  check: tag v0.2.0 names the version Cargo.toml says
+  docker run … rust:1.97-slim-trixie cargo build --release --locked --target x86_64-unknown-linux-musl → dist/inbox + dist/SHA256SUMS; refuse any `=>` in ldd
+  docker build -t ghcr.io/kennypassenier/inbox:v0.2.0 -t ghcr.io/kennypassenier/inbox:latest . && docker run --rm ghcr.io/kennypassenier/inbox:v0.2.0 --version
+  git push origin HEAD:main && git push origin v0.2.0
+  docker push ghcr.io/kennypassenier/inbox:v0.2.0 && docker push ghcr.io/kennypassenier/inbox:latest
+  gh release create v0.2.0 --repo kennypassenier/inbox --verify-tag --title v0.2.0 --notes-file target-musl/release-notes.md --latest=false dist/inbox dist/SHA256SUMS
+  scripts/sign-release.sh v0.2.0   # minisign asks for the key password; uploads .minisig then VERSION, then marks it latest
 ```
+
+`--dry-run` runs the gate and every build on the bumped version and stops
+before the commit; `Cargo.toml` and `Cargo.lock` are put back.
 
 `release` refuses a dirty tree, a branch other than `main`, and a major
 bump without a `Migration` section in `CHANGELOG.md`. `sign-release.sh`

@@ -15,7 +15,11 @@ Proven by: `crates/chassis-cli/tests/new_project_builds.rs`
 - On the PC: the pinned Rust (`rust-toolchain.toml`: 1.97), `git`, and
   the `chassis` binary (`cargo build -p chassis-cli` in this repo puts it
   at `target/debug/chassis`). `gh` only when `chassis new` should create
-  the GitHub repository; `minisign` only for `chassis release`.
+  the GitHub repository. `chassis release` builds and publishes from this
+  machine (3.0.0; nothing runs on GitHub Actions), so it needs `docker`
+  (logged in to `ghcr.io` with a token that has `write:packages`),
+  `cargo-deny` (`cargo install cargo-deny --locked`), `gh` and `minisign`;
+  `cargo-llvm-cov` is optional (coverage is information only).
 - On the LXC: nothing but the binary. It is statically linked musl
   (ARCHITECTURE_DECISIONS T8, amended 2026-09-10), so it needs no glibc and
   runs on any x86_64 Linux; `curl` is not needed because the binary probes
@@ -45,7 +49,6 @@ What lands on disk (the latch unit variant only with `--latch`):
 ```text
 Cargo.toml  Cargo.lock  src/main.rs  README.md  CHANGELOG.md  .chassis.toml
 rust-toolchain.toml  deny.toml  Dockerfile  .dockerignore  .gitignore
-.github/workflows/ci.yml  .github/workflows/release.yml
 deploy/<name>.service  deploy/service.yml  deploy/compose.example.yml  deploy/journald.conf
 scripts/sign-release.sh  .githooks/pre-commit  .githooks/commit-msg
 .claude/hooks/gates.sh  .claude/hooks/check-commit.sh  .claude/settings.json
@@ -206,7 +209,8 @@ button. Proven by: `client_token_flow_end_to_end` (the `/test` step),
 The generated unit is `deploy/<name>.service`; its header comment is the
 install recipe, expanded here. Every step is reversible until step 9.
 
-1. Build the static binary the way the Release workflow does. Which Debian
+1. Build the static binary the way `chassis release` does (its
+   `--dry-run` builds it into `dist/` without publishing anything). Which Debian
    the builder is does not reach the artefact; it only supplies the musl
    toolchain:
    ```bash
@@ -279,9 +283,9 @@ The scaffold's `Dockerfile` builds on `rust:1.97-slim-trixie` and runs on
 `gcr.io/distroless/static:nonroot` as uid 65532 with
 `VOLUME ["/var/lib/<name>"]`, `ENV <P>_LISTEN=0.0.0.0:8080
 <P>_STATE_DIR=/var/lib/<name>`, and `HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD
-["/usr/local/bin/<name>", "--healthcheck"]` (no curl in the image). CI
-pushes it to `ghcr.io/<owner>/<name>:<tag>` and `:latest` on every `v*`
-tag. `deploy/compose.example.yml`, as generated:
+["/usr/local/bin/<name>", "--healthcheck"]` (no curl in the image).
+`chassis release` builds it on this machine and pushes it to
+`ghcr.io/<owner>/<name>:<tag>` and `:latest` for every release. `deploy/compose.example.yml`, as generated:
 
 ```yaml
 services:
