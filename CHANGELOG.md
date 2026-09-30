@@ -5,7 +5,10 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
-## [Unreleased]
+## [3.0.1] - 2026-09-30
+
+A patch: a project's own unit directives survive `chassis sync --write`.
+Nothing on the Rust surface moves.
 
 ### Fixed
 

@@ -2702,3 +2702,9 @@ by hand.
 release-241 "Nu uitbrengen als 2.4.1": kp-themes (7.3.0, then 8.0.0, which
 changed only the version stamp for the kit) and fix-13 go out together.
 
+## Kenny's answers to the 3.0.1 form (2026-09-30)
+
+release-301 "Nu uitbrengen als 3.0.1"; fix-14 "Klopt". Measurement open:
+http-switchboard records its `ExecReload=` as `unit_service` on 3.0.1 and
+the next `chassis sync` reports the unit in sync.
+
