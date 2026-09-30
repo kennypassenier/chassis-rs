@@ -765,6 +765,8 @@ Reported by the local-builds thread after http-switchboard's 3.0.0 sync.
 7. **How we measure that it works, and when.** http-switchboard records its
    line as `unit_service` on the release carrying fix-14; the next
    `chassis sync` reports the unit in sync and `--write` keeps `ExecReload=`.
+   **Measured 2026-09-30, closed:** http-switchboard `073154c` on 3.0.1, a
+   second sync reports 0 diffs for the unit and `ExecReload=` stays.
 8. **The fallback if it fails.** Make `deploy/<name>.service` project-owned
    like the hooks.
 9. **When we review it.** At the retrospective of batch 5.

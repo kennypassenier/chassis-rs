@@ -2708,3 +2708,12 @@ release-301 "Nu uitbrengen als 3.0.1"; fix-14 "Klopt". Measurement open:
 http-switchboard records its `ExecReload=` as `unit_service` on 3.0.1 and
 the next `chassis sync` reports the unit in sync.
 
+## fix-14 measured on http-switchboard (2026-09-30)
+
+Reported through the coordinator (08:58 Brussels): http-switchboard on
+branch chore/chassis-3.0.1 (`073154c`) with `unit_service =
+["ExecReload=/bin/kill -HUP $MAINPID"]`, `chassis upgrade 3.0.1`, gates
+green; `chassis sync --write` kept the line and a second `chassis sync`
+reports 0 diffs for `deploy/http-switchboard.service`. The hand comment in
+the unit moved into `.chassis.toml`. **fix-14 is closed.**
+
