@@ -5,6 +5,17 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
+## [3.0.2] - 2026-09-30
+
+A kp-themes update only: **kp-themes 8.1.0 vendored** (from 8.0.0; three
+files changed, none added or removed). What a page on the kit sees:
+`.kp-page` is now `max(80vw, 64rem)` wide, so the kit's pages and a
+project's app use 80 % of the window (chassis's own CSS caps only prose,
+`.explain` at 48rem); a datatable can show its busy state as an overlay
+(`busy({ text, since, overlay: true })`, `data-kp-busy-overlay`); and an
+indeterminate `.kp-progress` is striped again in every theme (kp-themes
+fix-86).
+
 ## [3.0.1] - 2026-09-30
 
 A patch: a project's own unit directives survive `chassis sync --write`.

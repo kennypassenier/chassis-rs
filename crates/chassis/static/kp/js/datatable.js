@@ -642,7 +642,7 @@ const defaultFilter = (row, query) => (row.textContent ?? '').toLowerCase().incl
  * @property {(keys: readonly string[]) => void} expand  the rows to open, by key
  * @property {(density: Density) => void} density
  * @property {(state: State) => void} state  loading, failed, or ready again
- * @property {(words?: string | null | { text?: string | null, since?: number | Date | null }) => void} busy  the status line's words while the table loads, kept across refresh(), shown only while loading, cleared with no text [fix-80]; with `since` (a time or a Date) the table counts how long it has been loading by itself, in a part the live region does not announce [fix-84]
+ * @property {(words?: string | null | { text?: string | null, since?: number | Date | null, overlay?: boolean }) => void} busy  the status line's words while the table loads, kept across refresh(), shown only while loading, cleared with no text [fix-80]; with `since` (a time or a Date) the table counts how long it has been loading by itself, in a part the live region does not announce [fix-84]; with `overlay: true` (or `data-kp-busy-overlay` on the wrapper) a large spinner with those words and that count sits over the rows while it loads, aria-hidden
  * @property {(reason?: string | null) => void} fail  the failed state with the app's reason in the failed slot's words, and Try again under them; any table, not only a server's [fix-85]
  * @property {() => void} reload  ask the server again for what the table shows
  * @property {(key: string, column: number) => void} edit  open a cell's editor
@@ -909,11 +909,80 @@ export function attachDataTables(
         let busyTimer = null;
         /** The element the count is written into, so the tick touches nothing else. @type {HTMLElement | null} */
         let busyClock = null;
+        /** A large spinner over the rows while it loads, for a table long or slow enough that the status line is out of sight (busy({ overlay }) or data-kp-busy-overlay). */
+        let busyOverlay = wrap.hasAttribute('data-kp-busy-overlay');
+        /** That layer, while it shows. @type {HTMLElement | null} */
+        let overlayLayer = null;
+        /** Its copy of the count, moved by the same tick. @type {HTMLElement | null} */
+        let overlayClock = null;
         const busySeconds = () => Math.max(0, Math.floor((Date.now() - /** @type {number} */ (busySince)) / 1000));
         const stopBusyClock = () => {
             if (busyTimer !== null) clearInterval(busyTimer);
             busyTimer = null;
             busyClock = null;
+            overlayClock = null;
+        };
+        /** Stops the layer following the table's size, while one shows. @type {(() => void) | null} */
+        let overlayUnwatch = null;
+        /**
+         * The layer over the rows while the table loads [busy overlay]: a
+         * large spinner, the status words and the count, centred on the body
+         * and hidden from assistive technology, which hears the status line.
+         * Absolutely placed in the wrapper, so nothing moves when it comes or
+         * goes; the header stays readable above it.
+         * @param {ReturnType<typeof getStrings>} s
+         */
+        const drawOverlay = (s) => {
+            overlayUnwatch?.();
+            overlayUnwatch = null;
+            overlayLayer?.remove();
+            overlayLayer = null;
+            overlayClock = null;
+            // Placed in the wrapper rather than in the box that scrolls, so a
+            // panel taller than a few rows never adds a scrollbar there.
+            const host = wrap;
+            if (state !== 'loading' || !busyOverlay) return;
+            const layer = make('div', 'kp-datatable__busy-overlay');
+            layer.setAttribute('aria-hidden', 'true');
+            // Measured, and measured again whenever the table or its header
+            // changes size: a theme switched after it was drawn, or a font
+            // arriving late, moves the header, and the layer must stay under
+            // it rather than where the header first was.
+            const place = () => {
+                const head = table.tHead;
+                const hostBox = host.getBoundingClientRect();
+                const body = (table.tBodies[0] ?? table).getBoundingClientRect();
+                const tableBox = (scrollBox ?? table).getBoundingClientRect();
+                const top = head === null ? body.top : head.getBoundingClientRect().bottom;
+                layer.style.setProperty('--kp-busy-overlay-top', `${Math.max(0, Math.round(top - hostBox.top - host.clientTop))}px`);
+                layer.style.setProperty(
+                    '--kp-busy-overlay-bottom',
+                    `${Math.max(0, Math.round(hostBox.bottom - Math.max(tableBox.bottom, top) - host.clientTop))}px`,
+                );
+                layer.style.setProperty('--kp-busy-overlay-left', `${Math.max(0, Math.round(tableBox.left - hostBox.left - host.clientLeft))}px`);
+                layer.style.setProperty('--kp-busy-overlay-right', `${Math.max(0, Math.round(hostBox.right - tableBox.right - host.clientLeft))}px`);
+            };
+            place();
+            if (typeof ResizeObserver === 'function') {
+                const watcher = new ResizeObserver(() => place());
+                watcher.observe(host);
+                watcher.observe(table);
+                if (table.tHead !== null) watcher.observe(table.tHead);
+                overlayUnwatch = () => watcher.disconnect();
+            }
+            const panel = make('div', 'kp-datatable__busy-panel');
+            const spinner = make('span', 'kp-spinner');
+            const words = make('span', 'kp-datatable__busy-words');
+            words.textContent = busyText ?? s.busy;
+            panel.append(spinner, words);
+            if (busySince !== null) {
+                overlayClock = make('span', 'kp-datatable__busy-clock');
+                overlayClock.textContent = s.tableBusyElapsed(busySeconds());
+                panel.append(overlayClock);
+            }
+            layer.append(panel);
+            host.append(layer);
+            overlayLayer = layer;
         };
         /** The server's count, in a server-backed table. */
         let total = Number.parseInt(wrap.dataset.kpTotal ?? '', 10);
@@ -1740,10 +1809,13 @@ export function attachDataTables(
                     busyClock.textContent = s.tableBusyElapsed(busySeconds());
                     status.append(' ', busyClock);
                     busyTimer = setInterval(() => {
-                        if (busyClock !== null) busyClock.textContent = getStrings().tableBusyElapsed(busySeconds());
+                        const words = getStrings().tableBusyElapsed(busySeconds());
+                        if (busyClock !== null) busyClock.textContent = words;
+                        if (overlayClock !== null) overlayClock.textContent = words;
                     }, 1000);
                 }
             }
+            drawOverlay(s);
             if (pager !== null) {
                 pager.textContent = '';
                 if (sizeLabel !== null) pager.append(sizeLabel);
@@ -3030,6 +3102,7 @@ export function attachDataTables(
                 const given = typeof words === 'object' && words !== null ? words : { text: words };
                 busyText = given.text ?? null;
                 busySince = given.since === undefined || given.since === null ? null : Number(given.since);
+                busyOverlay = 'overlay' in given && given.overlay !== undefined ? Boolean(given.overlay) : wrap.hasAttribute('data-kp-busy-overlay');
                 render();
             },
             reload: () => (serverMode ? request() : applyFilter({ keepPage: true })),
@@ -3124,6 +3197,9 @@ export function attachDataTables(
             if (loadingSlot !== null) loadingSlot.hidden = true;
             if (failedSlot !== null) failedSlot.hidden = true;
             if (actions !== null) actions.hidden = true;
+            stopBusyClock();
+            overlayUnwatch?.();
+            overlayLayer?.remove();
             for (const node of added) node.remove();
             for (const step of undo) step();
             if (densityWas === null) wrap.removeAttribute('data-density');

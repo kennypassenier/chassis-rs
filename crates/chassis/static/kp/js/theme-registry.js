@@ -63,4 +63,4 @@ export const STORAGE_KEY = 'theme';
  * matters happens in the browser, on a page where the two files may
  * have arrived separately. js/diagnostics.js does it.
  */
-export const VERSION = '8.0.0';
+export const VERSION = '8.1.0';
