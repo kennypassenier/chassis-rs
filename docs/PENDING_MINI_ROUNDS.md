@@ -2774,3 +2774,15 @@ kit bar would need an extension API for each of its parts. Apps without
 a web app keep the kit layout, already one bar. Interface sent to the
 Homelab-dashboard thread through the coordinator before the build.
 
+## Kenny's answer: release 3.1.0 (2026-10-01)
+
+release-310: "Nu uitbrengen als 3.1.0". Three release runs: the first
+found a pause ended by another App's shutdown in the same test binary
+(fixed `c86b704`, a shutdown ends only its own pause); the second a
+core-only compile error, `nav_entry` having lost its dashboard gate
+(fixed `81d4a28`, with the heartbeat test the homelab asked for); the
+third released `v3.1.0` at `cd9dee8`. Open measurements: the unit-stop
+fallback on a systemd host; the first nightly on a paused, not stopped,
+chassis service (archive without "file changed as we read it",
+`NRestarts` unchanged).
+
