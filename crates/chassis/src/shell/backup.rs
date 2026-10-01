@@ -332,6 +332,10 @@ pub struct Controller {
     drain: Duration,
     floor: Mode,
     paths: Arc<Vec<PathBuf>>,
+    /// The epoch of the last pause this controller began, so a shutdown
+    /// ends only its own pause, never one another service in the same
+    /// process (the kit's tests run many) holds.
+    started: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl Controller {
@@ -342,6 +346,7 @@ impl Controller {
             drain: DRAIN_TIMEOUT,
             floor: Mode::Writes,
             paths: Arc::new(Vec::new()),
+            started: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         }
     }
 
@@ -406,6 +411,8 @@ impl Controller {
                     .duration_since(UNIX_EPOCH)
                     .map_or(0, |d| d.as_secs());
                 s.epoch += 1;
+                self.started
+                    .store(s.epoch, std::sync::atomic::Ordering::SeqCst);
                 Start::New(s.epoch)
             }
         };
@@ -489,6 +496,15 @@ impl Controller {
             tracing::info!(reason, "backup pause ended");
         }
         was
+    }
+
+    /// End the pause only if this controller began it.
+    pub async fn resume_own(&self, reason: &str) -> bool {
+        let own = {
+            let s = state();
+            s.paused && s.epoch == self.started.load(std::sync::atomic::Ordering::SeqCst)
+        };
+        own && self.resume(reason).await
     }
 
     /// `None` when running, else the seconds left and the mode.
@@ -713,7 +729,7 @@ pub mod server {
         /// End any pause (so the flush hooks can write) and close.
         pub async fn stop(self) {
             self.task.abort();
-            self.controller.resume("shutdown").await;
+            self.controller.resume_own("shutdown").await;
             let _ = std::fs::remove_file(&self.path);
         }
     }
