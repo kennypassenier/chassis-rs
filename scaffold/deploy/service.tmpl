@@ -30,6 +30,10 @@ User={{ name }}
 Group={{ name }}
 EnvironmentFile={{ env_file }}
 WorkingDirectory={{ state_dir }}
+# feat-backup-1: /run/{{ name }}/backup.sock, where `{{ name }} backup-pause`
+# reaches the running service; outside the state root, so never archived.
+RuntimeDirectory={{ name }}
+RuntimeDirectoryMode=0700
 ExecStartPre=/opt/{{ name }}/bin/{{ name }} --check
 ExecStart=/opt/{{ name }}/bin/{{ name }}
 {% for line in unit_service %}{{ line }}

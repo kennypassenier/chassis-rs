@@ -2717,3 +2717,20 @@ green; `chassis sync --write` kept the line and a second `chassis sync`
 reports 0 diffs for `deploy/http-switchboard.service`. The hand comment in
 the unit moved into `.chassis.toml`. **fix-14 is closed.**
 
+## feat-backup-1 built (2026-10-01)
+
+Asked by Kenny in the homelab dashboard's form (backup-pause: "beide
+pauzeren, zet ook in chassis-rs … een backup_pauze functie … zodat
+homelab het kan gebruiken bij al onze projecten die op chassis-rs gebouwd
+worden"), relayed by the coordinator. W4 (quiesce) was rated Desired in
+R2 and never built; this is its pause half. The interface (socket, exit
+codes, dead-man, `RuntimeDirectory=`) went to the Homelab-dashboard
+thread through the coordinator before the build. Build and clippy green,
+API contract: additions only (a minor, 3.1.0). Tests written, not yet
+run: they run at the release gate once Kenny gives the release go.
+Open after the release: each consumer bumps, runs `chassis sync --write`
+for the `RuntimeDirectory=` line and wraps its own writes (kyu: the WAL
+checkpoint in `on_backup_pause`); the homelab switches the stack from a
+unit stop to `backup-pause`. Measurement: the first nightly on a paused
+(not stopped) chassis service archives without "file changed as we read
+it" and the service's `NRestarts` stays unchanged.

@@ -5,6 +5,27 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
+## [Unreleased]
+
+### Added
+
+- **Backup pause** (feat-backup-1; Kenny, 2026-10-01: the homelab should
+  pause every chassis-based service for its nightly backup instead of
+  stopping it). `<name> backup-pause --for <secs>` and `<name>
+  backup-resume` ask the running service, over `/run/<name>/backup.sock`,
+  to hold every write of its state while a backup reads it; the call
+  returns once the files stand still. The kit's own stores join through
+  `write_atomic`; a project wraps its own writes in
+  `chassis::shell::backup::writing().await` (or `writing_blocking()`) and
+  brings its files to rest in `App::on_backup_pause` (e.g. a SQLite WAL
+  checkpoint), with `App::on_backup_resume` for the way back. The pause
+  ends by itself at the `--for` deadline and at shutdown. Exit codes and
+  the procedure: docs/OPERATIONS.md §7.
+- The scaffold's units carry `RuntimeDirectory=<name>` and
+  `RuntimeDirectoryMode=0700`, so the socket has a home outside the state
+  root. A project picks it up with `chassis sync --write`; until then
+  `backup-pause` exits 3 and the homelab falls back to stopping the unit.
+
 ## [3.0.2] - 2026-09-30
 
 A kp-themes update only: **kp-themes 8.1.0 vendored** (from 8.0.0; three

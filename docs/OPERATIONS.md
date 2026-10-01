@@ -191,6 +191,39 @@ REALIZATION_PLAN L8), abort-safe until step 5:
 7. An existing client token still gets 202 on the API and an existing
    browser session still opens `/clients`; `uses` continues where it was.
 
+**A backup without stopping the service: `backup-pause`** (feat-backup-1,
+3.1.0). A tar of a running service fails with "file changed as we read
+it" when the service writes meanwhile (homelab fix-157). Instead of
+stopping the unit, the backup can ask the service to hold its writes:
+
+```
+<name> backup-pause --for 600   # returns once the files stand still
+tar …                           # the archive
+<name> backup-resume
+```
+
+Both read no configuration, so `pct exec <ct> -- /opt/<name>/bin/<name>
+backup-pause --for 600` works from the Proxmox host as root. They talk to
+the running service over `/run/<name>/backup.sock` (the unit's
+`RuntimeDirectory=<name>`, outside the state root; `--socket PATH`
+overrides). The service holds every write of its own state (all of them go
+through `write_atomic`) and every write a project wrapped in
+`chassis::shell::backup::writing()`, waits up to 30 s for the writes already
+in flight, runs the project's `on_backup_pause` hooks (a SQLite
+`wal_checkpoint(TRUNCATE)`), and only then answers. Reads, `/healthz` and
+the dashboard keep answering; a request that must write waits until the
+pause ends. The pause ends at `backup-resume`, at the `--for` deadline
+(1 to 21600 s, a dead-man: a backup that dies never leaves the service
+frozen), or at shutdown. Pausing while paused keeps the later deadline.
+`backup-pause --status` prints `paused <seconds left>` or `running`.
+
+| Exit | backup-pause | backup-resume |
+|---|---|---|
+| 0 | paused; stdout `paused <unix deadline>` | resumed, or nothing was paused |
+| 3 | nobody listens on the socket: the service is not running, its unit predates `RuntimeDirectory=` (run `chassis sync --write` and redeploy the unit), or its binary predates 3.1.0. Stop the unit for the backup instead | same |
+| 4 | writes still in flight after 30 s; nothing paused. Retry, or stop the unit | — |
+| 1 | anything else (a failing pause hook, a refused `--for`) | anything else |
+
 The tar is useless without the secret key — see §8. Proven by:
 `sessions_and_usage_survive_a_restart`, `unwritable_state_dir_is_refused_at_check_and_start`,
 `shell::store::tests::encrypted_file_round_trips_and_is_unreadable_as_plaintext`.

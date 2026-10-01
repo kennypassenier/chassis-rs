@@ -5,6 +5,7 @@
 pub mod assets;
 #[cfg(feature = "dashboard")]
 pub mod auth;
+pub mod backup;
 #[cfg(feature = "dashboard")]
 pub mod captures;
 #[cfg(feature = "dashboard")]

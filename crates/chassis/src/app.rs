@@ -680,6 +680,11 @@ pub struct App {
     /// first log lines land after logging is up and `--check` never
     /// starts them.
     start_hooks: Vec<Box<dyn FnOnce() + Send>>,
+    /// feat-backup-1: `backup-pause` / `backup-resume`, answered by `control`
+    /// before any configuration is read.
+    backup_cmd: Option<crate::shell::backup::BackupCmd>,
+    backup_pause_hooks: Vec<crate::shell::backup::PauseHook>,
+    backup_resume_hooks: Vec<crate::shell::backup::ResumeHook>,
     subsystems: Vec<Arc<dyn Subsystem>>,
     scrape_sources: Vec<Arc<dyn ScrapeSource>>,
     timeout_exempt: HashSet<String>,
@@ -732,6 +737,8 @@ pub struct Running {
     task: tokio::task::JoinHandle<()>,
     shutdown_timeout: Duration,
     flushes: Vec<Box<dyn FnOnce() + Send>>,
+    #[cfg(unix)]
+    backup: Option<crate::shell::backup::server::Server>,
 }
 
 /// `true`/`false` (also `1`/`0`, `yes`/`no`); anything else is a config
@@ -805,6 +812,9 @@ impl App {
             checks: Vec::new(),
             flush: None,
             start_hooks: Vec::new(),
+            backup_cmd: None,
+            backup_pause_hooks: Vec::new(),
+            backup_resume_hooks: Vec::new(),
             subsystems: Vec::new(),
             scrape_sources: Vec::new(),
             timeout_exempt: HashSet::new(),
@@ -863,6 +873,41 @@ impl App {
             .subcommand(
                 Command::new("update")
                     .about("One supervised update attempt: verify, install, exit 0 (also when already current); never restarts"),
+            )
+            .subcommand(
+                Command::new("backup-pause")
+                    .about("Ask the running service to hold every write of its state for a backup; returns once the files stand still. Exit 0 paused, 3 no service listening, 4 writes did not drain")
+                    .arg(
+                        Arg::new("for")
+                            .long("for")
+                            .value_name("SECS")
+                            .required_unless_present("status")
+                            .value_parser(clap::value_parser!(u64).range(1..=21600))
+                            .help("The pause ends by itself after this many seconds (1 to 21600), also when backup-resume never comes"),
+                    )
+                    .arg(
+                        Arg::new("status")
+                            .long("status")
+                            .action(ArgAction::SetTrue)
+                            .conflicts_with("for")
+                            .help("Print `paused <seconds left>` or `running` and exit 0"),
+                    )
+                    .arg(
+                        Arg::new("socket")
+                            .long("socket")
+                            .value_name("PATH")
+                            .help("The service's backup socket (default /run/<name>/backup.sock)"),
+                    ),
+            )
+            .subcommand(
+                Command::new("backup-resume")
+                    .about("End a backup pause (exit 0 also when none was in force; 3 when no service is listening)")
+                    .arg(
+                        Arg::new("socket")
+                            .long("socket")
+                            .value_name("PATH")
+                            .help("The service's backup socket (default /run/<name>/backup.sock)"),
+                    ),
             )
             .subcommand(
                 Command::new("rekey")
@@ -952,6 +997,32 @@ impl App {
         }
         if matches.subcommand_matches("gen-secret").is_some() {
             return Ok(App::bare(spec, router, Control::GenSecret));
+        }
+        // feat-backup-1: the homelab calls these through `pct exec`, without
+        // the unit's environment, so they read no configuration at all.
+        {
+            use crate::shell::backup::BackupCmd;
+            let socket = |m: &clap::ArgMatches| m.get_one::<String>("socket").map(PathBuf::from);
+            let cmd = if let Some(m) = matches.subcommand_matches("backup-pause") {
+                Some(if m.get_flag("status") {
+                    BackupCmd::Status { socket: socket(m) }
+                } else {
+                    BackupCmd::Pause {
+                        secs: *m.get_one::<u64>("for").expect("required"),
+                        socket: socket(m),
+                    }
+                })
+            } else {
+                matches
+                    .subcommand_matches("backup-resume")
+                    .map(|m| BackupCmd::Resume { socket: socket(m) })
+            };
+            if let Some(cmd) = cmd {
+                let mut app = App::bare(spec, router, Control::Version);
+                app.control = None;
+                app.backup_cmd = Some(cmd);
+                return Ok(app);
+            }
         }
 
         let mut flags = BTreeMap::new();
@@ -1176,6 +1247,9 @@ impl App {
             checks: Vec::new(),
             flush: None,
             start_hooks: Vec::new(),
+            backup_cmd: None,
+            backup_pause_hooks: Vec::new(),
+            backup_resume_hooks: Vec::new(),
             subsystems: Vec::new(),
             scrape_sources: Vec::new(),
             timeout_exempt: HashSet::new(),
@@ -1563,6 +1637,27 @@ impl App {
     /// the runtime, on the serving path only: spawn background workers
     /// here (a pump, a poller). `--check` and the other control commands
     /// never reach it; pair it with `on_flush` to stop the workers.
+    /// feat-backup-1: run when a backup pause starts, after every write of
+    /// the kit's state and every [`crate::shell::backup::writing`] ticket
+    /// came back, before the pause is confirmed to the caller. The place
+    /// to bring a project's own files to rest (a SQLite
+    /// `wal_checkpoint(TRUNCATE)`). An error refuses the pause. Must not
+    /// write through the kit's stores: they are held.
+    pub fn on_backup_pause(
+        &mut self,
+        f: impl Fn() -> Result<(), Error> + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.backup_pause_hooks.push(Arc::new(f));
+        self
+    }
+
+    /// feat-backup-1: run when a backup pause ends, whatever ended it
+    /// (`backup-resume`, the deadline, a refused pause, shutdown).
+    pub fn on_backup_resume(&mut self, f: impl Fn() + Send + Sync + 'static) -> &mut Self {
+        self.backup_resume_hooks.push(Arc::new(f));
+        self
+    }
+
     pub fn on_start(&mut self, f: impl FnOnce() + Send + 'static) -> &mut Self {
         self.start_hooks.push(Box::new(f));
         self
@@ -1669,6 +1764,10 @@ impl App {
 
     /// Answer the control command, if any. `Some(code)` means "exit now".
     pub async fn control(&mut self) -> Result<Option<ExitCode>, Error> {
+        if let Some(cmd) = self.backup_cmd.take() {
+            let code = crate::shell::backup::client::run(self.spec.name, &cmd).await;
+            return Ok(Some(ExitCode::from(code)));
+        }
         match self.control.clone() {
             None => Ok(None),
             Some(Control::Version) => {
@@ -2198,6 +2297,14 @@ impl App {
                 }
             });
         }
+        #[cfg(unix)]
+        let backup = crate::shell::backup::server::Server::start(
+            crate::shell::backup::server_socket_path(self.spec.name),
+            crate::shell::backup::Controller::new(
+                std::mem::take(&mut self.backup_pause_hooks),
+                std::mem::take(&mut self.backup_resume_hooks),
+            ),
+        );
         for hook in self.start_hooks.drain(..) {
             hook();
         }
@@ -2207,6 +2314,8 @@ impl App {
             task,
             shutdown_timeout: self.shutdown_timeout,
             flushes,
+            #[cfg(unix)]
+            backup,
         })
     }
 }
@@ -2278,8 +2387,15 @@ impl Running {
             task,
             shutdown_timeout,
             flushes,
+            #[cfg(unix)]
+            backup,
             ..
         } = self;
+        // A held write would outlast the drain; end any backup pause first.
+        #[cfg(unix)]
+        if let Some(backup) = backup {
+            backup.stop().await;
+        }
         let _ = stop.send(());
         let drained = lifecycle::bounded(shutdown_timeout, "in-flight requests", async {
             let _ = task.await;
