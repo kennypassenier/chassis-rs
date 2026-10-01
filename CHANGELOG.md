@@ -31,7 +31,10 @@ scaffold writes. A breaking change in either is a major and carries a
   still after its first line (the state root plus `App::backup_path`); and
   the state shows as `<name>_backup_paused` and
   `<name>_backup_paused_since_seconds` in `/metrics` and as `backup` in
-  `/api/kit/status`.
+  `/api/kit/status`. The homelab uses it as a heartbeat: `backup-pause
+  --for 120`, repeated every 60 s while the copy runs, then
+  `backup-resume`, so the pause lasts exactly as long as the copy and ends
+  by itself within 2 minutes if the backup dies.
 - **Pages and one navigation** (feat-pages-1; Kenny, 2026-10-01: the admin
   should open on its own Home, not on `/app`, and the kit's pages belong in
   the same bar as the app's). A `WebApp` now mounts at the root by default

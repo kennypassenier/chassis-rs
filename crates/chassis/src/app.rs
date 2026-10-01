@@ -1539,8 +1539,6 @@ impl App {
         self
     }
 
-    /// A link in the dashboard's top navigation (K16).
-    #[cfg(feature = "dashboard")]
     /// feat-pages-1: a page of the project, in the one list every
     /// navigation renders from (the kit's layout and, through
     /// `GET /api/kit/pages`, a web app). `Page::new(id, title, path)`,
@@ -1599,6 +1597,9 @@ impl App {
         self
     }
 
+    /// A link in the dashboard's top navigation (K16): since 3.1.0 a
+    /// visible project page in the page registry.
+    #[cfg(feature = "dashboard")]
     pub fn nav_entry(&mut self, label: &str, href: &str) -> &mut Self {
         self.dash.nav.push(crate::shell::dashboard::NavEntry {
             label: label.to_string(),
