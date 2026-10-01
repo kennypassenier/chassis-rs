@@ -306,6 +306,18 @@ impl IntoResponse for Error {
             self.message
         };
         let body = serde_json::json!({ "error": message, "remedy": self.remedy });
+        // feat-backup-1: a write held past its limit by a backup says when
+        // to come back.
+        if self.kind == Kind::Overloaded
+            && let Some(left) = crate::shell::backup::seconds_left()
+        {
+            return (
+                status,
+                [(axum::http::header::RETRY_AFTER, left.to_string())],
+                axum::Json(body),
+            )
+                .into_response();
+        }
         (status, axum::Json(body)).into_response()
     }
 }

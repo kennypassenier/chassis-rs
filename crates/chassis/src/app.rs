@@ -686,6 +686,19 @@ pub struct App {
     backup_pause_hooks: Vec<crate::shell::backup::PauseHook>,
     backup_resume_hooks: Vec<crate::shell::backup::ResumeHook>,
     backup_mode: crate::shell::backup::Mode,
+    backup_paths: Vec<PathBuf>,
+    /// feat-pages-1: the project's pages, edits of the kit's, the brand
+    /// link and the home route.
+    #[cfg(feature = "dashboard")]
+    pages: Vec<crate::shell::pages::Page>,
+    #[cfg(feature = "dashboard")]
+    kit_page_edits: Vec<(String, crate::shell::pages::KitPageEdit)>,
+    #[cfg(feature = "dashboard")]
+    brand: Option<String>,
+    #[cfg(feature = "dashboard")]
+    home: Option<String>,
+    #[cfg(feature = "dashboard")]
+    kit_pages_in_webapp: bool,
     subsystems: Vec<Arc<dyn Subsystem>>,
     scrape_sources: Vec<Arc<dyn ScrapeSource>>,
     timeout_exempt: HashSet<String>,
@@ -817,6 +830,17 @@ impl App {
             backup_pause_hooks: Vec::new(),
             backup_resume_hooks: Vec::new(),
             backup_mode: crate::shell::backup::Mode::Writes,
+            backup_paths: Vec::new(),
+            #[cfg(feature = "dashboard")]
+            pages: Vec::new(),
+            #[cfg(feature = "dashboard")]
+            kit_page_edits: Vec::new(),
+            #[cfg(feature = "dashboard")]
+            brand: None,
+            #[cfg(feature = "dashboard")]
+            home: None,
+            #[cfg(feature = "dashboard")]
+            kit_pages_in_webapp: false,
             subsystems: Vec::new(),
             scrape_sources: Vec::new(),
             timeout_exempt: HashSet::new(),
@@ -1292,6 +1316,17 @@ impl App {
             backup_pause_hooks: Vec::new(),
             backup_resume_hooks: Vec::new(),
             backup_mode: crate::shell::backup::Mode::Writes,
+            backup_paths: Vec::new(),
+            #[cfg(feature = "dashboard")]
+            pages: Vec::new(),
+            #[cfg(feature = "dashboard")]
+            kit_page_edits: Vec::new(),
+            #[cfg(feature = "dashboard")]
+            brand: None,
+            #[cfg(feature = "dashboard")]
+            home: None,
+            #[cfg(feature = "dashboard")]
+            kit_pages_in_webapp: false,
             subsystems: Vec::new(),
             scrape_sources: Vec::new(),
             timeout_exempt: HashSet::new(),
@@ -1506,6 +1541,64 @@ impl App {
 
     /// A link in the dashboard's top navigation (K16).
     #[cfg(feature = "dashboard")]
+    /// feat-pages-1: a page of the project, in the one list every
+    /// navigation renders from (the kit's layout and, through
+    /// `GET /api/kit/pages`, a web app). `Page::new(id, title, path)`,
+    /// then `.order(n)`, `.group(g)`, `.hidden()` (routable, not listed).
+    #[cfg(feature = "dashboard")]
+    pub fn page(&mut self, page: crate::shell::pages::Page) -> &mut Self {
+        self.pages.push(page);
+        self
+    }
+
+    /// feat-pages-1: change one of the kit's pages (`status`, `clients`,
+    /// `passkeys`): its title, order, group or whether it is listed. Its id
+    /// and path stay the kit's.
+    #[cfg(feature = "dashboard")]
+    pub fn kit_page(
+        &mut self,
+        id: &str,
+        edit: impl Fn(crate::shell::pages::Page) -> crate::shell::pages::Page + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.kit_page_edits.push((id.to_string(), Box::new(edit)));
+        self
+    }
+
+    /// feat-pages-1: where the brand link on the left of the navigation
+    /// goes (default `/`).
+    #[cfg(feature = "dashboard")]
+    pub fn brand(&mut self, href: &str) -> &mut Self {
+        self.brand = Some(href.to_string());
+        self
+    }
+
+    /// feat-pages-1: where `/` leads when no web app sits at the root
+    /// (default: the status page, served at `/` itself).
+    #[cfg(feature = "dashboard")]
+    pub fn home(&mut self, path: &str) -> &mut Self {
+        self.home = Some(path.to_string());
+        self
+    }
+
+    /// feat-pages-1: the project's web app draws the kit's pages too, from
+    /// `/api/kit/status`, `/api/kit/clients` and `/api/kit/passkeys`, so
+    /// every page carries the app's own bar. The kit then claims no GET
+    /// page at `/status`, `/clients` or `/passkeys`; its actions stay.
+    /// Needs a web app at the root.
+    #[cfg(feature = "dashboard")]
+    pub fn kit_pages_in_webapp(&mut self) -> &mut Self {
+        self.kit_pages_in_webapp = true;
+        self
+    }
+
+    /// feat-backup-1: one more directory a backup pause holds still and
+    /// `backup-pause` lists, beside the state root (data the project keeps
+    /// elsewhere).
+    pub fn backup_path(&mut self, path: impl Into<PathBuf>) -> &mut Self {
+        self.backup_paths.push(path.into());
+        self
+    }
+
     pub fn nav_entry(&mut self, label: &str, href: &str) -> &mut Self {
         self.dash.nav.push(crate::shell::dashboard::NavEntry {
             label: label.to_string(),
@@ -2196,6 +2289,11 @@ impl App {
             }
         }
 
+        // feat-backup-1: whether a backup pause holds the state, and since when.
+        self.scrape_sources
+            .push(Arc::new(crate::shell::backup::PauseMetrics(
+                self.spec.metric_prefix(),
+            )));
         let metrics = Metrics::install(
             &self.spec.metric_prefix(),
             self.spec.version,
@@ -2252,14 +2350,26 @@ impl App {
             // feat-webapp-1: the project's browser app joins the project's
             // own pages, so the mount puts the same admin login in front.
             #[cfg(feature = "webapp")]
+            #[cfg(feature = "webapp")]
+            let webapp_at_root = self.webapp.as_ref().is_some_and(|w| w.at_root());
+            #[cfg(not(feature = "webapp"))]
+            let webapp_at_root = false;
+            crate::shell::pages::validate(&self.pages)?;
+            if self.kit_pages_in_webapp && !webapp_at_root {
+                return Err(Error::config(
+                    "kit_pages_in_webapp() needs a web app at the root",
+                    "register WebApp::embedded(FILES) without .at(…), or drop kit_pages_in_webapp()",
+                ));
+            }
+            #[cfg(feature = "webapp")]
             let dashboard_router = match self.webapp {
                 Some(w) => self.dashboard_router.merge(w.router()?),
                 None => self.dashboard_router,
             };
             #[cfg(not(feature = "webapp"))]
             let dashboard_router = self.dashboard_router;
-            let (protected, flush, html) =
-                crate::app_dashboard::mount(crate::app_dashboard::MountInput {
+            let (protected, flush, html) = crate::app_dashboard::mount_with(
+                crate::app_dashboard::MountInput {
                     spec: &self.spec,
                     loaded,
                     limits: &self.limits,
@@ -2271,8 +2381,17 @@ impl App {
                     client_store: self.client_store.clone(),
                     registry: self.dash,
                     health: health.clone(),
-                })
-                .await?;
+                },
+                crate::app_dashboard::MountExtra {
+                    pages: std::mem::take(&mut self.pages),
+                    kit_edits: std::mem::take(&mut self.kit_page_edits),
+                    brand: self.brand.take(),
+                    home: self.home.take(),
+                    webapp_at_root,
+                    kit_in_webapp: self.kit_pages_in_webapp,
+                },
+            )
+            .await?;
             router = router.merge(protected);
             flushes.push(flush);
             html_errors = Some(html);
@@ -2359,7 +2478,12 @@ impl App {
                 std::mem::take(&mut self.backup_pause_hooks),
                 std::mem::take(&mut self.backup_resume_hooks),
             )
-            .with_mode(self.backup_mode),
+            .with_mode(self.backup_mode)
+            .with_paths({
+                let mut paths = vec![loaded.state_dir.clone()];
+                paths.extend(std::mem::take(&mut self.backup_paths));
+                paths
+            }),
         );
         for hook in self.start_hooks.drain(..) {
             hook();

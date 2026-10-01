@@ -24,6 +24,36 @@ scaffold writes. A breaking change in either is a major and carries a
   `writing_blocking()`) and brings its files to rest in
   `App::on_backup_pause(|mode| …)`, with `App::on_backup_resume` for the
   way back. Exit codes and the procedure: docs/OPERATIONS.md §7.
+- The pause, refined with the homelab as the backup's caller: `writes`
+  stays the default, so probes and pages keep answering and no monitor
+  fires at night; a write held by it waits at most 10 s and then fails as
+  503 with `Retry-After`; `backup-pause` prints the directories it holds
+  still after its first line (the state root plus `App::backup_path`); and
+  the state shows as `<name>_backup_paused` and
+  `<name>_backup_paused_since_seconds` in `/metrics` and as `backup` in
+  `/api/kit/status`.
+- **Pages and one navigation** (feat-pages-1; Kenny, 2026-10-01: the admin
+  should open on its own Home, not on `/app`, and the kit's pages belong in
+  the same bar as the app's). A `WebApp` now mounts at the root by default
+  and is the router's fallback, so `/` is the app's home and `/overview` its
+  own route; `/app/…` answers 308 to the same path at the root. One page
+  registry feeds every navigation: `App::page(Page::new(id, title,
+  path).order(n).group(g).hidden())`, `App::kit_page(id, |p| …)`,
+  `App::brand(href)`, `App::home(path)`, read by a web app from
+  `GET /api/kit/pages`. With `App::kit_pages_in_webapp()` the web app draws
+  the kit's status, clients and passkeys pages inside its own bar from
+  `GET /api/kit/status`, `/api/kit/clients` and `/api/kit/passkeys`. The
+  status page now also lives at `/status`; `/` still shows it for a
+  service without a web app at the root. Docs: docs/WEBAPP.md.
+
+### Changed
+
+- **`WebApp::embedded` and `WebApp::dir` mount at `/`, not `/app`.** A
+  service that wants the old place says `.at("/app")`. Only the homelab
+  dashboard uses `webapp` today, and it asked for this.
+- The kit's layout renders its navigation from the page registry, and the
+  brand link follows `App::brand`.
+
 - The scaffold's units carry `RuntimeDirectory=<name>` and
   `RuntimeDirectoryMode=0700`, so the socket has a home outside the state
   root. A project picks it up with `chassis sync --write`; until then

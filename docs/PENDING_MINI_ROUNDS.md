@@ -2750,3 +2750,27 @@ for the fallback: on a real systemd host after the release, `backup-pause`
 against a unit without `RuntimeDirectory=` prints `stopped`, the deadman
 timer exists, `backup-resume` prints `started` and the timer is gone; and
 once with the resume left out, the unit is active again at the deadline.
+
+The homelab, as the backup's caller, answered on Kenny's pause model
+(2026-10-01, relayed): keep `writes` as the default so probes and pages
+answer and no monitor fires at night; bound a held write (10 s, then 503 +
+`Retry-After`); no webhook, the synchronous exit code is the contract;
+visibility as a metric and in `/api/kit/status`; print the held paths.
+Built the same day, explained to Kenny in the thread.
+
+## feat-pages-1 built (2026-10-01)
+
+Kenny, homelab dashboard thread, relayed with the coordinator's note to
+fold it into 3.1.0: the admin must open on its own Home at `/`, not on
+`/app`; Overview gets `/overview` and leaves the nav (the brand link leads
+there); chassis's own pages belong in the same bar, with the palette,
+notifications and theme switcher; all of it dynamic, so it never comes
+back. Decision: one page registry feeds every navigation; the web app
+mounts at the root as the router fallback; and, of the two ways to get one
+bar on every page, the app draws the kit's pages from JSON
+(`kit_pages_in_webapp`, the homelab's proposal) rather than a kit-owned
+bar, because the admin's bar is app-specific through and through and a
+kit bar would need an extension API for each of its parts. Apps without
+a web app keep the kit layout, already one bar. Interface sent to the
+Homelab-dashboard thread through the coordinator before the build.
+

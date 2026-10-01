@@ -37,18 +37,24 @@ async fn the_app_and_its_live_channel_sit_behind_the_login() {
 
     // Without a session a browser is sent to the login, for the app and
     // for the channel alike.
-    let (status, _) = app.page("/app/").await;
+    let (status, _) = app.page("/").await;
     assert_eq!(status, 303, "no session: redirect to /login");
     let (status, _) = app.page("/events").await;
     assert_eq!(status, 303);
 
     app.login().await;
-    let (status, body) = app.page("/app/").await;
+    // feat-pages-1: the app sits at the root, so `/` is its home.
+    let (status, body) = app.page("/").await;
     assert_eq!(status, 200, "{body}");
     assert!(body.contains("js/main.js"), "{body}");
-    let (status, body) = app.page("/app/stacks/media").await;
+    let (status, body) = app.page("/stacks/media").await;
     assert_eq!(status, 200, "a client-side route gets the index");
     assert!(body.contains("js/main.js"));
+    let (status, _) = app.page("/app/stacks/media").await;
+    assert_eq!(
+        status, 308,
+        "a bookmark from before 3.1.0 moves to the root"
+    );
 
     // With `webapp` the whole kp-themes module set is served for the app,
     // not only the modules the kit's own pages use.
@@ -57,10 +63,13 @@ async fn the_app_and_its_live_channel_sit_behind_the_login() {
         assert_eq!(status, 200, "{module}: {body}");
     }
 
-    // The kit's own pages are untouched by the mount.
-    let (status, body) = app.page("/").await;
+    // The kit's own pages keep their paths beside the app.
+    let (status, body) = app.page("/status").await;
     assert_eq!(status, 200);
     assert!(body.contains("webdemo"), "{body}");
+    let (status, body) = app.page("/api/kit/pages").await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains(r#""id":"status""#), "{body}");
 
     // The live channel streams to the logged-in browser.
     let cookie = app.session_cookie().expect("logged in").to_string();

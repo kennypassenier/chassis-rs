@@ -52,6 +52,11 @@ pub const DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
 /// The longest pause one call may ask for (6 h).
 pub const MAX_PAUSE: Duration = Duration::from_secs(6 * 3600);
 
+/// How long one held write waits before it is answered 503 with
+/// `Retry-After` instead (the homelab's ask: a client never times out on
+/// its own). Applies to the kit's own writes and to [`writing_within`].
+pub const HELD_WRITE_LIMIT: Duration = Duration::from_secs(10);
+
 /// The socket's file name inside the runtime directory.
 pub const SOCKET_NAME: &str = "backup.sock";
 
@@ -92,6 +97,9 @@ struct GateState {
     paused: bool,
     full: bool,
     until: Option<Instant>,
+    /// Unix seconds the current pause began, for the metric and the
+    /// status page.
+    since: u64,
     /// Bumped by every new pause, so a deadline timer of an earlier pause
     /// never ends a later one.
     epoch: u64,
@@ -102,6 +110,7 @@ static STATE: Mutex<GateState> = Mutex::new(GateState {
     paused: false,
     full: false,
     until: None,
+    since: 0,
     epoch: 0,
 });
 static CHANGED: Condvar = Condvar::new();
@@ -147,6 +156,108 @@ pub async fn writing() -> WriteTicket {
         }
         // The timeout is a safety net only; resume wakes every waiter.
         let _ = tokio::time::timeout(Duration::from_millis(200), notified).await;
+    }
+}
+
+/// [`writing`], but give up after `max`: the error is `Overloaded` (503
+/// with `Retry-After`), so a request held by a backup gets an answer it can
+/// act on instead of hanging. Use it on request paths.
+pub async fn writing_within(max: Duration) -> Result<WriteTicket, Error> {
+    tokio::time::timeout(max, writing())
+        .await
+        .map_err(|_| held_error())
+}
+
+fn held_error() -> Error {
+    let left = seconds_left().unwrap_or(1);
+    Error::new(
+        crate::core::error::Kind::Overloaded,
+        "paused for a backup",
+        format!("retry after {left} s"),
+    )
+}
+
+/// Seconds until the pause in force ends, at least 1; `None` when none.
+pub fn seconds_left() -> Option<u64> {
+    let s = state();
+    s.paused.then(|| {
+        s.until
+            .map_or(1, |u| u.saturating_duration_since(Instant::now()).as_secs())
+            .max(1)
+    })
+}
+
+/// [`writing_blocking`], bounded like [`writing_within`]; what the kit's
+/// own stores use.
+pub fn writing_blocking_within(max: Duration) -> Result<WriteTicket, Error> {
+    let deadline = Instant::now() + max;
+    let wait = move || {
+        let mut s = state();
+        while s.paused {
+            let now = Instant::now();
+            if now >= deadline {
+                return None;
+            }
+            s = CHANGED
+                .wait_timeout(s, (deadline - now).min(Duration::from_millis(200)))
+                .unwrap_or_else(|e| e.into_inner())
+                .0;
+        }
+        s.writers += 1;
+        Some(WriteTicket(()))
+    };
+    {
+        let mut s = state();
+        if !s.paused {
+            s.writers += 1;
+            return Ok(WriteTicket(()));
+        }
+    }
+    let got = match tokio::runtime::Handle::try_current() {
+        Ok(h) if h.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
+            tokio::task::block_in_place(wait)
+        }
+        _ => wait(),
+    };
+    got.ok_or_else(held_error)
+}
+
+/// What the status page and `/api/kit/status` show about a pause.
+#[derive(Debug, Clone, serde::Serialize)]
+#[non_exhaustive]
+pub struct PauseView {
+    pub mode: &'static str,
+    /// Unix seconds.
+    pub since: u64,
+    pub seconds_left: u64,
+}
+
+/// The pause in force, if any.
+pub fn status_view() -> Option<PauseView> {
+    let s = state();
+    s.paused.then(|| PauseView {
+        mode: if s.full { "full" } else { "writes" },
+        since: s.since,
+        seconds_left: s
+            .until
+            .map_or(0, |u| u.saturating_duration_since(Instant::now()).as_secs()),
+    })
+}
+
+/// `<prefix>_backup_paused` (0/1) and `<prefix>_backup_paused_since_seconds`
+/// (unix time, 0 when running) for `/metrics`.
+pub(crate) struct PauseMetrics(pub String);
+
+impl crate::shell::metrics::ScrapeSource for PauseMetrics {
+    fn scrape(&self) -> String {
+        let (paused, since) = {
+            let s = state();
+            (u8::from(s.paused), if s.paused { s.since } else { 0 })
+        };
+        let p = &self.0;
+        format!(
+            "# HELP {p}_backup_paused 1 while a backup pause holds the state's writes.\n# TYPE {p}_backup_paused gauge\n{p}_backup_paused {paused}\n# HELP {p}_backup_paused_since_seconds Unix time the backup pause in force began; 0 when none.\n# TYPE {p}_backup_paused_since_seconds gauge\n{p}_backup_paused_since_seconds {since}\n"
+        )
     }
 }
 
@@ -220,6 +331,7 @@ pub struct Controller {
     resume_hooks: Arc<Vec<ResumeHook>>,
     drain: Duration,
     floor: Mode,
+    paths: Arc<Vec<PathBuf>>,
 }
 
 impl Controller {
@@ -229,7 +341,21 @@ impl Controller {
             resume_hooks: Arc::new(resume_hooks),
             drain: DRAIN_TIMEOUT,
             floor: Mode::Writes,
+            paths: Arc::new(Vec::new()),
         }
+    }
+
+    /// The directories that stand still during a pause (the state root and
+    /// any the project added), printed by `backup-pause` one per line so
+    /// the backup can check it archives exactly these.
+    pub fn with_paths(mut self, paths: Vec<PathBuf>) -> Self {
+        self.paths = Arc::new(paths);
+        self
+    }
+
+    /// The directories a pause holds still.
+    pub fn paths(&self) -> &[PathBuf] {
+        &self.paths
     }
 
     /// The least this service needs; a caller asking for less gets this.
@@ -276,6 +402,9 @@ impl Controller {
                 s.paused = true;
                 s.full = mode == Mode::Full;
                 s.until = Some(until);
+                s.since = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map_or(0, |d| d.as_secs());
                 s.epoch += 1;
                 Start::New(s.epoch)
             }
@@ -621,7 +750,14 @@ pub mod server {
                     },
                 };
                 match c.pause(Duration::from_secs(secs), mode).await {
-                    Ok((until, mode)) => format!("paused {until} {}", mode.as_str()),
+                    Ok((until, mode)) => {
+                        let mut out = format!("paused {until} {}", mode.as_str());
+                        for p in c.paths() {
+                            out.push('\n');
+                            out.push_str(&p.display().to_string());
+                        }
+                        out
+                    }
                     Err(PauseError::Busy(n)) => format!("busy {n}"),
                     Err(PauseError::Hook(e)) => format!("error {e}"),
                     Err(PauseError::Invalid(e)) => format!("error {e}"),

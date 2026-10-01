@@ -56,6 +56,22 @@ pub type Mounted = (
 );
 
 pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
+    mount_with(input, MountExtra::default()).await
+}
+
+/// feat-pages-1: what the App hands `mount` beyond [`MountInput`], kept
+/// out of that public struct so adding to it never breaks a caller.
+#[derive(Default)]
+pub(crate) struct MountExtra {
+    pub pages: Vec<crate::shell::pages::Page>,
+    pub kit_edits: Vec<(String, crate::shell::pages::KitPageEdit)>,
+    pub brand: Option<String>,
+    pub home: Option<String>,
+    pub webapp_at_root: bool,
+    pub kit_in_webapp: bool,
+}
+
+pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Result<Mounted, Error> {
     let MountInput {
         spec,
         loaded,
@@ -211,7 +227,7 @@ pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
         has_test_route,
         cfg!(feature = "passkeys") && !open,
         limits.public_url.clone().unwrap_or_default(),
-        registry.nav,
+        registry.nav.clone(),
         registry.sections,
         registry.columns,
         registry.form_fields,
@@ -225,6 +241,34 @@ pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
     .with_vocabulary(vocab.clone())
     .with_client_actions(registry.client_actions);
 
+    // feat-pages-1: one list of pages for every navigation. `nav_entry`
+    // links from before 3.1.0 join it as visible project pages.
+    let mut app_pages = extra.pages;
+    for (i, n) in registry.nav.iter().enumerate() {
+        app_pages.push(crate::shell::pages::Page::new(
+            &format!("nav-{i}"),
+            &n.label,
+            &n.href,
+        ));
+    }
+    let page_set = Arc::new(
+        crate::shell::pages::Registry {
+            app_pages,
+            kit_edits: extra.kit_edits,
+            brand: extra.brand,
+            home: extra.home,
+        }
+        .build(
+            spec.name,
+            &dash.clients_label,
+            dash.passkeys_enabled,
+            extra.webapp_at_root,
+            extra.kit_in_webapp,
+        ),
+    );
+    let dash = dash.with_pages(&page_set);
+    let kit_renders = !extra.kit_in_webapp;
+
     let pages_public = Router::new()
         .route("/login", get(dashboard::login_get))
         // `{*name}`: the vendored fonts live under `static/fonts/…` (S8).
@@ -237,10 +281,42 @@ pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
     let logout = Router::new()
         .route("/logout", post(logout_handler))
         .with_state(auth.clone());
-    let pages_admin = Router::new()
-        .route("/", get(dashboard::status_page))
-        .route("/clients", get(dashboard::clients_page))
+    let mut pages_admin = Router::new()
+        .route("/api/kit/status", get(dashboard::status_json))
+        .route("/api/kit/clients", get(dashboard::clients_json));
+    if kit_renders {
+        pages_admin = pages_admin
+            .route("/status", get(dashboard::status_page))
+            .route("/clients", get(dashboard::clients_page));
+    }
+    // `/`: the web app's when it sits at the root; else the home route,
+    // which is the status page itself unless the project named another.
+    if !extra.webapp_at_root {
+        if page_set.home == "/status" || page_set.home == "/" {
+            pages_admin = pages_admin.route("/", get(dashboard::status_page));
+        } else {
+            let to = page_set.home.clone();
+            pages_admin = pages_admin.route(
+                "/",
+                get(move || async move { axum::response::Redirect::to(&to) }),
+            );
+        }
+    }
+    let set_for_json = page_set.clone();
+    let pages_admin = pages_admin
         .with_state(dash.clone())
+        .route(
+            "/api/kit/pages",
+            get(move || {
+                let set = set_for_json.clone();
+                async move {
+                    (
+                        [(axum::http::header::CACHE_CONTROL, "no-cache")],
+                        axum::Json((*set).clone()),
+                    )
+                }
+            }),
+        )
         .layer(from_fn_with_state(auth.clone(), require_admin));
 
     let clients_api = Router::new()
@@ -297,25 +373,46 @@ pub async fn mount(input: MountInput<'_>) -> Result<Mounted, Error> {
             .with_state(pk.clone())
             .layer(from_fn_with_state(auth.clone(), require_admin));
         let page_state = (dash.clone(), pk);
-        let page = Router::new()
-            .route(
-                "/passkeys",
-                get(
-                    |axum::extract::State((d, pk)): axum::extract::State<(
-                        Dashboard,
-                        PasskeyState,
-                    )>,
-                     axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<
-                        std::net::SocketAddr,
-                    >,
-                     headers: axum::http::HeaderMap| async move {
-                        let https = d.is_https(peer, &headers);
-                        d.passkeys_page(https, pk.list())
-                    },
-                ),
-            )
-            .with_state(page_state)
-            .layer(from_fn_with_state(auth.clone(), require_admin));
+        let kit_page_route = Router::new().route(
+            "/passkeys",
+            get(
+                |axum::extract::State((d, pk)): axum::extract::State<(Dashboard, PasskeyState)>,
+                 axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<
+                    std::net::SocketAddr,
+                >,
+                 headers: axum::http::HeaderMap| async move {
+                    let https = d.is_https(peer, &headers);
+                    d.passkeys_page(https, pk.list())
+                },
+            ),
+        );
+        // feat-pages-1: the same data for a web app that draws the page.
+        let json_route = Router::new().route(
+            "/api/kit/passkeys",
+            get(
+                |axum::extract::State((d, pk)): axum::extract::State<(Dashboard, PasskeyState)>,
+                 axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<
+                    std::net::SocketAddr,
+                >,
+                 headers: axum::http::HeaderMap| async move {
+                    (
+                        [(axum::http::header::CACHE_CONTROL, "no-cache")],
+                        axum::Json(serde_json::json!({
+                            "https": d.is_https(peer, &headers),
+                            "public_url": d.public_url,
+                            "passkeys": pk.list(),
+                        })),
+                    )
+                },
+            ),
+        );
+        let page = if kit_renders {
+            kit_page_route.merge(json_route)
+        } else {
+            json_route
+        }
+        .with_state(page_state)
+        .layer(from_fn_with_state(auth.clone(), require_admin));
         public.merge(admin_api).merge(page)
     };
 

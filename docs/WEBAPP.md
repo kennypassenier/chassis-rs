@@ -19,18 +19,28 @@ const FILES: &[(&str, &[u8])] = &[
     ("css/app.css", include_bytes!("../web/css/app.css")),
 ];
 
-app.webapp(WebApp::embedded(FILES));            // served under /app/
-// app.webapp(WebApp::dir("web").at("/admin")); // from disk while developing
+app.webapp(WebApp::embedded(FILES));            // served at the root (3.1.0)
+// app.webapp(WebApp::dir("web").at("/admin")); // from disk, under a path
 ```
 
 - **Login.** The app sits behind the same admin login as the kit's pages:
   a browser without a session is redirected to `/login`, a script sending a
-  wrong bearer gets a 401. After logging in the browser lands on `/`; add
-  `app.nav_entry("App", "/app/")` for a link in the kit's navigation.
-- **Routing.** `/app` redirects to `/app/`. A path whose last segment has no
-  extension and matches no file answers `index.html`, so the app's own
-  router handles `/app/stacks/media`. A missing file with an extension
-  (`/app/js/gone.js`) is a 404, never HTML.
+  wrong bearer gets a 401. After logging in the browser lands on `/`.
+- **Routing at the root** (the default since 3.1.0, feat-pages-1). The app
+  is the router's fallback: every route the kit or the project registered
+  wins, and the app answers the rest. A path whose last segment has no
+  extension and matches no file answers `index.html`, so `/` is the app's
+  home and `/overview` or `/stacks/media` are its own routes. A missing file
+  with an extension (`/js/gone.js`) is a 404, never HTML. The kit's
+  prefixes (`/api`, `/static`, `/status`, `/login`, `/logout`, `/clients`,
+  `/passkeys`, `/healthz`, `/readyz`, `/metrics`) never fall through to the
+  app. `/app` and `/app/…` from before 3.1.0 answer 308 to the same path at
+  the root. Load the app's own files by absolute path (`/js/main.js`) or
+  put `<base href="/">` in `index.html`: a relative URL breaks under
+  `/stacks/media`.
+- **Routing under a path.** `.at("/admin")` keeps the old shape: `/admin`
+  redirects to `/admin/`, the app answers below it, and `/` stays the kit's
+  status page.
 - **Caching.** Every response carries a strong `ETag` and `no-cache`: the
   browser revalidates and gets a 304 until the file changes, so an edited
   module is picked up on the next load without a build step. A URL with
@@ -46,10 +56,54 @@ app.webapp(WebApp::embedded(FILES));            // served under /app/
   wizard, the data table, the palette, the date picker, `auto.js`, …), not
   only the modules the kit's own pages use; without it those modules are
   not in the binary.
-- **Refusals at start and `--check`.** A mount that is `/` or starts with
-  one of the kit's routes (`/login`, `/logout`, `/static`, `/api`,
-  `/clients`, `/passkeys`, `/healthz`, `/metrics`); an embedded app without
-  `index.html`; a directory without `index.html`.
+- **Refusals at start and `--check`.** A mount that starts with one of the
+  kit's routes (`/status`, `/login`, `/logout`, `/static`, `/api`,
+  `/clients`, `/passkeys`, `/healthz`, `/readyz`, `/metrics`); an embedded
+  app without `index.html`; a directory without `index.html`.
+
+## Pages and the navigation (feat-pages-1)
+
+One list holds every page the service shows, the kit's and the project's,
+and every navigation renders from it: the kit's layout, and a web app
+through `GET /api/kit/pages`. A page registered later shows up in both
+without touching either.
+
+```rust
+use chassis::shell::pages::Page;
+
+app.page(Page::new("home", "Home", "/"))
+   .page(Page::new("overview", "Overview", "/overview").hidden()) // routable, not listed
+   .page(Page::new("stacks", "Stacks", "/stacks").group("Fleet"))
+   .kit_page("clients", |p| p.title("Sources").order(5))         // the kit's own pages
+   .brand("/overview");                                           // the brand link
+```
+
+- **Order.** Ascending `order`; ties keep registration order. Project pages
+  default to 0 and the kit's to 1000 and up (`status` at `/status`,
+  `clients` at `/clients`, `passkeys` at `/passkeys` when passkeys are on),
+  so the project's pages come first. `kit_page` may change a kit page's
+  title, order, group or listing, never its id or path.
+- **`/`.** With a web app at the root, the app's. Otherwise the status page,
+  or a redirect to `app.home("/somewhere")`. The status page also lives at
+  `/status`.
+- **`GET /api/kit/pages`** (behind the login, `no-cache`): `{"app", "brand":
+  {"title", "href"}, "home", "pages": [{"id", "title", "path", "group",
+  "order", "nav", "source": "kit"|"app", "render": "kit"|"app"}]}`, sorted.
+  A web app renders its navigation from the pages with `nav: true`.
+- **One bar on every page: `app.kit_pages_in_webapp()`.** The web app (at
+  the root) draws the kit's pages too, inside its own bar. The kit then
+  claims no GET page at `/status`, `/clients` or `/passkeys`, so the app's
+  fallback serves them, and their registry entries say `render: "app"`.
+  The data comes from `GET /api/kit/status`, `/api/kit/clients` and
+  `/api/kit/passkeys` (behind the login, `no-cache`, exactly what the kit's
+  templates render); every action stays the kit's existing endpoint
+  (`/api/clients…`, `/passkeys/register/start|finish`, `/api/passkeys/{id}`,
+  `POST /logout`). A service without a web app keeps the kit's layout.
+- **`nav_entry(label, href)`** from before 3.1.0 still works: it is a
+  visible project page.
+- **Refused at start:** a page path that is not absolute, two pages with one
+  id, a project page with a kit id, `kit_pages_in_webapp()` without a web
+  app at the root.
 - **Directory source.** Read on every request; a path that leaves the
   directory, including through a symlink, is a 404.
 

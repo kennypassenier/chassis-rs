@@ -232,6 +232,16 @@ taken; pausing while paused keeps the later deadline and the larger mode.
 `backup-pause --status` prints `paused <seconds left> <mode>`, `stopped
 <unit> <deadline>` or `running`.
 
+**What a held write sees, and what the backup can check.** A write held by
+the pause waits at most 10 s (`HELD_WRITE_LIMIT`), then fails as a 503 with
+`Retry-After: <seconds left>`, so a client gets an answer instead of timing
+out. After its first line, a successful in-process `backup-pause` prints the
+directories it holds still, one per line: the state root, plus any the
+project added with `App::backup_path`. The backup can compare those with
+what it archives. The state shows in `/metrics` as
+`<name>_backup_paused` (0/1) and `<name>_backup_paused_since_seconds`, and
+in `/api/kit/status` and on the status page as `backup`.
+
 | Exit | backup-pause | backup-resume |
 |---|---|---|
 | 0 | the files stand still; stdout's first word says how (table above) | `resumed`, `started <unit>`, or `nothing-paused` |

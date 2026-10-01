@@ -496,6 +496,24 @@ impl Dashboard {
         self
     }
 
+    /// feat-pages-1: the navigation from the page registry: the visible
+    /// pages in order, and where the brand link goes.
+    pub(crate) fn with_pages(mut self, set: &crate::shell::pages::PageSet) -> Self {
+        self.nav = set
+            .pages
+            .iter()
+            .filter(|p| p.nav)
+            .map(|p| NavEntry {
+                label: p.title.clone(),
+                href: p.path.clone(),
+            })
+            .collect();
+        let env = Arc::make_mut(&mut self.env);
+        env.add_global("nav", minijinja::Value::from_serialize(&self.nav));
+        env.add_global("brand_href", set.brand.href.clone());
+        self
+    }
+
     /// K29: the project's buttons on every active client row.
     pub fn with_client_actions(mut self, actions: Vec<ClientAction>) -> Self {
         self.client_actions = Arc::new(actions);
@@ -647,6 +665,28 @@ struct SectionView {
 
 /// `GET /` — the status page (K17).
 pub async fn status_page(State(d): State<Dashboard>) -> Result<Html<String>, Error> {
+    let data = status_data(&d).await;
+    d.render(
+        "status.html",
+        context! {
+            logged_in => true,
+            active_nav => "/status",
+            ..minijinja::Value::from_serialize(&data)
+        },
+    )
+}
+
+/// feat-pages-1: `GET /api/kit/status`, what the status page shows, for a
+/// web app that draws the page itself.
+pub async fn status_json(State(d): State<Dashboard>) -> Response {
+    (
+        [(axum::http::header::CACHE_CONTROL, "no-cache")],
+        axum::Json(status_data(&d).await),
+    )
+        .into_response()
+}
+
+async fn status_data(d: &Dashboard) -> serde_json::Value {
     let health = d.health.report().await;
     let sections: Vec<SectionView> = d
         .sections
@@ -658,20 +698,17 @@ pub async fn status_page(State(d): State<Dashboard>) -> Result<Html<String>, Err
         .collect();
     let problems = (d.problems)();
     let update = (d.update)();
-    d.render(
-        "status.html",
-        context! {
-            logged_in => true,
-            active_nav => "/",
-            version => d.version,
-            listen => d.listen,
-            started_at => d.started_at,
-            health => minijinja::Value::from_serialize(&health),
-            sections => sections,
-            problems => problems,
-            update => update,
-        },
-    )
+    let paused = crate::shell::backup::status_view();
+    serde_json::json!({
+        "version": d.version,
+        "listen": d.listen,
+        "started_at": d.started_at,
+        "health": health,
+        "sections": sections,
+        "problems": problems,
+        "update": update,
+        "backup": paused,
+    })
 }
 
 #[derive(Serialize)]
@@ -690,6 +727,27 @@ struct ClientRow {
 
 /// `GET /clients` — the clients page (K12, K13, K14).
 pub async fn clients_page(State(d): State<Dashboard>) -> Result<Html<String>, Error> {
+    let data = clients_data(&d);
+    d.render(
+        "clients.html",
+        context! {
+            logged_in => true,
+            active_nav => "/clients",
+            ..minijinja::Value::from_serialize(&data)
+        },
+    )
+}
+
+/// feat-pages-1: `GET /api/kit/clients`, what the clients page shows.
+pub async fn clients_json(State(d): State<Dashboard>) -> Response {
+    (
+        [(axum::http::header::CACHE_CONTROL, "no-cache")],
+        axum::Json(clients_data(&d)),
+    )
+        .into_response()
+}
+
+fn clients_data(d: &Dashboard) -> serde_json::Value {
     let snap = d.clients.snapshot();
     let rows: Vec<ClientRow> = snap
         .clients
@@ -733,25 +791,20 @@ pub async fn clients_page(State(d): State<Dashboard>) -> Result<Html<String>, Er
         .iter()
         .map(|c| serde_json::json!({ "title": c.title() }))
         .collect();
-    d.render(
-        "clients.html",
-        context! {
-            logged_in => true,
-            active_nav => "/clients",
-            clients => rows,
-            declared_columns => d
-                .form_fields
-                .iter()
-                .map(|f| serde_json::json!({ "title": f.label.clone() }))
-                .collect::<Vec<_>>(),
-            extra_columns => columns,
-            form_fields => d.form_fields.iter().map(|f| f.view()).collect::<Vec<_>>(),
-            reveal_seconds => d.reveal_seconds,
-            capture_body_bytes => d.capture_body_bytes,
-            capture_ttl_minutes => d.capture_ttl_minutes,
-            has_test_route => d.has_test_route,
-        },
-    )
+    serde_json::json!({
+        "clients": rows,
+        "declared_columns": d
+            .form_fields
+            .iter()
+            .map(|f| serde_json::json!({ "title": f.label.clone() }))
+            .collect::<Vec<_>>(),
+        "extra_columns": columns,
+        "form_fields": d.form_fields.iter().map(|f| f.view()).collect::<Vec<_>>(),
+        "reveal_seconds": d.reveal_seconds,
+        "capture_body_bytes": d.capture_body_bytes,
+        "capture_ttl_minutes": d.capture_ttl_minutes,
+        "has_test_route": d.has_test_route,
+    })
 }
 
 #[cfg(test)]

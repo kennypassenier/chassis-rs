@@ -196,8 +196,11 @@ pub fn probe_state_dir(dir: &Path, create: bool) -> Result<(), Error> {
 
 /// temp + fsync + rename, then fsync the directory (rule 12).
 pub fn write_atomic(path: &Path, bytes: &[u8], what: &str) -> Result<(), Error> {
-    // feat-backup-1: a backup pause holds every write of the kit's state.
-    let _ticket = crate::shell::backup::writing_blocking();
+    // feat-backup-1: a backup pause holds every write of the kit's state,
+    // for at most HELD_WRITE_LIMIT; then the write fails with a 503 the
+    // caller can retry, instead of hanging.
+    let _ticket =
+        crate::shell::backup::writing_blocking_within(crate::shell::backup::HELD_WRITE_LIMIT)?;
     let res = write_atomic_inner(path, bytes, what);
     record_write(path, &res);
     res

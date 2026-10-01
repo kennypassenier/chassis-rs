@@ -44,6 +44,8 @@ pub const DEFAULT_CSP: &str = "default-src 'self'; script-src 'self'; style-src 
 /// Paths the kit serves itself; a web app mounted on or under one of them
 /// would hide it.
 const RESERVED: &[&str] = &[
+    "/status",
+    "/readyz",
     "/login",
     "/logout",
     "/static",
@@ -79,7 +81,7 @@ impl WebApp {
     /// one of them.
     pub fn embedded(files: &'static [(&'static str, &'static [u8])]) -> Self {
         WebApp {
-            mount: "/app".to_string(),
+            mount: String::new(),
             source: Source::Embedded(files),
             csp: DEFAULT_CSP.to_string(),
         }
@@ -89,14 +91,15 @@ impl WebApp {
     /// Meant for development; a release embeds.
     pub fn dir(dir: impl Into<PathBuf>) -> Self {
         WebApp {
-            mount: "/app".to_string(),
+            mount: String::new(),
             source: Source::Dir(dir.into()),
             csp: DEFAULT_CSP.to_string(),
         }
     }
 
-    /// Serve under `path` instead of `/app`. It starts with `/`, is not `/`
-    /// and does not start with one of the kit's own routes.
+    /// Serve under `path` instead of the root (feat-pages-1: the root is
+    /// the default since 3.1.0). It starts with `/` and does not start with
+    /// one of the kit's own routes; `/` is the root.
     pub fn at(mut self, path: &str) -> Self {
         self.mount = path.trim_end_matches('/').to_string();
         self
@@ -108,16 +111,25 @@ impl WebApp {
         self
     }
 
-    /// The mount path, without a trailing slash.
+    /// The mount path, without a trailing slash; `/` for the root.
     pub fn mount(&self) -> &str {
-        &self.mount
+        if self.mount.is_empty() {
+            "/"
+        } else {
+            &self.mount
+        }
+    }
+
+    /// Whether the app owns `/` and every path no route claims.
+    pub fn at_root(&self) -> bool {
+        self.mount.is_empty()
     }
 
     /// Refuse what would break at the first request: a mount that hides a
     /// kit route, a missing `index.html`, a directory that is not there.
     pub fn validate(&self) -> Result<(), Error> {
         let m = self.mount.as_str();
-        if !m.starts_with('/') || m.is_empty() {
+        if !m.is_empty() && !m.starts_with('/') {
             return Err(Error::config(
                 format!("the web app's mount path `{m}` is not an absolute path"),
                 "mount it at a path that starts with `/`, e.g. WebApp::embedded(FILES).at(\"/app\")",
@@ -125,11 +137,11 @@ impl WebApp {
         }
         if let Some(r) = RESERVED
             .iter()
-            .find(|r| m == **r || m.starts_with(&format!("{r}/")))
+            .find(|r| !m.is_empty() && (m == **r || m.starts_with(&format!("{r}/"))))
         {
             return Err(Error::config(
                 format!("the web app's mount path `{m}` would hide the kit's own `{r}`"),
-                "mount it elsewhere, e.g. `/app`; the kit's routes are /, /login, /logout, /static, /api, /clients, /passkeys, /healthz and /metrics",
+                "mount it at the root (the default) or elsewhere, e.g. `/app`; the kit's routes are /status, /login, /logout, /static, /api, /clients, /passkeys, /healthz, /readyz and /metrics",
             ));
         }
         match &self.source {
@@ -158,6 +170,30 @@ impl WebApp {
         self.validate()?;
         let mount = self.mount.clone();
         let state = Arc::new(self);
+        if mount.is_empty() {
+            // feat-pages-1: at the root the app is the fallback, so every
+            // route the kit or the project registered wins and the app
+            // answers the rest. `/app/...` from before 3.1.0 moves to the
+            // same path at the root, so a bookmark keeps working.
+            return Ok(Router::new()
+                .route(
+                    "/app",
+                    get(|| async { axum::response::Redirect::permanent("/") }),
+                )
+                .route(
+                    "/app/{*rest}",
+                    get(|uri: Uri| async move {
+                        let rest = uri.path().trim_start_matches("/app");
+                        let to = match uri.query() {
+                            Some(q) => format!("{rest}?{q}"),
+                            None => rest.to_string(),
+                        };
+                        axum::response::Redirect::permanent(&to)
+                    }),
+                )
+                .fallback(serve_root)
+                .with_state(state));
+        }
         // `/app` itself redirects to `/app/` so relative URLs in index.html
         // resolve under the mount.
         let slash = format!("{mount}/");
@@ -171,6 +207,26 @@ impl WebApp {
             .route(&format!("{mount}/{{*path}}"), get(serve))
             .with_state(state))
     }
+}
+
+/// The fallback at the root: GET and HEAD of a path that is not the kit's.
+/// The kit's own prefixes never fall through to the app, so a mistyped
+/// `/api/...` is a 404, not the app's HTML.
+async fn serve_root(
+    method: axum::http::Method,
+    state: State<Arc<WebApp>>,
+    uri: Uri,
+    query: RawQuery,
+    headers: HeaderMap,
+) -> Response {
+    let path = uri.path();
+    let kit = RESERVED
+        .iter()
+        .any(|r| path == *r || path.starts_with(&format!("{r}/")));
+    if kit || !(method == axum::http::Method::GET || method == axum::http::Method::HEAD) {
+        return (StatusCode::NOT_FOUND, "no such route").into_response();
+    }
+    serve(state, uri, query, headers).await
 }
 
 /// The asset path a request names, relative to the app root, or `None`
@@ -362,7 +418,7 @@ mod tests {
 
     #[tokio::test]
     async fn serves_the_index_the_files_and_their_types() {
-        let r = WebApp::embedded(FILES).router().unwrap();
+        let r = WebApp::embedded(FILES).at("/app").router().unwrap();
         let res = get_path(&r, "/app/", &[]).await;
         assert_eq!(res.status(), 200);
         assert_eq!(res.headers()["content-type"], "text/html; charset=utf-8");
@@ -382,7 +438,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_client_route_gets_the_index_and_a_missing_file_a_404() {
-        let r = WebApp::embedded(FILES).router().unwrap();
+        let r = WebApp::embedded(FILES).at("/app").router().unwrap();
         let res = get_path(&r, "/app/fleet/media", &[]).await;
         assert_eq!(res.status(), 200);
         assert!(body(res).await.contains("<title>app</title>"));
@@ -392,7 +448,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_unchanged_file_answers_304_and_a_versioned_url_is_immutable() {
-        let r = WebApp::embedded(FILES).router().unwrap();
+        let r = WebApp::embedded(FILES).at("/app").router().unwrap();
         let res = get_path(&r, "/app/css/app.css", &[]).await;
         let etag = res.headers()["etag"].to_str().unwrap().to_string();
         let res = get_path(&r, "/app/css/app.css", &[("if-none-match", &etag)]).await;
@@ -453,11 +509,16 @@ mod tests {
 
     #[test]
     fn a_mount_that_hides_a_kit_route_or_lacks_an_index_is_refused() {
-        for bad in ["/", "/login", "/static/app", "/api", "app"] {
+        for bad in ["/login", "/static/app", "/api", "/status", "app"] {
             let err = WebApp::embedded(FILES).at(bad).validate().unwrap_err();
             assert!(format!("{err:?}").contains("mount"), "{bad}: {err:?}");
         }
         assert!(WebApp::embedded(FILES).at("/admin").validate().is_ok());
+        assert!(
+            WebApp::embedded(FILES).validate().is_ok(),
+            "the root is the default"
+        );
+        assert!(WebApp::embedded(FILES).at("/").at_root());
         assert!(
             WebApp::embedded(FILES).at("/apps").validate().is_ok(),
             "/apps is not /api"
@@ -470,6 +531,7 @@ mod tests {
     #[tokio::test]
     async fn a_project_policy_replaces_the_default() {
         let r = WebApp::embedded(FILES)
+            .at("/app")
             .csp("default-src 'self'; connect-src 'self' wss:")
             .router()
             .unwrap();
@@ -478,5 +540,32 @@ mod tests {
             res.headers()["content-security-policy"],
             "default-src 'self'; connect-src 'self' wss:"
         );
+    }
+
+    #[tokio::test]
+    async fn at_the_root_the_app_answers_what_no_route_claims() {
+        let r = Router::new()
+            .route("/status", get(|| async { "kit status" }))
+            .merge(WebApp::embedded(FILES).router().unwrap());
+        let res = get_path(&r, "/", &[]).await;
+        assert_eq!(res.status(), 200);
+        assert!(body(res).await.contains("<title>app</title>"));
+        let res = get_path(&r, "/overview", &[]).await;
+        assert!(
+            body(res).await.contains("<title>app</title>"),
+            "a client route"
+        );
+        let res = get_path(&r, "/js/main.js", &[]).await;
+        assert_eq!(
+            res.headers()["content-type"],
+            "text/javascript; charset=utf-8"
+        );
+        assert_eq!(body(get_path(&r, "/status", &[]).await).await, "kit status");
+        for kit in ["/api/nope", "/static/nope.css", "/healthz"] {
+            assert_eq!(get_path(&r, kit, &[]).await.status(), 404, "{kit}");
+        }
+        let res = get_path(&r, "/app/stacks/media?tab=logs", &[]).await;
+        assert_eq!(res.status(), 308, "an old bookmark moves to the root");
+        assert_eq!(res.headers()["location"], "/stacks/media?tab=logs");
     }
 }

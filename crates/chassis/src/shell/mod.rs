@@ -23,6 +23,8 @@ pub mod logging;
 pub mod metrics;
 #[cfg(feature = "notify")]
 pub mod notify;
+#[cfg(feature = "dashboard")]
+pub mod pages;
 #[cfg(feature = "passkeys")]
 pub mod passkeys;
 #[cfg(feature = "request-guard")]
