@@ -685,6 +685,7 @@ pub struct App {
     backup_cmd: Option<crate::shell::backup::BackupCmd>,
     backup_pause_hooks: Vec<crate::shell::backup::PauseHook>,
     backup_resume_hooks: Vec<crate::shell::backup::ResumeHook>,
+    backup_mode: crate::shell::backup::Mode,
     subsystems: Vec<Arc<dyn Subsystem>>,
     scrape_sources: Vec<Arc<dyn ScrapeSource>>,
     timeout_exempt: HashSet<String>,
@@ -815,6 +816,7 @@ impl App {
             backup_cmd: None,
             backup_pause_hooks: Vec::new(),
             backup_resume_hooks: Vec::new(),
+            backup_mode: crate::shell::backup::Mode::Writes,
             subsystems: Vec::new(),
             scrape_sources: Vec::new(),
             timeout_exempt: HashSet::new(),
@@ -889,8 +891,28 @@ impl App {
                         Arg::new("status")
                             .long("status")
                             .action(ArgAction::SetTrue)
-                            .conflicts_with("for")
-                            .help("Print `paused <seconds left>` or `running` and exit 0"),
+                            .conflicts_with_all(["for", "mode", "no-fallback"])
+                            .help("Print `paused <seconds left> <mode>`, `stopped <unit> <deadline>` or `running` and exit 0"),
+                    )
+                    .arg(
+                        Arg::new("mode")
+                            .long("mode")
+                            .value_name("MODE")
+                            .value_parser(["writes", "full"])
+                            .default_value("writes")
+                            .help("writes: only writes wait; full: every request but the probes is answered 503 too. The service may raise it, never lower it"),
+                    )
+                    .arg(
+                        Arg::new("no-fallback")
+                            .long("no-fallback")
+                            .action(ArgAction::SetTrue)
+                            .help("When the service cannot pause in-process, exit 3/4 instead of stopping its systemd unit"),
+                    )
+                    .arg(
+                        Arg::new("unit")
+                            .long("unit")
+                            .value_name("UNIT")
+                            .help("The systemd unit for the fallback (default <name>.service)"),
                     )
                     .arg(
                         Arg::new("socket")
@@ -901,7 +923,13 @@ impl App {
             )
             .subcommand(
                 Command::new("backup-resume")
-                    .about("End a backup pause (exit 0 also when none was in force; 3 when no service is listening)")
+                    .about("End a backup pause, or start the unit backup-pause stopped (exit 0 also when nothing was paused)")
+                    .arg(
+                        Arg::new("unit")
+                            .long("unit")
+                            .value_name("UNIT")
+                            .help("The systemd unit backup-pause may have stopped (default <name>.service)"),
+                    )
                     .arg(
                         Arg::new("socket")
                             .long("socket")
@@ -1001,21 +1029,34 @@ impl App {
         // feat-backup-1: the homelab calls these through `pct exec`, without
         // the unit's environment, so they read no configuration at all.
         {
-            use crate::shell::backup::BackupCmd;
+            use crate::shell::backup::{BackupCmd, Mode};
             let socket = |m: &clap::ArgMatches| m.get_one::<String>("socket").map(PathBuf::from);
+            let unit = |m: &clap::ArgMatches| m.get_one::<String>("unit").cloned();
             let cmd = if let Some(m) = matches.subcommand_matches("backup-pause") {
                 Some(if m.get_flag("status") {
-                    BackupCmd::Status { socket: socket(m) }
+                    BackupCmd::Status {
+                        socket: socket(m),
+                        unit: unit(m),
+                    }
                 } else {
                     BackupCmd::Pause {
                         secs: *m.get_one::<u64>("for").expect("required"),
+                        mode: m
+                            .get_one::<String>("mode")
+                            .and_then(|v| Mode::parse(v))
+                            .unwrap_or_default(),
+                        fallback: !m.get_flag("no-fallback"),
                         socket: socket(m),
+                        unit: unit(m),
                     }
                 })
             } else {
                 matches
                     .subcommand_matches("backup-resume")
-                    .map(|m| BackupCmd::Resume { socket: socket(m) })
+                    .map(|m| BackupCmd::Resume {
+                        socket: socket(m),
+                        unit: unit(m),
+                    })
             };
             if let Some(cmd) = cmd {
                 let mut app = App::bare(spec, router, Control::Version);
@@ -1250,6 +1291,7 @@ impl App {
             backup_cmd: None,
             backup_pause_hooks: Vec::new(),
             backup_resume_hooks: Vec::new(),
+            backup_mode: crate::shell::backup::Mode::Writes,
             subsystems: Vec::new(),
             scrape_sources: Vec::new(),
             timeout_exempt: HashSet::new(),
@@ -1637,15 +1679,26 @@ impl App {
     /// the runtime, on the serving path only: spawn background workers
     /// here (a pump, a poller). `--check` and the other control commands
     /// never reach it; pair it with `on_flush` to stop the workers.
+    /// feat-backup-1: the least a backup pause of this service holds.
+    /// `Writes` (the default) lets reads and pages answer; `Full` also
+    /// answers every request but the probes 503 and tells the pause hooks
+    /// to stop background work. A caller may ask for more, never less.
+    pub fn backup_mode(&mut self, mode: crate::shell::backup::Mode) -> &mut Self {
+        self.backup_mode = mode;
+        self
+    }
+
     /// feat-backup-1: run when a backup pause starts, after every write of
     /// the kit's state and every [`crate::shell::backup::writing`] ticket
-    /// came back, before the pause is confirmed to the caller. The place
-    /// to bring a project's own files to rest (a SQLite
-    /// `wal_checkpoint(TRUNCATE)`). An error refuses the pause. Must not
-    /// write through the kit's stores: they are held.
+    /// came back, before the pause is confirmed to the caller, with the
+    /// mode in force. The place to bring a project's own files to rest (a
+    /// SQLite `wal_checkpoint(TRUNCATE)`) and, under `Full`, to stop its
+    /// pumps and pollers. An error refuses the in-process pause and the
+    /// backup stops the unit instead. Must not write through the kit's
+    /// stores: they are held.
     pub fn on_backup_pause(
         &mut self,
-        f: impl Fn() -> Result<(), Error> + Send + Sync + 'static,
+        f: impl Fn(crate::shell::backup::Mode) -> Result<(), Error> + Send + Sync + 'static,
     ) -> &mut Self {
         self.backup_pause_hooks.push(Arc::new(f));
         self
@@ -2232,6 +2285,8 @@ impl App {
         if let Some(f) = self.flush {
             flushes.push(f);
         }
+        // feat-backup-1: a full backup pause answers 503 before any route.
+        let router = crate::shell::backup::full_pause_layer(router);
         // feat-guard-1: innermost of the kit's layers, so the proxy handling
         // has run and nothing else has: every route, the kit's own included.
         #[cfg(feature = "request-guard")]
@@ -2303,7 +2358,8 @@ impl App {
             crate::shell::backup::Controller::new(
                 std::mem::take(&mut self.backup_pause_hooks),
                 std::mem::take(&mut self.backup_resume_hooks),
-            ),
+            )
+            .with_mode(self.backup_mode),
         );
         for hook in self.start_hooks.drain(..) {
             hook();

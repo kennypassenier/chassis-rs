@@ -4,9 +4,17 @@
 //! The homelab archives a native service's data directory while it runs.
 //! A write during that read makes `tar` fail with "file changed as we read
 //! it" (homelab fix-157, kyu F172), so until now the only remedy was to
-//! stop the unit for the length of the backup. This module offers the
-//! lighter alternative: the service stays up and keeps answering reads,
-//! and only writing waits.
+//! stop the unit for the length of the backup. This module offers that and
+//! two lighter ways, and picks the lightest one that holds:
+//!
+//! | Mode | What stands still | What keeps working |
+//! |---|---|---|
+//! | [`Mode::Writes`] | every write of the state | reads, pages, `/healthz` |
+//! | [`Mode::Full`] | every write, and every request but the probes (503 + `Retry-After`) | `/healthz`, `/readyz`, `/metrics` |
+//! | unit stop (the fallback) | the whole process | nothing; systemd starts it again |
+//!
+//! A service declares the least it needs with [`crate::App::backup_mode`];
+//! a caller may ask for more with `--mode full`, never for less.
 //!
 //! How it fits together:
 //!
@@ -18,10 +26,16 @@
 //!   unix socket in its runtime directory, to pause. New tickets wait, the
 //!   service waits for the tickets already out to come back (at most
 //!   [`DRAIN_TIMEOUT`]), runs the project's pause hooks
-//!   ([`crate::App::on_backup_pause`], e.g. a SQLite WAL checkpoint) and
-//!   only then answers. The pause ends at `backup-resume`, at the deadline
-//!   `--for` set (a dead-man, so a backup that dies never leaves the
-//!   service frozen), or at shutdown.
+//!   ([`crate::App::on_backup_pause`], e.g. a SQLite WAL checkpoint or
+//!   stopping a pump) and only then answers.
+//! - When the service cannot give the pause — nobody listens on the socket
+//!   (an older binary or unit, a hung process), the writes do not drain, a
+//!   hook fails — the command stops the systemd unit instead, so the
+//!   backup gets still files in every case it can be given them at all.
+//! - Every way has a dead-man: the in-process pause ends by itself at the
+//!   `--for` deadline, and a stopped unit gets a systemd timer that starts
+//!   it again at that deadline. A backup that dies never leaves a service
+//!   frozen or down. `backup-resume` ends whichever way was taken.
 //!
 //! Exit codes of the client side are part of the contract with the
 //! homelab: see [`client`].
@@ -41,10 +55,42 @@ pub const MAX_PAUSE: Duration = Duration::from_secs(6 * 3600);
 /// The socket's file name inside the runtime directory.
 pub const SOCKET_NAME: &str = "backup.sock";
 
-#[derive(Debug, Default)]
+/// How much of the service a pause stops. Ordered: `Full` includes
+/// everything `Writes` holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[non_exhaustive]
+pub enum Mode {
+    /// Writes of the state wait; everything else answers.
+    #[default]
+    Writes,
+    /// Writes wait and every request but `/healthz`, `/readyz` and
+    /// `/metrics` is answered 503 with `Retry-After`; pause hooks stop the
+    /// project's background work.
+    Full,
+}
+
+impl Mode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Mode::Writes => "writes",
+            Mode::Full => "full",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Mode> {
+        match s {
+            "writes" => Some(Mode::Writes),
+            "full" => Some(Mode::Full),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug)]
 struct GateState {
     writers: usize,
     paused: bool,
+    full: bool,
     until: Option<Instant>,
     /// Bumped by every new pause, so a deadline timer of an earlier pause
     /// never ends a later one.
@@ -54,6 +100,7 @@ struct GateState {
 static STATE: Mutex<GateState> = Mutex::new(GateState {
     writers: 0,
     paused: false,
+    full: false,
     until: None,
     epoch: 0,
 });
@@ -71,7 +118,8 @@ fn wake_all() {
 
 /// Proof that a write may happen now; the pause waits until it is dropped.
 /// Hold it around one write or one transaction, never across a long wait:
-/// a pause that cannot drain within [`DRAIN_TIMEOUT`] gives up.
+/// a pause that cannot drain within [`DRAIN_TIMEOUT`] falls back to
+/// stopping the unit.
 #[must_use = "the write is only covered while the ticket is held"]
 #[derive(Debug)]
 pub struct WriteTicket(());
@@ -133,14 +181,23 @@ pub fn writing_blocking() -> WriteTicket {
     }
 }
 
-/// Whether a backup pause is in force right now.
+/// Whether a backup pause of any mode is in force right now.
 pub fn is_paused() -> bool {
     state().paused
 }
 
+/// Whether a [`Mode::Full`] pause is in force: background work should
+/// stand still too.
+pub fn is_fully_paused() -> bool {
+    let s = state();
+    s.paused && s.full
+}
+
 /// A project hook run once the writes drained, before the pause is
-/// confirmed; an error ends the pause and is reported to the caller.
-pub type PauseHook = Arc<dyn Fn() -> Result<(), Error> + Send + Sync>;
+/// confirmed, with the mode in force (it runs again with `Full` when a
+/// writes-only pause is raised to full). An error refuses the pause and
+/// the command falls back to stopping the unit.
+pub type PauseHook = Arc<dyn Fn(Mode) -> Result<(), Error> + Send + Sync>;
 /// A project hook run when a pause ends, whatever ended it.
 pub type ResumeHook = Arc<dyn Fn() + Send + Sync>;
 
@@ -162,6 +219,7 @@ pub struct Controller {
     pause_hooks: Arc<Vec<PauseHook>>,
     resume_hooks: Arc<Vec<ResumeHook>>,
     drain: Duration,
+    floor: Mode,
 }
 
 impl Controller {
@@ -170,12 +228,21 @@ impl Controller {
             pause_hooks: Arc::new(pause_hooks),
             resume_hooks: Arc::new(resume_hooks),
             drain: DRAIN_TIMEOUT,
+            floor: Mode::Writes,
         }
     }
 
-    /// Pause for `length`; returns the deadline as unix seconds. Pausing
-    /// while paused keeps the later of the two deadlines.
-    pub async fn pause(&self, length: Duration) -> Result<u64, PauseError> {
+    /// The least this service needs; a caller asking for less gets this.
+    pub fn with_mode(mut self, floor: Mode) -> Self {
+        self.floor = floor;
+        self
+    }
+
+    /// Pause for `length` in at least `asked` (and at least the service's
+    /// own mode); returns the deadline as unix seconds and the mode in
+    /// force. Pausing while paused keeps the later deadline and the
+    /// larger mode.
+    pub async fn pause(&self, length: Duration, asked: Mode) -> Result<(u64, Mode), PauseError> {
         if length.is_zero() || length > MAX_PAUSE {
             return Err(PauseError::Invalid(format!(
                 "a pause lasts 1 to {} seconds, not {}",
@@ -183,25 +250,65 @@ impl Controller {
                 length.as_secs()
             )));
         }
+        let mode = asked.max(self.floor);
         let until = Instant::now() + length;
-        let epoch = {
+        enum Start {
+            New(u64),
+            Extend {
+                epoch: u64,
+                later: Instant,
+                raise: bool,
+            },
+        }
+        let start = {
             let mut s = state();
             if s.paused {
                 let later = s.until.map_or(until, |u| u.max(until));
                 s.until = Some(later);
-                let epoch = s.epoch;
-                drop(s);
-                self.arm_deadline(epoch);
-                tracing::info!(until = unix_secs(later), "backup pause extended");
-                return Ok(unix_secs(later));
+                let raise = mode == Mode::Full && !s.full;
+                s.full |= raise;
+                Start::Extend {
+                    epoch: s.epoch,
+                    later,
+                    raise,
+                }
+            } else {
+                s.paused = true;
+                s.full = mode == Mode::Full;
+                s.until = Some(until);
+                s.epoch += 1;
+                Start::New(s.epoch)
             }
-            s.paused = true;
-            s.until = Some(until);
-            s.epoch += 1;
-            s.epoch
         };
-        let drain = self.drain;
-        let drained = tokio::time::timeout(drain, async {
+        let epoch = match start {
+            Start::New(epoch) => epoch,
+            Start::Extend {
+                epoch,
+                later,
+                raise,
+            } => {
+                // Writes are already held; a raise to full only needs the
+                // hooks to stop the background work too.
+                if raise && let Err(e) = self.run_pause_hooks(Mode::Full).await {
+                    state().full = false;
+                    tracing::warn!("backup pause not raised to full: a pause hook failed: {e}");
+                    return Err(PauseError::Hook(e));
+                }
+                self.arm_deadline(epoch);
+                let in_force = if state().full {
+                    Mode::Full
+                } else {
+                    Mode::Writes
+                };
+                tracing::info!(
+                    until = unix_secs(later),
+                    mode = in_force.as_str(),
+                    "backup pause extended"
+                );
+                return Ok((unix_secs(later), in_force));
+            }
+        };
+        let drained = tokio::time::timeout(self.drain, async {
             loop {
                 let notified = NOTIFY.notified();
                 if state().writers == 0 {
@@ -216,34 +323,24 @@ impl Controller {
             tracing::warn!(
                 writers = busy,
                 "backup pause refused: writes still in flight after {} s",
-                drain.as_secs()
+                self.drain.as_secs()
             );
             return Err(PauseError::Busy(busy));
         }
-        for hook in self.pause_hooks.iter() {
-            let hook = hook.clone();
-            let res = tokio::task::spawn_blocking(move || hook())
-                .await
-                .unwrap_or_else(|e| {
-                    Err(Error::internal(
-                        format!("the backup pause hook panicked: {e}"),
-                        "report this to the project",
-                    ))
-                });
-            if let Err(e) = res {
-                self.abort(epoch);
-                self.run_resume_hooks().await;
-                tracing::warn!("backup pause refused: a pause hook failed: {e}");
-                return Err(PauseError::Hook(e.to_string()));
-            }
+        if let Err(e) = self.run_pause_hooks(mode).await {
+            self.abort(epoch);
+            self.run_resume_hooks().await;
+            tracing::warn!("backup pause refused: a pause hook failed: {e}");
+            return Err(PauseError::Hook(e));
         }
         self.arm_deadline(epoch);
         tracing::info!(
             seconds = length.as_secs(),
             until = unix_secs(until),
-            "backup pause: writes held"
+            mode = mode.as_str(),
+            "backup pause: holding"
         );
-        Ok(unix_secs(until))
+        Ok((unix_secs(until), mode))
     }
 
     /// End the pause, if one is in force; `reason` goes to the log.
@@ -253,6 +350,7 @@ impl Controller {
             let mut s = state();
             let was = s.paused;
             s.paused = false;
+            s.full = false;
             s.until = None;
             was
         };
@@ -264,16 +362,16 @@ impl Controller {
         was
     }
 
-    /// `None` when running, else the seconds left.
-    pub fn status(&self) -> Option<u64> {
+    /// `None` when running, else the seconds left and the mode.
+    pub fn status(&self) -> Option<(u64, Mode)> {
         let s = state();
         if !s.paused {
             return None;
         }
-        Some(
-            s.until
-                .map_or(0, |u| u.saturating_duration_since(Instant::now()).as_secs()),
-        )
+        let left = s
+            .until
+            .map_or(0, |u| u.saturating_duration_since(Instant::now()).as_secs());
+        Some((left, if s.full { Mode::Full } else { Mode::Writes }))
     }
 
     fn abort(&self, epoch: u64) -> usize {
@@ -281,11 +379,28 @@ impl Controller {
         let busy = s.writers;
         if s.epoch == epoch {
             s.paused = false;
+            s.full = false;
             s.until = None;
         }
         drop(s);
         wake_all();
         busy
+    }
+
+    async fn run_pause_hooks(&self, mode: Mode) -> Result<(), String> {
+        for hook in self.pause_hooks.iter() {
+            let hook = hook.clone();
+            tokio::task::spawn_blocking(move || hook(mode))
+                .await
+                .unwrap_or_else(|e| {
+                    Err(Error::internal(
+                        format!("the backup pause hook panicked: {e}"),
+                        "report this to the project",
+                    ))
+                })
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
     }
 
     async fn run_resume_hooks(&self) {
@@ -332,6 +447,43 @@ fn unix_secs(at: Instant) -> u64 {
         .map_or(0, |d| d.as_secs())
 }
 
+/// The probes a full pause still answers, so the supervisor and the
+/// monitor see a paused service as alive.
+const PROBES: &[&str] = &["/healthz", "/readyz", "/metrics"];
+
+/// Answer every request but the probes with 503 while a full pause is in
+/// force; outside one the layer only reads a flag.
+pub(crate) fn full_pause_layer(router: axum::Router) -> axum::Router {
+    router.layer(axum::middleware::from_fn(hold_requests))
+}
+
+async fn hold_requests(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let left = {
+        let s = state();
+        (s.paused && s.full).then(|| {
+            s.until
+                .map_or(1, |u| u.saturating_duration_since(Instant::now()).as_secs())
+                .max(1)
+        })
+    };
+    match left {
+        Some(left) if !PROBES.contains(&req.uri().path()) => (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            [(axum::http::header::RETRY_AFTER, left.to_string())],
+            axum::Json(serde_json::json!({
+                "error": "paused for a backup",
+                "remedy": format!("retry after {left} s"),
+            })),
+        )
+            .into_response(),
+        _ => next.run(req).await,
+    }
+}
+
 /// Where the service listens: `$RUNTIME_DIRECTORY` (systemd's
 /// `RuntimeDirectory=<name>`, i.e. `/run/<name>`), else
 /// `$XDG_RUNTIME_DIR/<name>`, else the temp directory. Never inside the
@@ -366,7 +518,7 @@ pub fn client_socket_path(name: &str) -> PathBuf {
 #[cfg(unix)]
 pub mod server {
     use super::*;
-    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
     use tokio::net::{UnixListener, UnixStream};
 
     pub struct Server {
@@ -377,14 +529,14 @@ pub mod server {
 
     impl Server {
         /// Bind and serve. A failure is a warning, never a reason not to
-        /// start: the homelab then falls back to stopping the unit.
+        /// start: `backup-pause` then falls back to stopping the unit.
         pub fn start(path: PathBuf, controller: Controller) -> Option<Server> {
             if let Some(dir) = path.parent()
                 && let Err(e) = std::fs::create_dir_all(dir)
             {
                 tracing::warn!(
                     path = %path.display(),
-                    "backup pause unavailable: cannot create the socket directory: {e}"
+                    "backup pause unavailable (a backup will stop the unit instead): cannot create the socket directory: {e}"
                 );
                 return None;
             }
@@ -397,7 +549,7 @@ pub mod server {
                 Err(e) => {
                     tracing::warn!(
                         path = %path.display(),
-                        "backup pause unavailable: cannot bind the socket: {e}"
+                        "backup pause unavailable (a backup will stop the unit instead): cannot bind the socket: {e}"
                     );
                     return None;
                 }
@@ -450,84 +602,340 @@ pub mod server {
         let _ = write.shutdown().await;
     }
 
+    /// The protocol, one line each way:
+    /// `pause <secs> [writes|full]` → `paused <unix deadline> <mode>` |
+    /// `busy <writers>` | `error <text>`; `resume` → `resumed`;
+    /// `status` → `paused <secs left> <mode>` | `running`.
     pub(super) async fn answer(line: &str, c: &Controller) -> String {
-        let mut words = line.split_whitespace();
-        match (words.next(), words.next(), words.next()) {
-            (Some("pause"), Some(secs), None) => match secs.parse::<u64>() {
-                Ok(secs) => match c.pause(Duration::from_secs(secs)).await {
-                    Ok(until) => format!("paused {until}"),
+        let words: Vec<&str> = line.split_whitespace().collect();
+        match words.as_slice() {
+            ["pause", secs, rest @ ..] if rest.len() <= 1 => {
+                let Ok(secs) = secs.parse::<u64>() else {
+                    return format!("error `{secs}` is not a whole number of seconds");
+                };
+                let mode = match rest.first() {
+                    None => Mode::Writes,
+                    Some(m) => match Mode::parse(m) {
+                        Some(mode) => mode,
+                        None => return format!("error unknown mode `{m}`: writes or full"),
+                    },
+                };
+                match c.pause(Duration::from_secs(secs), mode).await {
+                    Ok((until, mode)) => format!("paused {until} {}", mode.as_str()),
                     Err(PauseError::Busy(n)) => format!("busy {n}"),
                     Err(PauseError::Hook(e)) => format!("error {e}"),
                     Err(PauseError::Invalid(e)) => format!("error {e}"),
-                },
-                Err(_) => format!("error `{secs}` is not a whole number of seconds"),
-            },
-            (Some("resume"), None, _) => {
+                }
+            }
+            ["resume"] => {
                 c.resume("backup-resume").await;
                 "resumed".to_string()
             }
-            (Some("status"), None, _) => match c.status() {
-                Some(left) => format!("paused {left}"),
+            ["status"] => match c.status() {
+                Some((left, mode)) => format!("paused {left} {}", mode.as_str()),
                 None => "running".to_string(),
             },
             _ => format!("error unknown command `{line}`"),
         }
     }
-
-    use tokio::io::AsyncReadExt;
 }
 
 /// What the command line asked for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BackupCmd {
-    Pause { secs: u64, socket: Option<PathBuf> },
-    Status { socket: Option<PathBuf> },
-    Resume { socket: Option<PathBuf> },
+    Pause {
+        secs: u64,
+        mode: Mode,
+        /// Stop the unit when the service cannot give the pause (default).
+        fallback: bool,
+        socket: Option<PathBuf>,
+        unit: Option<String>,
+    },
+    Status {
+        socket: Option<PathBuf>,
+        unit: Option<String>,
+    },
+    Resume {
+        socket: Option<PathBuf>,
+        unit: Option<String>,
+    },
 }
 
 /// The command-line side. Exit codes (the homelab's contract):
-/// `0` done; `3` no service listening on the socket (not running, or its
-/// unit predates `RuntimeDirectory=`); `4` writes did not drain in time,
-/// nothing paused; `1` anything else.
+///
+/// - `0`: the files stand still (pause) or the service is back (resume).
+///   stdout's first word says how: `paused <deadline> <mode>`, `stopped
+///   <unit> <deadline>` (the fallback), `not-running <unit>` (nothing to
+///   hold); for resume `resumed`, `started <unit>` or `nothing-paused`.
+/// - `3`: the files could not be made to stand still: nobody listens on
+///   the socket and the unit could not be stopped (no systemd, unknown
+///   unit, not root, or `--no-fallback`).
+/// - `4`: writes did not drain within [`DRAIN_TIMEOUT`] and `--no-fallback`
+///   was given; nothing is paused.
+/// - `1`: anything else, e.g. stopping the unit failed.
 pub mod client {
     use super::*;
 
-    pub const EXIT_NO_SOCKET: u8 = 3;
+    pub const EXIT_UNAVAILABLE: u8 = 3;
     pub const EXIT_BUSY: u8 = 4;
+
+    /// Where a stopped unit is remembered, so `backup-resume` knows to
+    /// start it again. Under /run: gone after a reboot, which started
+    /// the unit anyway.
+    const MARKER_DIR: &str = "/run/chassis-backup";
+
+    fn marker(unit: &str) -> PathBuf {
+        Path::new(MARKER_DIR).join(format!("{unit}.stopped"))
+    }
+
+    fn deadman(unit: &str) -> String {
+        format!(
+            "chassis-backup-deadman-{}",
+            unit.trim_end_matches(".service")
+        )
+    }
 
     /// Run `cmd` against service `name`; prints the answer, returns the
     /// exit code.
     pub async fn run(name: &str, cmd: &BackupCmd) -> u8 {
-        let (socket, line) = match cmd {
-            BackupCmd::Pause { secs, socket } => (socket, format!("pause {secs}")),
-            BackupCmd::Status { socket } => (socket, "status".to_string()),
-            BackupCmd::Resume { socket } => (socket, "resume".to_string()),
-        };
-        let path = socket.clone().unwrap_or_else(|| client_socket_path(name));
-        match ask(&path, &line).await {
-            Err(Missing(e)) => {
-                eprintln!(
-                    "no {name} is listening on {}: {e}. What now: if the service runs, its unit lacks RuntimeDirectory={name} (run `chassis sync --write` in the project and redeploy the unit) or it runs a version without the backup pause; stop the unit for the backup instead",
-                    path.display()
-                );
-                EXIT_NO_SOCKET
-            }
-            Ok(reply) => {
-                let reply = reply.trim();
-                if reply.starts_with("paused ") || reply == "running" || reply == "resumed" {
-                    println!("{reply}");
-                    0
-                } else if let Some(n) = reply.strip_prefix("busy ") {
+        match cmd {
+            BackupCmd::Pause {
+                secs,
+                mode,
+                fallback,
+                socket,
+                unit,
+            } => {
+                let unit = unit_name(name, unit);
+                let path = socket.clone().unwrap_or_else(|| client_socket_path(name));
+                let why = match ask(&path, &format!("pause {secs} {}", mode.as_str())).await {
+                    Ok(reply) => {
+                        let reply = reply.trim();
+                        if reply.starts_with("paused ") {
+                            println!("{reply}");
+                            return 0;
+                        }
+                        if let Some(n) = reply.strip_prefix("busy ") {
+                            if !fallback {
+                                eprintln!(
+                                    "{name} still had {n} write(s) in flight after {} s; nothing is paused. What now: retry, or run without --no-fallback to stop the unit instead",
+                                    DRAIN_TIMEOUT.as_secs()
+                                );
+                                return EXIT_BUSY;
+                            }
+                            format!(
+                                "{n} write(s) still in flight after {} s",
+                                DRAIN_TIMEOUT.as_secs()
+                            )
+                        } else {
+                            reply.strip_prefix("error ").unwrap_or(reply).to_string()
+                        }
+                    }
+                    Err(Missing(e)) => format!("nobody listens on {}: {e}", path.display()),
+                };
+                if !fallback {
                     eprintln!(
-                        "{name} still had {n} write(s) in flight after {} s; nothing is paused. What now: retry, or stop the unit for the backup",
-                        DRAIN_TIMEOUT.as_secs()
+                        "{name} cannot pause: {why}. What now: if the service runs, its unit lacks RuntimeDirectory={name} (run `chassis sync --write` in the project and redeploy the unit) or its binary predates the backup pause; run without --no-fallback to stop the unit instead"
                     );
-                    EXIT_BUSY
-                } else {
-                    eprintln!("{name}: {}", reply.strip_prefix("error ").unwrap_or(reply));
-                    1
+                    return EXIT_UNAVAILABLE;
                 }
+                eprintln!("{name} cannot pause in-process ({why}); stopping {unit} instead");
+                stop_unit(&unit, *secs).await
+            }
+            BackupCmd::Resume { socket, unit } => {
+                let unit = unit_name(name, unit);
+                if marker(&unit).exists() {
+                    return start_unit(&unit).await;
+                }
+                let path = socket.clone().unwrap_or_else(|| client_socket_path(name));
+                match ask(&path, "resume").await {
+                    Ok(reply) if reply.trim() == "resumed" => {
+                        println!("resumed");
+                        0
+                    }
+                    Ok(reply) => {
+                        let reply = reply.trim();
+                        eprintln!("{name}: {}", reply.strip_prefix("error ").unwrap_or(reply));
+                        1
+                    }
+                    // Not listening and not stopped by us: there is no
+                    // pause to end anywhere.
+                    Err(_) => {
+                        println!("nothing-paused");
+                        0
+                    }
+                }
+            }
+            BackupCmd::Status { socket, unit } => {
+                let unit = unit_name(name, unit);
+                if let Ok(deadline) = std::fs::read_to_string(marker(&unit)) {
+                    println!("stopped {unit} {}", deadline.trim());
+                    return 0;
+                }
+                let path = socket.clone().unwrap_or_else(|| client_socket_path(name));
+                match ask(&path, "status").await {
+                    Ok(reply) => {
+                        let reply = reply.trim();
+                        if reply.starts_with("paused ") || reply == "running" {
+                            println!("{reply}");
+                            0
+                        } else {
+                            eprintln!("{name}: {}", reply.strip_prefix("error ").unwrap_or(reply));
+                            1
+                        }
+                    }
+                    Err(Missing(e)) => {
+                        eprintln!("nobody listens on {}: {e}", path.display());
+                        EXIT_UNAVAILABLE
+                    }
+                }
+            }
+        }
+    }
+
+    fn unit_name(name: &str, unit: &Option<String>) -> String {
+        let unit = unit.clone().unwrap_or_else(|| name.to_string());
+        if unit.contains('.') {
+            unit
+        } else {
+            format!("{unit}.service")
+        }
+    }
+
+    async fn systemctl(args: &[&str]) -> Result<std::process::Output, String> {
+        tokio::process::Command::new("systemctl")
+            .args(args)
+            .output()
+            .await
+            .map_err(|e| format!("cannot run systemctl: {e}"))
+    }
+
+    fn text(out: &std::process::Output) -> String {
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    }
+
+    fn err(out: &std::process::Output) -> String {
+        String::from_utf8_lossy(&out.stderr).trim().to_string()
+    }
+
+    /// The fallback: stop the unit, with a systemd timer that starts it
+    /// again at the deadline even if `backup-resume` never comes.
+    async fn stop_unit(unit: &str, secs: u64) -> u8 {
+        let show = match systemctl(&["show", "--property=LoadState,ActiveState", "--value", unit])
+            .await
+        {
+            Ok(out) if out.status.success() => text(&out),
+            Ok(out) => {
+                eprintln!(
+                    "cannot read {unit} from systemd: {}. What now: stop the service another way for the backup",
+                    err(&out)
+                );
+                return EXIT_UNAVAILABLE;
+            }
+            Err(e) => {
+                eprintln!(
+                    "{e}. What now: without systemd the service has to be stopped another way for the backup"
+                );
+                return EXIT_UNAVAILABLE;
+            }
+        };
+        let mut lines = show.lines();
+        let load = lines.next().unwrap_or_default();
+        let active = lines.next().unwrap_or_default();
+        if load != "loaded" {
+            eprintln!(
+                "systemd does not know {unit} (LoadState={load}). What now: pass --unit with the unit's real name"
+            );
+            return EXIT_UNAVAILABLE;
+        }
+        if matches!(active, "inactive" | "failed") {
+            println!("not-running {unit}");
+            return 0;
+        }
+        if let Err(e) = std::fs::create_dir_all(MARKER_DIR) {
+            eprintln!(
+                "cannot create {MARKER_DIR}: {e}. What now: run backup-pause as root (pct exec does)"
+            );
+            return EXIT_UNAVAILABLE;
+        }
+        let deadline = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs())
+            + secs;
+        if let Err(e) = std::fs::write(marker(unit), format!("{deadline}\n")) {
+            eprintln!("cannot write the stop marker: {e}. What now: run backup-pause as root");
+            return EXIT_UNAVAILABLE;
+        }
+        // The dead-man first, so a stopped unit always comes back.
+        let timer = deadman(unit);
+        let _ = systemctl(&["stop", &format!("{timer}.timer")]).await;
+        let _ = systemctl(&["reset-failed", &format!("{timer}.service")]).await;
+        let armed = tokio::process::Command::new("systemd-run")
+            .args([
+                &format!("--unit={timer}"),
+                &format!("--on-active={secs}s"),
+                "--timer-property=AccuracySec=1s",
+                "systemctl",
+                "start",
+                unit,
+            ])
+            .output()
+            .await;
+        match armed {
+            Ok(out) if out.status.success() => {}
+            Ok(out) => {
+                let _ = std::fs::remove_file(marker(unit));
+                eprintln!(
+                    "cannot arm the restart timer for {unit}: {}. Nothing was stopped",
+                    err(&out)
+                );
+                return 1;
+            }
+            Err(e) => {
+                let _ = std::fs::remove_file(marker(unit));
+                eprintln!("cannot run systemd-run: {e}. Nothing was stopped");
+                return 1;
+            }
+        }
+        match systemctl(&["stop", unit]).await {
+            Ok(out) if out.status.success() => {
+                println!("stopped {unit} {deadline}");
+                0
+            }
+            Ok(out) => {
+                eprintln!("stopping {unit} failed: {}; starting it again", err(&out));
+                start_unit(unit).await;
+                1
+            }
+            Err(e) => {
+                eprintln!("{e}; starting {unit} again");
+                start_unit(unit).await;
+                1
+            }
+        }
+    }
+
+    async fn start_unit(unit: &str) -> u8 {
+        let timer = deadman(unit);
+        let _ = systemctl(&["stop", &format!("{timer}.timer")]).await;
+        let res = systemctl(&["start", unit]).await;
+        let _ = std::fs::remove_file(marker(unit));
+        match res {
+            Ok(out) if out.status.success() => {
+                println!("started {unit}");
+                0
+            }
+            Ok(out) => {
+                eprintln!(
+                    "starting {unit} failed: {}. What now: systemctl status {unit}",
+                    err(&out)
+                );
+                1
+            }
+            Err(e) => {
+                eprintln!("{e}. What now: start {unit} by hand");
+                1
             }
         }
     }
@@ -564,6 +972,7 @@ pub mod client {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     // The gate is process-wide, so these tests take turns.
     static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -572,6 +981,8 @@ mod tests {
         Controller::new(Vec::new(), Vec::new())
     }
 
+    const MIN: Duration = Duration::from_secs(60);
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_pause_waits_for_the_write_in_flight_and_holds_new_ones() {
         let _serial = SERIAL.lock().await;
@@ -579,13 +990,14 @@ mod tests {
         let ticket = writing().await;
         let pausing = tokio::spawn({
             let c = c.clone();
-            async move { c.pause(Duration::from_secs(60)).await }
+            async move { c.pause(MIN, Mode::Writes).await }
         });
         tokio::time::sleep(Duration::from_millis(150)).await;
         assert!(!pausing.is_finished(), "the pause must wait for the ticket");
         drop(ticket);
-        assert!(pausing.await.unwrap().is_ok());
+        assert_eq!(pausing.await.unwrap().unwrap().1, Mode::Writes);
         assert!(is_paused());
+        assert!(!is_fully_paused());
 
         let writer = tokio::spawn(async { writing().await });
         let blocking = tokio::task::spawn_blocking(writing_blocking);
@@ -602,12 +1014,78 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_service_raises_the_mode_and_a_caller_can_raise_it_never_lower() {
+        let _serial = SERIAL.lock().await;
+        let modes = Arc::new(Mutex::new(Vec::new()));
+        let seen = modes.clone();
+        let hook: PauseHook = Arc::new(move |m| {
+            seen.lock().unwrap().push(m);
+            Ok(())
+        });
+        // A service that declares Full gets Full even when Writes is asked.
+        let full = Controller::new(vec![hook.clone()], Vec::new()).with_mode(Mode::Full);
+        assert_eq!(full.pause(MIN, Mode::Writes).await.unwrap().1, Mode::Full);
+        assert!(is_fully_paused());
+        full.resume("test").await;
+        // A writes-only pause raised to full while in force runs the hooks
+        // again with Full; asking Writes afterwards does not lower it.
+        let c = Controller::new(vec![hook], Vec::new());
+        assert_eq!(c.pause(MIN, Mode::Writes).await.unwrap().1, Mode::Writes);
+        assert_eq!(c.pause(MIN, Mode::Full).await.unwrap().1, Mode::Full);
+        assert_eq!(c.pause(MIN, Mode::Writes).await.unwrap().1, Mode::Full);
+        assert_eq!(c.status().unwrap().1, Mode::Full);
+        c.resume("test").await;
+        assert!(!is_fully_paused());
+        assert_eq!(
+            *modes.lock().unwrap(),
+            vec![Mode::Full, Mode::Writes, Mode::Full]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_full_pause_answers_503_except_the_probes() {
+        use tower::ServiceExt;
+        let _serial = SERIAL.lock().await;
+        let r = full_pause_layer(
+            axum::Router::new()
+                .route("/healthz", axum::routing::get(|| async { "alive" }))
+                .route("/api/x", axum::routing::get(|| async { "x" })),
+        );
+        let get = |p: &'static str| {
+            let r = r.clone();
+            async move {
+                r.oneshot(
+                    axum::http::Request::get(p)
+                        .body(axum::body::Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap()
+            }
+        };
+        let c = controller();
+        c.pause(MIN, Mode::Writes).await.unwrap();
+        assert_eq!(
+            get("/api/x").await.status(),
+            200,
+            "writes-only pause serves"
+        );
+        c.pause(MIN, Mode::Full).await.unwrap();
+        let held = get("/api/x").await;
+        assert_eq!(held.status(), 503);
+        assert!(held.headers().contains_key("retry-after"));
+        assert_eq!(get("/healthz").await.status(), 200, "probes still answer");
+        c.resume("test").await;
+        assert_eq!(get("/api/x").await.status(), 200);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_write_that_never_ends_refuses_the_pause_and_releases_the_gate() {
         let _serial = SERIAL.lock().await;
         let mut c = controller();
         c.drain = Duration::from_millis(200);
         let ticket = writing().await;
-        match c.pause(Duration::from_secs(60)).await {
+        match c.pause(MIN, Mode::Writes).await {
             // Other tests in this binary may be writing too.
             Err(PauseError::Busy(n)) => assert!(n >= 1),
             other => panic!("expected Busy, got {other:?}"),
@@ -621,32 +1099,42 @@ mod tests {
     async fn the_deadline_ends_a_pause_nobody_resumed() {
         let _serial = SERIAL.lock().await;
         let c = controller();
-        c.pause(Duration::from_secs(1)).await.unwrap();
+        c.pause(Duration::from_secs(1), Mode::Full).await.unwrap();
         assert!(c.status().is_some());
         tokio::time::sleep(Duration::from_millis(1500)).await;
         assert!(!is_paused(), "the dead-man ended it");
+        assert!(!is_fully_paused());
         assert_eq!(c.status(), None);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_failing_pause_hook_refuses_the_pause() {
         let _serial = SERIAL.lock().await;
-        let resumed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let resumed = Arc::new(AtomicBool::new(false));
         let r = resumed.clone();
         let c = Controller::new(
-            vec![Arc::new(|| {
+            vec![Arc::new(|_| {
                 Err(Error::internal("checkpoint failed", "retry"))
             })],
-            vec![Arc::new(move || {
-                r.store(true, std::sync::atomic::Ordering::SeqCst)
-            })],
+            vec![Arc::new(move || r.store(true, Ordering::SeqCst))],
         );
-        match c.pause(Duration::from_secs(60)).await {
+        match c.pause(MIN, Mode::Writes).await {
             Err(PauseError::Hook(e)) => assert!(e.contains("checkpoint failed"), "{e}"),
             other => panic!("expected Hook, got {other:?}"),
         }
         assert!(!is_paused());
-        assert!(resumed.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(resumed.load(Ordering::SeqCst));
+    }
+
+    fn pause_cmd(socket: &Path, mode: Mode, fallback: bool) -> BackupCmd {
+        BackupCmd::Pause {
+            secs: 60,
+            mode,
+            fallback,
+            socket: Some(socket.to_path_buf()),
+            // A unit no machine has, so a fallback can never touch a real one.
+            unit: Some("chassis-test-no-such-unit-7f3a.service".into()),
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -656,51 +1144,71 @@ mod tests {
         let path = dir.path().join(SOCKET_NAME);
         let server = server::Server::start(path.clone(), controller()).expect("bound");
         let socket = Some(path.clone());
-        let pause = BackupCmd::Pause {
-            secs: 60,
+        let unit = Some("chassis-test-no-such-unit-7f3a.service".to_string());
+        assert_eq!(
+            client::run("t", &pause_cmd(&path, Mode::Full, false)).await,
+            0
+        );
+        assert!(is_fully_paused());
+        let status = BackupCmd::Status {
             socket: socket.clone(),
+            unit: unit.clone(),
         };
-        assert_eq!(client::run("t", &pause).await, 0);
-        assert!(is_paused());
-        assert_eq!(
-            client::run(
-                "t",
-                &BackupCmd::Status {
-                    socket: socket.clone()
-                }
-            )
-            .await,
-            0
-        );
-        assert_eq!(
-            client::run(
-                "t",
-                &BackupCmd::Resume {
-                    socket: socket.clone()
-                }
-            )
-            .await,
-            0
-        );
+        assert_eq!(client::run("t", &status).await, 0);
+        let resume = BackupCmd::Resume {
+            socket: socket.clone(),
+            unit: unit.clone(),
+        };
+        assert_eq!(client::run("t", &resume).await, 0);
         assert!(!is_paused());
         // A pause still in force when the service stops is ended first.
-        assert_eq!(client::run("t", &pause).await, 0);
+        assert_eq!(
+            client::run("t", &pause_cmd(&path, Mode::Writes, false)).await,
+            0
+        );
         server.stop().await;
         assert!(!is_paused());
         assert!(!path.exists(), "the socket is removed at stop");
         assert_eq!(
-            client::run("t", &pause).await,
-            client::EXIT_NO_SOCKET,
-            "nobody listening"
+            client::run("t", &pause_cmd(&path, Mode::Writes, false)).await,
+            client::EXIT_UNAVAILABLE,
+            "nobody listening and no fallback"
+        );
+        assert_eq!(
+            client::run("t", &resume).await,
+            0,
+            "nothing to resume is not a failure"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn without_a_listener_the_fallback_goes_to_systemd_and_never_claims_a_pause() {
+        let _serial = SERIAL.lock().await;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(SOCKET_NAME);
+        // No server: the fallback asks systemd about a unit that does not
+        // exist (or finds no systemd at all) and must not report 0.
+        assert_eq!(
+            client::run("t", &pause_cmd(&path, Mode::Writes, true)).await,
+            client::EXIT_UNAVAILABLE
         );
     }
 
     #[tokio::test]
     async fn the_protocol_refuses_what_it_does_not_know() {
         let c = controller();
-        assert!(server::answer("pause soon", &c).await.starts_with("error"));
-        assert!(server::answer("pause 0", &c).await.starts_with("error"));
-        assert!(server::answer("pause 99999", &c).await.starts_with("error"));
-        assert!(server::answer("dance", &c).await.starts_with("error"));
+        for line in [
+            "pause soon",
+            "pause 0",
+            "pause 99999",
+            "pause 60 everything",
+            "pause 60 full extra",
+            "dance",
+        ] {
+            assert!(
+                server::answer(line, &c).await.starts_with("error"),
+                "{line}"
+            );
+        }
     }
 }

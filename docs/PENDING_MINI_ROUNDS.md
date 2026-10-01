@@ -2734,3 +2734,19 @@ checkpoint in `on_backup_pause`); the homelab switches the stack from a
 unit stop to `backup-pause`. Measurement: the first nightly on a paused
 (not stopped) chassis service archives without "file changed as we read
 it" and the service's `NRestarts` stays unchanged.
+
+Kenny's answer on the 3.1.0 form (2026-10-01, Eigen antwoord): "nu kan
+het misschien, maar misschien heeft een app in de toekomst wel een
+volledige pauze nodig. bouw het in zodat het futureproof is. Ik wil dat
+het in alle omstandigheden werkt". Built the same day: a `full` mode
+(503 on everything but the probes, hooks told to stop background work;
+declared per app or asked per call, raise-only), and a fallback that
+stops the systemd unit when the in-process pause cannot be given (no
+listener, writes not drained, a hook failed), with a dead-man timer that
+starts the unit again. With the fallback the exit contract became: 0 =
+the files stand still, however; 3 = impossible. The interface update went
+to the Homelab-dashboard thread through the coordinator. Open measurement
+for the fallback: on a real systemd host after the release, `backup-pause`
+against a unit without `RuntimeDirectory=` prints `stopped`, the deadman
+timer exists, `backup-resume` prints `started` and the timer is gone; and
+once with the resume left out, the unit is active again at the deadline.

@@ -194,7 +194,7 @@ REALIZATION_PLAN L8), abort-safe until step 5:
 **A backup without stopping the service: `backup-pause`** (feat-backup-1,
 3.1.0). A tar of a running service fails with "file changed as we read
 it" when the service writes meanwhile (homelab fix-157). Instead of
-stopping the unit, the backup can ask the service to hold its writes:
+always stopping the unit, the backup asks the service to hold still:
 
 ```
 <name> backup-pause --for 600   # returns once the files stand still
@@ -203,26 +203,41 @@ tar …                           # the archive
 ```
 
 Both read no configuration, so `pct exec <ct> -- /opt/<name>/bin/<name>
-backup-pause --for 600` works from the Proxmox host as root. They talk to
-the running service over `/run/<name>/backup.sock` (the unit's
+backup-pause --for 600` works from the Proxmox host as root. The command
+takes the lightest way that holds, in this order:
+
+| Way | What stands still | What keeps answering | When |
+|---|---|---|---|
+| `paused … writes` | every write of the state | reads, pages, probes | the default |
+| `paused … full` | every write, and every request but `/healthz`, `/readyz`, `/metrics` (503 + `Retry-After`); the project's pause hooks stop its background work | the probes | the service declares `App::backup_mode(Mode::Full)`, or the caller passes `--mode full` (a caller can raise the mode, never lower it) |
+| `stopped <unit> …` | the whole process | nothing | the fallback: nobody listens on the socket (older binary or unit, hung process), the writes did not drain in 30 s, or a pause hook failed |
+| `not-running <unit>` | — | — | the unit was not running; nothing to hold |
+
+The in-process pause talks to `/run/<name>/backup.sock` (the unit's
 `RuntimeDirectory=<name>`, outside the state root; `--socket PATH`
 overrides). The service holds every write of its own state (all of them go
 through `write_atomic`) and every write a project wrapped in
 `chassis::shell::backup::writing()`, waits up to 30 s for the writes already
 in flight, runs the project's `on_backup_pause` hooks (a SQLite
-`wal_checkpoint(TRUNCATE)`), and only then answers. Reads, `/healthz` and
-the dashboard keep answering; a request that must write waits until the
-pause ends. The pause ends at `backup-resume`, at the `--for` deadline
-(1 to 21600 s, a dead-man: a backup that dies never leaves the service
-frozen), or at shutdown. Pausing while paused keeps the later deadline.
-`backup-pause --status` prints `paused <seconds left>` or `running`.
+`wal_checkpoint(TRUNCATE)`; under `full` also stopping pumps), and only then
+answers. The fallback stops `<name>.service` (`--unit` overrides) with
+systemctl and remembers that in `/run/chassis-backup/<unit>.stopped`.
+
+**Every way has a dead-man.** The in-process pause ends by itself at the
+`--for` deadline (1 to 21600 s) and at shutdown; a stopped unit gets a
+systemd timer (`chassis-backup-deadman-<name>.timer`, armed before the
+stop) that starts it again at the deadline. A backup that dies never
+leaves a service frozen or down. `backup-resume` ends whichever way was
+taken; pausing while paused keeps the later deadline and the larger mode.
+`backup-pause --status` prints `paused <seconds left> <mode>`, `stopped
+<unit> <deadline>` or `running`.
 
 | Exit | backup-pause | backup-resume |
 |---|---|---|
-| 0 | paused; stdout `paused <unix deadline>` | resumed, or nothing was paused |
-| 3 | nobody listens on the socket: the service is not running, its unit predates `RuntimeDirectory=` (run `chassis sync --write` and redeploy the unit), or its binary predates 3.1.0. Stop the unit for the backup instead | same |
-| 4 | writes still in flight after 30 s; nothing paused. Retry, or stop the unit | — |
-| 1 | anything else (a failing pause hook, a refused `--for`) | anything else |
+| 0 | the files stand still; stdout's first word says how (table above) | `resumed`, `started <unit>`, or `nothing-paused` |
+| 3 | could not make them stand still: no listener, and the unit could not be stopped (no systemd, unknown unit, not root) or `--no-fallback` was given | — |
+| 4 | only with `--no-fallback`: writes still in flight after 30 s, nothing paused | — |
+| 1 | anything else (stopping or arming the timer failed; the unit is started again) | starting the unit failed |
 
 The tar is useless without the secret key — see §8. Proven by:
 `sessions_and_usage_survive_a_restart`, `unwritable_state_dir_is_refused_at_check_and_start`,
