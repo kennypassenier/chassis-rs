@@ -100,6 +100,11 @@ app.page(Page::new("home", "Home", "/"))
   templates render); every action stays the kit's existing endpoint
   (`/api/clients…`, `/passkeys/register/start|finish`, `/api/passkeys/{id}`,
   `POST /logout`). A service without a web app keeps the kit's layout.
+- **Every kit page is optional** (2026-10-02): `app.disable_kit_page("status")`,
+  `"clients"` or `"passkeys"` switches that page off for this service: no
+  navigation entry, no route (404), no `/api/kit/…` data; `clients` also
+  drops the client management API, `passkeys` the ceremonies and the login
+  button. Pages are on unless switched off.
 - **`nav_entry(label, href)`** from before 3.1.0 still works: it is a
   visible project page.
 - **Refused at start:** a page path that is not absolute, two pages with one

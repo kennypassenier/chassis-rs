@@ -70,6 +70,8 @@ pub(crate) struct MountExtra {
     pub home: Option<String>,
     pub webapp_at_root: bool,
     pub kit_in_webapp: bool,
+    /// Kenny, 2026-10-02: every kit page is optional per app.
+    pub disabled: Vec<String>,
 }
 
 pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Result<Mounted, Error> {
@@ -226,7 +228,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         limits.capture_ttl.as_secs() / 60,
         limits.remember_me_secs / 86_400,
         has_test_route,
-        cfg!(feature = "passkeys") && !open,
+        cfg!(feature = "passkeys") && !open && !extra.disabled.iter().any(|d| d == "passkeys"),
         limits.public_url.clone().unwrap_or_default(),
         registry.nav.clone(),
         registry.sections,
@@ -256,6 +258,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         crate::shell::pages::Registry {
             app_pages,
             kit_edits: extra.kit_edits,
+            disabled: extra.disabled.clone(),
             brand: extra.brand,
             brand_title: extra.brand_title,
             home: extra.home,
@@ -283,18 +286,27 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
     let logout = Router::new()
         .route("/logout", post(logout_handler))
         .with_state(auth.clone());
-    let mut pages_admin = Router::new()
-        .route("/api/kit/status", get(dashboard::status_json))
-        .route("/api/kit/clients", get(dashboard::clients_json));
-    if kit_renders {
-        pages_admin = pages_admin
-            .route("/status", get(dashboard::status_page))
-            .route("/clients", get(dashboard::clients_page));
+    // Kenny, 2026-10-02: every kit page is optional; a page switched off
+    // has no route, no data endpoint and no entry in the navigation.
+    let on = |id: &str| !extra.disabled.iter().any(|d| d == id);
+    let (status_on, clients_on) = (on("status"), on("clients"));
+    let mut pages_admin = Router::new();
+    if status_on {
+        pages_admin = pages_admin.route("/api/kit/status", get(dashboard::status_json));
+    }
+    if clients_on {
+        pages_admin = pages_admin.route("/api/kit/clients", get(dashboard::clients_json));
+    }
+    if kit_renders && status_on {
+        pages_admin = pages_admin.route("/status", get(dashboard::status_page));
+    }
+    if kit_renders && clients_on {
+        pages_admin = pages_admin.route("/clients", get(dashboard::clients_page));
     }
     // `/`: the web app's when it sits at the root; else the home route,
     // which is the status page itself unless the project named another.
     if !extra.webapp_at_root {
-        if page_set.home == "/status" || page_set.home == "/" {
+        if status_on && (page_set.home == "/status" || page_set.home == "/") {
             pages_admin = pages_admin.route("/", get(dashboard::status_page));
         } else {
             let to = page_set.home.clone();
@@ -321,24 +333,28 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         )
         .layer(from_fn_with_state(auth.clone(), require_admin));
 
-    let clients_api = Router::new()
-        .route(
-            "/api/clients",
-            get(clients_api::list).post(clients_api::issue),
-        )
-        .route("/api/clients/{id}", delete(clients_api::delete))
-        .route("/api/clients/{id}/reissue", post(clients_api::reissue))
-        .route("/api/clients/{id}/revoke", post(clients_api::revoke))
-        .route("/api/clients/{id}/token", get(clients_api::reveal))
-        .route("/api/clients/{id}/requests", get(clients_api::requests))
-        .route("/api/clients/{id}/test", post(clients_api::send_test))
-        .with_state(api)
-        // K28: the handlers word their refusals in the project's vocabulary.
-        .layer(axum::Extension(vocab))
-        .layer(from_fn_with_state(auth.clone(), require_admin));
+    let clients_api = if !clients_on {
+        Router::new()
+    } else {
+        Router::new()
+            .route(
+                "/api/clients",
+                get(clients_api::list).post(clients_api::issue),
+            )
+            .route("/api/clients/{id}", delete(clients_api::delete))
+            .route("/api/clients/{id}/reissue", post(clients_api::reissue))
+            .route("/api/clients/{id}/revoke", post(clients_api::revoke))
+            .route("/api/clients/{id}/token", get(clients_api::reveal))
+            .route("/api/clients/{id}/requests", get(clients_api::requests))
+            .route("/api/clients/{id}/test", post(clients_api::send_test))
+            .with_state(api)
+            // K28: the handlers word their refusals in the project's vocabulary.
+            .layer(axum::Extension(vocab))
+            .layer(from_fn_with_state(auth.clone(), require_admin))
+    };
 
     #[cfg(feature = "passkeys")]
-    let passkey_routes = if open {
+    let passkey_routes = if open || !on("passkeys") {
         Router::new()
     } else {
         use crate::shell::passkeys::{self, PasskeyState};

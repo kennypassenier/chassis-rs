@@ -16,6 +16,16 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **Every kit page is optional per app** (Kenny, 2026-10-02: "alle
+  pagina's moeten optioneel zijn"). `App::disable_kit_page("status" |
+  "clients" | "passkeys")` removes the page from the navigation and
+  `/api/kit/pages`, its route (404), its `/api/kit/…` data and, for
+  `clients`, the client management API, for `passkeys`, the ceremonies and
+  the login page's passkey button. Without it every page stays on, so no
+  service loses a page it uses (measured: almanac, kyu and
+  http-switchboard register a client API and status sections; kyu-runner
+  has no dashboard). With the status page off and no home set, `/` leads
+  to the first listed page.
 - `tests/kenny_rules.rs`: locks for what Kenny said must always hold (page
   width, the grid form, the registry brand, the backup pause's 10 s bound
   and default mode, the release's single run and its durations), each

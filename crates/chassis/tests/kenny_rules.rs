@@ -153,3 +153,36 @@ fn the_release_runs_once_and_says_how_long() {
 //   the_image_follows_the_deployment_unless_the_project_says_otherwise,
 //   tests/new_project_builds.rs
 // - a project's own unit directives survive sync (fix-14): chassis-cli tests
+
+/// 2026-10-02: every kit page is optional per app ("alle pagina's moeten
+/// optioneel zijn"). A page switched off is gone from the navigation and
+/// its route answers 404; the pages left on keep working.
+#[cfg(all(feature = "testing", feature = "dashboard"))]
+#[tokio::test]
+async fn a_disabled_kit_page_is_gone_from_the_nav_and_its_route() {
+    use chassis::testing::TestApp;
+    let spec = || chassis::AppSpec {
+        name: "pagesoff",
+        version: "0.0.0",
+        ..Default::default()
+    };
+    for off in ["status", "clients", "passkeys"] {
+        let mut app = TestApp::start_with(spec(), axum::Router::new(), move |a| {
+            a.disable_kit_page(off);
+        })
+        .await;
+        app.login().await;
+        let (status, body) = app.page("/api/kit/pages").await;
+        assert_eq!(status, 200, "{off}: {body}");
+        assert!(
+            !body.contains(&format!(r#""id":"{off}""#)),
+            "{off} must not be listed: {body}"
+        );
+        let (status, _) = app.page(&format!("/{off}")).await;
+        assert_eq!(status, 404, "/{off} must not answer once switched off");
+        for other in ["status", "clients"].iter().filter(|p| **p != off) {
+            let (status, _) = app.page(&format!("/{other}")).await;
+            assert_eq!(status, 200, "/{other} stays when only {off} is off");
+        }
+    }
+}

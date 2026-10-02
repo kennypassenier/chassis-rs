@@ -139,6 +139,8 @@ pub(crate) struct Registry {
     /// The brand's text; `None` keeps the service's name.
     pub brand_title: Option<String>,
     pub home: Option<String>,
+    /// Kit pages the project switched off (`App::disable_kit_page`).
+    pub disabled: Vec<String>,
 }
 
 impl Registry {
@@ -168,6 +170,7 @@ impl Registry {
                 pages[i] = edited;
             }
         }
+        pages.retain(|p| !self.disabled.contains(&p.id));
         if kit_in_webapp {
             for p in &mut pages {
                 p.render = PageRender::App;
@@ -178,10 +181,19 @@ impl Registry {
         let mut all = self.app_pages;
         all.extend(pages);
         all.sort_by_key(|p| p.order);
+        let status_on = !self.disabled.iter().any(|d| d == "status");
+        let first_listed = |all: &[Page]| {
+            all.iter()
+                .find(|p| p.nav)
+                .map(|p| p.path.clone())
+                .unwrap_or_else(|| "/".to_string())
+        };
         let home = match self.home {
             Some(h) => h,
             None if webapp_at_root => "/".to_string(),
-            None => "/status".to_string(),
+            None if status_on => "/status".to_string(),
+            // Without a status page, `/` leads to the first listed page.
+            None => first_listed(&all),
         };
         PageSet {
             app: app.to_string(),
@@ -194,6 +206,9 @@ impl Registry {
         }
     }
 }
+
+/// The kit's own pages, by id, the ones `App::disable_kit_page` accepts.
+pub const KIT_PAGES: &[&str] = &["status", "clients", "passkeys"];
 
 /// Refuse a registry that would break at the first click: a path that is
 /// not absolute, two pages with one id, a project page on a kit path.
@@ -235,6 +250,7 @@ mod tests {
             kit_edits: Vec::new(),
             brand: None,
             brand_title: None,
+            disabled: Vec::new(),
             home: None,
         }
     }

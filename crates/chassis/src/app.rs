@@ -698,6 +698,8 @@ pub struct App {
     #[cfg(feature = "dashboard")]
     brand_title: Option<String>,
     #[cfg(feature = "dashboard")]
+    disabled_kit_pages: Vec<String>,
+    #[cfg(feature = "dashboard")]
     home: Option<String>,
     #[cfg(feature = "dashboard")]
     kit_pages_in_webapp: bool,
@@ -841,6 +843,8 @@ impl App {
             brand: None,
             #[cfg(feature = "dashboard")]
             brand_title: None,
+            #[cfg(feature = "dashboard")]
+            disabled_kit_pages: Vec::new(),
             #[cfg(feature = "dashboard")]
             home: None,
             #[cfg(feature = "dashboard")]
@@ -1330,6 +1334,8 @@ impl App {
             #[cfg(feature = "dashboard")]
             brand_title: None,
             #[cfg(feature = "dashboard")]
+            disabled_kit_pages: Vec::new(),
+            #[cfg(feature = "dashboard")]
             home: None,
             #[cfg(feature = "dashboard")]
             kit_pages_in_webapp: false,
@@ -1590,6 +1596,17 @@ impl App {
     #[cfg(feature = "dashboard")]
     pub fn home(&mut self, path: &str) -> &mut Self {
         self.home = Some(path.to_string());
+        self
+    }
+
+    /// Kenny, 2026-10-02: switch one of the kit's pages off for this
+    /// service (`status`, `clients`, `passkeys`): no route, no data
+    /// endpoint, no navigation entry. `clients` also takes the client
+    /// management API with it; `passkeys` the passkey ceremonies and the
+    /// login page's passkey button. Every page is on unless switched off.
+    #[cfg(feature = "dashboard")]
+    pub fn disable_kit_page(&mut self, id: &str) -> &mut Self {
+        self.disabled_kit_pages.push(id.to_string());
         self
     }
 
@@ -2371,6 +2388,16 @@ impl App {
             #[cfg(not(feature = "webapp"))]
             let webapp_at_root = false;
             crate::shell::pages::validate(&self.pages)?;
+            if let Some(bad) = self
+                .disabled_kit_pages
+                .iter()
+                .find(|d| !crate::shell::pages::KIT_PAGES.contains(&d.as_str()))
+            {
+                return Err(Error::config(
+                    format!("disable_kit_page(\"{bad}\"): the kit has no such page"),
+                    "use one of: status, clients, passkeys",
+                ));
+            }
             if self.kit_pages_in_webapp && !webapp_at_root {
                 return Err(Error::config(
                     "kit_pages_in_webapp() needs a web app at the root",
@@ -2403,6 +2430,7 @@ impl App {
                     kit_edits: std::mem::take(&mut self.kit_page_edits),
                     brand: self.brand.take(),
                     brand_title: self.brand_title.take(),
+                    disabled: std::mem::take(&mut self.disabled_kit_pages),
                     home: self.home.take(),
                     webapp_at_root,
                     kit_in_webapp: self.kit_pages_in_webapp,
