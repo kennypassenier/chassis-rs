@@ -260,12 +260,18 @@ fn a_new_project_compiles_and_answers_version() {
         "cargo deny check all",
         "git tag v0.2.0",
         "--target x86_64-unknown-linux-musl",
-        "docker push ghcr.io/kennypassenier/demo-svc:v0.2.0",
         "--latest=false",
         "sign-release.sh v0.2.0",
+        // 3.3.0: `chassis new` writes the native stack file, so a new
+        // project's release builds no container image.
+        "container image: no",
     ] {
         assert!(plan.contains(needle), "release plan lacks {needle}: {plan}");
     }
+    assert!(
+        !plan.contains("docker push"),
+        "3.3.0: a native project pushes no image: {plan}"
+    );
     assert!(
         !plan.contains("release-0.2.0"),
         "3.0.0: no release branch, no wait for CI: {plan}"
