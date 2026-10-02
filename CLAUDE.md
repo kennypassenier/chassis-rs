@@ -64,4 +64,7 @@ contract, the `--version` smoke — before it tags.
   what, why and the risks, nothing before his answer. Since the same day,
   nothing on the PC is touched (rehearsals included) until he has seen the
   plan for the ~/Projects cap (workstation CORRECTIONS.md ws-1, ws-2).
+- **Every test run reports its measured duration** (Kenny, 2026-10-02):
+  `scripts/test-carry.sh` and `scripts/release-kit.sh` print it; a reply that
+  mentions a test run says how long it took.
 - Session title convention: `🏗️ chassis-rs - Fase <N> - <phase name>`.

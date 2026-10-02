@@ -68,6 +68,7 @@ cargo deny --version >/dev/null 2>&1 || {
   exit 1
 }
 echo "release-kit: gate — fmt, clippy, tests, cargo-deny, smoke"
+gate_started=$(date +%s)
 # One full test run per release (Kenny, 2026-09-29): skipped when the commit
 # gate already saw exactly this tree green (workstation/bin/gate-stamp).
 gate_stamp="$HOME/Projects/workstation/bin/gate-stamp"
@@ -80,6 +81,8 @@ else
   # unless something foundational moved (homelab fix-187, scripts/test-carry.sh).
   "$root/scripts/test-carry.sh"
 fi
+gate_s=$(( $(date +%s) - gate_started ))
+echo "release-kit: fmt · clippy · tests took $((gate_s / 60)) min $((gate_s % 60)) s (measured)"
 cargo deny check
 cargo run -q -p chassis-cli -- --version
 cargo run -q -p inbox -- --version

@@ -23,7 +23,13 @@ state="$(git rev-parse --git-dir)/test-carry"
 mkdir -p "$state"
 tree=$(git write-tree 2>/dev/null || git rev-parse 'HEAD^{tree}')
 log=$(mktemp)
-trap 'rm -f "$log"' EXIT
+# Kenny, 2026-10-02: every test run says how long it took, measured.
+started=$(date +%s)
+took() {
+  local s=$(( $(date +%s) - started ))
+  if [ "$s" -ge 60 ]; then printf '%d min %d s' $((s / 60)) $((s % 60)); else printf '%d s' "$s"; fi
+}
+trap 'echo "test-carry: tests took $(took)"; rm -f "$log"' EXIT
 
 record() { # record <green|red> ; failures from $log
   printf '%s\n' "$tree" > "$state/tree"
