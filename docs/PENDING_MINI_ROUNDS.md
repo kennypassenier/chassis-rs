@@ -2786,3 +2786,16 @@ fallback on a systemd host; the first nightly on a paused, not stopped,
 chassis service (archive without "file changed as we read it",
 `NRestarts` unchanged).
 
+## The release reruns only what failed (2026-10-02)
+
+Homelab fix-187 ported at the coordinator's ask, after 3.3.0 needed two
+full suite runs for a one-assertion fix. `scripts/test-carry.sh` replaces
+the bare `cargo test` in `scripts/release-kit.sh`: it records the tested
+tree and the failed tests under `.git/test-carry/`; after a red run the
+next release reruns only those tests plus every test of a crate that
+changed, unless something foundational moved (a Cargo file, the toolchain,
+the gate scripts, or `crates/chassis/`, which every other crate depends
+on), then the full suite runs. `GATE_TESTS_FULL=1` forces it. Checked by
+hand: an already-green tree runs nothing; a staged red record with only a
+doc change since reran exactly the one failed test and recorded green.
+

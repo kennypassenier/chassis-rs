@@ -76,7 +76,9 @@ if [ -x "$gate_stamp" ] && "$gate_stamp" fresh; then
 else
   cargo fmt --all -- --check
   cargo clippy --workspace --all-targets --all-features -- -D warnings
-  cargo test --workspace --all-features
+  # After a red run only the failures and the changed crates run again,
+  # unless something foundational moved (homelab fix-187, scripts/test-carry.sh).
+  "$root/scripts/test-carry.sh"
 fi
 cargo deny check
 cargo run -q -p chassis-cli -- --version
