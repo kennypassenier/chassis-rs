@@ -7,6 +7,12 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed
+
+- **`chassis release` says how long its tests and gate took** (Kenny,
+  2026-10-02: every test run reports its measured duration), e.g.
+  `chassis release: tests took 1 min 40 s (measured)`.
+
 ## [3.4.0] - 2026-10-02
 
 ### Changed

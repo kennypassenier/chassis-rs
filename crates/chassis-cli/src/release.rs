@@ -121,12 +121,24 @@ fn gate_stamp_fresh(dir: &Path) -> bool {
             .is_ok_and(|s| s.success())
 }
 
+/// Kenny, 2026-10-02: every test run reports its measured duration, in
+/// minutes and seconds ("1 min 40 s", "48 s").
+pub fn took(d: std::time::Duration) -> String {
+    let s = d.as_secs();
+    if s >= 60 {
+        format!("{} min {} s", s / 60, s % 60)
+    } else {
+        format!("{s} s")
+    }
+}
+
 /// Everything the scaffold's `ci.yml` ran, in its order, on this machine.
 ///
 /// The three required jobs (gates, cargo-deny, container build) refuse the
 /// release; coverage was informational in CI (`continue-on-error: true`) and
 /// stays informational here: it reports and never stops.
 pub fn gate(dir: &Path, rec: &Recorded, image: bool) -> Result<(), Error> {
+    let started = std::time::Instant::now();
     // Job `fmt · clippy · tests`, unless the commit gate already ran it on
     // exactly this tree (one full test run per release).
     if gate_stamp_fresh(dir) {
@@ -146,7 +158,12 @@ pub fn gate(dir: &Path, rec: &Recorded, image: bool) -> Result<(), Error> {
             "cargo",
             &["clippy", "--all-targets", "--", "-D", "warnings"],
         )?;
+        let tests = std::time::Instant::now();
         step(dir, "tests", "cargo", &["test"])?;
+        println!(
+            "chassis release: tests took {} (measured)",
+            took(tests.elapsed())
+        );
     }
     let project_gates = dir.join(".claude/hooks/gates.project.sh");
     if is_executable(&project_gates) {
@@ -174,7 +191,10 @@ pub fn gate(dir: &Path, rec: &Recorded, image: bool) -> Result<(), Error> {
     if !image {
         println!("chassis release: container build: skipped (no image for this project)");
         coverage(dir);
-        println!("chassis release: gate green");
+        println!(
+            "chassis release: gate green, took {} (measured)",
+            took(started.elapsed())
+        );
         return Ok(());
     }
     let image = format!("{}:ci", rec.name);
@@ -212,7 +232,10 @@ pub fn gate(dir: &Path, rec: &Recorded, image: bool) -> Result<(), Error> {
 
     // Job `coverage (informational)`.
     coverage(dir);
-    println!("chassis release: gate green");
+    println!(
+        "chassis release: gate green, took {} (measured)",
+        took(started.elapsed())
+    );
     Ok(())
 }
 
@@ -579,6 +602,24 @@ pub fn publish(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Kenny, 2026-10-02: every test run reports its measured duration; the
+    /// gate prints it in minutes and seconds, never bare seconds past 60.
+    #[test]
+    fn the_gate_reports_durations_in_minutes_and_seconds() {
+        use std::time::Duration;
+        assert_eq!(took(Duration::from_secs(48)), "48 s");
+        assert_eq!(took(Duration::from_secs(100)), "1 min 40 s");
+        assert_eq!(took(Duration::from_millis(186_900)), "3 min 6 s");
+        let src = include_str!("release.rs");
+        assert!(src.contains("\"chassis release: tests took {} (measured)\""));
+        assert_eq!(
+            src.matches("\"chassis release: gate green, took {} (measured)\"")
+                .count(),
+            2,
+            "both ends of the gate say how long it took"
+        );
+    }
 
     fn rec() -> Recorded {
         Recorded {
