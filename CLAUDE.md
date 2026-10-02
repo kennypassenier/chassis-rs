@@ -66,4 +66,11 @@ contract, the `--version` smoke — before it tags.
 - **Every test run reports its measured duration** (Kenny, 2026-10-02):
   `scripts/test-carry.sh` and `scripts/release-kit.sh` print it; a reply that
   mentions a test run says how long it took.
+- **Web layouts use CSS grid wherever elements sit side by side** (Kenny,
+  2026-10-02): elements align and always take the same space. The kit's
+  shell and pages (status cards, the client issue form) are grid-based, so
+  every consumer gets it.
+- **Anything Kenny ever said must hold gets a locking test right away**
+  (Kenny, 2026-10-02: "Als we altijd in cirkels blijven gaan en fouten
+  terugkomen…"). A correction lands with a test that fails if it regresses.
 - Session title convention: `🏗️ chassis-rs - Fase <N> - <phase name>`.

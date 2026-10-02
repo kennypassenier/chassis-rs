@@ -52,6 +52,19 @@ pre.snippet {
 .row-label { text-align: start; white-space: nowrap; }
 .divider { margin: 1rem 0; border: 0; border-top: 1px solid var(--border); }
 
+/* Kenny, 2026-10-02: grids wherever elements sit side by side, so they
+   line up and always take the same space. The issue form's fields share
+   equal columns and wrap as whole columns; the button sits in a column of
+   its own, bottom-aligned with the inputs; the help line spans the row. */
+.issue-form {
+    --kp-autogrid-min: 14rem;
+    --kp-autogrid-gap: var(--kp-space-md, 1rem);
+    --kp-autogrid-pad: 0;
+    align-items: end;
+}
+.issue-form > .kp-button { justify-self: start; }
+.issue-form > .kp-field__help { grid-column: 1 / -1; }
+
 /* Client rows (K12/K13): the token cell and the expandable requests. */
 .secret { font-family: var(--theme-font-mono, ui-monospace, monospace); font-size: 0.85rem; }
 .requests[hidden] { display: none; }

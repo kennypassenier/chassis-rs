@@ -5,6 +5,22 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
+## [Unreleased]
+
+### Changed
+
+- **The client issue form sits on a grid** (Kenny, 2026-10-02: grids
+  wherever elements sit side by side). Its fields take equal columns, the
+  button its own, the help line the whole row; on a phone they stack.
+  Measured with screenshots at 1400 and 390 px.
+
+### Added
+
+- `tests/kenny_rules.rs`: locks for what Kenny said must always hold (page
+  width, the grid form, the registry brand, the backup pause's 10 s bound
+  and default mode, the release's single run and its durations), each
+  drilled red once.
+
 ## [3.3.0] - 2026-10-02
 
 The `chassis` CLI only; the library is unchanged, so a project keeps its
