@@ -7,6 +7,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-10-02
+
 ### Changed
 
 - **The client issue form sits on a grid** (Kenny, 2026-10-02: grids
