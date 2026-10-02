@@ -58,4 +58,10 @@ contract, the `--version` smoke — before it tags.
   update may be vendored and released without a release form. Anything
   else in the same release still needs his go; a bump that forces a change
   a consumer can feel stops and asks.
+- **New infrastructure on Kenny's PC needs his approval first** (Kenny,
+  2026-10-02): a second WSL distro, a VM, a Windows or systemd service, a
+  scheduled task, kernel / binfmt / mount / network settings: one form saying
+  what, why and the risks, nothing before his answer. Since the same day,
+  nothing on the PC is touched (rehearsals included) until he has seen the
+  plan for the ~/Projects cap (workstation CORRECTIONS.md ws-1, ws-2).
 - Session title convention: `🏗️ chassis-rs - Fase <N> - <phase name>`.
