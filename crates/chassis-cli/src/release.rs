@@ -126,7 +126,7 @@ fn gate_stamp_fresh(dir: &Path) -> bool {
 /// The three required jobs (gates, cargo-deny, container build) refuse the
 /// release; coverage was informational in CI (`continue-on-error: true`) and
 /// stays informational here: it reports and never stops.
-pub fn gate(dir: &Path, rec: &Recorded) -> Result<(), Error> {
+pub fn gate(dir: &Path, rec: &Recorded, image: bool) -> Result<(), Error> {
     // Job `fmt · clippy · tests`, unless the commit gate already ran it on
     // exactly this tree (one full test run per release).
     if gate_stamp_fresh(dir) {
@@ -170,7 +170,13 @@ pub fn gate(dir: &Path, rec: &Recorded) -> Result<(), Error> {
     // Job `cargo-deny (advisories · licenses · bans)`.
     step(dir, "cargo-deny", "cargo", &["deny", "check", "all"])?;
 
-    // Job `container build`.
+    // Job `container build`, for a project that ships an image.
+    if !image {
+        println!("chassis release: container build: skipped (no image for this project)");
+        coverage(dir);
+        println!("chassis release: gate green");
+        return Ok(());
+    }
     let image = format!("{}:ci", rec.name);
     step(
         dir,
@@ -411,6 +417,73 @@ pub fn build_image(dir: &Path, rec: &Recorded, tag: &str) -> Result<[String; 2],
     Ok(tags)
 }
 
+/// How many image versions a release keeps on ghcr (3.3.0, Kenny's rule
+/// that nothing grows without a bound): the newest, so a rollback has some.
+pub const KEEP_IMAGES: usize = 3;
+
+/// Whether this project's release builds and pushes a container image, and
+/// why. `.chassis.toml`'s `image` decides when set. Otherwise the project's
+/// deployment decides: a `deploy/service.yml` that names a `binary:` is the
+/// homelab's native stack file (`chassis new` writes it), so the service
+/// runs from the release binary and an image would never be pulled.
+pub fn wants_image(dir: &Path, rec: &Recorded) -> (bool, String) {
+    if let Some(set) = rec.image {
+        return (set, "set in .chassis.toml".to_string());
+    }
+    let stack = dir.join("deploy/service.yml");
+    let native = std::fs::read_to_string(&stack)
+        .map(|s| s.lines().any(|l| l.trim_start().starts_with("binary:")))
+        .unwrap_or(false);
+    if native {
+        (
+            false,
+            "deploy/service.yml names a binary: deployed as a native unit; set image = true in .chassis.toml to build one anyway".to_string(),
+        )
+    } else {
+        (
+            true,
+            "no native stack file in deploy/; set image = false in .chassis.toml to skip it"
+                .to_string(),
+        )
+    }
+}
+
+/// Deletes every image version on ghcr beyond the newest [`KEEP_IMAGES`].
+/// Best effort: the release is done when this runs, so a refusal (the
+/// token lacks `delete:packages`) is reported with its remedy, not raised.
+pub fn prune_images(dir: &Path, rec: &Recorded) {
+    let package = rec.repo.rsplit('/').next().unwrap_or(&rec.name).to_string();
+    let path = format!("/user/packages/container/{package}/versions");
+    let ids = match capture(dir, "gh", &["api", "--paginate", &path, "-q", ".[].id"]) {
+        Ok(out) => out.lines().map(str::to_string).collect::<Vec<_>>(),
+        Err(e) => {
+            println!(
+                "chassis release: could not list image versions on ghcr ({}); none pruned",
+                e.message
+            );
+            return;
+        }
+    };
+    // The API lists newest first.
+    let mut removed = 0;
+    for id in ids.iter().skip(KEEP_IMAGES) {
+        let one = format!("{path}/{id}");
+        if capture(dir, "gh", &["api", "-X", "DELETE", &one]).is_ok() {
+            removed += 1;
+        } else {
+            println!(
+                "chassis release: could not delete image version {id}; the gh token needs delete:packages (`gh auth refresh -s delete:packages`). Kept {} of {}",
+                ids.len() - removed,
+                ids.len()
+            );
+            return;
+        }
+    }
+    println!(
+        "chassis release: ghcr keeps the newest {KEEP_IMAGES} image versions ({removed} older removed)"
+    );
+}
+
 /// The release's body, `release.yml`'s own text with where it was built.
 pub fn release_notes(sha: &str) -> String {
     format!(
@@ -463,14 +536,21 @@ pub fn write_notes(dir: &Path, sha: &str) -> Result<(), Error> {
 /// Pushes the image and creates the release. Called after the commit and
 /// the tag are on GitHub (`--verify-tag` refuses otherwise). A failure here
 /// names every command still to run, since the tag is already public.
-pub fn publish(dir: &Path, rec: &Recorded, tag: &str, tags: &[String; 2]) -> Result<(), Error> {
+pub fn publish(
+    dir: &Path,
+    rec: &Recorded,
+    tag: &str,
+    tags: Option<&[String; 2]>,
+) -> Result<(), Error> {
     let create = format!("gh {}", release_create_args(rec, tag).join(" "));
-    let rest = format!(
-        "docker push {t0} && docker push {t1} && {create} && scripts/sign-release.sh {tag}",
-        t0 = tags[0],
-        t1 = tags[1],
-    );
-    for t in tags {
+    let rest = match tags {
+        Some(t) => format!(
+            "docker push {} && docker push {} && {create} && scripts/sign-release.sh {tag}",
+            t[0], t[1]
+        ),
+        None => format!("{create} && scripts/sign-release.sh {tag}"),
+    };
+    for t in tags.into_iter().flatten() {
         step(dir, "push the image", "docker", &["push", t]).map_err(|e| {
             Error::dependency(
                 e.message.clone(),
@@ -482,6 +562,9 @@ pub fn publish(dir: &Path, rec: &Recorded, tag: &str, tags: &[String; 2]) -> Res
                 ),
             )
         })?;
+    }
+    if tags.is_some() {
+        prune_images(dir, rec);
     }
     let args = release_create_args(rec, tag);
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -513,6 +596,7 @@ mod tests {
             latch_env: None,
             deny_ignore: Vec::new(),
             unit_service: Vec::new(),
+            image: None,
             required_checks: Vec::new(),
             vmid: 0,
         }

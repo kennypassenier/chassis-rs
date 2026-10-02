@@ -76,6 +76,13 @@ struct Recorded {
     /// line (`# …`) may explain one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     unit_service: Vec<String>,
+    /// Whether `chassis release` builds and pushes a container image
+    /// (3.3.0). Absent: derived from how the project is deployed, see
+    /// `release::wants_image`. Almanac, kyu, kyu-runner and
+    /// http-switchboard run as native units, and their images on ghcr were
+    /// never pulled (Kenny, 2026-10-02).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    image: Option<bool>,
     /// Obsolete since 3.0.0: the CI checks `main` waited for, when the
     /// project ran fewer jobs than the kit's `ci.yml` (Kenny, 2026-09-25).
     /// The kit ships no CI any more, so there is nothing to require; still
@@ -563,6 +570,7 @@ fn cmd_new(
         latch_env: None,
         deny_ignore: Vec::new(),
         unit_service: Vec::new(),
+        image: None,
         required_checks: Vec::new(),
         vmid: 0,
         name,
@@ -1050,28 +1058,41 @@ fn protect_main(rec: &Recorded) -> Result<(), Error> {
 // ───────────────────────── release ─────────────────────────
 
 /// Every step of a release, in order, as the commands it runs.
-fn release_plan(rec: &Recorded, v: &str, tag: &str) -> Vec<String> {
+fn release_plan(rec: &Recorded, v: &str, tag: &str, image: bool) -> Vec<String> {
     let [image_tag, image_latest] = release::image_tags(&rec.repo, tag);
-    vec![
+    let mut plan = vec![
         "gate: cargo fmt --all -- --check · cargo clippy --all-targets -- -D warnings · cargo test · .claude/hooks/gates.project.sh (when present) · cargo run -q -- --version".into(),
-        format!("gate: cargo deny check all · docker build -t {0}:ci . · docker run --rm {0}:ci --version · --healthcheck must refuse a closed port · cargo llvm-cov --summary-only (informational)", rec.name),
+        if image {
+            format!("gate: cargo deny check all · docker build -t {0}:ci . · docker run --rm {0}:ci --version · --healthcheck must refuse a closed port · cargo llvm-cov --summary-only (informational)", rec.name)
+        } else {
+            "gate: cargo deny check all · cargo llvm-cov --summary-only (informational) · no container image (native)".to_string()
+        },
         format!("write Cargo.toml version = \"{v}\" and a {v} section in CHANGELOG.md; cargo update -w"),
         format!("git commit -am 'chore(release): {v} [meta]' && git tag {tag}   # the commit runs the project's hooks"),
         format!("check: tag {tag} names the version Cargo.toml says"),
         format!("docker run … rust:{}-slim-trixie cargo build --release --locked --target {} → dist/{} + dist/SHA256SUMS; refuse any `=>` in ldd", rec.toolchain, release::MUSL_TARGET, rec.name),
         format!("docker build -t {image_tag} -t {image_latest} . && docker run --rm {image_tag} --version"),
         format!("git push origin HEAD:main && git push origin {tag}"),
-        format!("docker push {image_tag} && docker push {image_latest}"),
+        format!("docker push {image_tag} && docker push {image_latest}; then keep the newest {} image versions on ghcr", release::KEEP_IMAGES),
         format!("gh {}", release::release_create_args(rec, tag).join(" ")),
         format!("scripts/sign-release.sh {tag}   # minisign asks for the key password; uploads .minisig then VERSION, then marks it latest"),
-    ]
+    ];
+    if !image {
+        plan.retain(|s| !s.starts_with("docker build -t ") && !s.starts_with("docker push "));
+    }
+    plan
 }
 
 fn cmd_release(dir: &Path, version: &str, dry_run: bool, plan: bool) -> Result<(), Error> {
     let rec = read_recorded(dir)?;
     let v = chassis::core::update::Version::parse(version)?;
     let tag = format!("v{v}");
-    check_release_files(dir)?;
+    let (image, why) = release::wants_image(dir, &rec);
+    println!(
+        "chassis release: container image: {} ({why})",
+        if image { "yes" } else { "no" }
+    );
+    check_release_files(dir, image)?;
     if plan {
         let cargo_path = dir.join("Cargo.toml");
         let cargo = std::fs::read_to_string(&cargo_path).map_err(|e| io_err(&cargo_path, e))?;
@@ -1084,7 +1105,7 @@ fn cmd_release(dir: &Path, version: &str, dry_run: bool, plan: bool) -> Result<(
             "plan for {} {tag} (nothing below runs with --plan; --dry-run runs the gate and the builds):",
             rec.name
         );
-        for s in release_plan(&rec, &v.to_string(), &tag) {
+        for s in release_plan(&rec, &v.to_string(), &tag, image) {
             println!("  {s}");
         }
         return Ok(());
@@ -1165,7 +1186,7 @@ fn cmd_release(dir: &Path, version: &str, dry_run: bool, plan: bool) -> Result<(
     check_major_has_migration(&changelog, current, v)?;
 
     // 1. The gate: everything the kit's CI workflow ran, on this tree.
-    release::gate(dir, &rec)?;
+    release::gate(dir, &rec, image)?;
 
     // 2. Bump Cargo.toml (and, for real, the changelog). A dry run builds
     // the bumped version too, so the binary and the image it proves answer
@@ -1198,7 +1219,7 @@ fn cmd_release(dir: &Path, version: &str, dry_run: bool, plan: bool) -> Result<(
     let undo = format!(
         "nothing was pushed. Undo the local release with `git tag -d {tag} && git reset --hard HEAD~1`, fix it, and run `chassis release {v}` again"
     );
-    let built = (|| -> Result<[String; 2], Error> {
+    let built = (|| -> Result<Option<[String; 2]>, Error> {
         // release.yml's first step: the tag names the version Cargo.toml says.
         let at_tag = if dry_run {
             std::fs::read_to_string(&cargo_path).map_err(|e| io_err(&cargo_path, e))?
@@ -1208,7 +1229,11 @@ fn cmd_release(dir: &Path, version: &str, dry_run: bool, plan: bool) -> Result<(
         release::check_tag_matches(&tag, &current_version(&at_tag)?.to_string())?;
         // 4. What release.yml built: the static binary, SHA256SUMS, the image.
         release::build_binary(dir, &rec)?;
-        let images = release::build_image(dir, &rec, &tag)?;
+        let images = if image {
+            Some(release::build_image(dir, &rec, &tag)?)
+        } else {
+            None
+        };
         release::write_notes(dir, &sha)?;
         Ok(images)
     })();
@@ -1229,13 +1254,17 @@ fn cmd_release(dir: &Path, version: &str, dry_run: bool, plan: bool) -> Result<(
             "  dist/{}  dist/SHA256SUMS  (static, no dynamic links)",
             rec.name
         );
-        println!("  {}  {}", images[0], images[1]);
+        if let Some(images) = &images {
+            println!("  {}  {}", images[0], images[1]);
+        }
         println!("Cargo.toml and Cargo.lock are back as they were. A real release would now:");
         println!(
             "  write the {v} section in CHANGELOG.md, git commit -am 'chore(release): {v} [meta]', git tag {tag}"
         );
         println!("  git push origin HEAD:main && git push origin {tag}");
-        println!("  docker push {} && docker push {}", images[0], images[1]);
+        if let Some(images) = &images {
+            println!("  docker push {} && docker push {}", images[0], images[1]);
+        }
         println!(
             "  gh {}",
             release::release_create_args(&rec, &tag).join(" ")
@@ -1255,7 +1284,7 @@ fn cmd_release(dir: &Path, version: &str, dry_run: bool, plan: bool) -> Result<(
     })?;
     run(dir, "git", &["push", "-q", "origin", &tag], false)?;
     println!("chassis release: pushed {sha} to main and tagged it {tag}");
-    release::publish(dir, &rec, &tag, &images)?;
+    release::publish(dir, &rec, &tag, images.as_ref())?;
 
     // 6. Sign locally and upload .minisig before VERSION. Interactive: minisign
     // prints its password prompt and must be seen where there is a terminal.
@@ -1316,8 +1345,8 @@ fn current_version(cargo_toml: &str) -> Result<chassis::core::update::Version, E
 /// tagged (kyu-runner's first v0.2.0 lost a tag to exactly that). Since
 /// 3.0.0 the image is always built, here, so the check no longer depends on
 /// what a workflow file happens to say, and no CI workflow is required.
-fn check_release_files(dir: &Path) -> Result<(), Error> {
-    if !dir.join("Dockerfile").exists() {
+fn check_release_files(dir: &Path, image: bool) -> Result<(), Error> {
+    if image && !dir.join("Dockerfile").exists() {
         return Err(Error::config(
             "the release builds a container image but the repository has no Dockerfile",
             "run `chassis sync --write` to add the scaffold Dockerfile (and .dockerignore)",
@@ -1593,6 +1622,7 @@ mod tests {
             latch_env: None,
             deny_ignore: Vec::new(),
             unit_service: Vec::new(),
+            image: None,
             required_checks: Vec::new(),
             vmid: 0,
         }
@@ -2341,20 +2371,67 @@ chassis = { git = "g", tag = "v1.8.0", version = "1.8.0", features = ["testing"]
         );
     }
 
-    /// CF-6: the release always builds an image, so no Dockerfile is refused
-    /// before the gate runs. 3.0.0: no CI workflow is required any more.
+    /// CF-6: a release that builds an image refuses a missing Dockerfile
+    /// before the gate runs; 3.3.0: one without an image does not need it.
+    /// 3.0.0: no CI workflow is required any more.
     #[test]
     fn a_release_needs_a_dockerfile_and_the_sign_script_but_no_workflow() {
         let dir = tempfile::tempdir().unwrap();
-        let err = check_release_files(dir.path()).unwrap_err();
+        let err = check_release_files(dir.path(), true).unwrap_err();
         assert!(err.to_string().contains("no Dockerfile"), "{err}");
+        let err = check_release_files(dir.path(), false).unwrap_err();
+        assert!(
+            err.to_string().contains("sign-release.sh"),
+            "without an image only the sign script is asked for: {err}"
+        );
         std::fs::write(dir.path().join("Dockerfile"), "FROM scratch\n").unwrap();
-        let err = check_release_files(dir.path()).unwrap_err();
+        let err = check_release_files(dir.path(), true).unwrap_err();
         assert!(err.to_string().contains("sign-release.sh"), "{err}");
         std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
         std::fs::write(dir.path().join("scripts/sign-release.sh"), "").unwrap();
-        check_release_files(dir.path()).unwrap();
+        check_release_files(dir.path(), true).unwrap();
         assert!(!dir.path().join(".github").exists());
+    }
+
+    /// 3.3.0 (Kenny, 2026-10-02): a project the homelab runs as a native
+    /// unit ships no image; `.chassis.toml` decides when it says so.
+    #[test]
+    fn the_image_follows_the_deployment_unless_the_project_says_otherwise() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut r = rec();
+        assert!(
+            release::wants_image(dir.path(), &r).0,
+            "no stack file: an image, as before"
+        );
+        std::fs::create_dir_all(dir.path().join("deploy")).unwrap();
+        std::fs::write(
+            dir.path().join("deploy/service.yml"),
+            "stack_name: demo\nbinary: /opt/demo/bin/demo\n",
+        )
+        .unwrap();
+        assert!(
+            !release::wants_image(dir.path(), &r).0,
+            "a native stack: no image"
+        );
+        r.image = Some(true);
+        assert!(release::wants_image(dir.path(), &r).0, ".chassis.toml wins");
+        r.image = Some(false);
+        std::fs::remove_file(dir.path().join("deploy/service.yml")).unwrap();
+        assert!(
+            !release::wants_image(dir.path(), &r).0,
+            ".chassis.toml wins"
+        );
+        let plan = release_plan(&r, "1.2.3", "v1.2.3", false);
+        assert!(
+            plan.iter()
+                .all(|s| !s.starts_with("docker build -t ") && !s.starts_with("docker push ")),
+            "{plan:#?}"
+        );
+        assert!(
+            release_plan(&r, "1.2.3", "v1.2.3", true)
+                .iter()
+                .any(|s| s.starts_with("docker push ")),
+        );
     }
 
     /// 3.0.0: a project made by an older kit carries both workflows; `sync`

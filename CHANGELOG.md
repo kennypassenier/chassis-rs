@@ -5,6 +5,28 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
+## [Unreleased]
+
+The `chassis` CLI only; the library is unchanged, so a project keeps its
+pin and gets this with the CLI (workstation `bin/ws-tools`).
+
+### Changed
+
+- **`chassis release` builds no container image for a native service**
+  (Kenny, 2026-10-02: almanac, kyu, kyu-runner and http-switchboard run as
+  native units, yet every release pushed an image to ghcr that nothing
+  pulled: 58 versions). Whether a release builds and pushes the image now
+  follows the project's deployment: a `deploy/service.yml` naming a
+  `binary:` (the native stack file `chassis new` writes) means no image; a
+  project without one builds it as before. `image = true` or `image = false`
+  in `.chassis.toml` decides when set. Without an image the release needs
+  no Dockerfile and skips the container gate; `chassis release --plan`
+  says which way it goes and why.
+- **A release that pushes an image keeps only the newest 3 versions on
+  ghcr** (Kenny's rule that nothing grows without a bound). Best effort:
+  the gh token needs `delete:packages`; without it the release says so and
+  keeps them.
+
 ## [3.2.0] - 2026-10-02
 
 ### Fixed
