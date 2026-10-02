@@ -5,7 +5,7 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
-## [Unreleased]
+## [3.3.0] - 2026-10-02
 
 The `chassis` CLI only; the library is unchanged, so a project keeps its
 pin and gets this with the CLI (workstation `bin/ws-tools`).
