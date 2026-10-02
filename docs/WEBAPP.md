@@ -75,7 +75,8 @@ app.page(Page::new("home", "Home", "/"))
    .page(Page::new("overview", "Overview", "/overview").hidden()) // routable, not listed
    .page(Page::new("stacks", "Stacks", "/stacks").group("Fleet"))
    .kit_page("clients", |p| p.title("Sources").order(5))         // the kit's own pages
-   .brand("/overview");                                           // the brand link
+   .brand("/overview")                                            // the brand link
+   .brand_title("Homelab");                                       // its text (default: the binary's name)
 ```
 
 - **Order.** Ascending `order`; ties keep registration order. Project pages

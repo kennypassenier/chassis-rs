@@ -696,6 +696,8 @@ pub struct App {
     #[cfg(feature = "dashboard")]
     brand: Option<String>,
     #[cfg(feature = "dashboard")]
+    brand_title: Option<String>,
+    #[cfg(feature = "dashboard")]
     home: Option<String>,
     #[cfg(feature = "dashboard")]
     kit_pages_in_webapp: bool,
@@ -837,6 +839,8 @@ impl App {
             kit_page_edits: Vec::new(),
             #[cfg(feature = "dashboard")]
             brand: None,
+            #[cfg(feature = "dashboard")]
+            brand_title: None,
             #[cfg(feature = "dashboard")]
             home: None,
             #[cfg(feature = "dashboard")]
@@ -1324,6 +1328,8 @@ impl App {
             #[cfg(feature = "dashboard")]
             brand: None,
             #[cfg(feature = "dashboard")]
+            brand_title: None,
+            #[cfg(feature = "dashboard")]
             home: None,
             #[cfg(feature = "dashboard")]
             kit_pages_in_webapp: false,
@@ -1567,6 +1573,15 @@ impl App {
     #[cfg(feature = "dashboard")]
     pub fn brand(&mut self, href: &str) -> &mut Self {
         self.brand = Some(href.to_string());
+        self
+    }
+
+    /// The brand link's text (default: `AppSpec::name`, the binary's name),
+    /// so a service called `homelab-admin` can show "Homelab". Used by the
+    /// kit's layout and served in `/api/kit/pages` as `brand.title`.
+    #[cfg(feature = "dashboard")]
+    pub fn brand_title(&mut self, title: &str) -> &mut Self {
+        self.brand_title = Some(title.to_string());
         self
     }
 
@@ -2387,6 +2402,7 @@ impl App {
                     pages: std::mem::take(&mut self.pages),
                     kit_edits: std::mem::take(&mut self.kit_page_edits),
                     brand: self.brand.take(),
+                    brand_title: self.brand_title.take(),
                     home: self.home.take(),
                     webapp_at_root,
                     kit_in_webapp: self.kit_pages_in_webapp,

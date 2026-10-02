@@ -136,6 +136,8 @@ pub(crate) struct Registry {
     pub app_pages: Vec<Page>,
     pub kit_edits: Vec<(String, KitPageEdit)>,
     pub brand: Option<String>,
+    /// The brand's text; `None` keeps the service's name.
+    pub brand_title: Option<String>,
     pub home: Option<String>,
 }
 
@@ -184,7 +186,7 @@ impl Registry {
         PageSet {
             app: app.to_string(),
             brand: Brand {
-                title: app.to_string(),
+                title: self.brand_title.unwrap_or_else(|| app.to_string()),
                 href: self.brand.unwrap_or_else(|| "/".to_string()),
             },
             home,
@@ -232,6 +234,7 @@ mod tests {
             app_pages,
             kit_edits: Vec::new(),
             brand: None,
+            brand_title: None,
             home: None,
         }
     }
@@ -251,6 +254,10 @@ mod tests {
         );
         assert_eq!(set.home, "/", "a web app at the root is the home");
         assert_eq!(set.brand.href, "/");
+        assert_eq!(
+            set.brand.title, "admin",
+            "without brand_title the service's name"
+        );
     }
 
     #[test]
@@ -272,6 +279,7 @@ mod tests {
             }),
         ));
         r.brand = Some("/overview".into());
+        r.brand_title = Some("Homelab".into());
         let set = r.build("admin", "Clients", true, false, false);
         let clients = &set.pages[0];
         assert_eq!(
@@ -290,6 +298,10 @@ mod tests {
             "the kit decides where its pages live"
         );
         assert_eq!(set.brand.href, "/overview");
+        assert_eq!(
+            set.brand.title, "Homelab",
+            "the brand's text is the project's, not the binary name"
+        );
         assert_eq!(
             set.home, "/status",
             "no web app at the root: the status page"

@@ -17,7 +17,7 @@
      the narrow form never kicks in. The skip link stays outside it. -->
 <div class="kp-nav-wrap">
 <nav class="kp-nav">
-  <a class="kp-nav__brand" href="{{ brand_href | default('/') }}">{{ app_name }}</a>
+  <a class="kp-nav__brand" href="{{ brand_href | default('/') }}">{{ brand_title | default(app_name) }}</a>
   <ul class="kp-nav__links">
     {% for item in nav %}
     <li><a class="kp-nav__link" href="{{ item.href }}"{% if item.href == active_nav %} aria-current="page"{% endif %}>{{ item.label }}</a></li>

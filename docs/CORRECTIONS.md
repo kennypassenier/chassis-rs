@@ -771,3 +771,17 @@ Reported by the local-builds thread after http-switchboard's 3.0.0 sync.
    like the hooks.
 9. **When we review it.** At the retrospective of batch 5.
 
+## fix-15 · The brand showed the binary's name (2026-10-02)
+
+| Field | |
+|---|---|
+| What went wrong | The admin dashboard's brand read "Homelab-Admin": `pages::Registry::build` set `brand.title` from `AppSpec::name` (`shell/pages.rs:186-188`) and `App::brand` took only the href, so no service could name its brand. Reported by Homelab-dashboard, found on Kenny's complaint that the brand was the wrong text and too big. |
+| Which gate let it through | The feat-pages-1 design sent the interface (`brand(href)`) to the consumer before the build, but the review was on routes and the nav, not on what the brand says; the unit tests asserted only `brand.href`. |
+| Where else the same fault sits | Searched for kit-rendered text taken from `AppSpec::name` where a project may want its own words: `grep -n "app_name\|spec.name" crates/chassis/src/shell/dashboard.rs crates/chassis/templates/*.html`. The page `<title>` and the login heading also use `app_name`; they show the service's name on purpose (a tab names the service), so they stay. |
+| Prevention | `App::brand_title(&str)`; the registry tests assert `brand.title` both with and without it. |
+| What it costs | One builder method, additive. |
+| Enforced by | Code: `pages::tests` assert the title. |
+| Measured when | When the admin bumps to the release carrying it and drops its dashboard-side workaround (homelab fix-176): the brand reads "Homelab" from `/api/kit/pages`. |
+| Fallback | The workaround stays in the admin. |
+| Review | At the next chassis major. |
+

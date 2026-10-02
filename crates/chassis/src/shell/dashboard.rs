@@ -511,6 +511,7 @@ impl Dashboard {
         let env = Arc::make_mut(&mut self.env);
         env.add_global("nav", minijinja::Value::from_serialize(&self.nav));
         env.add_global("brand_href", set.brand.href.clone());
+        env.add_global("brand_title", set.brand.title.clone());
         self
     }
 

@@ -66,6 +66,7 @@ pub(crate) struct MountExtra {
     pub pages: Vec<crate::shell::pages::Page>,
     pub kit_edits: Vec<(String, crate::shell::pages::KitPageEdit)>,
     pub brand: Option<String>,
+    pub brand_title: Option<String>,
     pub home: Option<String>,
     pub webapp_at_root: bool,
     pub kit_in_webapp: bool,
@@ -256,6 +257,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
             app_pages,
             kit_edits: extra.kit_edits,
             brand: extra.brand,
+            brand_title: extra.brand_title,
             home: extra.home,
         }
         .build(

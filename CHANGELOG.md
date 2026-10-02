@@ -5,6 +5,17 @@ All notable changes to chassis-rs. Semantic versioning over two contracts
 scaffold writes. A breaking change in either is a major and carries a
 **Migration** section; `chassis release` refuses a major without one.
 
+## [Unreleased]
+
+### Fixed
+
+- **The brand showed the binary's name** (fix-15; Homelab-dashboard,
+  2026-10-02: the admin's brand read "Homelab-Admin"). The page registry
+  filled `brand.title` with `AppSpec::name`, and `App::brand` took only the
+  link. New `App::brand_title("Homelab")` sets the text; the kit's layout and
+  `GET /api/kit/pages` (`brand.title`) both use it. Without it nothing
+  changes: the service's name, as before.
+
 ## [3.1.0] - 2026-10-01
 
 ### Added
