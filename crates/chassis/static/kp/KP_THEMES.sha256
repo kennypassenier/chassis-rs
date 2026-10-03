@@ -1,5 +1,5 @@
-# @kp-soft/themes v8.1.0 — lines copied verbatim from the release's own SHA256SUMS
-# (gh release download v8.1.0 --repo kennypassenier/kp-themes -p SHA256SUMS), for
+# @kp-soft/themes v9.0.0 — lines copied verbatim from the release's own SHA256SUMS
+# (gh release download v9.0.0 --repo kennypassenier/kp-themes -p SHA256SUMS), for
 # every file vendored under static/kp/ with the package's own paths kept, so the
 # relative url('../fonts/…') references and the JS import closure stay valid.
 # Checked by a unit test, so the gate holds offline: these hashes say "our copies
@@ -13,7 +13,7 @@
 # dist/kp-themes.css is the release's own bundle of themes, components, layout,
 # utilities and every register (D2, 2026-09-09) — see docs/DASHBOARD.md.
 b2c96ec9ec695d4c9f9a876a73b394d63216ed5b9f8b45f3cd735e41c3a7aab3  css/fonts.css
-93adfcd7704b6dd9d48a504571a1004f63df6e336ccac2326e3a4e54a5a2cd8a  dist/kp-themes.css
+b1b4a855bb550c3fa910fec9d37e920b390a9eeb4c9bf0458345f9d240d8f714  dist/kp-themes.css
 108b4e57c9c796d3d38d0428ca7ee39de47ad93187302718d9b2d8864b9b716b  fonts/archivo/LICENSE
 cc013bad1c1f61f6375da91d4942ce0b2469d09667105f5fc915004609cedf54  fonts/archivo/archivo-italic-variable.woff2
 6f4f59f1d0435992e9a73541c2bd98bdf75c8145adb6b7b9cad08eb8e8a65580  fonts/archivo/archivo-variable.woff2
@@ -109,15 +109,15 @@ c7f53319cc0f87fd8a4ec082cc816847efdb1201fa9835866601e74c86db5225  fonts/vazirmat
 4c7f789b458041be15b3fd86c3388e6c1beee6ab572d34afe9e5c3e25d65e84d  fonts/vt323/vt323-regular.woff2
 45339c22d297c9bb6e5abb5235590debdbb34686e9041d7ca40dfad2f5e8a73a  js/alarm.js
 5faf8b49057f2163c99a088e1bdfcf7f22062a3310aaa1e0942ad80035cdc79a  js/as-of.js
-ddc0b1f20b241b87382b0607e0a9daf6e21dc59f32923fd1d8924dfdbb838108  js/auto.js
+9430170da1ad774392100f940d2c96ec9d4156967e72990dfa03b798f3e7cedf  js/auto.js
 502f201ef05c23e033e237dbea826291bb39a8401ebba6338b12ff98d89e76cf  js/colorpicker.js
 8e885e47c2580cca91e4453131f1105e400e085f8610575e11c907595298eb9a  js/combobox.js
 ee3d169488fa3ed8889c321a09632f0a340d98b5d58f1c21482543b9b78ed0cb  js/components.js
 b78ed5d05265787ae563b904ed1744e9391bf9fc04ab120655988b35ea42883c  js/contrast.js
-902a3dfae83f544aa0a445548c7c80aa589197313cf0aa31ca6616037a03f230  js/datatable.js
+f0db3b648f26dc966fb3e5fd63d0d563ddab8d07f5ec06d6d752f84d5ea9f50e  js/datatable.js
 a486ab3acd94c6d8ac3fd7e3208b3d6ca9b2a876b2232d38b9dd5763834ee4d1  js/datepicker.js
 f908e34ea79601359e5d8dc594bbb72da15fbbc4117d52c6b3a28aae705f9ff6  js/diagnostics.js
-a329478b26262f0b6da23f3170c1098bfedad241dbca6eb22972d61b880c3e96  js/effects.js
+df0990f6793f61fb8b4ba71a68d695438cc6d6ce3e60f71b5764e48930d25989  js/effects.js
 e6d13a349263dc7a64235287e16992ef6f92a435b0b44ad4426e06762ed7b276  js/effects/arrival.js
 b2de301fb33ed0b5f05f7a7357b1b9907c3f6978d1fd97e7a31fe7b026a839cb  js/effects/caret.js
 014155e0a52502f0c19cc2c10c7a50646df0db50b5c6f77cabaddf48edf26bc4  js/effects/count.js
@@ -137,6 +137,7 @@ f834db21fac73341decf6f5630ad158e35b42a00c9918f5f8bd4c54fe1bd5115  js/effects/rul
 4104c8679d97a9d9364a9b2cbe593c380137514c7d14915a4f5e06f8e7bf7bc9  js/overlays.js
 fff96a525ff834e14f64c9b6a3a08ec4d4388fdfee03051a4e91ffc6aad8562d  js/palette.js
 5330d18f58455a8ae067e82fbade0c94be299580a4bb019b8e21db5355d1b795  js/patterns.js
+74bd3314674eb5427ee02e98b0000ec4db5ba7d7f06f2c49d6b0213278e194ee  js/progressbar.js
 652215eada737d9f4ea383a7412279e396af9d9d784d2ce9da338ef29fc68ed1  js/remember.js
 bdd09c6e7ef740badcac2a3c9833b90dfccf17309c509cf9e8c985896d6a34a2  js/sidenav.js
 8964ed2976373088e99021afadf5a11b70e44e8cf72361087754ca93ac89868b  js/strings.js
@@ -144,7 +145,7 @@ bdd09c6e7ef740badcac2a3c9833b90dfccf17309c509cf9e8c985896d6a34a2  js/sidenav.js
 6a335d7f186473e88782e4bf7f91cbf6c873b957850f9030a3d0b406f632da54  js/tables.js
 89aef0f00a870825f27a7e62ea368685092a544b09ca9f6de9d32566bf5d9429  js/theme-core.js
 231dfbdba65c10b5d66f2dcf79933635ba02c0fabbbc77d3b8523edd84d05216  js/theme-picker.js
-deb7097674145d7ba9ae8a9c19cbc5c6151b319e55c42b4aff11982569a294c1  js/theme-registry.js
+83c76a852686d613d139bc3a21f6b1f4ddfacd9a4f551e01dd6896a4d73c0c3d  js/theme-registry.js
 f6fd1941181ce849b3b465a47ebaefed1a29be9f3da40cfeaf2fb1288932238d  js/top-layer.js
 6ef601ac25785afc4b71bf2f51cf69c592663f300429e1e9cbfed94e8d32ed1b  js/upload.js
 a3d1fca5d75ee3c8e3267b6ab652f412fb1bf8bb6eb1de0e4c73f9ff8b1d5120  js/wizard.js

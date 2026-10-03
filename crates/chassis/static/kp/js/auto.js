@@ -118,6 +118,7 @@ export const NEEDS = [
     { name: 'colorpicker', when: '[data-kp-colorpicker]', load: () => import('./colorpicker.js'), attach: (m, root) => [m.attachColorPickers(root)] },
     { name: 'gridlayout', when: '[data-kp-grid]', load: () => import('./gridlayout.js'), attach: (m, root) => [m.attachGrids(root)] },
     { name: 'log', when: '[data-kp-source]', load: () => import('./log.js'), attach: (m, root) => [m.attachLogs(root)] },
+    { name: 'progressbar', when: '.kp-progressbar', load: () => import('./progressbar.js'), attach: (m, root) => [m.attachProgressbars(root)] },
 ];
 
 /** Set on <html> once the boot's `attachAll()` has attached everything the page needed: the names fetched, space-separated. */

@@ -9,6 +9,18 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Changed
 
+- **kp-themes 9.0.0 vendored** (verified against the release SHA256SUMS;
+  `js/progressbar.js` added to the `webapp` asset set). The progress bar is
+  now `<div class="kp-progressbar" role="progressbar" aria-valuenow="35">`;
+  `<progress class="kp-progress">` and `--kp-progress-max-width` are gone.
+  The kit's own pages use no progress bar. **A web app on the `webapp`
+  feature that draws `.kp-progress` bars must move them to `.kp-progressbar`
+  in the same change that bumps to this release** (the homelab admin does
+  so in its 3.71.0). New cascade layer order `kp.base, kp.components,
+  kp.register, kp.signature, kp.layout, kp.utilities`; every theme draws its
+  own signature for spinner, switch, toast, dialog and the like, markup
+  unchanged. See kp-themes' MIGRATION.md, section 8 to 9.
+
 - **`chassis release` says how long its tests and gate took** (Kenny,
   2026-10-02: every test run reports its measured duration), e.g.
   `chassis release: tests took 1 min 40 s (measured)`.

@@ -130,6 +130,9 @@ const EXPAND_ALL = '[data-kp-datatable-expand-all]';
 const COLLAPSE_ALL = '[data-kp-datatable-collapse-all]';
 const EXPAND_COLUMN = '[data-kp-expand-column]';
 const ROW_TOGGLE = '[data-kp-row-toggle]';
+/** What in a row answers a click itself, so the click does not also open the row. */
+const ROW_CONTROLS =
+    'a[href], button, input, select, textarea, label, summary, details, [contenteditable=""], [contenteditable="true"], [role="button"], [role="link"], [role="checkbox"], [role="switch"], [role="menuitem"], [tabindex]:not([tabindex="-1"])';
 /** A detail row, directly after the row it belongs to. */
 export const DETAIL = '[data-kp-row-detail]';
 const EDIT_CELL = '[data-kp-edit-cell]';
@@ -2950,6 +2953,28 @@ export function attachDataTables(
                 const row = /** @type {HTMLTableRowElement} */ (rowToggle.closest('tr'));
                 setExpanded(row, !expanded.has(keyOf(row)));
                 /** @type {HTMLElement | null} */ (row.querySelector(ROW_TOGGLE))?.focus();
+            } else if (expandable && body.contains(target)) {
+                // A click anywhere in an expandable row opens or closes it, as
+                // its toggle does (Kenny, 2026-10-02: "als we ergens in die rij
+                // klikken, niet enkel op dat icoon"); not one on a control in
+                // the row, which does its own thing, and not one that ends a
+                // text selection.
+                const row = /** @type {HTMLTableRowElement | null} */ (target.closest('tr'));
+                // A cell or row the keyboard grid made focusable is not a
+                // control of its own.
+                const interactive = target.closest(ROW_CONTROLS);
+                const control = interactive !== null && !interactive.matches('td, th, tr') ? interactive : null;
+                const selecting = (window.getSelection?.()?.toString() ?? '') !== '';
+                if (
+                    row !== null &&
+                    row.parentElement === body &&
+                    !row.matches(DETAIL) &&
+                    row.querySelector(ROW_TOGGLE) !== null &&
+                    (control === null || !row.contains(control)) &&
+                    !selecting
+                ) {
+                    setExpanded(row, !expanded.has(keyOf(row)));
+                }
             }
             const editButton = /** @type {HTMLElement | null} */ (target.closest(EDIT_CELL));
             if (editButton !== null && body.contains(editButton)) {
