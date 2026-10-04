@@ -331,7 +331,7 @@ dependencies = [
 
 [[package]]
 name = "chassis"
-version = "3.6.1"
+version = "3.6.2"
 dependencies = [
  "axum",
  "axum-extra",
@@ -371,7 +371,7 @@ dependencies = [
 
 [[package]]
 name = "chassis-cli"
-version = "3.6.1"
+version = "3.6.2"
 dependencies = [
  "axum",
  "chassis",
