@@ -7,6 +7,18 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [3.6.2] - 2026-10-04
+
+### Changed
+
+- **kp-themes 9.2.0 vendored** (verified against the release SHA256SUMS).
+  The four new modules join the `webapp` asset set: `js/actions.js`
+  (buttons in shared columns), `js/attention.js` (attention band),
+  `js/chart.js` (time chart) and `js/kpi.js` (key figures); `js/motion.js`
+  gains `leave()`. New classes: `.kp-action-list`, `.kp-row-actions`,
+  `.kp-tiles`, `.kp-kpis`/`.kp-kpi`, `.kp-page-header`, `.kp-attention`,
+  `.kp-state-word`, `.kp-chart`. No class or API removed.
+
 ## [3.6.1] - 2026-10-04
 
 ### Changed

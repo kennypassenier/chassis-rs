@@ -119,6 +119,18 @@ export const NEEDS = [
     { name: 'gridlayout', when: '[data-kp-grid]', load: () => import('./gridlayout.js'), attach: (m, root) => [m.attachGrids(root)] },
     { name: 'log', when: '[data-kp-source]', load: () => import('./log.js'), attach: (m, root) => [m.attachLogs(root)] },
     { name: 'progressbar', when: '.kp-progressbar', load: () => import('./progressbar.js'), attach: (m, root) => [m.attachProgressbars(root)] },
+    // The dashboard components [scope-143]: row buttons on shared columns,
+    // the KPI tile's sparkline and filter toggle, the attention band and
+    // the time chart.
+    { name: 'actions', when: '.kp-row-actions', load: () => import('./actions.js'), attach: (m, root) => [m.attachActionColumns(root)] },
+    {
+        name: 'kpi',
+        when: 'svg[data-kp-spark], button.kp-kpi--toggle',
+        load: () => import('./kpi.js'),
+        attach: (m, root) => [m.attachSparklines(root), m.attachKpiToggles(root)],
+    },
+    { name: 'attention', when: '.kp-attention', load: () => import('./attention.js'), attach: (m, root) => [m.attachAttention(root)] },
+    { name: 'chart', when: '[data-kp-chart]', load: () => import('./chart.js'), attach: (m, root) => [m.attachCharts(root)] },
     {
         // Every box that changes size after it is drawn, and every dialog's
         // close [scope-142]: the selector is the module's own.

@@ -347,7 +347,7 @@ function arrival(scope) {
  * @param {HTMLElement} el @param {string | null} motion
  */
 function arrive(el, motion) {
-    if (!motion || el.style.animation || el.hasAttribute('data-kp-arriving')) return;
+    if (!motion || el.style.animation || el.hasAttribute('data-kp-arriving') || el.hasAttribute('data-kp-leaving')) return;
     // A register that has its own arrival draws it on `[data-kp-arriving]`;
     // one that has not lends its toast's.
     el.setAttribute('data-kp-arriving', '');
@@ -357,8 +357,251 @@ function arrive(el, motion) {
         el.style.removeProperty('animation');
         el.removeAttribute('data-kp-arriving');
     };
-    el.addEventListener('animationend', end, { once: true });
-    setTimeout(end, 1500);
+    void playedOut(el, 1500).then(end);
+}
+
+/**
+ * Settles once the CSS animations on `el` are `share` of the way through,
+ * or when `done` settles, whichever is first.
+ * @param {HTMLElement} el @param {number} share @param {Promise<unknown>} done
+ * @returns {Promise<unknown>}
+ */
+function partway(el, share, done) {
+    const css = el
+        .getAnimations({ subtree: true })
+        .filter((a) => typeof CSSAnimation !== 'undefined' && a instanceof CSSAnimation && /** @type {KeyframeEffect} */ (a.effect)?.target === el);
+    const reached = new Promise((resolve) => {
+        const tick = () => {
+            const through = css.every((a) => {
+                const timing = a.effect?.getComputedTiming();
+                return a.playState === 'finished' || (timing?.progress ?? 0) >= share || (timing?.currentIteration ?? 0) > 0;
+            });
+            if (through) resolve(undefined);
+            else requestAnimationFrame(tick);
+        };
+        tick();
+    });
+    return Promise.race([reached, done]);
+}
+
+/**
+ * Settles when the CSS animations running on `el` have played out, at
+ * whatever rate they play (a slowed-down review plays them at a quarter);
+ * with none running, after `fallback` ms.
+ * @param {HTMLElement} el @param {number} fallback
+ * @returns {Promise<unknown>}
+ */
+function playedOut(el, fallback) {
+    // Its pseudo-elements count too: a theme may draw its exit on ::after.
+    const css = el
+        .getAnimations({ subtree: true })
+        .filter((a) => typeof CSSAnimation !== 'undefined' && a instanceof CSSAnimation && /** @type {KeyframeEffect} */ (a.effect)?.target === el);
+    if (css.length === 0) return new Promise((resolve) => setTimeout(resolve, fallback));
+    return Promise.all(css.map((a) => a.finished.catch(() => undefined)));
+}
+
+/**
+ * The arrival `el` would play, as an animation name, duration and curve:
+ * the register's own `[data-kp-arriving]`, else the theme's toast entrance.
+ * @param {HTMLElement} el
+ * @returns {{ name: string, duration: number, ease: string } | null}
+ */
+function arrivalOf(el) {
+    if (reduced()) return null;
+    const had = el.hasAttribute('data-kp-arriving');
+    el.setAttribute('data-kp-arriving', '');
+    const style = getComputedStyle(el);
+    const own = style.animationName && style.animationName !== 'none';
+    const read = own
+        ? {
+              name: style.animationName.split(',')[0].trim(),
+              duration: firstMs(style.animationDuration),
+              ease: style.animationTimingFunction.split(/,(?![^(]*\))/)[0].trim(),
+          }
+        : null;
+    if (!had) el.removeAttribute('data-kp-arriving');
+    if (read && read.duration > 0) return read;
+    const toast = arrival(el);
+    if (!toast) return null;
+    const [name, duration, ...ease] = toast.split(' ');
+    return { name, duration: parseFloat(duration), ease: ease.slice(0, -1).join(' ') };
+}
+
+/**
+ * Let `el` leave the theme's way, then take it out [scope-142; Kenny,
+ * 2026-10-04: "die grow/shrink bewegingen moeten ook zijn als er opeens
+ * nieuwe elementen bijkomen of weggaan"]: it plays its arrival backwards
+ * while it folds shut, so what is under it closes up instead of jumping,
+ * and the box around it shrinks with it. Under reduced motion, or in a theme
+ * with no arrival, it goes at once.
+ *
+ * Elements told to leave in the same task leave one by one, bottom first.
+ *
+ * @param {HTMLElement} el
+ * @param {{ hide?: boolean }} [options] `hide: true` sets `hidden` instead of removing it
+ * @returns {Promise<void>} settled once it is gone
+ */
+export function leave(el, { hide = false } = {}) {
+    return new Promise((resolve) => {
+        if (!batch) {
+            batch = [];
+            queueMicrotask(() => {
+                const items = /** @type {Leaving[]} */ (batch);
+                batch = null;
+                void leaveInTurn(items);
+            });
+        }
+        batch.push({ el, hide, resolve });
+    });
+}
+
+/** @typedef {{ el: HTMLElement, hide: boolean, resolve: () => void }} Leaving */
+/** @type {Leaving[] | null} */
+let batch = null;
+
+/**
+ * Several elements told to leave at once go one by one, the lowest first,
+ * each starting as the one before has played its exit (Kenny, 2026-10-04:
+ * "als er twee of meerdere elementen zijn, dan moeten die één voor één in
+ * logische volgorde (pak van beneden naar boven) verwijderd worden").
+ * @param {Leaving[]} items
+ */
+async function leaveInTurn(items) {
+    items.sort((a, b) => (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? 1 : -1));
+    for (const item of items) {
+        /** @type {Promise<void>} */
+        const exited = new Promise((resolve) => {
+            void leaveOne(item.el, item.hide, resolve).then(item.resolve);
+        });
+        await exited;
+    }
+}
+
+/**
+ * @param {HTMLElement} el @param {boolean} hide
+ * @param {() => void} exited called once its exit has played, or at once when it has none
+ * @returns {Promise<void>}
+ */
+async function leaveOne(el, hide, exited) {
+    const gone = () => {
+        if (hide) el.hidden = true;
+        else el.remove();
+    };
+    if (!el.isConnected || el.hasAttribute('data-kp-leaving')) return exited();
+    const before = getComputedStyle(el).animationName;
+    const arrival = arrivalOf(el);
+    const { size, ease } = themeMotion(el);
+    if (!arrival && size <= 0) {
+        exited();
+        return gone();
+    }
+    el.setAttribute('data-kp-leaving', '');
+    // A register with a leave of its own draws it on `[data-kp-leaving]`
+    // (Kenny, 2026-10-04: "kan je die ook meer on-theme maken met distincte
+    // animaties per thema?"); one without plays its arrival backwards.
+    const style = getComputedStyle(el);
+    const ownName = style.animationName;
+    const own = ownName && ownName !== 'none' && ownName !== before ? { duration: firstMs(style.animationDuration) } : null;
+    /** @type {Promise<unknown>[]} */
+    const running = [];
+    const lasts = own ? own.duration : (arrival?.duration ?? 0);
+    // `--kp-leave-fold: ghost` lets a stand-in of the same shape play the
+    // exit on top while the element itself, hidden, folds its space shut
+    // underneath, so neither squeezes the other (Kenny, 2026-10-04: "maak
+    // een div die de vorm van het te verdwijnen element overneemt en pas
+    // daar een animatie op toe").
+    const fold = style.getPropertyValue('--kp-leave-fold').trim();
+    /** @type {HTMLElement} */
+    let actor = el;
+    if (fold === 'ghost' && lasts > 0) {
+        actor = /** @type {HTMLElement} */ (el.cloneNode(true));
+        actor.setAttribute('aria-hidden', 'true');
+        actor.inert = true;
+        Object.assign(actor.style, {
+            position: 'absolute',
+            top: `${el.offsetTop}px`,
+            left: `${el.offsetLeft}px`,
+            width: `${el.offsetWidth}px`,
+            height: `${el.offsetHeight}px`,
+            margin: '0',
+            boxSizing: 'border-box',
+            pointerEvents: 'none',
+            zIndex: '1',
+        });
+        el.after(actor);
+        // Offsets round to whole pixels and skip some borders; correct by
+        // what the two boxes measure.
+        const want = el.getBoundingClientRect();
+        const got = actor.getBoundingClientRect();
+        actor.style.top = `${el.offsetTop + want.top - got.top}px`;
+        actor.style.left = `${el.offsetLeft + want.left - got.left}px`;
+        el.style.setProperty('visibility', 'hidden');
+        el.style.setProperty('animation', 'none');
+    }
+    if (!own && arrival) actor.style.animation = `${arrival.name} ${arrival.duration}ms ${arrival.ease} reverse forwards`;
+    const exit = lasts > 0 ? playedOut(actor, lasts + 100) : Promise.resolve();
+    // The next in a row of leaves starts once this one's exit is
+    // `--kp-leave-stagger` of the way through (0.5 by default; 1 waits for
+    // all of it), read off the animation itself so any playback rate holds.
+    // Halfway unless the page says otherwise (Kenny's pick, 2026-10-04).
+    const set = parseFloat(style.getPropertyValue('--kp-leave-stagger'));
+    const stagger = Number.isNaN(set) ? 0.5 : set;
+    if (lasts > 0 && stagger > 0 && stagger < 1) void partway(actor, stagger, exit).then(exited);
+    else void exit.then(exited);
+    running.push(exit);
+    // A table row cannot be folded below its cells' content: it plays its
+    // leave, and the table glides shut once it is out.
+    if (size > 0 && !(el instanceof HTMLTableRowElement)) {
+        // In a row (a flex row, an inline chip) the space closes sideways;
+        // anywhere else it closes from below.
+        const parent = el.parentElement ? getComputedStyle(el.parentElement) : null;
+        const sideways =
+            style.display.startsWith('inline') || (parent !== null && /flex/.test(parent.display) && !parent.flexDirection.startsWith('column'));
+        el.style.setProperty('overflow', 'clip');
+        el.style.setProperty('box-sizing', 'border-box');
+        const from = sideways
+            ? {
+                  width: `${el.offsetWidth}px`,
+                  marginLeft: style.marginLeft,
+                  marginRight: style.marginRight,
+                  paddingLeft: style.paddingLeft,
+                  paddingRight: style.paddingRight,
+              }
+            : {
+                  height: `${el.offsetHeight}px`,
+                  marginTop: style.marginTop,
+                  marginBottom: style.marginBottom,
+                  paddingTop: style.paddingTop,
+                  paddingBottom: style.paddingBottom,
+              };
+        const to = Object.fromEntries(Object.keys(from).map((k) => [k, '0px']));
+        // The space closes slower than a plain resize, so the eye can follow
+        // what closes up (Kenny, 2026-10-04: "ik zou het graag iets trager
+        // zien gaan, zodat de animatie zichtbaar is"). `--kp-leave-fold`
+        // says when: `together` starts it a third of the way into the
+        // theme's exit, `after` once the exit is over, plus
+        // `--kp-leave-pause` ms, so the exit is never hidden by the fold
+        // (Kenny, 2026-10-04: "misschien moet je eerst de elementen laten
+        // faden en dan pas die accordion").
+        const after = fold === 'after';
+        const pause = parseFloat(style.getPropertyValue('--kp-leave-pause')) || 0;
+        const folding = el.animate([from, to], {
+            duration: Math.max(size, lasts) * 1.25,
+            delay: after ? lasts + pause : lasts / 3,
+            easing: withoutOvershoot(ease),
+            fill: 'forwards',
+        });
+        running.push(folding.finished.catch(() => undefined));
+    }
+    await Promise.all(running);
+    if (actor !== el) actor.remove();
+    gone();
+    el.removeAttribute('data-kp-leaving');
+    el.style.removeProperty('animation');
+    el.style.removeProperty('overflow');
+    el.style.removeProperty('box-sizing');
+    el.style.removeProperty('visibility');
+    for (const a of el.getAnimations()) a.cancel();
 }
 
 /**
@@ -385,6 +628,9 @@ export function easeSize(box) {
         const to = box.offsetHeight;
         last = to;
         if (switching || Math.abs(to - from) < 1 || from === 0 || to === 0) return;
+        // Something in it is leaving and folds itself shut; the box follows
+        // that fold frame by frame instead of gliding after it.
+        if (box.querySelector('[data-kp-leaving]')) return;
         const { size, ease } = themeMotion(box);
         if (size <= 0) return;
         const { animation: mine, done } = glide(box, from, to, size, sizeEase(box, ease, to - from));
@@ -411,7 +657,11 @@ export function easeSize(box) {
     // What arrives (a row added, a panel or a message shown) arrives the
     // theme's way.
     const list = new MutationObserver((records) => {
-        const motion = records.length ? arrival(box) : null;
+        // A live view that redraws its rows marks the box
+        // `data-kp-arrive="none"`, or every refresh replays every arrival
+        // (the homelab dashboard's live repaint, 2026-10-04).
+        const quiet = box.closest('[data-kp-arrive="none"]') !== null;
+        const motion = records.length && !quiet ? arrival(box) : null;
         for (const record of records) {
             if (record.type === 'childList' && record.target === box)
                 for (const node of record.addedNodes) if (node instanceof HTMLElement) arrive(node, motion);

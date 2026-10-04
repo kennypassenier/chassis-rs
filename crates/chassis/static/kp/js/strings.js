@@ -219,6 +219,26 @@
  * @property {string} arrivalSkip  The button that ends the arrival at once
  * @property {string} measureLoading  A live dimension label before the first measurement lands (blueprint) [S48]
  * @property {(w: number, h: number) => string} measureBox  The size of the box the measurement frame holds (blueprint) [scope-18]
+ * @property {(label: string) => string} chartPlot  A time chart's plot, for a screen reader: what it is and its keys [scope-143]
+ * @property {(label: string) => string} chartSpark  A chart's 24-hour spark line, for a screen reader [scope-143]
+ * @property {(label: string) => string} chartSources  The name of a chart's legend [scope-143]
+ * @property {(label: string) => string} chartSource  A legend button's title: what hovering and clicking it do [scope-143]
+ * @property {string} chartShowAll  The legend's way back to every source [scope-143]
+ * @property {string} chartShowAllTitle  Its title [scope-143]
+ * @property {string} chartHintPointer  The hint under a legend, for a pointer [scope-143]
+ * @property {string} chartHintTouch  The same hint, for a finger [scope-143]
+ * @property {string} chartPinned  The word in a pinned tooltip's head [scope-143]
+ * @property {string} chartRelease  The pinned tooltip's ✕, named [scope-143]
+ * @property {string} chartChange  The tooltip's foot: what the ▲/▼ column is [scope-143]
+ * @property {string} chartOpen  An event's link in a pinned tooltip [scope-143]
+ * @property {(label: string, time: string) => string} chartMark  An event marker's title [scope-143]
+ * @property {(from: string, to: string) => string} chartZoomed  The zoom chip, before its Reset [scope-143]
+ * @property {string} chartReset  The zoom chip's button [scope-143]
+ * @property {string} chartResetTitle  Its title [scope-143]
+ * @property {string} chartUp  A rise, as the readout says it [scope-143]
+ * @property {string} chartDown  A fall, as the readout says it [scope-143]
+ * @property {string} chartSame  No change, as the readout says it [scope-143]
+ * @property {string} chartNow  A spark line's value when no time is under the crosshair [scope-143]
 
  * @property {string} breadcrumb
  * @property {string} pagination
@@ -521,6 +541,28 @@ export const DEFAULT_STRINGS = Object.freeze({
     arrivalSkip: 'Skip',
     measureLoading: 'measuring…',
     measureBox: (w, h) => `${w} × ${h} px`,
+    // The time chart [scope-143]: the chart's own words, the page's data
+    // and labels being the page's.
+    chartPlot: (label) => `${label}: chart. Arrow keys move through time, Enter pins the reading, Esc steps back.`,
+    chartSpark: (label) => `${label}: last 24 hours. Arrow keys move through time.`,
+    chartSources: (label) => `${label}: sources`,
+    chartSource: (label) => `${label}: hover to single it out, click to keep it on or off`,
+    chartShowAll: 'Show all',
+    chartShowAllTitle: 'Show every source again (Esc)',
+    chartHintPointer: 'Hover a source to single it out · click to keep it on or off · Show all resets',
+    chartHintTouch: 'Tap a source to keep it on or off · Show all resets',
+    chartPinned: 'pinned',
+    chartRelease: 'Release the pinned reading (Esc)',
+    chartChange: 'change over the hour before',
+    chartOpen: 'Open',
+    chartMark: (label, time) => `${label} · ${time}; click to pin`,
+    chartZoomed: (from, to) => `Zoomed: ${from}–${to} · `,
+    chartReset: 'Reset',
+    chartResetTitle: 'Show the whole range again (double-click or Esc)',
+    chartUp: 'up',
+    chartDown: 'down',
+    chartSame: 'unchanged',
+    chartNow: 'now',
     breadcrumb: 'Breadcrumb',
     pagination: 'Pagination',
     themePicker: 'Choose a theme',

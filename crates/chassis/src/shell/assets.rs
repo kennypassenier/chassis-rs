@@ -22,7 +22,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 /// The kp-themes version the kit vendors (C3: one place).
-pub const KP_THEMES_VERSION: &str = "9.1.0";
+pub const KP_THEMES_VERSION: &str = "9.2.0";
 
 /// name → (content type, bytes). Explicit list, no path joining (kyu's
 /// traversal-proof shape).
@@ -474,14 +474,29 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
 #[cfg(feature = "webapp")]
 pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
     (
+        "kp/js/actions.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/actions.js"),
+    ),
+    (
         "kp/js/alarm.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/alarm.js"),
     ),
     (
+        "kp/js/attention.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/attention.js"),
+    ),
+    (
         "kp/js/auto.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/auto.js"),
+    ),
+    (
+        "kp/js/chart.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/chart.js"),
     ),
     (
         "kp/js/colorpicker.js",
@@ -522,6 +537,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/gridlayout.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/gridlayout.js"),
+    ),
+    (
+        "kp/js/kpi.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/kpi.js"),
     ),
     (
         "kp/js/lazy-register.js",
