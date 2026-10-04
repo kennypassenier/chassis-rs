@@ -7,6 +7,20 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [3.6.1] - 2026-10-04
+
+### Changed
+
+- **kp-themes 9.1.0 vendored** (verified against the release SHA256SUMS;
+  `js/motion.js` added to the `webapp` asset set). Dialogs, accordions,
+  tabs, tables, toasts, lists, trees, wizards and fields move through
+  `js/motion.js`, which `js/auto.js` loads: a `.kp-dialog` plays its
+  entrance backwards on close and stays `open` until that ends, and boxes
+  ease to a new height. Knobs `--kp-close-max`, `--kp-size-max`,
+  `--kp-motion-scale`; nothing moves under reduced motion. No class or API
+  removed. A web app test that measures a dialog right after `close()`
+  needs reduced motion or a wait for the motion to end.
+
 ## [3.6.0] - 2026-10-04
 
 ### Changed

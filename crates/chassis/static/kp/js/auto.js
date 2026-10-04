@@ -119,6 +119,14 @@ export const NEEDS = [
     { name: 'gridlayout', when: '[data-kp-grid]', load: () => import('./gridlayout.js'), attach: (m, root) => [m.attachGrids(root)] },
     { name: 'log', when: '[data-kp-source]', load: () => import('./log.js'), attach: (m, root) => [m.attachLogs(root)] },
     { name: 'progressbar', when: '.kp-progressbar', load: () => import('./progressbar.js'), attach: (m, root) => [m.attachProgressbars(root)] },
+    {
+        // Every box that changes size after it is drawn, and every dialog's
+        // close [scope-142]: the selector is the module's own.
+        name: 'motion',
+        when: 'dialog.kp-dialog, .kp-accordion__item, .kp-tabs, .kp-datatable, .kp-toasts, .kp-upload__list, .kp-combobox__list, .kp-tree, .kp-wizard, .kp-field, [data-kp-size-motion]',
+        load: () => import('./motion.js'),
+        attach: (m, root) => [m.attachMotion(root)],
+    },
 ];
 
 /** Set on <html> once the boot's `attachAll()` has attached everything the page needed: the names fetched, space-separated. */
