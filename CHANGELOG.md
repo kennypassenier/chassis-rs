@@ -7,6 +7,16 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [3.5.1] - 2026-10-04
+
+### Changed
+
+- **kp-themes 9.0.1 vendored** (verified against the release SHA256SUMS):
+  `.kp-dialog` sets `margin: auto` and, when modal, `inset: 0` itself, so a
+  modal dialog stays centred under a Tailwind preflight; no class or API
+  change. Released without a test run on Kenny's word (2026-10-04: "deze
+  update zo klein is dat er geen testen moeten uitgevoerd worden").
+
 ## [3.5.0] - 2026-10-04
 
 ### Changed
