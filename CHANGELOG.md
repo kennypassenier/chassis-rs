@@ -7,6 +7,14 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [3.6.3] - 2026-10-04
+
+### Changed
+
+- **kp-themes 9.2.1 vendored** (verified against the release SHA256SUMS):
+  the close button on alerts and toasts takes the alert's own plate and
+  ink. No class or API change.
+
 ## [3.6.2] - 2026-10-04
 
 ### Changed
