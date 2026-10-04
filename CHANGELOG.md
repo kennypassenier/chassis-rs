@@ -7,6 +7,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-10-04
+
 ### Changed
 
 - **Faster test runs** (Kenny, 2026-10-04, test report). `chassis release`
