@@ -85,12 +85,22 @@ async fn k38_a_wrong_admin_token_is_refused_with_a_remedy() {
 /// every transport failure to `Kind::Internal`.
 #[tokio::test]
 async fn k38_an_unreachable_service_says_which_url_did_not_answer() {
-    // Port 1 on loopback: nothing listens, and the connection is refused
-    // immediately rather than hanging.
-    let hub = AdminApi::new("http://127.0.0.1:1", "any-token").unwrap();
+    // A port that was free a moment ago: nothing listens, and the
+    // connection is refused at once. Port 1 was used until 2026-10-04; on
+    // WSL it drops the SYN instead, and the test waited out the 10 s
+    // client timeout.
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|l| l.local_addr())
+        .unwrap()
+        .port();
+    let url = format!("http://127.0.0.1:{port}");
+    let hub = AdminApi::new(&url, "any-token").unwrap();
     let error = hub.list_clients().await.expect_err("no service there");
     assert_eq!(error.kind, Kind::Dependency, "{error}");
-    assert!(error.message.contains("127.0.0.1:1"), "{error}");
+    assert!(
+        error.message.contains(&format!("127.0.0.1:{port}")),
+        "{error}"
+    );
 }
 
 /// The two mistakes a caller makes at construction time are refused before

@@ -7,6 +7,17 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed
+
+- **Faster test runs** (Kenny, 2026-10-04, test report). `chassis release`
+  runs the suites side by side with cargo-nextest when it is installed
+  (doctests follow with `cargo test --doc`), and says so when it is not.
+  The kit's own `scripts/test-carry.sh` does the same and runs the 57 s
+  scaffold E2E only when `scaffold/`, the CLI or `Cargo.lock` changed since
+  it last passed. The admin-API test no longer waits 10 s on port 1, which
+  WSL drops instead of refusing. Measured: the kit's suite went from
+  1 min 51 s to 49 s with the scaffold E2E included.
+
 ## [3.5.1] - 2026-10-04
 
 ### Changed

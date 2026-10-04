@@ -159,7 +159,24 @@ pub fn gate(dir: &Path, rec: &Recorded, image: bool) -> Result<(), Error> {
             &["clippy", "--all-targets", "--", "-D", "warnings"],
         )?;
         let tests = std::time::Instant::now();
-        step(dir, "tests", "cargo", &["test"])?;
+        // Kenny, 2026-10-04: the suites run side by side when cargo-nextest
+        // is installed; nextest cannot run doctests, so those follow.
+        if cargo_plugin_available(dir, "nextest") {
+            step(
+                dir,
+                "tests (cargo-nextest, suites side by side)",
+                "cargo",
+                &["nextest", "run", "--no-fail-fast"],
+            )?;
+            if dir.join("src/lib.rs").is_file() {
+                step(dir, "doctests", "cargo", &["test", "--doc"])?;
+            }
+        } else {
+            println!(
+                "chassis release: cargo-nextest is not installed, so the suites run one after another (cargo install cargo-nextest --locked)"
+            );
+            step(dir, "tests", "cargo", &["test"])?;
+        }
         println!(
             "chassis release: tests took {} (measured)",
             took(tests.elapsed())
@@ -613,6 +630,8 @@ mod tests {
         assert_eq!(took(Duration::from_millis(186_900)), "3 min 6 s");
         let src = include_str!("release.rs");
         assert!(src.contains("\"chassis release: tests took {} (measured)\""));
+        // Kenny, 2026-10-04: the suites run side by side when nextest is there.
+        assert!(src.contains("&[\"nextest\", \"run\", \"--no-fail-fast\"]"));
         assert_eq!(
             src.matches("\"chassis release: gate green, took {} (measured)\"")
                 .count(),

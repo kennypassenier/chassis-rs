@@ -138,6 +138,12 @@ fn the_release_runs_once_and_says_how_long() {
         carry.contains("tests took"),
         "test-carry prints the duration"
     );
+    // 2026-10-04 (test report): suites side by side, and the 57 s scaffold
+    // E2E only when its inputs changed.
+    assert!(
+        carry.contains("cargo nextest run") && carry.contains("not binary(new_project_builds)"),
+        "test-carry runs the suites side by side and gates the scaffold E2E on its inputs"
+    );
 }
 
 // Locked elsewhere, listed so the inventory stays in one place:
