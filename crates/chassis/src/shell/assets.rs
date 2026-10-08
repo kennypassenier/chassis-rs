@@ -22,7 +22,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 /// The kp-themes version the kit vendors (C3: one place).
-pub const KP_THEMES_VERSION: &str = "9.2.1";
+pub const KP_THEMES_VERSION: &str = "10.0.0";
 
 /// name → (content type, bytes). Explicit list, no path joining (kyu's
 /// traversal-proof shape).
@@ -320,16 +320,6 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/fonts/josefinsans/josefinsans-variable.woff2"),
     ),
     (
-        "kp/fonts/markazitext/markazitext-variable-arabic.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/markazitext/markazitext-variable-arabic.woff2"),
-    ),
-    (
-        "kp/fonts/markazitext/markazitext-variable-latin.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/markazitext/markazitext-variable-latin.woff2"),
-    ),
-    (
         "kp/fonts/martianmono/martianmono-variable.woff2",
         "font/woff2",
         include_bytes!("../../static/kp/fonts/martianmono/martianmono-variable.woff2"),
@@ -385,26 +375,6 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/fonts/sora/sora-variable.woff2"),
     ),
     (
-        "kp/fonts/sourcesans3/sourcesans3-italic-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/sourcesans3/sourcesans3-italic-variable.woff2"),
-    ),
-    (
-        "kp/fonts/sourcesans3/sourcesans3-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/sourcesans3/sourcesans3-variable.woff2"),
-    ),
-    (
-        "kp/fonts/sourceserif4/sourceserif4-italic-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/sourceserif4/sourceserif4-italic-variable.woff2"),
-    ),
-    (
-        "kp/fonts/sourceserif4/sourceserif4-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/sourceserif4/sourceserif4-variable.woff2"),
-    ),
-    (
         "kp/fonts/spacegrotesk/spacegrotesk-variable.woff2",
         "font/woff2",
         include_bytes!("../../static/kp/fonts/spacegrotesk/spacegrotesk-variable.woff2"),
@@ -428,16 +398,6 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/fonts/titilliumweb/titilliumweb-semibold.woff2",
         "font/woff2",
         include_bytes!("../../static/kp/fonts/titilliumweb/titilliumweb-semibold.woff2"),
-    ),
-    (
-        "kp/fonts/vazirmatn/vazirmatn-variable-arabic.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/vazirmatn/vazirmatn-variable-arabic.woff2"),
-    ),
-    (
-        "kp/fonts/vazirmatn/vazirmatn-variable-latin.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/vazirmatn/vazirmatn-variable-latin.woff2"),
     ),
     (
         "kp/fonts/vt323/vt323-regular.woff2",
@@ -509,6 +469,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/combobox.js"),
     ),
     (
+        "kp/js/calendar.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/calendar.js"),
+    ),
+    (
         "kp/js/contrast.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/contrast.js"),
@@ -532,6 +497,16 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/forms.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/forms.js"),
+    ),
+    (
+        "kp/js/freshness.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/freshness.js"),
+    ),
+    (
+        "kp/js/graph.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/graph.js"),
     ),
     (
         "kp/js/gridlayout.js",
@@ -562,6 +537,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/log.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/log.js"),
+    ),
+    (
+        "kp/js/menu-button.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/menu-button.js"),
     ),
     (
         "kp/js/motion.js",
@@ -609,9 +589,24 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/tables.js"),
     ),
     (
+        "kp/js/tiles.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/tiles.js"),
+    ),
+    (
         "kp/js/top-layer.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/top-layer.js"),
+    ),
+    (
+        "kp/js/tour.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/tour.js"),
+    ),
+    (
+        "kp/js/update.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/update.js"),
     ),
     (
         "kp/js/upload.js",

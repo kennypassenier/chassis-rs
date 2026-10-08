@@ -408,59 +408,6 @@
         "renamed": "KP Ticker Mono",
         "reservedWord": "Plex"
     },
-    "sourcesans3": {
-        "family": "Source Sans 3",
-        "licence": "OFL-1.1",
-        "reservedFontName": true,
-        "subset": true,
-        "themes": ["shade-light", "shade-dark"],
-        "scripts": ["latin"],
-        "upstream": "ofl/sourcesans3",
-        "faces": [
-            {
-                "file": "sourcesans3-variable",
-                "source": "SourceSans3[wght].ttf",
-                "weight": "200 900",
-                "style": "normal",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "sourcesans3-italic-variable",
-                "source": "SourceSans3-Italic[wght].ttf",
-                "weight": "200 900",
-                "style": "italic",
-                "scripts": ["latin"]
-            }
-        ],
-        "why": "OFL with Reserved Font Name 'Source': a subset is a Modified Version and may not carry that word, so the shipped faces are renamed 'KP Shade Sans' at build (R6-Q1: renamed delivery, Kenny 2026-09-07) — the tokens name the new family first and the original after it.",
-        "renamed": "KP Shade Sans",
-        "reservedWord": "Source"
-    },
-    "sourceserif4": {
-        "family": "Source Serif 4",
-        "licence": "OFL-1.1",
-        "reservedFontName": false,
-        "subset": true,
-        "themes": ["shade-light", "shade-dark"],
-        "scripts": ["latin"],
-        "upstream": "ofl/sourceserif4",
-        "faces": [
-            {
-                "file": "sourceserif4-italic-variable",
-                "source": "SourceSerif4-Italic[opsz,wght].ttf",
-                "weight": "200 900",
-                "style": "italic",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "sourceserif4-variable",
-                "source": "SourceSerif4[opsz,wght].ttf",
-                "weight": "200 900",
-                "style": "normal",
-                "scripts": ["latin"]
-            }
-        ]
-    },
     "geistmono": {
         "family": "Geist Mono",
         "licence": "OFL-1.1",
@@ -544,42 +491,6 @@
                 "weight": "100 900",
                 "style": "normal",
                 "scripts": ["latin"]
-            }
-        ]
-    },
-    "vazirmatn": {
-        "family": "Vazirmatn",
-        "licence": "OFL-1.1",
-        "reservedFontName": false,
-        "subset": true,
-        "themes": ["lapis"],
-        "scripts": ["latin", "arabic"],
-        "upstream": "ofl/vazirmatn",
-        "faces": [
-            {
-                "file": "vazirmatn-variable",
-                "source": "Vazirmatn[wght].ttf",
-                "weight": "100 900",
-                "style": "normal",
-                "scripts": ["latin", "arabic"]
-            }
-        ]
-    },
-    "markazitext": {
-        "family": "Markazi Text",
-        "licence": "OFL-1.1",
-        "reservedFontName": false,
-        "subset": true,
-        "themes": ["lapis"],
-        "scripts": ["latin", "arabic"],
-        "upstream": "ofl/markazitext",
-        "faces": [
-            {
-                "file": "markazitext-variable",
-                "source": "MarkaziText[wght].ttf",
-                "weight": "400 700",
-                "style": "normal",
-                "scripts": ["latin", "arabic"]
             }
         ]
     },

@@ -42,6 +42,19 @@
  * @property {string} alertWarning
  * @property {string} alertInfo
  * @property {string} alertError
+ * @property {string} attentionCritical  The word a screen reader hears before a critical problem on the attention band (setAttention) [scope-143]
+ * @property {string} attentionWarning  The same, before a warning [scope-143]
+ * @property {string} attentionInfo  The same, before an information [scope-143]
+ * @property {(verb: string, duration: string) => string} agoText  A ticking freshness line, "updated 12 s ago" (js/freshness.js) [scope-143]
+ * @property {(verb: string) => string} agoNever  The same line with no moment yet, "not updated yet" [scope-143]
+ * @property {(n: number) => string} agoSeconds  A duration's seconds part, "12 s" [scope-143]
+ * @property {(n: number) => string} agoMinutes  Its minutes part, "2 min" [scope-143]
+ * @property {(n: number) => string} agoHours  Its hours part, "3 h" [scope-143]
+ * @property {(n: number) => string} agoDays  Its days part, "1 day", "2 days" [scope-143]
+ * @property {string} agoVerb  The verb a freshness line uses when its element names none [scope-143]
+ * @property {(text: string) => string} agoStale  What a freshness line with `data-kp-ago-announce="state"` announces once it turns stale [scope-143]
+ * @property {(text: string) => string} agoFresh  What it announces once it is fresh again [scope-143]
+ * @property {string} agoInLiveRegion  The console warning for a ticking line inside a live region [scope-143]
  * @property {string} busy
  * @property {string} close
  * @property {string} menu          The accessible name of a collapsed navigation's toggle
@@ -132,6 +145,7 @@
  * @property {(shown: number, total: number) => string} tableColumnsShown
  * @property {string} tableDetailsColumn    The expansion column's header, read by a screen reader only
  * @property {(key: string) => string} tableRowDetails  A row's expand button
+ * @property {(group: string, count: number) => string} tableGroupRows  A group row's fold button: the group's name and how many of its rows match [J2]
  * @property {(column: string, key: string, value: string) => string} tableEdit  An editable cell's button
  * @property {(column: string, key: string) => string} tableEditField  The editor's accessible name
  * @property {(column: string, key: string) => string} tableEditing  Said when an editor opens
@@ -232,13 +246,51 @@
  * @property {string} chartChange  The tooltip's foot: what the ▲/▼ column is [scope-143]
  * @property {string} chartOpen  An event's link in a pinned tooltip [scope-143]
  * @property {(label: string, time: string) => string} chartMark  An event marker's title [scope-143]
- * @property {(from: string, to: string) => string} chartZoomed  The zoom chip, before its Reset [scope-143]
+ * @property {(from: string, to: string) => string} chartZoomed  The zoom chip, before its Reset, from its two ends; used only when a consumer overrides it and not `chartZoomedSpan` [scope-143]
+ * @property {(span: string) => string} chartZoomedSpan  The zoom chip, before its Reset: `span` is the zoom as the chart's `range` time style prints it [scope-143]
  * @property {string} chartReset  The zoom chip's button [scope-143]
  * @property {string} chartResetTitle  Its title [scope-143]
  * @property {string} chartUp  A rise, as the readout says it [scope-143]
  * @property {string} chartDown  A fall, as the readout says it [scope-143]
  * @property {string} chartSame  No change, as the readout says it [scope-143]
  * @property {string} chartNow  A spark line's value when no time is under the crosshair [scope-143]
+ * @property {string} chartEmpty  A time chart with no readings in its window, in the plot at its height [scope-143]
+ * @property {string} chartOnePoint  Under a chart whose every source has one reading (with `onePointNote`) [scope-143]
+ * @property {string} chartLoading  A loading chart (`data-kp-chart-loading`), for a screen reader [scope-143]
+ * @property {string} chartPinnedOutside  A pinned tooltip's head once a live update moved the window past the pin [scope-143]
+ * @property {string} menuLoading  A menu button's menu while its entries load: one disabled entry (js/menu-button.js) [scope-143]
+ * @property {string} menuEmpty  The title of a menu button with no entries, which stays and does nothing (`data-kp-menu-empty="disable"`) [scope-143]
+ * @property {string} tourNext  The tour card's button to the next step (js/tour.js) [scope-143]
+ * @property {string} tourNextTitle  Its title [scope-143]
+ * @property {string} tourBack  The tour card's button to the step before [scope-143]
+ * @property {string} tourBackTitle  Its title [scope-143]
+ * @property {string} tourDone  The next button on the last step, which ends the tour [scope-143]
+ * @property {string} tourDoneTitle  Its title [scope-143]
+ * @property {string} tourSkip  The tour card's button that ends the tour at once [scope-143]
+ * @property {string} tourSkipTitle  Its title [scope-143]
+ * @property {(n: number, of: number) => string} tourCount  The tour card's count, "1 of 5"; `of` counts only the steps whose part is on the page [scope-143]
+ * @property {string} chartToday  A key figure's trend axis: the word after the first point's clock when it is today ("07:00 today") [scope-143]
+ * @property {string} chartYesterday  The same when it is yesterday ("14:40 yesterday") [scope-143]
+ * @property {string} chartTrendKeys  A key figure's trend, for a screen reader: its keys [scope-143]
+ * @property {string} meterUsed  A meter's share, in the words a screen reader hears, when the page names it nothing else ("62% used") [scope-143]
+ * @property {string} meterNotMeasured  A meter with no share, for a screen reader [scope-143]
+ * @property {string} meterMeasuring  A loading meter, for a screen reader [scope-143]
+ * @property {string} loadingWord  The word a busy picture spells on screen, deciphered letter by letter (cyberpunk's skeletons, busy bars and meters); `setStrings()` hands it to the stylesheet [scope-143]
+ * @property {string} calendarNav  The name of a month heatmap's row of month buttons (js/calendar.js) [scope-143]
+ * @property {string} calendarPrev  A month heatmap's button to the month before; its name and title are `previousMonth` [scope-143]
+ * @property {string} calendarNext  Its button to the month after; its name and title are `nextMonth` [scope-143]
+ * @property {string} calendarToday  Its button back to today's month, with today picked [scope-143]
+ * @property {string} calendarTodayTitle  That button's title [scope-143]
+ * @property {(date: string, label: string) => string} calendarDay  A day's name and title: the date (dd/mm/yyyy) and what the page says about it [scope-143]
+ * @property {string} calendarFuture  What a day still to come is, when the page says nothing about it [scope-143]
+ * @property {string} calendarLoading  What every day is while the calendar loads [scope-143]
+ * @property {string} calendarUnknown  What a past day is when the page says nothing about it [scope-143]
+ * @property {string} graphShowAll  The network graph's way back to every node and every kind of link (js/graph.js) [scope-143]
+ * @property {string} graphShowAllTitle  Its title [scope-143]
+ * @property {string} graphHint  The hint under the graph, and the second half of its picture's accessible name: what a pointer, a click and the keys do [scope-143]
+ * @property {string} graphKinds  The name of the list of kinds of link over the graph [scope-143]
+ * @property {string} graphLoading  A loading graph's sentence when the page gives none (`setGraphState(el, 'loading')`) [scope-143]
+ * @property {string} graphUnnamed  The picture's name when the graph has no `aria-label` [scope-143]
 
  * @property {string} breadcrumb
  * @property {string} pagination
@@ -280,6 +332,23 @@ export const DEFAULT_STRINGS = Object.freeze({
     alertWarning: 'Warning',
     alertInfo: 'Info',
     alertError: 'Error',
+    // The attention band's severities, for a screen reader [scope-143].
+    attentionCritical: 'Critical',
+    attentionWarning: 'Warning',
+    attentionInfo: 'Information',
+    // A ticking freshness line [scope-143]: exact numbers, the two largest
+    // units, a zero part left out ("2 min", "2 min 5 s", "1 day 1 h").
+    agoText: (verb, duration) => `${verb} ${duration} ago`,
+    agoNever: (verb) => `not ${verb} yet`,
+    agoSeconds: (n) => `${n} s`,
+    agoMinutes: (n) => `${n} min`,
+    agoHours: (n) => `${n} h`,
+    agoDays: (n) => (n === 1 ? '1 day' : `${n} days`),
+    agoVerb: 'updated',
+    agoStale: (text) => `${text}, out of date`,
+    agoFresh: (text) => `${text}, up to date`,
+    agoInLiveRegion:
+        'kp-themes: a ticking freshness line (data-kp-ago) sits inside a live region, so a screen reader would hear it every second. It is silenced (aria-live="off"); move it out of the region, or use data-kp-ago-announce="state".',
     busy: 'Working…',
     close: 'Close',
     // The nav toggle carries no glyph of its own — this package ships
@@ -421,6 +490,7 @@ export const DEFAULT_STRINGS = Object.freeze({
     tableColumnsShown: (shown, total) => `${shown} of ${total} columns shown`,
     tableDetailsColumn: 'Details',
     tableRowDetails: (key) => `Details for ${key}`,
+    tableGroupRows: (group, count) => `${group}: ${count} ${count === 1 ? 'row' : 'rows'}`,
     tableEdit: (column, key, value) => `${column} of ${key}: ${value}. Edit`,
     tableEditField: (column, key) => `${column} of ${key}`,
     tableEditing: (column, key) => `Editing ${column} of ${key}. Press Enter to save, or Escape to cancel.`,
@@ -557,12 +627,56 @@ export const DEFAULT_STRINGS = Object.freeze({
     chartOpen: 'Open',
     chartMark: (label, time) => `${label} · ${time}; click to pin`,
     chartZoomed: (from, to) => `Zoomed: ${from}–${to} · `,
+    chartZoomedSpan: (span) => `Zoomed: ${span} · `,
     chartReset: 'Reset',
     chartResetTitle: 'Show the whole range again (double-click or Esc)',
     chartUp: 'up',
     chartDown: 'down',
     chartSame: 'unchanged',
     chartNow: 'now',
+    chartEmpty: 'No readings in this window yet.',
+    chartOnePoint: 'Only one reading so far: the line grows as more readings arrive.',
+    chartLoading: 'Loading the readings…',
+    chartPinnedOutside: '(pinned, outside the window)',
+    // A menu button's menu [scope-143].
+    menuLoading: 'Loading the actions…',
+    menuEmpty: 'Nothing to do here right now.',
+    // A guided tour's card [scope-143].
+    tourNext: 'Next',
+    tourNextTitle: 'Show the next part of the page',
+    tourBack: 'Back',
+    tourBackTitle: 'Show the part before this one',
+    tourDone: 'Done',
+    tourDoneTitle: 'End the tour',
+    tourSkip: 'Skip',
+    tourSkipTitle: 'End the tour now; Help can start it again',
+    tourCount: (n, of) => `${n} of ${of}`,
+    // A key figure's 24-hour trend, and the meter with a mark [scope-143].
+    chartToday: 'today',
+    chartYesterday: 'yesterday',
+    chartTrendKeys: 'Left and right arrows read the trend point by point, Shift moves ten, Home and End go to the ends, Escape hides the reading.',
+    meterUsed: 'used',
+    meterNotMeasured: 'not measured',
+    meterMeasuring: 'being measured',
+    loadingWord: 'LOADING',
+    calendarNav: 'Month',
+    calendarPrev: '‹ Prev',
+    calendarNext: 'Next ›',
+    calendarToday: 'Today',
+    calendarTodayTitle: 'Show this month and select today',
+    calendarDay: (date, label) => `${date}: ${label}`,
+    calendarFuture: 'a day still to come',
+    calendarLoading: 'being read',
+    calendarUnknown: 'nothing known about this day',
+    // The network graph [scope-143]: its own words; the nodes, kinds and
+    // the sentences of its states are the page's.
+    graphShowAll: 'Show all',
+    graphShowAllTitle: 'Clear the selection and show every kind of link again',
+    graphHint:
+        'Hover or focus a node to see only its links. Click it, or press Enter, to keep it picked; pick several the same way. Arrow keys move between nodes; Esc shows all.',
+    graphKinds: 'Kinds of link',
+    graphLoading: 'Reading the network…',
+    graphUnnamed: 'Graph',
     breadcrumb: 'Breadcrumb',
     pagination: 'Pagination',
     themePicker: 'Choose a theme',
@@ -633,7 +747,47 @@ let current = DEFAULT_STRINGS;
  */
 export function setStrings(next) {
     current = Object.freeze({ ...current, ...next });
+    if (typeof document !== 'undefined') applyStringProperties(document.documentElement, current);
     return current;
+}
+
+/** The noise a deciphered word starts from, seven glyphs. */
+const CIPHER = '#&$?%@/';
+
+/**
+ * The words the stylesheets draw themselves, as custom properties
+ * [scope-143]. A keyframe cannot read this module, so the word a busy
+ * picture spells reaches it as `--kp-loading-word-0` to `-7`: the eight
+ * ticks of cyberpunk's decipher, from all noise to the whole word. The
+ * register keeps the English as each property's fallback, so a page that
+ * never calls `setStrings()` draws what it always drew.
+ *
+ * @param {Strings} [strings] the strings to draw from, the current ones by default
+ * @returns {Record<string, string>} property name to a CSS string value
+ */
+export function stringProperties(strings = current) {
+    const word = strings.loadingWord;
+    /** @type {Record<string, string>} */
+    const out = {};
+    for (let tick = 0; tick <= 7; tick++) {
+        const shown = Math.round((tick * word.length) / 7);
+        const turn = (tick * 5) % CIPHER.length;
+        const noise = (CIPHER.slice(turn) + CIPHER.slice(0, turn)).repeat(Math.ceil(word.length / CIPHER.length) + 1);
+        out[`--kp-loading-word-${tick}`] = JSON.stringify(word.slice(0, shown) + noise.slice(0, word.length - shown));
+    }
+    return out;
+}
+
+/**
+ * Write `stringProperties()` onto an element, so every stylesheet under it
+ * draws the consumer's words. `setStrings()` does this on the document
+ * root; call it yourself for a subtree that speaks another language.
+ *
+ * @param {HTMLElement} root
+ * @param {Strings} [strings]
+ */
+export function applyStringProperties(root, strings = current) {
+    for (const [name, value] of Object.entries(stringProperties(strings))) root.style.setProperty(name, value);
 }
 
 /** @returns {Strings} the strings as they stand */

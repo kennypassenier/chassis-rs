@@ -246,7 +246,7 @@ export function install(ctx) {
             return;
         }
         if (routine === 'gild') {
-            // The lapis headline [S48, LIFT_PLAN row 6]: the text is whole
+            // The Lapis headline [S48, LIFT_PLAN row 6]: the text is whole
             // and already gold; the class runs one clip-path wipe left to
             // right (the register's `kp-burnish` keyframe), then the
             // element rests. Without an animation the class comes off by
@@ -280,7 +280,7 @@ export function install(ctx) {
             // one-shot optical resolve, then the element rests. Without an
             // animation the class comes off by the table's duration. Its own
             // routine name and keyframe, distinct from the `focus` word-
-            // stagger group and `kp-focus` shade-dark already owns.
+            // stagger group and `kp-focus` Shade (dark) already owns.
             state.pending++;
             el.classList.add(STATE.sharpening);
             let ended = false;
@@ -360,12 +360,12 @@ export function install(ctx) {
         }
 
         if (routine === 'shout' || routine === 'slam' || routine === 'focus' || routine === 'resolve' || routine === 'blur') {
-            // A word routine [PH2, BR2, S48 shade-dark and dark]: every word in its own span with its
+            // A word routine [PH2, BR2, S48 Shade (dark) and dark]: every word in its own span with its
             // index, the register animates them one after another by
             // `--kp-i`; the element ends as its own text. The keyframe is
             // `kp-<routine>` and its row in TIMINGS says how long one word
             // takes; the stagger is the theme's knob. One routine names its
-            // keyframe otherwise: shade-light's `blur` runs `kp-word-in`,
+            // keyframe otherwise: Shade (light)'s `blur` runs `kp-word-in`,
             // the name its own approved demo used [SL2, S49].
             state.pending++;
             const parts = text.split(/(\s+)/);

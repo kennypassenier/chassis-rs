@@ -41,7 +41,7 @@ import { attachRemembered, restoreRemembered } from './remember.js';
 import { attachDialogs, attachDismissals, attachScrollbars, attachTabs, attachTooltips } from './overlays.js';
 import { attachThemePickers } from './theme-picker.js';
 import { attachEffects } from './effects.js';
-import { asOf, presentUnder } from './as-of.js';
+import { asOf, presentUnder, settleAfter } from './as-of.js';
 
 /**
  * @typedef {object} Need
@@ -125,12 +125,22 @@ export const NEEDS = [
     { name: 'actions', when: '.kp-row-actions', load: () => import('./actions.js'), attach: (m, root) => [m.attachActionColumns(root)] },
     {
         name: 'kpi',
-        when: 'svg[data-kp-spark], button.kp-kpi--toggle',
+        when: 'svg[data-kp-spark], button.kp-kpi--toggle, .kp-kpis[data-kp-kpis-columns]',
         load: () => import('./kpi.js'),
-        attach: (m, root) => [m.attachSparklines(root), m.attachKpiToggles(root)],
+        attach: (m, root) => [m.attachSparklines(root), m.attachKpiToggles(root), m.attachKpiStrips(root)],
     },
     { name: 'attention', when: '.kp-attention', load: () => import('./attention.js'), attach: (m, root) => [m.attachAttention(root)] },
+    // Tiles of one height across a board, and the ticking freshness line
+    // (port spec H and I.4).
+    { name: 'tiles', when: '[data-kp-tiles-set]', load: () => import('./tiles.js'), attach: (m, root) => [m.attachTileSets(root)] },
+    { name: 'freshness', when: '[data-kp-ago]', load: () => import('./freshness.js'), attach: (m, root) => [m.attachAgo(root)] },
     { name: 'chart', when: '[data-kp-chart]', load: () => import('./chart.js'), attach: (m, root) => [m.attachCharts(root)] },
+    // The menu button with its rich menu [scope-143]: every other action, grouped.
+    { name: 'menu-button', when: '[data-kp-menu-button]', load: () => import('./menu-button.js'), attach: (m, root) => [m.attachMenuButtons(root)] },
+    // The month heatmap [scope-143]: a month of days, each a plate in the
+    // colour of its state; the page gives the days with setCalendarDays().
+    { name: 'calendar', when: '[data-kp-calendar]', load: () => import('./calendar.js'), attach: (m, root) => [m.attachCalendars(root)] },
+    { name: 'graph', when: '[data-kp-graph]', load: () => import('./graph.js'), attach: (m, root) => [m.attachGraphs(root)] },
     {
         // Every box that changes size after it is drawn, and every dialog's
         // close [scope-142]: the selector is the module's own.
@@ -192,12 +202,22 @@ export function attachAll(root = document) {
             }),
         );
     }
+    const ready = Promise.all(pending).then(() => undefined);
+    // What the modules draw now is the page's first render, not news: the
+    // root settles until they have all attached and two frames are painted,
+    // and js/motion.js lets nothing arrive or glide under it meanwhile
+    // [fix-100]. A module fetched later than motion (the data table, three
+    // thousand lines) drew its whole chrome into an eased box, and 263
+    // elements arrived on the catalogue's first frame.
+    const mark = root instanceof Document ? root.documentElement : root instanceof Element ? root : null;
+    const settled = mark ? settleAfter(mark, ready) : () => undefined;
     const detach = () => {
         detached = true;
+        settled();
         for (const one of detaches) if (typeof one === 'function') one();
         effects.detach();
     };
-    return Object.assign(detach, { ready: Promise.all(pending).then(() => undefined), modules });
+    return Object.assign(detach, { ready, modules });
 }
 
 if (typeof document !== 'undefined') {

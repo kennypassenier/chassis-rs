@@ -92,6 +92,19 @@
 //                              panel stays the default, and both keep the
 //                              same filter state, handle and events.
 //
+// And three for the homelab hand-off [J2, scope-143], each off until the
+// markup asks for it:
+//
+//   data-kp-expand-single      opening one row closes the row that was open
+//   tr data-kp-row-group="g"   a heading row that folds the rows marked
+//                              data-kp-group-of="g"; a sort orders the rows
+//                              within their group, the groups keep their place
+//   Enter or Space on a row (or a cell) that holds the focus itself opens it
+//                              as a click does, and folds a group row
+//
+// and the `decorate(part, info)` option, called for every row toggle and
+// group toggle this builds, so a consumer can mark the controls it drives.
+//
 // Inline editing and the keyboard grid reverse the "left out" of TH42: the
 // APG grid pattern is right for a table a person edits, and Kenny asked for
 // both.
@@ -102,6 +115,7 @@ import { attachTableRegions } from './tables.js';
 import { attachDatePickers, datePicker, DATE_EVENT } from './datepicker.js';
 import { attachSelect, drawsSelect } from './combobox.js';
 import { columnId, paintRemembered } from './remember.js';
+import { FOLDING_OUT, playArrivalBackwards, stopReversing } from './motion.js';
 
 const TABLE = '[data-kp-datatable]';
 const SEARCH = '[data-kp-datatable-search]';
@@ -130,6 +144,11 @@ const EXPAND_ALL = '[data-kp-datatable-expand-all]';
 const COLLAPSE_ALL = '[data-kp-datatable-collapse-all]';
 const EXPAND_COLUMN = '[data-kp-expand-column]';
 const ROW_TOGGLE = '[data-kp-row-toggle]';
+/** A heading row that folds the rows of its group [J2]. */
+export const GROUP_ROW = '[data-kp-row-group]';
+const GROUP_TOGGLE = '[data-kp-group-toggle]';
+/** A slot in a group row that the table writes the group's matched row count into. */
+const GROUP_COUNT = '[data-kp-group-count]';
 /** What in a row answers a click itself, so the click does not also open the row. */
 const ROW_CONTROLS =
     'a[href], button, input, select, textarea, label, summary, details, [contenteditable=""], [contenteditable="true"], [role="button"], [role="link"], [role="checkbox"], [role="switch"], [role="menuitem"], [tabindex]:not([tabindex="-1"])';
@@ -153,7 +172,7 @@ const CHECK_CLASS = 'kp-field__check';
 /**
  * @typedef {{ shown: number, total: number, page: number, pages: number, pageSize: number, query: string, scope: number | null,
  *   filters: Record<number, FilterValue>, sort: Sort, sorts: SortKey[], hidden: number[], expanded: string[], density: Density, state: State,
- *   keys: string[], pageKeys: string[] }} View
+ *   keys: string[], pageKeys: string[], folded: string[] }} View
  */
 /**
  * What a server-backed table asks its `load` for [Kenny, 2026-09-13].
@@ -182,12 +201,17 @@ export const SORT_EVENT = 'kp-datatable-sort';
 export const RETRY_EVENT = 'kp-datatable-retry';
 /** Fired when the reader shows or hides a column: `{ hidden }`, the column indices. */
 export const COLUMNS_EVENT = 'kp-datatable-columns';
-/** Fired when a row opens or closes: `{ key, row, open, cell, expanded }`; `cell` is the detail cell, for an app that fills it then. */
+/**
+ * Fired when a row opens or closes: `{ key, row, open, cell, expanded }`; `cell` is the detail cell, for an app that fills it then.
+ * In a `data-kp-expand-single` table an opening that closed the row open before fires once, with those keys in `closed`.
+ */
 export const EXPAND_EVENT = 'kp-datatable-expand';
 /** Fired when a server-backed table needs rows: the DataRequest, plus `respond(answer)` and `fail(error)`. */
 export const REQUEST_EVENT = 'kp-datatable-request';
 /** Fired, cancelable, when an edited value is about to be saved (EditDetail); `preventDefault()` refuses it. */
 export const EDIT_EVENT = 'kp-datatable-edit';
+/** Fired when a group row folds or unfolds [J2]: `{ key, row, open, members, folded }`; `members` are the group's rows, `folded` every folded key. */
+export const GROUP_EVENT = 'kp-datatable-group';
 
 /** Rows per page when the consumer does not say [Kenny, 2026-09-13]. Per table as `data-kp-page-size`. */
 export const PAGE_SIZE = 25;
@@ -563,8 +587,9 @@ export function attachGrid(table, { pageRows = GRID_PAGE_ROWS, onMove } = {}) {
         if (cell === undefined) return;
         if (take) targetOf(cell).focus();
         const header = list.filter((tr) => tr.parentElement?.tagName === 'THEAD').length;
-        const bodyRows = list.filter((tr) => tr.parentElement?.tagName !== 'THEAD' && !tr.matches(DETAIL)).length;
-        const bodyIndex = r < header ? 0 : list.slice(header, r + 1).filter((tr) => !tr.matches(DETAIL)).length;
+        // A detail row and a group's heading row are not rows of data.
+        const bodyRows = list.filter((tr) => tr.parentElement?.tagName !== 'THEAD' && !tr.matches(DETAIL) && !tr.matches(GROUP_ROW)).length;
+        const bodyIndex = r < header ? 0 : list.slice(header, r + 1).filter((tr) => !tr.matches(DETAIL) && !tr.matches(GROUP_ROW)).length;
         onMove?.({ row: bodyIndex, rows: bodyRows, column: c, cell });
     };
 
@@ -642,7 +667,8 @@ const defaultFilter = (row, query) => (row.textContent ?? '').toLowerCase().incl
  * @property {() => void} clearFilters
  * @property {(column: number | null) => void} editFilter  open a column's filter editor, or close it with null; in the panel mode, open or close the panel
  * @property {(columns: readonly number[]) => void} hideColumns  the columns to hide; a locked column stays
- * @property {(keys: readonly string[]) => void} expand  the rows to open, by key
+ * @property {(keys: readonly string[]) => void} expand  the rows to open, by key; in a `data-kp-expand-single` table only the last key opens
+ * @property {(keys: readonly string[]) => void} fold  the group rows to fold, by group key; every other group unfolds [J2]
  * @property {(density: Density) => void} density
  * @property {(state: State) => void} state  loading, failed, or ready again
  * @property {(words?: string | null | { text?: string | null, since?: number | Date | null, overlay?: boolean }) => void} busy  the status line's words while the table loads, kept across refresh(), shown only while loading, cleared with no text [fix-80]; with `since` (a time or a Date) the table counts how long it has been loading by itself, in a part the live region does not announce [fix-84]; with `overlay: true` (or `data-kp-busy-overlay` on the wrapper) a large spinner with those words and that count sits over the rows while it loads, aria-hidden
@@ -687,6 +713,16 @@ let instances = 0;
  * @property {string} [expandGlyph]   Default ▸.
  * @property {string} [collapseGlyph] Default ▾.
  * @property {number} [gridPageRows]  Default 5.
+ * @property {boolean} [expandSingle]  Opening a row closes the one that was open. Default false; per table `data-kp-expand-single`.
+ * @property {(part: HTMLElement, info: DataTableDecorateInfo) => void} [decorate]  Called with every row toggle and group toggle the
+ *   table builds, each time it builds one, so the consumer can mark it (homelab's Live view marks what it can press) [J2, R-DRIVE].
+ */
+
+/**
+ * What `decorate` is told about the control it is handed: the same shape every kp module's `decorate` takes.
+ * `kind` is `row-toggle` (a row's expand button; `value` is the row key) or `row-group-toggle` (a group row's fold button;
+ * `value` is the group key). `host` is the data table's wrapper and `key` its `data-kp-key`.
+ * @typedef {{ kind: 'row-toggle' | 'row-group-toggle', host: HTMLElement, key?: string, index?: number, label?: string, value?: string }} DataTableDecorateInfo
  */
 
 /**
@@ -724,6 +760,8 @@ export function attachDataTables(
         expandGlyph = '▸',
         collapseGlyph = '▾',
         gridPageRows = GRID_PAGE_ROWS,
+        expandSingle = false,
+        decorate,
     } = {},
 ) {
     /** @type {(() => void)[]} */
@@ -750,6 +788,15 @@ export function attachDataTables(
         const added = [];
         /** @type {(() => void)[]} */
         const undo = [];
+        // The table redraws its own chrome (the group toggles, the pager, the
+        // card sort) on every render; under js/motion.js each redraw arrived
+        // again, held the box's glide and made a group's fold wait seconds
+        // for them (Kenny, 2026-10-05). Unless the page says otherwise, only
+        // what is new arrives [port spec G]; rows shown again still do.
+        if (!wrap.closest('[data-kp-arrive]')) {
+            wrap.setAttribute('data-kp-arrive', 'new');
+            undo.push(() => wrap.removeAttribute('data-kp-arrive'));
+        }
         const s0 = getStrings();
 
         // The scroll box is a region a keyboard can reach [TH95]. Here as
@@ -812,11 +859,22 @@ export function attachDataTables(
                         details.set(owner, row);
                         if (!detailsWereHidden.has(row)) detailsWereHidden.set(row, row.hidden === true);
                     }
-                } else if (!row.matches(SKELETON_ROW)) owner = row;
+                } else if (row.matches(GROUP_ROW)) owner = null;
+                else if (!row.matches(SKELETON_ROW)) owner = row;
             }
         };
         collectDetails();
         const expandable = wrap.dataset.kpExpandable !== undefined && headRow !== undefined;
+        /** One row open at a time [J2]: opening one closes the one that was open. */
+        const single = wrap.dataset.kpExpandSingle === undefined ? expandSingle : wrap.dataset.kpExpandSingle !== 'false';
+        /** The consumer's mark on a control this table built [J2, R-DRIVE]. @param {HTMLElement} part @param {Omit<DataTableDecorateInfo, 'host' | 'key'>} info */
+        const decoratePart = (part, info) => {
+            if (decorate === undefined) return;
+            /** @type {DataTableDecorateInfo} */
+            const full = { ...info, host: wrap };
+            if (wrap.dataset.kpKey !== undefined) full.key = wrap.dataset.kpKey;
+            decorate(part, full);
+        };
         /** Rows open for their details, by key. @type {Set<string>} */
         const expanded = new Set();
         if (expandable && headRow !== undefined && headRow.querySelector(EXPAND_COLUMN) === null) {
@@ -830,20 +888,33 @@ export function attachDataTables(
         }
         /** The toggle's cell, first in the row, so the row's cells line up with the headers. @param {HTMLTableRowElement} row */
         const insertExpandCell = (row) => {
-            if (!expandable || row.matches(DETAIL) || row.matches(SKELETON_ROW) || row.querySelector('[data-kp-expand-cell]') !== null) return;
+            if (
+                !expandable ||
+                row.matches(DETAIL) ||
+                row.matches(SKELETON_ROW) ||
+                row.matches(GROUP_ROW) ||
+                row.querySelector('[data-kp-expand-cell]') !== null
+            )
+                return;
             const cell = /** @type {HTMLTableCellElement} */ (make('td'));
             cell.dataset.kpExpandCell = '';
             cell.dataset.label = '';
             // Where the markup wrote detail rows, only a row that has one gets a
             // button; with a `detail` option or no detail rows at all, every row
             // does, and the app fills the detail when the row first opens.
+            /** @type {HTMLButtonElement | null} */
+            let button = null;
             if (details.has(row) || detailFn !== undefined || details.size === 0) {
-                const button = /** @type {HTMLButtonElement} */ (make('button', 'kp-button kp-button--ghost kp-button--sm kp-datatable__expand'));
+                button = /** @type {HTMLButtonElement} */ (make('button', 'kp-button kp-button--ghost kp-button--sm kp-datatable__expand'));
                 button.type = 'button';
                 button.dataset.kpRowToggle = '';
                 cell.append(button);
             }
             row.prepend(cell);
+            if (button !== null) {
+                const rowKey = row.dataset.kpRowKey ?? row.id ?? '';
+                decoratePart(button, { kind: 'row-toggle', value: rowKey, label: s0.tableRowDetails(rowKey) });
+            }
         };
         for (const row of body.rows) insertExpandCell(row);
 
@@ -884,7 +955,7 @@ export function attachDataTables(
         const keyOf = (row) => row.dataset.kpRowKey ?? row.id ?? '';
 
         /** Every row as it was rendered. Sorting reorders this array, never the DOM's idea of it. */
-        const isRow = (/** @type {HTMLTableRowElement} */ row) => !row.matches(DETAIL) && !row.matches(SKELETON_ROW);
+        const isRow = (/** @type {HTMLTableRowElement} */ row) => !row.matches(DETAIL) && !row.matches(SKELETON_ROW) && !row.matches(GROUP_ROW);
         let all = /** @type {HTMLTableRowElement[]} */ ([...body.rows].filter(isRow));
         /** The order the server rendered, so detach can put it back. */
         const rendered = [...all];
@@ -1533,9 +1604,212 @@ export function attachDataTables(
             if (row.dataset.kpExpanded !== undefined) expanded.add(keyOf(row));
             prepareRow(row);
         }
+        // One open row at a time: of several marked open, the last stays.
+        if (single && expanded.size > 1) {
+            const last = /** @type {string} */ ([...expanded][expanded.size - 1]);
+            expanded.clear();
+            expanded.add(last);
+        }
 
         /** The count of the columns a reader sees. */
         const visibleColumns = () => headers.filter((_, at) => !hiddenColumns.has(at)).length;
+
+        // ── Group rows that fold a run of rows [J2] ────────────────────
+        // A heading row `tr[data-kp-row-group="g"]` folds the rows marked
+        // `data-kp-group-of="g"`. The table keeps a group together under its
+        // heading: a sort orders the rows within their group, and the groups,
+        // and any run of rows outside a group between them, keep the place
+        // the markup gave them. That is the least surprising of the choices:
+        // a sort that tore a group apart would leave headings over rows that
+        // are not theirs. A filter hides a group whose rows all fail it, and
+        // a group split over two pages shows its heading on both. Folded rows
+        // still count as matched, so the status line keeps the exact number
+        // [R-COUNT]. Not for a server-backed table, whose server orders rows.
+        /** Each group's heading row, by group key. @type {Map<string, HTMLTableRowElement>} */
+        const groups = new Map();
+        /** The group keys folded now; kept by key, so they outlive a refresh. @type {Set<string>} */
+        const folded = new Set();
+        /** Rows of a folding group held shown while their arrival plays backwards. @type {Set<HTMLTableRowElement>} */
+        const departing = new Set();
+        /** Every group key seen, so a heading's data-kp-folded counts the first time only. @type {Set<string>} */
+        const seenGroups = new Set();
+        /** The blocks in the order they stand: a group, or a run of rows outside every group. @type {string[]} */
+        let blockOrder = [];
+        /** @type {Map<HTMLTableRowElement, string>} */
+        const blockOf = new Map();
+        /** A heading's name, read before its toggle went in. @type {Map<HTMLTableRowElement, string>} */
+        const groupNames = new Map();
+        /** Heading rows this attach prepared, with what detach puts back. @type {Map<HTMLTableRowElement, { span: string | null, hidden: boolean }>} */
+        const preparedGroups = new Map();
+        /** Member rows this attach gave an id, so their toggle can name them in aria-controls. @type {Set<HTMLTableRowElement>} */
+        const givenIds = new Set();
+        let memberIds = 0;
+        /** The group a row belongs to, when that group has a heading row. @param {HTMLTableRowElement} row */
+        const groupOf = (row) => {
+            const key = row.dataset.kpGroupOf;
+            return key !== undefined && groups.has(key) ? key : null;
+        };
+        /** A heading row's fold button, first in its first cell. @param {HTMLTableRowElement} heading */
+        const prepareGroup = (heading) => {
+            const cell = heading.cells[0];
+            if (cell === undefined || heading.querySelector(GROUP_TOGGLE) !== null) return;
+            const key = heading.dataset.kpRowGroup ?? '';
+            const copy = /** @type {HTMLElement} */ (heading.cloneNode(true));
+            for (const slot of copy.querySelectorAll(GROUP_COUNT)) slot.remove();
+            const name = heading.dataset.kpGroupLabel ?? (copy.textContent ?? '').replace(/\s+/g, ' ').trim();
+            groupNames.set(heading, name);
+            preparedGroups.set(heading, { span: heading.cells.length === 1 ? cell.getAttribute('colspan') : null, hidden: heading.hidden === true });
+            const button = /** @type {HTMLButtonElement} */ (
+                make('button', 'kp-button kp-button--ghost kp-button--sm kp-datatable__expand kp-datatable__group-toggle')
+            );
+            button.type = 'button';
+            button.dataset.kpGroupToggle = '';
+            cell.prepend(button);
+            decoratePart(button, { kind: 'row-group-toggle', value: key, label: name });
+        };
+        /** Read the group rows and the blocks from the body as it stands now. */
+        const collectGroups = () => {
+            if (serverMode) return;
+            groups.clear();
+            for (const row of body.rows) {
+                if (!row.matches(GROUP_ROW)) continue;
+                const key = row.dataset.kpRowGroup ?? '';
+                if (groups.has(key)) continue;
+                groups.set(key, row);
+                if (!seenGroups.has(key)) {
+                    seenGroups.add(key);
+                    if (row.dataset.kpFolded !== undefined) folded.add(key);
+                }
+                prepareGroup(row);
+            }
+            blockOrder = [];
+            blockOf.clear();
+            if (groups.size === 0) return;
+            const placed = new Set();
+            let loose = 0;
+            let inLoose = false;
+            for (const row of body.rows) {
+                if (row.matches(DETAIL) || row.matches(SKELETON_ROW)) continue;
+                /** @type {string} */
+                let block;
+                if (row.matches(GROUP_ROW)) {
+                    const key = row.dataset.kpRowGroup ?? '';
+                    if (groups.get(key) !== row) continue;
+                    block = `group:${key}`;
+                } else {
+                    const key = groupOf(row);
+                    if (key !== null) block = `group:${key}`;
+                    else {
+                        if (!inLoose) loose += 1;
+                        block = `rows:${loose}`;
+                    }
+                }
+                inLoose = block.startsWith('rows:');
+                if (!placed.has(block)) {
+                    placed.add(block);
+                    blockOrder.push(block);
+                }
+                if (!row.matches(GROUP_ROW)) blockOf.set(row, block);
+            }
+        };
+        collectGroups();
+        /** The body's order at attach, headings included, for detach. */
+        const layoutAtAttach = groups.size > 0 ? [...body.rows] : null;
+        /** Rows in the order of their blocks, each block's rows in the order given. @param {HTMLTableRowElement[]} rows */
+        const arrange = (rows) => {
+            if (blockOrder.length === 0) return rows;
+            /** @type {Map<string, HTMLTableRowElement[]>} */
+            const byBlock = new Map();
+            for (const row of rows) {
+                const block = blockOf.get(row) ?? '';
+                const list = byBlock.get(block);
+                if (list === undefined) byBlock.set(block, [row]);
+                else list.push(row);
+            }
+            return [...blockOrder, ''].flatMap((block) => byBlock.get(block) ?? []);
+        };
+        /** Is the row in a folded group? @param {HTMLTableRowElement} row */
+        const isFolded = (row) => {
+            const key = groupOf(row);
+            return key !== null && folded.has(key);
+        };
+        /**
+         * Put the body in the order of its blocks: each heading, then its
+         * rows, each with its detail. Nothing moves when the order already
+         * stands, and a control that held the focus gets it back when it
+         * moved, so a refresh leaves the reader where they were [R-LIVE].
+         */
+        const placeGroups = () => {
+            const shownSet = new Set(shownRows);
+            const allSet = new Set(all);
+            /** @type {Map<string, HTMLTableRowElement[]>} */
+            const byBlock = new Map();
+            for (const row of [...shownRows, ...rendered.filter((r) => !shownSet.has(r) && allSet.has(r))]) {
+                const block = blockOf.get(row) ?? '';
+                const list = byBlock.get(block);
+                if (list === undefined) byBlock.set(block, [row]);
+                else list.push(row);
+            }
+            /** @type {HTMLTableRowElement[]} */
+            const sequence = [];
+            for (const block of [...blockOrder, '']) {
+                const heading = block.startsWith('group:') ? groups.get(block.slice('group:'.length)) : undefined;
+                if (heading !== undefined) sequence.push(heading);
+                for (const row of byBlock.get(block) ?? []) {
+                    sequence.push(row);
+                    const detail = details.get(row);
+                    if (detail !== undefined) sequence.push(detail);
+                }
+            }
+            const wanted = new Set(sequence);
+            const current = [...body.rows].filter((row) => wanted.has(row));
+            if (current.length === sequence.length && current.every((row, at) => row === sequence[at])) return;
+            const active = document.activeElement;
+            const held = active instanceof HTMLElement && body.contains(active) ? active : null;
+            for (const row of sequence) body.append(row);
+            if (held !== null && held.isConnected && document.activeElement !== held) held.focus({ preventScroll: true });
+        };
+        /** Name each heading's toggle, count its rows and show it where its rows are. @param {ReturnType<typeof getStrings>} s */
+        const syncGroups = (s) => {
+            if (groups.size === 0) return;
+            /** @type {Map<string, number>} */
+            const matched = new Map();
+            for (const row of shownRows) {
+                const key = groupOf(row);
+                if (key !== null) matched.set(key, (matched.get(key) ?? 0) + 1);
+            }
+            /** @type {Map<string, string[]>} */
+            const onPage = new Map();
+            for (const row of pageRows) {
+                const key = groupOf(row);
+                if (key === null) continue;
+                if (row.id === '' && row.dataset.kpRowKey !== undefined) {
+                    memberIds += 1;
+                    row.id = `${id}-row-${memberIds}`;
+                    givenIds.add(row);
+                }
+                const ids = onPage.get(key) ?? [];
+                if (row.id !== '') ids.push(row.id);
+                onPage.set(key, ids);
+            }
+            for (const [key, heading] of groups) {
+                const count = matched.get(key) ?? 0;
+                const open = !folded.has(key);
+                heading.hidden = !onPage.has(key);
+                const button = heading.querySelector(GROUP_TOGGLE);
+                if (button !== null) {
+                    button.setAttribute('aria-expanded', String(open));
+                    button.setAttribute('aria-label', s.tableGroupRows(groupNames.get(heading) ?? key, count));
+                    button.textContent = open ? glyphs.collapse : glyphs.expand;
+                    const ids = onPage.get(key) ?? [];
+                    if (ids.length > 0) button.setAttribute('aria-controls', ids.join(' '));
+                    else button.removeAttribute('aria-controls');
+                }
+                for (const slot of heading.querySelectorAll(GROUP_COUNT)) slot.textContent = String(count);
+                const cell = heading.cells[0];
+                if (heading.cells.length === 1 && cell !== undefined) cell.colSpan = visibleColumns();
+            }
+        };
 
         /** A detail row, made ready to show: its class, its id and its span. @param {HTMLTableRowElement} row */
         const detailFor = (row) => {
@@ -1590,6 +1864,7 @@ export function attachDataTables(
             state,
             keys: shownRows.map(keyOf),
             pageKeys: pageRows.map(keyOf),
+            folded: [...folded],
         });
 
         /** Keys ticked in a server-backed table, which outlive the rows of one page. @type {Set<string>} */
@@ -1707,7 +1982,7 @@ export function attachDataTables(
                 header.hidden = hiddenColumns.has(at) || (headersWereHidden[at] ?? false);
             });
             for (const row of body.rows) {
-                if (row.matches(DETAIL)) continue;
+                if (row.matches(DETAIL) || row.matches(GROUP_ROW)) continue;
                 headers.forEach((_, at) => {
                     const cell = row.cells[at];
                     if (cell !== undefined) cell.hidden = hiddenColumns.has(at);
@@ -1768,15 +2043,18 @@ export function attachDataTables(
             const from = page * size;
             pageRows = serverMode || pager === null ? shownRows : shownRows.slice(from, from + size);
             for (const row of all) row.hidden = true;
-            for (const row of pageRows) row.hidden = false;
+            // A row of a folded group stays on its page, hidden [J2].
+            for (const row of pageRows) row.hidden = groups.size > 0 && isFolded(row) && !departing.has(row);
             // Reordering by appending: the rows are the same elements, so
             // anything a consumer attached to them survives a sort. A row's
             // detail travels directly under it.
-            for (const row of shownRows) {
-                body.append(row);
-                const detail = details.get(row);
-                if (detail !== undefined) body.append(detail);
-            }
+            if (blockOrder.length > 0) placeGroups();
+            else
+                for (const row of shownRows) {
+                    body.append(row);
+                    const detail = details.get(row);
+                    if (detail !== undefined) body.append(detail);
+                }
             for (const [row, detail] of details) {
                 const open = expanded.has(keyOf(row)) && !row.hidden && all.includes(row);
                 if (open) detailFor(row);
@@ -1785,6 +2063,7 @@ export function attachDataTables(
             for (const row of all) labelRow(row);
 
             const s = getStrings();
+            syncGroups(s);
             if (status !== null) {
                 status.textContent = '';
                 if (state === 'loading') {
@@ -2290,6 +2569,9 @@ export function attachDataTables(
                 const keep = new Set(shownRows);
                 shownRows = rendered.filter((row) => keep.has(row));
             } else shownRows = [...shownRows].sort(compareRows);
+            // Group rows keep their rows together [J2]: the sort above is
+            // stable, so this orders the rows within each group.
+            shownRows = arrange(shownRows);
         };
 
         /** @param {{ keepPage?: boolean }} [options] */
@@ -2604,21 +2886,135 @@ export function attachDataTables(
         const setExpanded = (row, open) => {
             const key = keyOf(row);
             if (open === expanded.has(key)) return;
+            // One open row at a time [J2]: the opening closes the row that
+            // was open, in the same step and the same event.
+            /** @type {string[]} */
+            const closed = open && single ? [...expanded] : [];
+            for (const other of closed) expanded.delete(other);
             if (open) expanded.add(key);
             else expanded.delete(key);
             const detail = open ? detailFor(row) : details.get(row);
             render();
-            wrap.dispatchEvent(
-                new CustomEvent(EXPAND_EVENT, { bubbles: true, detail: { key, row, open, cell: detail?.cells[0] ?? null, expanded: [...expanded] } }),
-            );
+            /** @type {Record<string, unknown>} */
+            const said = { key, row, open, cell: detail?.cells[0] ?? null, expanded: [...expanded] };
+            if (single) said.closed = closed;
+            wrap.dispatchEvent(new CustomEvent(EXPAND_EVENT, { bubbles: true, detail: said }));
         };
         /** @param {readonly string[]} keys */
         const expandKeys = (keys) => {
-            const want = new Set(keys);
+            const want = new Set(single ? keys.slice(-1) : keys);
             for (const row of all) {
                 const key = keyOf(row);
                 if (want.has(key) !== expanded.has(key)) setExpanded(row, want.has(key));
             }
+        };
+
+        // ── Folding a group [J2] ───────────────────────────────────────
+        /** @param {string} key @param {boolean} fold */
+        const setFolded = (key, fold) => {
+            if (fold === folded.has(key)) return;
+            // A group folds as it unfolded, turned around: its rows play
+            // their arrival backwards (js/motion.js) and are hidden once it
+            // has played; they unfolded the theme's way and folded away at
+            // once (Kenny, 2026-10-05). Unfolded meanwhile, they turn round.
+            // Meanwhile they carry `data-kp-folding="out"`, so the box around
+            // them glides shut as they play, the mirror of its glide open
+            // (Kenny's form v21: it snapped shut once they had gone).
+            const going = fold ? pageRows.filter((row) => groupOf(row) === key && !row.hidden) : [];
+            if (fold) folded.add(key);
+            else {
+                folded.delete(key);
+                for (const row of [...departing])
+                    if (groupOf(row) === key) {
+                        departing.delete(row);
+                        row.removeAttribute('data-kp-folding');
+                        stopReversing(row);
+                    }
+            }
+            for (const row of going) {
+                departing.add(row);
+                row.setAttribute('data-kp-folding', FOLDING_OUT);
+            }
+            if (going.length)
+                void Promise.all(going.map((row) => playArrivalBackwards(row))).then(() => {
+                    let held = false;
+                    for (const row of going)
+                        if (departing.delete(row)) {
+                            row.removeAttribute('data-kp-folding');
+                            held = true;
+                        }
+                    if (held) render();
+                });
+            render();
+            wrap.dispatchEvent(
+                new CustomEvent(GROUP_EVENT, {
+                    bubbles: true,
+                    detail: {
+                        key,
+                        row: groups.get(key) ?? null,
+                        open: !fold,
+                        members: all.filter((row) => groupOf(row) === key),
+                        folded: [...folded],
+                    },
+                }),
+            );
+        };
+        /** @param {readonly string[]} keys */
+        const foldKeys = (keys) => {
+            const want = new Set(keys);
+            for (const key of groups.keys()) setFolded(key, want.has(key));
+            // A group not in the body now keeps the state it is given, for when its rows come.
+            for (const key of [...folded]) if (!groups.has(key) && !want.has(key)) folded.delete(key);
+            for (const key of want) if (!groups.has(key)) folded.add(key);
+        };
+        /**
+         * Enter or Space on a row, or on a cell, that holds the focus itself
+         * (a row given a tabindex, a cell of the keyboard grid) works it as a
+         * click does: opens the row, folds the group [J2, R-KEYS]. A control
+         * in the row keeps its own keys.
+         * @param {KeyboardEvent} event
+         */
+        const onRowKey = (event) => {
+            if ((event.key !== 'Enter' && event.key !== ' ') || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+            const target = /** @type {HTMLElement} */ (event.target);
+            if (!target.matches('tr, td, th')) return;
+            const row = /** @type {HTMLTableRowElement | null} */ (target.closest('tr'));
+            if (row === null || row.parentElement !== body || row.matches(DETAIL)) return;
+            if (row.matches(GROUP_ROW)) {
+                const key = row.dataset.kpRowGroup ?? '';
+                if (groups.get(key) !== row) return;
+                event.preventDefault();
+                setFolded(key, !folded.has(key));
+            } else if (expandable && row.querySelector(ROW_TOGGLE) !== null) {
+                event.preventDefault();
+                setExpanded(row, !expanded.has(keyOf(row)));
+            } else return;
+            if (target.isConnected && document.activeElement !== target) target.focus({ preventScroll: true });
+        };
+
+        /**
+         * The row toggle or group toggle that holds the focus, by key, so a
+         * refresh after the consumer replaced its row can give the focus to
+         * the new row's toggle [R-LIVE].
+         * @typedef {{ element: HTMLElement, selector: string, key: string | null, group: string | null }} FocusMemo
+         */
+        /** @param {HTMLElement} element @returns {FocusMemo | null} */
+        const toggleMemo = (element) => {
+            const selector = element.matches(ROW_TOGGLE) ? ROW_TOGGLE : element.matches(GROUP_TOGGLE) ? GROUP_TOGGLE : null;
+            const row = /** @type {HTMLTableRowElement | null} */ (element.closest('tr'));
+            if (selector === null || row === null) return null;
+            const isGroup = row.matches(GROUP_ROW);
+            return { element, selector, key: isGroup ? null : keyOf(row), group: isGroup ? (row.dataset.kpRowGroup ?? null) : null };
+        };
+        /** @type {FocusMemo | null} */
+        let focusMemo = null;
+        /** @param {FocusEvent} event */
+        const onBodyFocusIn = (event) => {
+            focusMemo = event.target instanceof HTMLElement ? toggleMemo(event.target) : null;
+        };
+        /** Focus that moved on, while the toggle is still in the page, is the reader's choice: forget it. @param {FocusEvent} event */
+        const onBodyFocusOut = (event) => {
+            if (focusMemo !== null && event.target === focusMemo.element && focusMemo.element.isConnected) focusMemo = null;
         };
 
         const announceSelection = () => {
@@ -2948,6 +3344,20 @@ export function attachDataTables(
                 expandKeys([...new Set([...expanded, ...pageRows.filter((row) => row.querySelector(ROW_TOGGLE) !== null).map(keyOf)])]);
             if (target.closest(COLLAPSE_ALL) !== null) expandKeys([]);
             if (target.closest('[data-kp-datatable-undo]') !== null && editLog?.contains(target)) void undoEdit();
+            const groupRow = /** @type {HTMLTableRowElement | null} */ (target.closest(GROUP_ROW));
+            if (groupRow !== null && groupRow.parentElement === body && groups.get(groupRow.dataset.kpRowGroup ?? '') === groupRow) {
+                // A group row folds from its toggle, or from a click anywhere
+                // in it that is not on a control of its own or a selection [J2].
+                const groupToggle = target.closest(GROUP_TOGGLE);
+                const interactive = target.closest(ROW_CONTROLS);
+                const control = interactive !== null && !interactive.matches('td, th, tr') ? interactive : null;
+                const selecting = (window.getSelection?.()?.toString() ?? '') !== '';
+                if (groupToggle !== null || ((control === null || !groupRow.contains(control)) && !selecting)) {
+                    const key = groupRow.dataset.kpRowGroup ?? '';
+                    setFolded(key, !folded.has(key));
+                    if (groupToggle !== null) /** @type {HTMLElement | null} */ (groupRow.querySelector(GROUP_TOGGLE))?.focus();
+                }
+            }
             const rowToggle = /** @type {HTMLElement | null} */ (target.closest(ROW_TOGGLE));
             if (rowToggle !== null && body.contains(rowToggle)) {
                 const row = /** @type {HTMLTableRowElement} */ (rowToggle.closest('tr'));
@@ -2969,6 +3379,7 @@ export function attachDataTables(
                     row !== null &&
                     row.parentElement === body &&
                     !row.matches(DETAIL) &&
+                    !row.matches(GROUP_ROW) &&
                     row.querySelector(ROW_TOGGLE) !== null &&
                     (control === null || !row.contains(control)) &&
                     !selecting
@@ -3018,6 +3429,9 @@ export function attachDataTables(
         table.tHead?.addEventListener('click', onHeadClick);
         table.tHead?.addEventListener('keydown', onHeadKey);
         body.addEventListener('change', onBodyChange);
+        body.addEventListener('keydown', onRowKey);
+        body.addEventListener('focusin', onBodyFocusIn);
+        body.addEventListener('focusout', onBodyFocusOut);
         selectAll?.addEventListener('change', onSelectAll);
         query = search?.value ?? '';
         // Headers the server rendered already sorted keep their sort, in the
@@ -3112,6 +3526,10 @@ export function attachDataTables(
             },
             hideColumns: (columns) => setHidden(columns),
             expand: expandKeys,
+            fold: (keys) => {
+                foldKeys(keys);
+                render();
+            },
             density: setDensity,
             state: (next) => {
                 state = next;
@@ -3140,15 +3558,47 @@ export function attachDataTables(
             selected: () => (serverMode ? [...serverSelection] : selectedRows().map(keyOf)),
             select,
             refresh: () => {
+                // The control that held the focus keeps it [R-LIVE, J2]: the
+                // same element when it stayed, else the same toggle of the row
+                // (or group) with the same key, when the consumer replaced it,
+                // even before this call, as long as nothing else took the focus.
+                const active = document.activeElement;
+                const inBody = active instanceof HTMLElement && body.contains(active) ? active : null;
+                const lost = inBody === null && focusMemo !== null && !focusMemo.element.isConnected && (active === null || active === document.body);
+                const memo = inBody !== null ? toggleMemo(inBody) : lost ? focusMemo : null;
+                const held = inBody ?? (lost && focusMemo !== null ? focusMemo.element : null);
+                const heldKey = memo?.key ?? null;
+                const heldGroup = memo?.group ?? null;
+                const heldToggle = memo?.selector ?? null;
                 collectDetails();
                 all = [...body.rows].filter(isRow);
                 for (const row of all) {
                     if (!rendered.includes(row)) rendered.push(row);
                     prepareRow(row);
                 }
+                // A detail this table built for a row that is gone goes with it.
+                for (const [row, detail] of details) {
+                    if (row.isConnected || !builtDetails.has(detail)) continue;
+                    detail.remove();
+                    builtDetails.delete(detail);
+                    details.delete(row);
+                }
+                collectGroups();
                 syncColumns();
                 refreshChoices();
                 applyFilter({ keepPage: false });
+                if (held !== null && document.activeElement !== held) {
+                    /** @type {HTMLElement | null} */
+                    let back = held.isConnected ? held : null;
+                    if (back === null && heldToggle !== null) {
+                        const row =
+                            heldGroup !== null
+                                ? (groups.get(heldGroup) ?? null)
+                                : (all.find((r) => heldKey !== null && heldKey !== '' && keyOf(r) === heldKey) ?? null);
+                        back = /** @type {HTMLElement | null} */ (row?.querySelector(heldToggle) ?? null);
+                    }
+                    if (back !== null && !back.hidden && back.closest('tr')?.hidden !== true) back.focus({ preventScroll: true });
+                }
             },
         };
         handles.set(wrap, handle);
@@ -3190,6 +3640,9 @@ export function attachDataTables(
             table.tHead?.removeEventListener('click', onHeadClick);
             table.tHead?.removeEventListener('keydown', onHeadKey);
             body.removeEventListener('change', onBodyChange);
+            body.removeEventListener('keydown', onRowKey);
+            body.removeEventListener('focusin', onBodyFocusIn);
+            body.removeEventListener('focusout', onBodyFocusOut);
             selectAll?.removeEventListener('change', onSelectAll);
             // Put back what the server rendered: order, visibility, the
             // sort marks, the pager, the empty state, the focusability, and
@@ -3204,6 +3657,26 @@ export function attachDataTables(
                 if (detail !== undefined && !builtDetails.has(detail)) {
                     detail.hidden = detailsWereHidden.get(detail) ?? detail.hidden;
                     body.append(detail);
+                }
+            }
+            // Group rows [J2]: their toggles out, their span and visibility
+            // back, the ids taken back, and the body in the order it came in.
+            for (const [heading, was] of preparedGroups) {
+                heading.querySelector(GROUP_TOGGLE)?.remove();
+                const cell = heading.cells[0];
+                if (was.span !== null && cell !== undefined) cell.setAttribute('colspan', was.span);
+                else if (heading.cells.length === 1) cell?.removeAttribute('colspan');
+                heading.hidden = was.hidden;
+            }
+            for (const row of givenIds) row.removeAttribute('id');
+            if (layoutAtAttach !== null) {
+                const placed = new Set(layoutAtAttach);
+                for (const row of layoutAtAttach) if (row.parentElement === body) body.append(row);
+                for (const row of rendered) {
+                    if (placed.has(row) || row.parentElement !== body) continue;
+                    body.append(row);
+                    const detail = details.get(row);
+                    if (detail !== undefined && detail.parentElement === body) body.append(detail);
                 }
             }
             syncFixedColumns(table, 0);

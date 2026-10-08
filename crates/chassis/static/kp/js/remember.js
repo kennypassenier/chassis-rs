@@ -21,7 +21,8 @@
 //                consumer can park everything this package writes under a
 //                namespace of their own.
 //   · component  the package's name for the KIND of thing — `sidenav`,
-//                `disclosure`, `tree`, `split`, `datatable`. The module
+//                `disclosure`, `tree`, `split`, `datatable`, `tour`
+//                (js/tour.js: a tour that ended, under its name). The module
 //                supplies it; an author never writes it. Two different
 //                components may carry the same name without colliding.
 //   · name       the value of `data-kp-remember` on the element, verbatim.
@@ -85,7 +86,7 @@ export const REMEMBER_PREFIX = 'kp-remember';
 /**
  * The kinds of state this package remembers.
  *
- * @typedef {'sidenav' | 'disclosure' | 'tree' | 'split' | 'datatable'} Remembered
+ * @typedef {'sidenav' | 'disclosure' | 'tree' | 'split' | 'datatable' | 'tour'} Remembered
  */
 
 /**
@@ -379,6 +380,8 @@ const PAINTERS = {
     tree: paintTree,
     split: paintSplit,
     datatable: paintDatatable,
+    // A tour has no markup to paint: js/tour.js reads its memory itself.
+    tour: () => {},
 };
 
 /**
@@ -425,34 +428,142 @@ export function restoreRemembered(root = document) {
     }
 }
 
+/** The attribute that holds a disclosure's memory still: while it is on the element or an ancestor, the memory is neither painted nor written. */
+export const REMEMBER_HOLD_ATTRIBUTE = 'data-kp-remember-hold';
+
+/** @param {Element} element */
+const held = (element) => element.closest(`[${REMEMBER_HOLD_ATTRIBUTE}]`) !== null;
+
+/** The disclosures some attach has wired: a set rather than a mark on the element, which a clone would carry along. */
+/** @type {WeakSet<Element>} */
+const wiredDisclosures = new WeakSet();
+
 /**
  * Wire the disclosures that remember — a `<details data-kp-remember>`, the
  * accordion's own element. Every other component writes its state from its
  * own module; a `<details>` has no module, so this is it.
  *
+ * A disclosure added under `root` later is wired as it arrives, and its
+ * memory painted in the same step, before the browser paints it, so a page
+ * that rebuilds its groups on every refresh shows each one as it was left,
+ * with no frame of its markup default (port spec J3). One that leaves the
+ * page is let go.
+ *
+ * `data-kp-remember-hold` on the element or an ancestor holds the memory
+ * still: the page sets `open` itself (every group open while a search runs)
+ * and nothing is painted over it or written from it. When the hold goes,
+ * the stored state is painted back.
+ *
  * @param {ParentNode} [root]
  * @returns {() => void} detach
  */
 export function attachRemembered(root = document) {
-    /** @type {(() => void)[]} */
-    const cleanups = [];
-    for (const element of root.querySelectorAll(`details[${REMEMBER_ATTRIBUTE}]`)) {
-        const details = /** @type {HTMLDetailsElement} */ (element);
-        if (details.dataset.kpRememberAttached !== undefined) continue;
-        details.dataset.kpRememberAttached = '';
-        const memory = paintRemembered(details, 'disclosure');
-        if (memory === null) {
-            delete details.dataset.kpRememberAttached;
-            continue;
+    /** @type {Map<HTMLDetailsElement, { memory: Memory, cleanup: () => void }>} */
+    const wired = new Map();
+    /** @param {ParentNode} scope */
+    const wire = (scope) => {
+        const found = [
+            ...(scope instanceof Element && scope.matches(`details[${REMEMBER_ATTRIBUTE}]`) ? [scope] : []),
+            ...scope.querySelectorAll(`details[${REMEMBER_ATTRIBUTE}]`),
+        ];
+        for (const element of found) {
+            const details = /** @type {HTMLDetailsElement} */ (element);
+            if (wiredDisclosures.has(details)) continue;
+            const memory = held(details) ? memoryFor(details, 'disclosure') : paintRemembered(details, 'disclosure');
+            if (memory === null) continue;
+            wiredDisclosures.add(details);
+            details.dataset.kpRememberAttached = '';
+            const onToggle = () => {
+                if (!held(details)) memory.write('open', details.open);
+            };
+            details.addEventListener('toggle', onToggle);
+            wired.set(details, {
+                memory,
+                cleanup: () => {
+                    details.removeEventListener('toggle', onToggle);
+                    wiredDisclosures.delete(details);
+                    delete details.dataset.kpRememberAttached;
+                },
+            });
         }
-        const onToggle = () => memory.write('open', details.open);
-        details.addEventListener('toggle', onToggle);
-        cleanups.push(() => {
-            details.removeEventListener('toggle', onToggle);
-            delete details.dataset.kpRememberAttached;
-        });
-    }
-    return () => {
-        for (const cleanup of cleanups) cleanup();
     };
+    wire(root);
+    const doc = root instanceof Document ? root : (root.ownerDocument ?? (typeof document === 'undefined' ? null : document));
+    const view = doc?.defaultView;
+    if (!view) return () => wired.forEach(({ cleanup }) => cleanup());
+    let sweeping = false;
+    const sweep = () => {
+        sweeping = false;
+        for (const [details, { cleanup }] of wired)
+            if (!details.isConnected) {
+                cleanup();
+                wired.delete(details);
+            }
+    };
+    const later = new view.MutationObserver((records) => {
+        for (const record of records) {
+            if (record.type === 'attributes') {
+                // A hold that went: paint what was stored back on what it held.
+                const target = /** @type {Element} */ (record.target);
+                if (target.hasAttribute(REMEMBER_HOLD_ATTRIBUTE)) continue;
+                for (const [details, { memory }] of wired)
+                    if ((details === target || target.contains(details)) && !held(details)) paintDisclosure(details, memory);
+                continue;
+            }
+            for (const node of record.addedNodes) if (node instanceof view.Element) wire(node);
+            if (record.removedNodes.length && !sweeping) {
+                sweeping = true;
+                queueMicrotask(sweep);
+            }
+        }
+    });
+    later.observe(root instanceof Document ? root.documentElement : /** @type {Node} */ (root), {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: [REMEMBER_HOLD_ATTRIBUTE],
+    });
+    return () => {
+        later.disconnect();
+        for (const { cleanup } of wired.values()) cleanup();
+        wired.clear();
+    };
+}
+
+/**
+ * Forget the stored state of every element of `component` whose name starts
+ * with `prefix` and is not in `names`: a page whose groups come and go
+ * (named `apps-<group>`) prunes the groups that no longer exist, so its
+ * memory does not grow without end.
+ *
+ * @param {Remembered} component
+ * @param {string} prefix
+ * @param {Iterable<string>} names the names still in use
+ * @param {{ storage?: Storage | null }} [options]
+ * @returns {number} how many stored values were removed
+ */
+export function forgetRememberedExcept(component, prefix, names, { storage: given } = {}) {
+    const store = storage(given);
+    if (store === null) return 0;
+    const keep = new Set(names);
+    const head = `${config.prefix}:${component}:`;
+    let removed = 0;
+    try {
+        /** @type {string[]} */
+        const doomed = [];
+        for (let at = 0; at < store.length; at += 1) {
+            const key = store.key(at);
+            if (key === null || !key.startsWith(head)) continue;
+            const rest = key.slice(head.length);
+            const name = rest.slice(0, rest.lastIndexOf(':'));
+            if (name.startsWith(prefix) && !keep.has(name)) doomed.push(key);
+        }
+        for (const key of doomed) {
+            store.removeItem(key);
+            removed += 1;
+        }
+    } catch {
+        /* no storage to prune */
+    }
+    return removed;
 }

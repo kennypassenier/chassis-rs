@@ -22,6 +22,7 @@
 
 import { getStrings } from './strings.js';
 import { paintRemembered, sidenavGroups } from './remember.js';
+import { reversedEase } from './motion.js';
 
 export const SIDENAV_TOGGLE_EVENT = 'kp-sidenav-toggle';
 export const SIDENAV_SLIM_EVENT = 'kp-sidenav-slim';
@@ -156,6 +157,18 @@ export function attachSidenavs(root = document, { strings, ownedBy = SIDENAV_OWN
         const mode = () => read(OPTIONS.mode) ?? 'side';
         const isOpen = () => panel.getAttribute(OPTIONS.open) !== 'false' && (mode() === 'side' || panel.getAttribute(OPTIONS.open) === 'true');
         const covering = () => mode() === 'over';
+        // A rail that collapses, a panel that slides away and a group that
+        // folds play their opening backwards: the theme's curve turned
+        // around, which CSS cannot work out, so it is written here as
+        // `--kp-sidenav-ease-back` (css/components.css) before each change
+        // and before a hover that may expand the rail. Without this module
+        // they run on the opening's own curve.
+        const turnEase = () => {
+            const style = getComputedStyle(panel);
+            const ease = style.getPropertyValue('--kp-sidenav-ease').trim() || style.getPropertyValue('--fx-ease').trim() || 'ease';
+            panel.style.setProperty('--kp-sidenav-ease-back', reversedEase(ease));
+        };
+        turnEase();
 
         const togglers = () =>
             [...doc.querySelectorAll('[data-kp-sidenav-toggle]')].filter(
@@ -244,6 +257,7 @@ export function attachSidenavs(root = document, { strings, ownedBy = SIDENAV_OWN
          *   it again must not find it closed because of that [Kenny, 2026-09-16].
          */
         const set = (open, moveFocus = true, save = true) => {
+            turnEase();
             panel.setAttribute(OPTIONS.open, String(open));
             say(open);
             const offset = offsetContent(open);
@@ -302,6 +316,7 @@ export function attachSidenavs(root = document, { strings, ownedBy = SIDENAV_OWN
         /** @param {boolean} [collapsed] */
         const setSlim = (collapsed) => {
             if (read(OPTIONS.slim) === null) return;
+            turnEase();
             const next = collapsed ?? panel.getAttribute(OPTIONS.slimCollapsed) === null;
             panel.toggleAttribute(OPTIONS.slimCollapsed, next);
             saySlim(next);
@@ -334,6 +349,7 @@ export function attachSidenavs(root = document, { strings, ownedBy = SIDENAV_OWN
             const category = toggle.closest('.kp-sidenav__category');
             if (!category) return;
             const expanded = category.hasAttribute(OPTIONS.expanded);
+            turnEase();
             if (!expanded && on(OPTIONS.accordion, false)) {
                 for (const other of panel.querySelectorAll('.kp-sidenav__category[data-kp-sidenav-expanded]')) {
                     other.removeAttribute(OPTIONS.expanded);
@@ -466,6 +482,7 @@ export function attachSidenavs(root = document, { strings, ownedBy = SIDENAV_OWN
         panel.addEventListener('click', onCategory);
         doc.addEventListener('keydown', /** @type {EventListener} */ (onEsc));
         panel.addEventListener('keydown', /** @type {EventListener} */ (onTrap));
+        panel.addEventListener('pointerenter', turnEase);
 
         /** @type {Sidenav} */
         const handle = {
@@ -494,6 +511,8 @@ export function attachSidenavs(root = document, { strings, ownedBy = SIDENAV_OWN
             panel.removeEventListener('click', onCategory);
             doc.removeEventListener('keydown', /** @type {EventListener} */ (onEsc));
             panel.removeEventListener('keydown', /** @type {EventListener} */ (onTrap));
+            panel.removeEventListener('pointerenter', turnEase);
+            panel.style.removeProperty('--kp-sidenav-ease-back');
             dropBackdrop();
             offsetContent(false);
             if (on(OPTIONS.lockScroll, false)) doc.documentElement.style.overflow = '';

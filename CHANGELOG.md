@@ -7,6 +7,21 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-10-08
+
+### Changed
+
+- **kp-themes 10.0.0 vendored** (verified against the release SHA256SUMS):
+  every theme's decided character grammar, the dashboard components
+  (calendar, graph, menu button, tiles, freshness, tour, update modules,
+  embedded with the `webapp` feature), and nineteen themes: kp-themes
+  removed `lapis`, `shade-light` and `shade-dark`. A stored choice of one of
+  them falls back as kp-themes' MIGRATION.md suggests (`lapis` and
+  `shade-dark` to `dark`, `shade-light` to `light`, in
+  `static/theme-boot.js`), and the four font families only they used
+  (Markazi Text, Source Sans 3, Source Serif 4, Vazirmatn) leave the
+  embedded assets.
+
 ## [3.6.3] - 2026-10-04
 
 ### Changed

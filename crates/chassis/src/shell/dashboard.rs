@@ -817,8 +817,8 @@ mod tests {
         let t = themes();
         assert_eq!(
             t.len(),
-            22,
-            "kp-themes 9.2.1 ships exactly 22 themes (6.0.0 removed academia, mono, ticker and woodblock); the vendored registry is pinned"
+            19,
+            "kp-themes 10.0.0 ships exactly 19 themes (10.0.0 removed lapis, shade-light and shade-dark); the vendored registry is pinned"
         );
         assert_eq!(t[0].name, "formal");
         assert_eq!(t[0].label, "Formal");

@@ -5,7 +5,7 @@
 // a theme knob needs it. What it shared with the rest of the closure arrives
 // through `ctx`; the four variables every part writes are `ctx.state`.
 
-import { POINTER_KNOB, POINTER, LIGHT_KNOB, LIGHT, LIGHT_SELECTOR, LIGHT_REACH, LIGHT_FAR, PRESS_KNOB, PRESS } from '../effects.js';
+import { POINTER_KNOB, POINTER, LIGHT_KNOB, LIGHT, LIGHT_SELECTOR, LIGHT_REACH, LIGHT_FAR, PRESS_KNOB, PRESS, PRESS_SIZE } from '../effects.js';
 
 /** @param {import('../effects.js').EffectsContext} ctx */
 export function install(ctx) {
@@ -177,30 +177,48 @@ export function install(ctx) {
     // on the page has a press point of its own and the last one pressed
     // must keep its stain while the next one grows.
     const pressBus = () => {
-        const routine = rootStyle ? rootStyle.getPropertyValue(PRESS_KNOB).trim() : '';
-        if (routine !== 'point' || !view) return;
-        /** The buttons this bus has written to, so it can take it all back [KT6]. */
+        const asked = () => (rootStyle ? rootStyle.getPropertyValue(PRESS_KNOB).trim() : '');
+        if ((asked() !== 'point' && asked() !== 'size') || !view) return;
+        // The theme answers per press, not once: a page can change theme after
+        // the bus is armed, and each theme's own knob says what it wants written.
+        const PRESSED = '.kp-button, .kp-icon-button';
+        /** The elements this bus has written to, so it can take it all back [KT6]. */
         /** @type {Set<HTMLElement>} */
         const marked = new Set();
+        /** @param {Event} event @returns {HTMLElement | null} */
+        const pressed = (event) => {
+            const target = event.target;
+            return target instanceof Element ? /** @type {HTMLElement | null} */ (target.closest(PRESSED)) : null;
+        };
+        /** @param {HTMLElement} el */
+        const letter = (el) => {
+            el.setAttribute(PRESS_SIZE, String(Math.round(el.getBoundingClientRect().width)));
+            marked.add(el);
+        };
         /** @param {Event} event */
         const onDown = (event) => {
             const pointer = /** @type {PointerEvent} */ (event);
-            const target = event.target;
-            const button = target instanceof Element ? /** @type {HTMLElement | null} */ (target.closest('.kp-button')) : null;
-            if (!button) return;
+            const el = pressed(event);
+            if (!el) return;
+            if (asked() === 'size') return letter(el);
+            const button = el.closest('.kp-button');
+            if (asked() !== 'point' || !(button instanceof HTMLElement)) return;
             const box = button.getBoundingClientRect();
             button.style.setProperty(PRESS.x, `${Math.round(pointer.clientX - box.left)}px`);
             button.style.setProperty(PRESS.y, `${Math.round(pointer.clientY - box.top)}px`);
             marked.add(button);
         };
         // A key press has no point: the stylesheet's own default takes over
-        // again, which puts the stain in the middle of the button.
+        // again, which puts the stain in the middle of the button. It has a
+        // size all the same, so a theme that letters it gets it.
         /** @param {Event} event */
         const onKey = (event) => {
             const key = /** @type {KeyboardEvent} */ (event).key;
-            const target = event.target;
-            const button = target instanceof Element ? /** @type {HTMLElement | null} */ (target.closest('.kp-button')) : null;
-            if (!button || (key !== ' ' && key !== 'Enter')) return;
+            const el = pressed(event);
+            if (!el || (key !== ' ' && key !== 'Enter')) return;
+            if (asked() === 'size') return letter(el);
+            const button = el.closest('.kp-button');
+            if (asked() !== 'point' || !(button instanceof HTMLElement)) return;
             button.style.removeProperty(PRESS.x);
             button.style.removeProperty(PRESS.y);
             marked.delete(button);
@@ -210,9 +228,10 @@ export function install(ctx) {
         cleanups.push(() => {
             doc.removeEventListener('pointerdown', onDown);
             doc.removeEventListener('keydown', onKey);
-            for (const button of marked) {
-                button.style.removeProperty(PRESS.x);
-                button.style.removeProperty(PRESS.y);
+            for (const el of marked) {
+                el.style.removeProperty(PRESS.x);
+                el.style.removeProperty(PRESS.y);
+                el.removeAttribute(PRESS_SIZE);
             }
             marked.clear();
         });

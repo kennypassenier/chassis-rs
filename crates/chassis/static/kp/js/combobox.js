@@ -179,13 +179,15 @@ export function attachComboboxes(
         /** @param {boolean} next */
         const setOpen = (next) => {
             const was = list.hidden === false;
-            list.hidden = !next;
-            // Above a container that clips — a card's cut corners hid every option in four themes — where it was drawn.
-            if (next && !was) lower = raiseInPlace(list, box, input);
+            // Out of the top layer while still drawn, so the theme's close
+            // plays on its copy (js/motion.js), then hidden.
             if (!next && was) {
                 lower();
                 lower = () => {};
             }
+            list.hidden = !next;
+            // Above a container that clips — a card's cut corners hid every option in four themes — where it was drawn.
+            if (next && !was) lower = raiseInPlace(list, box, input);
             input.setAttribute('aria-expanded', String(next));
             if (!next) listbox.clear();
             if (was !== next) box.dispatchEvent(new CustomEvent(OPEN_EVENT, { bubbles: true, detail: { open: next } }));

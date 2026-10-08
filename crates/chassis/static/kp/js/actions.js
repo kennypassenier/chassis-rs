@@ -97,7 +97,12 @@ export function fitActionColumns(list) {
         rows.forEach((row, r) =>
             row.forEach((button, b) => {
                 const k = order.indexOf(roles[r][b]);
-                widths[k] = Math.max(widths[k], button.getBoundingClientRect().width);
+                // Its margins count: a register that sets its buttons off
+                // with one (sepia's marginal bracket) would otherwise squeeze
+                // the label into the button's padding [action-columns-narrow-M1].
+                const style = getComputedStyle(button);
+                const margins = (parseFloat(style.marginInlineStart) || 0) + (parseFloat(style.marginInlineEnd) || 0);
+                widths[k] = Math.max(widths[k], button.getBoundingClientRect().width + margins);
             }),
         );
         delete list.dataset.kpActionMeasuring;
