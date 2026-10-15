@@ -7,6 +7,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [3.7.1] - 2026-10-15
+
 ### Changed
 
 - **kp-themes 10.1.1 vendored** (10.1.0 plus its two CSS fixes: a comment in the brutalism register that closed early, and 21 empty entries in a cyberpunk `:is()` list; verified against the release SHA256SUMS;
