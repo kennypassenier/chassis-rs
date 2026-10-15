@@ -9,6 +9,14 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [3.7.1] - 2026-10-15
 
+### Security
+
+- **rustls 0.23.45 → 0.23.46** in the kit's own lock file: cargo-deny
+  refused the release on RUSTSEC-2026-0346 to -0349 (TLS secrets in a
+  `Debug` impl, ECH data leak, a 1 GiB brotli allocation before
+  authentication, a key-exchange downgrade). A consumer runs
+  `cargo update -p rustls` in its own lock file.
+
 ### Changed
 
 - **kp-themes 10.1.1 vendored** (10.1.0 plus its two CSS fixes: a comment in the brutalism register that closed early, and 21 empty entries in a cyberpunk `:is()` list; verified against the release SHA256SUMS;
