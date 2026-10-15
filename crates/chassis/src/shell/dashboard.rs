@@ -817,17 +817,18 @@ mod tests {
         let t = themes();
         assert_eq!(
             t.len(),
-            19,
-            "kp-themes 10.1.1 ships exactly 19 themes (10.0.0 removed lapis, shade-light and shade-dark); the vendored registry is pinned"
+            16,
+            "kp-themes 10.1.1 ships exactly 16 themes (10.0.0 removed lapis, shade-light and shade-dark; 10.1.0 removed high-contrast, sepia and retro); the vendored registry is pinned"
         );
         assert_eq!(t[0].name, "formal");
         assert_eq!(t[0].label, "Formal");
         assert!(!t[0].dark);
-        let hc = t
-            .iter()
-            .find(|x| x.name == "high-contrast")
-            .expect("high-contrast");
-        assert_eq!(hc.label, "High contrast");
+        for gone in ["high-contrast", "sepia", "retro"] {
+            assert!(
+                t.iter().all(|x| x.name != gone),
+                "{gone} left kp-themes in 10.1.0"
+            );
+        }
         assert!(t.iter().any(|x| x.name == "cyberpunk" && x.dark));
     }
 

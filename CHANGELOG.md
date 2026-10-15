@@ -19,7 +19,10 @@ scaffold writes. A breaking change in either is a major and carries a
   key-figure labels wrap instead of ending in an ellipsis, the sidenav opens
   from its edge tab when the page has one (`data-kp-sidenav-opener=
   "launcher"` or `"both"` for the old look), and menus gain
-  `--kp-menu-anchor-x` and `--kp-menu-count`.
+  `--kp-menu-anchor-x` and `--kp-menu-count`. **Three themes are gone:
+  `high-contrast`, `sepia` and `retro`** (Kenny's decision in kp-themes); a
+  viewer whose stored choice was one of them no longer finds it in the
+  picker.
 
 ## [3.7.0] - 2026-10-08
 
