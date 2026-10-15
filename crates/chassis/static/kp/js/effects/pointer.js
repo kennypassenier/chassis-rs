@@ -5,7 +5,21 @@
 // a theme knob needs it. What it shared with the rest of the closure arrives
 // through `ctx`; the four variables every part writes are `ctx.state`.
 
-import { POINTER_KNOB, POINTER, LIGHT_KNOB, LIGHT, LIGHT_SELECTOR, LIGHT_REACH, LIGHT_FAR, PRESS_KNOB, PRESS, PRESS_SIZE } from '../effects.js';
+import {
+    POINTER_KNOB,
+    POINTER,
+    LIGHT_KNOB,
+    LIGHT,
+    LIGHT_SELECTOR,
+    LIGHT_REACH,
+    LIGHT_FAR,
+    PRESS_KNOB,
+    PRESS,
+    PRESS_SIZE,
+    PRESS_HOLD,
+    PRESS_HELD,
+    PRESS_HOLD_MS,
+} from '../effects.js';
 
 /** @param {import('../effects.js').EffectsContext} ctx */
 export function install(ctx) {
@@ -178,7 +192,7 @@ export function install(ctx) {
     // must keep its stain while the next one grows.
     const pressBus = () => {
         const asked = () => (rootStyle ? rootStyle.getPropertyValue(PRESS_KNOB).trim() : '');
-        if ((asked() !== 'point' && asked() !== 'size') || !view) return;
+        if (!['point', 'size', 'hold'].includes(asked()) || !view) return;
         // The theme answers per press, not once: a page can change theme after
         // the bus is armed, and each theme's own knob says what it wants written.
         const PRESSED = '.kp-button, .kp-icon-button';
@@ -190,6 +204,30 @@ export function install(ctx) {
             const target = event.target;
             return target instanceof Element ? /** @type {HTMLElement | null} */ (target.closest(PRESSED)) : null;
         };
+        // `--kp-press: hold`: a press a stylesheet plays as an animation on
+        // `:active` is cut where the finger lifts, so a quick tap shows part
+        // of it. The press is marked for the time the animation takes
+        // (`--kp-press-hold`, else PRESS_HOLD_MS) and the register keys the
+        // same animation on the mark as well as on `:active`.
+        /** @type {Map<HTMLElement, number>} */
+        const holding = new Map();
+        /** @param {Event} event */
+        const hold = (event) => {
+            const target = event.target;
+            const el = target instanceof Element ? /** @type {HTMLElement | null} */ (target.closest(PRESS_HELD)) : null;
+            if (!el) return;
+            const given = parseFloat(getComputedStyle(el).getPropertyValue(PRESS_HOLD));
+            const ms = Number.isFinite(given) && given > 0 ? given : PRESS_HOLD_MS;
+            window.clearTimeout(holding.get(el));
+            el.setAttribute('data-kp-pressed', '');
+            holding.set(
+                el,
+                window.setTimeout(() => {
+                    el.removeAttribute('data-kp-pressed');
+                    holding.delete(el);
+                }, ms),
+            );
+        };
         /** @param {HTMLElement} el */
         const letter = (el) => {
             el.setAttribute(PRESS_SIZE, String(Math.round(el.getBoundingClientRect().width)));
@@ -198,6 +236,7 @@ export function install(ctx) {
         /** @param {Event} event */
         const onDown = (event) => {
             const pointer = /** @type {PointerEvent} */ (event);
+            if (asked() === 'hold') return hold(event);
             const el = pressed(event);
             if (!el) return;
             if (asked() === 'size') return letter(el);
@@ -214,6 +253,8 @@ export function install(ctx) {
         /** @param {Event} event */
         const onKey = (event) => {
             const key = /** @type {KeyboardEvent} */ (event).key;
+            if (asked() === 'hold')
+                return key === ' ' || key === 'Enter' ? (/** @type {KeyboardEvent} */ (event).repeat ? undefined : hold(event)) : undefined;
             const el = pressed(event);
             if (!el || (key !== ' ' && key !== 'Enter')) return;
             if (asked() === 'size') return letter(el);
@@ -234,6 +275,11 @@ export function install(ctx) {
                 el.removeAttribute(PRESS_SIZE);
             }
             marked.clear();
+            for (const [el, timer] of holding) {
+                window.clearTimeout(timer);
+                el.removeAttribute('data-kp-pressed');
+            }
+            holding.clear();
         });
     };
     return { pointerLight, pointerBus, pressBus };

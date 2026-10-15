@@ -32,6 +32,7 @@
 
 import { getStrings } from './strings.js';
 import { formatBytes, resolveLocale } from './locale.js';
+import { leave, leavesState } from './motion.js';
 
 const UPLOAD = '[data-kp-upload]';
 
@@ -212,13 +213,18 @@ export function attachUploads(
             const button = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (event.target).closest('[data-kp-upload-remove]'));
             if (button === null) return;
             const item = /** @type {HTMLElement | null} */ (button.closest('li, [data-kp-upload-file]'));
-            if (item === null) return;
+            if (item === null || item.hasAttribute('data-kp-leaving')) return;
             // Cancelable: a consumer whose request is in flight aborts it
             // here, or keeps the row.
             const ask = new CustomEvent(REMOVE_EVENT, { bubbles: true, cancelable: true, detail: { file: rows.get(item), item } });
             if (!item.dispatchEvent(ask)) return;
             rows.delete(item);
-            item.remove();
+            // A theme that lets a removed part leave first (leavesState())
+            // plays its leave and takes the row out when that is over.
+            if (leavesState(item)) {
+                item.inert = true;
+                void leave(item);
+            } else item.remove();
         };
 
         /** @param {DragEvent} event */

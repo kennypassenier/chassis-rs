@@ -256,11 +256,13 @@ export function showAlarm(options) {
 
         document.body.append(dialog);
         dialog.showModal();
+        dialog.scrollTop = 0;
         // The acknowledged alarm focuses its one way out. The auto alarm
         // focuses itself, so an Enter meant for the page presses nothing,
         // and the first Tab reaches Keep open.
-        if (mode === 'auto') dialog.focus();
-        else ack.focus();
+        if (mode === 'auto') dialog.focus({ preventScroll: true });
+        else ack.focus({ preventScroll: true });
+        dialog.scrollTop = 0;
         dialog.dispatchEvent(new CustomEvent(ALARM_OPEN_EVENT, { bubbles: true, detail: { id, mode: dialog.dataset.kpAlarmMode } }));
 
         if (mode === 'auto') {

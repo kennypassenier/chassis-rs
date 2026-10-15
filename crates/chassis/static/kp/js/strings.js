@@ -64,6 +64,7 @@
  * @property {string} closeSidebar  The same toggle once that side navigation is open
  * @property {string} collapseRail  The accessible name of an empty slim-rail toggle while the rail is expanded
  * @property {string} expandRail    The same toggle while the rail is collapsed to its icons
+ * @property {string} resizeSidebar The name of the resize handle on a resizable side navigation
  * @property {string} backToTop    The control that returns the reader to the top of the page
  * @property {string} previous
  * @property {string} next
@@ -275,6 +276,7 @@
  * @property {string} meterUsed  A meter's share, in the words a screen reader hears, when the page names it nothing else ("62% used") [scope-143]
  * @property {string} meterNotMeasured  A meter with no share, for a screen reader [scope-143]
  * @property {string} meterMeasuring  A loading meter, for a screen reader [scope-143]
+ * @property {string} [loading]  The calendar's busy text when the page gives none (`Loading…`)
  * @property {string} loadingWord  The word a busy picture spells on screen, deciphered letter by letter (cyberpunk's skeletons, busy bars and meters); `setStrings()` hands it to the stylesheet [scope-143]
  * @property {string} calendarNav  The name of a month heatmap's row of month buttons (js/calendar.js) [scope-143]
  * @property {string} calendarPrev  A month heatmap's button to the month before; its name and title are `previousMonth` [scope-143]
@@ -370,6 +372,9 @@ export const DEFAULT_STRINGS = Object.freeze({
     // than hiding it, so it must not borrow the open and close names.
     collapseRail: 'Collapse the side navigation to its icons',
     expandRail: 'Expand the side navigation',
+    // The resize handle's name [Kenny, 2026-10-13, minor options]: a separator
+    // whose value is the panel's width, so it says what it changes.
+    resizeSidebar: 'Resize the side navigation',
     // A control that appears part-way down a page and has no text of its
     // own beyond an arrow: the accessible name is the whole of what a
     // screen reader gets.
@@ -603,7 +608,6 @@ export const DEFAULT_STRINGS = Object.freeze({
         synthwave: { line: '▶ Play', progress: 'Tracking', ready: 'Press start' },
     },
     arrivalLinesByTheme: {
-        retro: ['KP Modular BIOS v4.51PG', 'kp-themes 95 — retro build', 'Memory Test : {count}K'],
         terminal: ['KP-THEMES BIOS v5.0.0', 'MEMORY TEST ......... 640K OK', 'PHOSPHOR PROFILE .... terminal', 'CRT WARM-UP ......... OK', 'READY.'],
     },
     arrivalProgress: 'Progress',

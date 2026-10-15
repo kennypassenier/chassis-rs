@@ -304,6 +304,10 @@ function paintSidenav(panel, memory) {
     if (typeof open === 'boolean') panel.setAttribute('data-kp-sidenav-open', String(open));
     const rail = memory.read('rail', null);
     if (typeof rail === 'boolean') panel.toggleAttribute('data-kp-sidenav-slim-collapsed', rail);
+    // A width the reader dragged to, kept only for a panel that can be dragged;
+    // js/sidenav.js clamps it between the panel's own limits.
+    const width = memory.read('width', null);
+    if (typeof width === 'number' && panel.hasAttribute('data-kp-sidenav-resizable') && panel instanceof HTMLElement) panel.style.setProperty('--kp-sidenav-width', `${width}px`);
     const groups = memory.read('groups', null);
     if (!isFlags(groups)) return;
     for (const { group, toggle, id } of sidenavGroups(panel)) {

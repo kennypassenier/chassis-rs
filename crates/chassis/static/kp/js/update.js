@@ -12,9 +12,12 @@
 // time and the curve are the theme's own, from themeMotion():
 // `--kp-update-duration` is max(size, close) × 1.25 (the stretch leave()
 // gives the fold of a space), `--kp-update-ease` the entrance's curve
-// without its overshoot. A register without an idea: the value changes and
-// nothing plays. Under reduced motion the time is 0, and a register names an
-// idea there only when it has a still version that keeps its own time
+// without its overshoot. A register that knows its own update time says it
+// with `--kp-update-time` (a time, set inside its no-preference block like
+// the idea): it wins when set, so a register is not bound to its dialog's
+// time. A register without an idea: the value changes and nothing plays.
+// Under reduced motion the time is 0, and a register names an idea there
+// only when it has a still version that keeps its own time
 // (cyberpunk's copies stand still beside the value for 1.2 s); the others
 // declare theirs under `prefers-reduced-motion: no-preference` alone.
 //
@@ -46,7 +49,7 @@
 // new point at once (`--kp-update: none` on the svg: cyberpunk's split is the
 // value's alone).
 
-import { themeMotion, withoutOvershoot } from './motion.js';
+import { registerTime, themeMotion, withoutOvershoot } from './motion.js';
 import { SPARK, drawSparkline, sparkPaths } from './kpi.js';
 import { setStateWord } from './components.js';
 
@@ -74,12 +77,16 @@ export function updateIdea(value) {
 /**
  * How long an update plays and on which curve, from the theme's motion: the
  * box's resize time or the dialog's close time, whichever is longer, times
- * 1.25; the entrance's curve without its overshoot. 0 without motion.
- * @param {{ size: number, close: number, ease: string }} motion what themeMotion() returns
+ * 1.25; the entrance's curve without its overshoot. 0 without motion. A
+ * register that knows its own update time says it with `--kp-update-time`
+ * (`time`, in ms, read by updateTiming()): when set it is the time, whatever
+ * the dialog's is; unset, the time above.
+ * @param {{ size: number, close: number, ease: string, time?: number | null }} motion what themeMotion() returns, and the register's own time
  * @returns {{ duration: number, ease: string }}
  */
-export function updateTimingOf({ size, close, ease }) {
-    return { duration: Math.max(size, close) * 1.25, ease: withoutOvershoot(ease) };
+export function updateTimingOf({ size, close, ease, time = null }) {
+    const duration = time !== null && Number.isFinite(time) && time >= 0 ? time : Math.max(size, close) * 1.25;
+    return { duration, ease: withoutOvershoot(ease) };
 }
 
 /**
@@ -88,7 +95,7 @@ export function updateTimingOf({ size, close, ease }) {
  * @returns {{ duration: number, ease: string }}
  */
 export function updateTiming(scope = document.documentElement) {
-    return updateTimingOf(themeMotion(scope));
+    return updateTimingOf({ ...themeMotion(scope), time: registerTime(scope, '--kp-update-time') });
 }
 
 /**

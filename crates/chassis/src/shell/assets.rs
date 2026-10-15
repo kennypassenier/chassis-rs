@@ -22,7 +22,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 /// The kp-themes version the kit vendors (C3: one place).
-pub const KP_THEMES_VERSION: &str = "10.0.0";
+pub const KP_THEMES_VERSION: &str = "10.1.0";
 
 /// name → (content type, bytes). Explicit list, no path joining (kyu's
 /// traversal-proof shape).
@@ -136,34 +136,6 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/fonts/archivoblack/archivoblack-regular.woff2",
         "font/woff2",
         include_bytes!("../../static/kp/fonts/archivoblack/archivoblack-regular.woff2"),
-    ),
-    (
-        "kp/fonts/atkinsonhyperlegible/atkinsonhyperlegible-bold.woff2",
-        "font/woff2",
-        include_bytes!(
-            "../../static/kp/fonts/atkinsonhyperlegible/atkinsonhyperlegible-bold.woff2"
-        ),
-    ),
-    (
-        "kp/fonts/atkinsonhyperlegible/atkinsonhyperlegible-bolditalic.woff2",
-        "font/woff2",
-        include_bytes!(
-            "../../static/kp/fonts/atkinsonhyperlegible/atkinsonhyperlegible-bolditalic.woff2"
-        ),
-    ),
-    (
-        "kp/fonts/atkinsonhyperlegible/atkinsonhyperlegible-italic.woff2",
-        "font/woff2",
-        include_bytes!(
-            "../../static/kp/fonts/atkinsonhyperlegible/atkinsonhyperlegible-italic.woff2"
-        ),
-    ),
-    (
-        "kp/fonts/atkinsonhyperlegible/atkinsonhyperlegible-regular.woff2",
-        "font/woff2",
-        include_bytes!(
-            "../../static/kp/fonts/atkinsonhyperlegible/atkinsonhyperlegible-regular.woff2"
-        ),
     ),
     (
         "kp/fonts/barlow/barlow-bold.woff2",
@@ -333,11 +305,6 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/fonts/orbitron/orbitron-variable.woff2",
         "font/woff2",
         include_bytes!("../../static/kp/fonts/orbitron/orbitron-variable.woff2"),
-    ),
-    (
-        "kp/fonts/pixelifysans/pixelifysans-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/pixelifysans/pixelifysans-variable.woff2"),
     ),
     (
         "kp/fonts/poiretone/poiretone-regular.woff2",
@@ -527,6 +494,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/listbox.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/listbox.js"),
+    ),
+    (
+        "kp/js/loading-pieces.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/loading-pieces.js"),
     ),
     (
         "kp/js/locale.js",

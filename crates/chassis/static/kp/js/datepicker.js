@@ -28,6 +28,12 @@
 // format is, because parsing a localised string on the server is how off-
 // by-one-day bugs are born.
 //
+// Since 10.1.0 the numeric display is dd/mm/yyyy for every reader, whatever
+// the locale (Kenny's rule 52: every date a kp component shows is
+// dd/mm/yyyy); `data-kp-date-format="locale"` (or the `dateFormat` option)
+// brings back the locale's own order. Month and weekday names, and the
+// first day of the week, still follow the locale.
+//
 // Since 3.0.0 [KT6, D5]: the display format, the parsing order and the
 // first day of the week come from the locale — the nearest `lang`, the
 // browser's, or `data-kp-locale` — instead of being Dutch; the first
@@ -37,6 +43,7 @@
 // the day cells can be decorated; and the panel's glyphs are attributes.
 
 import { DEFAULT_STRINGS, getStrings } from './strings.js';
+import { playClose, stopClose } from './motion.js';
 import { placeBlockSide, raiseOverlay, raised } from './top-layer.js';
 import { calendarNames, datePattern, formatDate, parseDate as parseLocale, resolveLocale, weekStartsOn } from './locale.js';
 
@@ -256,14 +263,15 @@ export function datePicker(element) {
 
 /**
  * @param {ParentNode} root
- * @param {{ locale?: string, weekStartsOn?: number, closeOnSelect?: boolean, refocus?: boolean, isDateDisabled?: (date: Date) => boolean, renderDay?: (button: HTMLButtonElement, date: Date) => void, previousGlyph?: string, nextGlyph?: string }} [options]
- *   Defaults; per picker: `data-kp-locale`, `data-kp-week-starts-on`, `data-kp-min`, `data-kp-max` (ISO), `data-kp-disabled-days` (0-6, comma-separated), `data-kp-close-on-select="false"`, `data-kp-previous-glyph`, `data-kp-next-glyph`.
+ * @param {{ locale?: string, dateFormat?: 'rule52' | 'locale', weekStartsOn?: number, closeOnSelect?: boolean, refocus?: boolean, isDateDisabled?: (date: Date) => boolean, renderDay?: (button: HTMLButtonElement, date: Date) => void, previousGlyph?: string, nextGlyph?: string }} [options]
+ *   Defaults; per picker: `data-kp-locale`, `data-kp-date-format` (`rule52`, the default: dd/mm/yyyy whatever the locale; `locale`: the locale's own numeric order), `data-kp-week-starts-on`, `data-kp-min`, `data-kp-max` (ISO), `data-kp-disabled-days` (0-6, comma-separated), `data-kp-close-on-select="false"`, `data-kp-previous-glyph`, `data-kp-next-glyph`.
  * @returns {(() => void) & { handles: DatePickerHandle[] }} detach
  */
 export function attachDatePickers(
     root = document,
     {
         locale: localeOption,
+        dateFormat: formatOption = 'rule52',
         weekStartsOn: weekOption,
         closeOnSelect = true,
         refocus = true,
@@ -286,8 +294,13 @@ export function attachDatePickers(
         const panel = /** @type {HTMLElement | null} */ (picker.querySelector('[data-kp-date-panel]'));
         if (input === null || open === null || panel === null) continue;
         picker.dataset.kpDatepickerAttached = '';
+        // The panel redraws its days, months and years on every move; only opening it is an arrival
+        // (the theme's own entrance), so a redraw must not play the arrival of what was drawn.
+        panel.dataset.kpArrive = 'none';
 
         const locale = resolveLocale(picker.dataset.kpLocale ?? localeOption, picker);
+        // The numeric date is dd/mm/yyyy for every reader (rule 52) unless the consumer asks for the locale's own.
+        const numeric = /** @type {'rule52' | 'locale'} */ ((picker.dataset.kpDateFormat ?? formatOption) === 'locale' ? 'locale' : 'rule52');
         const firstDay = weekStartsOn(locale, picker.dataset.kpWeekStartsOn === undefined ? weekOption : Number(picker.dataset.kpWeekStartsOn));
         const min = picker.dataset.kpMin ? parseLocale(picker.dataset.kpMin, locale) : null;
         const max = picker.dataset.kpMax ? parseLocale(picker.dataset.kpMax, locale) : null;
@@ -304,7 +317,7 @@ export function attachDatePickers(
         };
 
         // The hint follows the locale, so it cannot lie about the format.
-        if (input.placeholder === '') input.placeholder = datePattern(locale).hint;
+        if (input.placeholder === '') input.placeholder = datePattern(locale, numeric).hint;
 
         /** @param {Date} date */
         const disabled = (date) => {
@@ -313,7 +326,7 @@ export function attachDatePickers(
             if (disabledDays.includes(date.getDay())) return true;
             return isDateDisabled?.(date) ?? false;
         };
-        const read = () => parseDate(input.value, locale);
+        const read = () => (input.value.trim() === '' ? null : parseLocale(input.value, locale, numeric));
         let cursor = read() ?? new Date();
         /** Which grid the panel shows [scope-89]. @type {DateView} */
         let view = 'days';
@@ -549,27 +562,64 @@ export function attachDatePickers(
 
         /** Takes the open panel out of the top layer again. */
         let lower = () => {};
+        /** Whether the picker is meant to be open: the panel may still be closing on screen. */
+        let wanted = !panel.hidden;
+        /** The close that is playing, so the focus can wait for it. @type {Promise<unknown>} */
+        let closing = Promise.resolve();
+        /**
+         * The focus goes back to `el` when the panel is gone, the way it left when the panel came: a ring
+         * that comes back at once at the start of the close is not the opening played backwards
+         * (docs/THEME_LESSONS.md 11; the tour does the same).
+         * @param {HTMLElement} el
+         */
+        const refocusAfterClose = (el) =>
+            void closing.then(() => {
+                if (!wanted && el.isConnected) el.focus();
+            });
         /** @param {boolean} next */
         const setOpen = (next) => {
-            if (panel.hidden === !next) return;
+            if (wanted === next) return;
+            wanted = next;
             // Every opening starts on the days.
             view = 'days';
             back = [];
             pin = null;
             live.textContent = '';
             if (next) {
+                tidy();
                 cursor = read() ?? new Date();
                 if (!panel.contains(live)) panel.append(live);
                 draw();
+                // Still closing: it turns round where it stands.
+                stopClose(panel);
+                panel.inert = false;
+                if (panel.hidden) {
+                    panel.hidden = false;
+                    panel.dataset.kpDateOpen = '';
+                    lower = raiseDatePanel(panel);
+                }
             } else {
                 panel.style.removeProperty('min-inline-size');
                 panel.style.removeProperty('min-block-size');
-            }
-            panel.hidden = !next;
-            if (next) lower = raiseDatePanel(panel);
-            else {
-                lower();
-                lower = () => {};
+                // It closes as it opened, backwards, before it is hidden; meanwhile
+                // it takes no pointer or focus. The close reads the opening on the
+                // panel as it stands (`[data-kp-date-open]` still on it), so it plays
+                // that backwards instead of taking the opening's name as a close of
+                // its own and playing it forwards; the mark goes straight after.
+                panel.inert = true;
+                const closed = playClose(panel);
+                closing = closed;
+                delete panel.dataset.kpDateOpen;
+                void closed.then((played) => {
+                    if (!played || wanted) return;
+                    // Hidden first, then out of the top layer: hidden, it has no box
+                    // for a second close to play on (js/motion.js).
+                    panel.hidden = true;
+                    lower();
+                    lower = () => {};
+                    panel.inert = false;
+                    stopClose(panel);
+                });
             }
             open.setAttribute('aria-expanded', String(next));
             if (next) focusCurrent();
@@ -584,7 +634,7 @@ export function attachDatePickers(
                 delete input.dataset.kpDateValue;
                 if (source !== 'typed') input.value = '';
             } else {
-                if (source !== 'typed') input.value = formatDate(date, locale);
+                if (source !== 'typed') input.value = formatDate(date, locale, numeric);
                 input.dataset.kpDateValue = toISO(date);
             }
             picker.dispatchEvent(new CustomEvent(DATE_EVENT, { bubbles: true, detail: { iso: date === null ? null : toISO(date), date, source } }));
@@ -594,13 +644,26 @@ export function attachDatePickers(
             if (disabled(date)) return;
             commit(date, 'chosen');
             if (closes) hide();
-            if (refocus) input.focus();
+            if (refocus && closes) refocusAfterClose(input);
+            else if (refocus) input.focus();
         };
 
-        const onOpen = () => (panel.hidden ? show() : hide());
+        const onOpen = () => (wanted ? hide() : show());
 
         /** Typing is the primary path, so it updates the value on its own. */
         const onInput = () => commit(read(), 'typed');
+
+        /**
+         * A typed date that reads as a date is written the way the field shows a date
+         * (13-09-2026 becomes 13/09/2026), once the person leaves the field or opens the
+         * calendar; never while they type, and never a text that is not a date [scope-143].
+         */
+        const tidy = () => {
+            const date = read();
+            if (date === null) return;
+            const shown = formatDate(date, locale, numeric);
+            if (input.value !== shown) input.value = shown;
+        };
 
         /** @param {KeyboardEvent} event */
         const onPanelKey = (event) => {
@@ -609,7 +672,7 @@ export function attachDatePickers(
                 event.preventDefault();
                 if (view === 'days') {
                     hide();
-                    open.focus();
+                    refocusAfterClose(open);
                 } else stepBack();
                 return;
             }
@@ -687,19 +750,21 @@ export function attachDatePickers(
         open.setAttribute('aria-expanded', 'false');
         open.addEventListener('click', onOpen);
         input.addEventListener('input', onInput);
+        input.addEventListener('change', tidy);
         panel.addEventListener('keydown', onPanelKey);
         panel.addEventListener('click', onPanelClick);
         picker.addEventListener('focusout', onFocusOut);
         // The value attribute reflects what is in the field, silently.
         const initial = read();
         if (initial !== null) input.dataset.kpDateValue = toISO(initial);
+        // No rewrite at attach: the page's text stays until the field is left or the calendar opens (tidy).
 
         /** @type {DatePickerHandle} */
         const handle = {
             element: picker,
             get: read,
             set: (date) => {
-                const parsed = date === null ? null : typeof date === 'string' ? parseLocale(date, locale) : date;
+                const parsed = date === null ? null : typeof date === 'string' ? parseLocale(date, locale, numeric) : date;
                 commit(parsed, 'set');
                 if (parsed !== null) cursor = parsed;
                 if (!panel.hidden) draw();
@@ -713,9 +778,12 @@ export function attachDatePickers(
         cleanups.push(() => {
             open.removeEventListener('click', onOpen);
             input.removeEventListener('input', onInput);
+            input.removeEventListener('change', tidy);
             panel.removeEventListener('keydown', onPanelKey);
             panel.removeEventListener('click', onPanelClick);
             picker.removeEventListener('focusout', onFocusOut);
+            stopClose(panel);
+            panel.inert = false;
             lower();
             panel.textContent = '';
             panel.style.removeProperty('min-inline-size');

@@ -5,7 +5,7 @@
         "licence": "OFL-1.1",
         "reservedFontName": false,
         "subset": true,
-        "themes": ["formal", "light", "dark", "pastel", "forest", "sepia", "blueprint", "solstice", "retro"],
+        "themes": ["formal", "light", "dark", "pastel", "forest", "blueprint", "solstice"],
         "scripts": ["latin"],
         "upstream": "ofl/instrumentsans",
         "faces": [
@@ -128,51 +128,12 @@
         "renamed": "KP Tech Mono",
         "reservedWord": "Share"
     },
-    "atkinsonhyperlegible": {
-        "family": "Atkinson Hyperlegible",
-        "licence": "OFL-1.1",
-        "reservedFontName": false,
-        "subset": true,
-        "themes": ["high-contrast"],
-        "scripts": ["latin"],
-        "upstream": "ofl/atkinsonhyperlegible",
-        "faces": [
-            {
-                "file": "atkinsonhyperlegible-bold",
-                "source": "AtkinsonHyperlegible-Bold.ttf",
-                "weight": "700",
-                "style": "normal",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "atkinsonhyperlegible-bolditalic",
-                "source": "AtkinsonHyperlegible-BoldItalic.ttf",
-                "weight": "700",
-                "style": "italic",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "atkinsonhyperlegible-italic",
-                "source": "AtkinsonHyperlegible-Italic.ttf",
-                "weight": "400",
-                "style": "italic",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "atkinsonhyperlegible-regular",
-                "source": "AtkinsonHyperlegible-Regular.ttf",
-                "weight": "400",
-                "style": "normal",
-                "scripts": ["latin"]
-            }
-        ]
-    },
     "instrumentserif": {
         "family": "Instrument Serif",
         "licence": "OFL-1.1",
         "reservedFontName": false,
         "subset": true,
-        "themes": ["sepia", "solstice"],
+        "themes": ["solstice"],
         "scripts": ["latin"],
         "upstream": "ofl/instrumentserif",
         "faces": [
@@ -426,24 +387,6 @@
             }
         ]
     },
-    "pixelifysans": {
-        "family": "Pixelify Sans",
-        "licence": "OFL-1.1",
-        "reservedFontName": false,
-        "subset": true,
-        "themes": ["retro"],
-        "scripts": ["latin"],
-        "upstream": "ofl/pixelifysans",
-        "faces": [
-            {
-                "file": "pixelifysans-variable",
-                "source": "PixelifySans[wght].ttf",
-                "weight": "400 700",
-                "style": "normal",
-                "scripts": ["latin"]
-            }
-        ]
-    },
     "inter": {
         "family": "Inter",
         "licence": "OFL-1.1",
@@ -577,7 +520,7 @@
         "licence": "OFL-1.1",
         "reservedFontName": false,
         "subset": true,
-        "themes": ["synthwave", "retro"],
+        "themes": ["synthwave"],
         "scripts": ["latin"],
         "upstream": "ofl/vt323",
         "faces": [

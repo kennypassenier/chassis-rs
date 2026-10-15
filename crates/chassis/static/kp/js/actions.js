@@ -98,7 +98,7 @@ export function fitActionColumns(list) {
             row.forEach((button, b) => {
                 const k = order.indexOf(roles[r][b]);
                 // Its margins count: a register that sets its buttons off
-                // with one (sepia's marginal bracket) would otherwise squeeze
+                // with one (the removed Sepia register's marginal bracket) would otherwise squeeze
                 // the label into the button's padding [action-columns-narrow-M1].
                 const style = getComputedStyle(button);
                 const margins = (parseFloat(style.marginInlineStart) || 0) + (parseFloat(style.marginInlineEnd) || 0);

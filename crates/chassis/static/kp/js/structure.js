@@ -21,6 +21,7 @@
 
 import { getStrings } from './strings.js';
 import { paintRemembered, treeItemId } from './remember.js';
+import { glideGroup, leavesState } from './motion.js';
 
 const TREE = '[data-kp-tree]';
 const REORDER = '[data-kp-reorder]';
@@ -137,11 +138,25 @@ export function attachStructure(
             item.setAttribute('tabindex', '0');
             item.focus();
         };
+        /** A bulk change (expand all) is applied at once: its groups would measure each other half-grown. */
+        let quiet = false;
+        /** @param {HTMLElement} item @returns {HTMLElement | null} the children of a branch, inside it or just after it */
+        const groupOf = (item) => {
+            const inside = item.querySelector(':scope > [role="group"]');
+            if (inside instanceof HTMLElement) return inside;
+            const next = item.nextElementSibling;
+            return next instanceof HTMLElement && next.getAttribute('role') === 'group' ? next : null;
+        };
         /** @param {HTMLElement} item @param {boolean} expanded */
         const setExpanded = (item, expanded) => {
             if (!item.hasAttribute('aria-expanded')) return;
             if ((item.getAttribute('aria-expanded') === 'true') === expanded) return;
-            item.setAttribute('aria-expanded', String(expanded));
+            const flip = () => item.setAttribute('aria-expanded', String(expanded));
+            // A theme that lets states leave first (leavesState()) glides
+            // the branch's children open and shut, on the growth curve.
+            const group = quiet || !leavesState(tree) ? null : groupOf(item);
+            if (group !== null) glideGroup(group, expanded, flip);
+            else flip();
             if (memory !== null) {
                 /** @type {Record<string, boolean>} */
                 const branches = {};
@@ -261,10 +276,14 @@ export function attachStructure(
                 if (item) setExpanded(item, expanded);
             },
             expandAll: () => {
+                quiet = true;
                 for (const item of all()) setExpanded(item, true);
+                quiet = false;
             },
             collapseAll: () => {
+                quiet = true;
                 for (const item of all()) setExpanded(item, false);
+                quiet = false;
             },
             focusItem: (id) => {
                 const item = byId(id);

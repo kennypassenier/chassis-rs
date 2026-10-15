@@ -374,7 +374,13 @@ export function attachForms(
         const onValid = () => {
             button.disabled = true;
             button.setAttribute('aria-busy', 'true');
-            button.textContent = busyText;
+            // The busy words in their own `.kp-button__label`, the element
+            // the React button already has, so a register can style the
+            // words alone [scope-143].
+            const label = button.ownerDocument.createElement('span');
+            label.className = 'kp-button__label';
+            label.textContent = busyText;
+            button.replaceChildren(label);
         };
         // The way back [KT6]. The first version restored the label only
         // on detach, so a failed save left the button dead for the life

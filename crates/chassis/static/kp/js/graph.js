@@ -262,7 +262,7 @@ function restyleGraph(g) {
             on.add(b);
         }
     }
-    for (const node of g.svg.querySelectorAll('.kp-graph__node')) {
+    for (const node of g.svg.querySelectorAll(':scope > .kp-graph__node')) {
         const id = node.getAttribute('data-kp-id') ?? '';
         node.classList.toggle('is-on', on.has(id));
         node.classList.toggle('is-dim', lit.size > 0 && !on.has(id));
@@ -283,6 +283,71 @@ function fitDrawnLabels(labels, W, H) {
     });
 }
 
+/**
+ * The ghost of the coming network, drawn while loading [PACKAGE_FINDINGS, 2026-10-06]: the last network's nodes and
+ * links, or a hub with a ring of six when nothing was drawn yet, in the package's own edge, node, ring and core
+ * classes so the theme's settled shape draws it, quieted by the `kp-graph__ghost` rules. Every part carries `--i`
+ * (its order from the hub round the ring) and the group `--n` (how many), for a register's staggered motion.
+ * @param {Document} doc
+ * @param {GraphData | null} last
+ * @param {number} W
+ * @param {number} H
+ * @returns {SVGGElement}
+ */
+function ghostOf(doc, last, W, H) {
+    /** @type {GraphData} */
+    const data = last?.nodes.length
+        ? last
+        : {
+              nodes: ['hub', 'a', 'b', 'c', 'd', 'e', 'f'].map((id) => ({ id, label: id, description: '' })),
+              edges: ['a', 'b', 'c', 'd', 'e', 'f'].map((to) => ({ from: 'hub', to, kind: 'link' })),
+              kinds: [],
+              hub: 'hub',
+          };
+    const at = graphLayout(data, W, H);
+    const hub = hubOf(data);
+    const order = [...(hub ? [hub] : []), ...ringOf(data, hub).map((n) => n.id)];
+    const bends = graphBends(data.edges);
+    const kinds = new Map(data.kinds.map((k) => [k.kind, k]));
+    const sorted = data.nodes.filter((n) => !n.external).sort((a, b) => a.label.localeCompare(b.label));
+    const root = svgEl(doc, 'g', { class: 'kp-graph__ghost', 'aria-hidden': 'true', style: `--n: ${order.length}` });
+    const edges = svgEl(doc, 'g', { class: 'kp-graph__edges' });
+    data.edges.forEach((e, i) => {
+        const a = at.get(e.from);
+        const b = at.get(e.to);
+        if (!a || !b) return;
+        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        const mx = (a.x + b.x) / 2 - ((b.y - a.y) / len) * bends[i];
+        const my = (a.y + b.y) / 2 + ((b.x - a.x) / len) * bends[i];
+        const kind = kinds.get(e.kind);
+        edges.append(
+            svgEl(doc, 'path', {
+                class: 'kp-graph__edge',
+                d: `M${a.x.toFixed(1)},${a.y.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`,
+                'data-kp-kind': e.kind,
+                'data-kp-style': kind?.style ?? 'solid',
+                style: `--i: ${Math.max(0, order.indexOf(e.from === hub ? e.to : e.from))}${kind?.colour ? `; --kp-graph-edge-colour: ${kind.colour}` : ''}`,
+            }),
+        );
+    });
+    root.append(edges);
+    order.forEach((id, i) => {
+        const n = data.nodes.find((x) => x.id === id);
+        const p = at.get(id);
+        if (!n || !p) return;
+        const r = radiusOf(n);
+        const hue = n.hue ?? Math.round((sorted.indexOf(n) / Math.max(1, sorted.length)) * 360);
+        const node = svgEl(doc, 'g', {
+            class: `kp-graph__node${n.external ? ' kp-graph__node--external' : ''}${id === hub ? ' kp-graph__node--hub' : ''}`,
+            style: `--i: ${i}${n.external ? '' : `; --kp-graph-hue: ${hue}`}`,
+        });
+        node.append(svgEl(doc, 'circle', { class: 'kp-graph__ring', cx: p.x, cy: p.y, r }));
+        if (!n.external) node.append(svgEl(doc, 'circle', { class: 'kp-graph__core', cx: p.x, cy: p.y, r: Math.max(4, r - 6) }));
+        root.append(node);
+    });
+    return /** @type {SVGGElement} */ (root);
+}
+
 /** Draw the whole graph for the box's width. @param {GraphModel} g */
 function drawGraph(g) {
     const doc = g.el.ownerDocument;
@@ -300,15 +365,7 @@ function drawGraph(g) {
     g.note.textContent = g.state === 'ready' ? '' : g.state === 'loading' ? g.words || g.strings.graphLoading : g.words;
     g.note.hidden = g.state === 'ready';
     if (g.state === 'loading') {
-        g.svg.append(
-            svgEl(doc, 'ellipse', {
-                class: 'kp-graph__skeleton',
-                cx: W / 2,
-                cy: H / 2 - 10,
-                rx: W < 600 ? Math.min(W * 0.24, Math.min(W, H) * 0.36) : Math.min(W, H) * 0.36 * 1.35,
-                ry: Math.min(W, H) * 0.36,
-            }),
-        );
+        g.svg.append(ghostOf(doc, g.data, W, H));
     }
     if (g.state !== 'ready' || !data) {
         g.legend.replaceChildren();
@@ -571,7 +628,7 @@ export function attachGraphs(root = document, { decorate, strings } = {}) {
             graphChanged(g);
             return true;
         };
-        const order = () => /** @type {SVGGElement[]} */ ([...svg.querySelectorAll('.kp-graph__node')]);
+        const order = () => /** @type {SVGGElement[]} */ ([...svg.querySelectorAll(':scope > .kp-graph__node')]);
         const focusNode = (/** @type {SVGGElement} */ node) => {
             for (const other of order()) other.setAttribute('tabindex', other === node ? '0' : '-1');
             g.focus = node.getAttribute('data-kp-id');
@@ -614,7 +671,7 @@ export function attachGraphs(root = document, { decorate, strings } = {}) {
             if (!node) return;
             const nodes = order();
             const at = nodes.indexOf(node);
-            const hasHub = !!svg.querySelector('.kp-graph__node--hub');
+            const hasHub = !!svg.querySelector(':scope > .kp-graph__node--hub');
             const ringStart = hasHub ? 1 : 0;
             const ringCount = nodes.length - ringStart;
             /** @type {number | null} */

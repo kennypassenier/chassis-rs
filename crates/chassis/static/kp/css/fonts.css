@@ -10,7 +10,7 @@
    the renamed family the build gave it (R6-Q1): the tokens name that
    family first and the original after it, for a reader who has it. */
 
-/* Instrument Sans — OFL-1.1, fonts/instrumentsans/LICENSE; named by formal, light, dark, pastel, forest, sepia, blueprint, solstice, retro */
+/* Instrument Sans — OFL-1.1, fonts/instrumentsans/LICENSE; named by formal, light, dark, pastel, forest, blueprint, solstice */
 @font-face {
     font-family: 'Instrument Sans';
     font-style: italic;
@@ -100,41 +100,7 @@
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Atkinson Hyperlegible — OFL-1.1, fonts/atkinsonhyperlegible/LICENSE; named by high-contrast */
-@font-face {
-    font-family: 'Atkinson Hyperlegible';
-    font-style: normal;
-    font-weight: 700;
-    font-display: swap;
-    src: url('../fonts/atkinsonhyperlegible/atkinsonhyperlegible-bold.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-    font-family: 'Atkinson Hyperlegible';
-    font-style: italic;
-    font-weight: 700;
-    font-display: swap;
-    src: url('../fonts/atkinsonhyperlegible/atkinsonhyperlegible-bolditalic.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-    font-family: 'Atkinson Hyperlegible';
-    font-style: italic;
-    font-weight: 400;
-    font-display: swap;
-    src: url('../fonts/atkinsonhyperlegible/atkinsonhyperlegible-italic.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-    font-family: 'Atkinson Hyperlegible';
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-    src: url('../fonts/atkinsonhyperlegible/atkinsonhyperlegible-regular.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-/* Instrument Serif — OFL-1.1, fonts/instrumentserif/LICENSE; named by sepia, solstice */
+/* Instrument Serif — OFL-1.1, fonts/instrumentserif/LICENSE; named by solstice */
 @font-face {
     font-family: 'Instrument Serif';
     font-style: italic;
@@ -328,16 +294,6 @@
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Pixelify Sans — OFL-1.1, fonts/pixelifysans/LICENSE; named by retro */
-@font-face {
-    font-family: 'Pixelify Sans';
-    font-style: normal;
-    font-weight: 400 700;
-    font-display: swap;
-    src: url('../fonts/pixelifysans/pixelifysans-variable.woff2') format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
 /* Inter — OFL-1.1, fonts/inter/LICENSE; named by grotesk */
 @font-face {
     font-family: 'Inter';
@@ -428,7 +384,7 @@
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* VT323 — OFL-1.1, fonts/vt323/LICENSE; named by synthwave, retro */
+/* VT323 — OFL-1.1, fonts/vt323/LICENSE; named by synthwave */
 @font-face {
     font-family: 'VT323';
     font-style: normal;

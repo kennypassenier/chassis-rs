@@ -142,6 +142,16 @@ export const NEEDS = [
     { name: 'calendar', when: '[data-kp-calendar]', load: () => import('./calendar.js'), attach: (m, root) => [m.attachCalendars(root)] },
     { name: 'graph', when: '[data-kp-graph]', load: () => import('./graph.js'), attach: (m, root) => [m.attachGraphs(root)] },
     {
+        // A theme's loading picture made of pieces (`--kp-loading-pieces`,
+        // pastel's caterpillar [scope-141]): every part that can wait, and the
+        // components that make one wait later. A theme that names none gets
+        // no piece.
+        name: 'loading-pieces',
+        when: '.kp-skeleton, .kp-progressbar, .kp-meter, .kp-kpi, .kp-card, .kp-spinner, [data-kp-datatable], [data-kp-calendar], [data-kp-menu-button]',
+        load: () => import('./loading-pieces.js'),
+        attach: (m, root) => [m.attachLoadingPieces(root)],
+    },
+    {
         // Every box that changes size after it is drawn, and every dialog's
         // close [scope-142]: the selector is the module's own.
         name: 'motion',

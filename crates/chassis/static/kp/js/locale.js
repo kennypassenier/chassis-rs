@@ -58,14 +58,20 @@ export function weekStartsOn(locale, explicit) {
     return 1;
 }
 
+/** How a numeric date is written: the reader's locale, or dd/mm/yyyy (rule 52). @typedef {'locale' | 'rule52'} DateFormat */
+
 /**
  * The order and separator a locale writes a numeric date in, read from
  * Intl once rather than assumed. `parts` is e.g. ['day','month','year'].
+ * `format` is `'locale'` (what Intl says; the default of this function) or
+ * `'rule52'` (dd/mm/yyyy whatever the locale, Kenny's rule 52).
  *
  * @param {string | undefined} [locale]
+ * @param {DateFormat} [format]
  * @returns {{ parts: ('day' | 'month' | 'year')[], separator: string, hint: string }}
  */
-export function datePattern(locale) {
+export function datePattern(locale, format = 'locale') {
+    if (format === 'rule52') return { parts: ['day', 'month', 'year'], separator: '/', hint: 'dd/mm/yyyy' };
     const formatter = new Intl.DateTimeFormat(resolveLocale(locale), { year: 'numeric', month: '2-digit', day: '2-digit' });
     /** @type {('day' | 'month' | 'year')[]} */
     const parts = [];
@@ -80,13 +86,20 @@ export function datePattern(locale) {
 }
 
 /**
- * A date as the locale writes it: numeric, two-digit day and month.
+ * A date as the locale writes it: numeric, two-digit day and month; with
+ * `format` `'rule52'`, dd/mm/yyyy in Latin digits whatever the locale.
  *
  * @param {Date} date
  * @param {string | undefined} [locale]
+ * @param {DateFormat} [format]
  * @returns {string}
  */
-export function formatDate(date, locale) {
+export function formatDate(date, locale, format = 'locale') {
+    if (format === 'rule52') {
+        const dd = String(date.getDate()).padStart(2, '0');
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        return `${dd}/${mm}/${String(date.getFullYear()).padStart(4, '0')}`;
+    }
     return new Intl.DateTimeFormat(resolveLocale(locale), { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 }
 
@@ -97,9 +110,10 @@ export function formatDate(date, locale) {
  *
  * @param {string} text
  * @param {string | undefined} [locale]
+ * @param {DateFormat} [format]
  * @returns {Date | null}
  */
-export function parseDate(text, locale) {
+export function parseDate(text, locale, format = 'locale') {
     const trimmed = text.trim();
     /** @param {number} y @param {number} m @param {number} d */
     const exact = (y, m, d) => {
@@ -110,7 +124,7 @@ export function parseDate(text, locale) {
     if (iso) return exact(Number(iso[1]), Number(iso[2]), Number(iso[3]));
     const loose = /^(\d{1,4})[-/. ](\d{1,2})[-/. ](\d{1,4})$/.exec(trimmed);
     if (!loose) return null;
-    const { parts } = datePattern(locale);
+    const { parts } = datePattern(locale, format);
     const numbers = [Number(loose[1]), Number(loose[2]), Number(loose[3])];
     /** @type {Record<string, number>} */
     const by = {};

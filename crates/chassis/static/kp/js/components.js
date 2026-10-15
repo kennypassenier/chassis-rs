@@ -451,11 +451,22 @@ export function attachToTop(root = document, { strings, after } = {}) {
             button.append(glyph);
         }
 
+        // The box that scrolls the control's page: the window, or a scrolling box it sits in (a dashboard's main, a review
+        // dialog's stage; Kenny, 2026-10-13: "the back to top didn't seem to work" in such a stage). Read at every use, since
+        // a box can move the control into another scroller after it was attached.
+        const scroller = () => {
+            for (let box = button.parentElement; box && box !== doc.body && box !== doc.documentElement; box = box.parentElement) {
+                const overflow = view.getComputedStyle(box).overflowY;
+                if (/auto|scroll|overlay/.test(overflow) && box.scrollHeight > box.clientHeight + 1) return box;
+            }
+            return null;
+        };
         let shown = false;
         let queued = false;
         const decide = () => {
             queued = false;
-            const next = view.scrollY > threshold;
+            const box = scroller();
+            const next = (box ? box.scrollTop : view.scrollY) > threshold;
             if (next === shown) return;
             shown = next;
             button.toggleAttribute('data-kp-to-top-shown', next);
@@ -469,7 +480,7 @@ export function attachToTop(root = document, { strings, after } = {}) {
             view.requestAnimationFrame(decide);
         };
         const onClick = () => {
-            view.scrollTo({ top: 0 });
+            (scroller() ?? view).scrollTo({ top: 0 });
             // The focus goes too, and it goes WITHOUT scrolling. Focusing an
             // element normally brings it into view, which undid the journey:
             // on a page whose main landmark starts 2737px down, "back to
@@ -482,11 +493,12 @@ export function attachToTop(root = document, { strings, after } = {}) {
         };
 
         decide();
-        view.addEventListener('scroll', onScroll, { passive: true });
+        // Captured on the document: a box's scroll does not bubble, and the window's reaches the document as well.
+        doc.addEventListener('scroll', onScroll, { passive: true, capture: true });
         button.addEventListener('click', onClick);
 
         cleanups.push(() => {
-            view.removeEventListener('scroll', onScroll);
+            doc.removeEventListener('scroll', onScroll, { capture: true });
             button.removeEventListener('click', onClick);
             button.removeAttribute('data-kp-to-top-shown');
             glyph?.remove();
@@ -555,10 +567,38 @@ export function attachNavToggles(root = document, { strings, ownedBy = NAV_OWNED
             button.setAttribute('aria-expanded', String(open));
             button.setAttribute('aria-label', label());
         };
+        let closing = false;
         /** @param {boolean} open */
         const set = (open) => {
-            write(open);
-            nav.dispatchEvent(new CustomEvent(NAV_TOGGLE_EVENT, { bubbles: true, detail: { open } }));
+            if (open) {
+                closing = false;
+                nav.removeAttribute('data-kp-nav-closing');
+                write(true);
+                // The panel's own height, for a theme that grows it: a ceiling
+                // taller than the list hides the first and last part of the
+                // growth, and the close is not the open reversed.
+                if (links) /** @type {HTMLElement} */ (nav).style.setProperty('--kp-nav-links-height', `${links.scrollHeight}px`);
+                nav.dispatchEvent(new CustomEvent(NAV_TOGGLE_EVENT, { bubbles: true, detail: { open: true } }));
+            } else {
+                if (closing || !nav.hasAttribute('data-kp-nav-open')) return;
+                closing = true;
+                nav.setAttribute('data-kp-nav-closing', '');
+                button.setAttribute('aria-expanded', 'false');
+                button.setAttribute('aria-label', label());
+                const navStyle = getComputedStyle(nav);
+                const durVal = (navStyle.getPropertyValue('--kp-nav-close-time') || navStyle.getPropertyValue('--kp-sig-fo-time')).trim();
+                const dur = durVal ? (durVal.endsWith('ms') ? parseFloat(durVal) : parseFloat(durVal) * 1000) : 300;
+                setTimeout(
+                    () => {
+                        if (!closing) return;
+                        closing = false;
+                        nav.removeAttribute('data-kp-nav-closing');
+                        write(false);
+                        nav.dispatchEvent(new CustomEvent(NAV_TOGGLE_EVENT, { bubbles: true, detail: { open: false } }));
+                    },
+                    Number.isFinite(dur) ? dur : 300,
+                );
+            }
         };
         // Attaching is not a toggle. This wrote the starting state THROUGH
         // the dispatch, so every consumer listening heard a close that
@@ -566,7 +606,7 @@ export function attachNavToggles(root = document, { strings, ownedBy = NAV_OWNED
         // ever to listen.
         write(nav.hasAttribute('data-kp-nav-open'));
 
-        const onClick = () => set(!nav.hasAttribute('data-kp-nav-open'));
+        const onClick = () => set(!nav.hasAttribute('data-kp-nav-open') && !closing);
         /** @param {KeyboardEvent} event */
         const onKey = (event) => {
             if (event.key !== 'Escape' || !nav.hasAttribute('data-kp-nav-open')) return;
@@ -954,12 +994,66 @@ export function attachNavMenus(root = document, { strings, ownedBy = NAV_OWNED }
         }
 
         const openButton = () => buttons.find((b) => b.getAttribute('aria-expanded') === 'true') ?? null;
+        /**
+         * A panel that is closing stays on screen, `[data-kp-nav-closing]` on its
+         * item, until the transitions the theme runs to the closed state have
+         * played; a panel with none is gone on the next frame, as before.
+         * @param {HTMLElement} item
+         * @param {Element | null | undefined} panel
+         */
+        const settleClosing = (item, panel) => {
+            item.setAttribute('data-kp-nav-closing', '');
+            requestAnimationFrame(() => {
+                if (!item.hasAttribute('data-kp-nav-closing')) return;
+                const plays = (panel?.getAnimations() ?? []).filter((a) => typeof CSSTransition !== 'undefined' && a instanceof CSSTransition);
+                void Promise.all(plays.map((a) => a.finished.catch(() => undefined))).then(() => item.removeAttribute('data-kp-nav-closing'));
+            });
+        };
         /** @param {HTMLElement} button @param {boolean} open */
         const set = (button, open) => {
-            if (open) for (const other of buttons) if (other !== button) other.setAttribute('aria-expanded', 'false');
-            button.setAttribute('aria-expanded', String(open));
+            if (open) for (const other of buttons) if (other !== button && other.getAttribute('aria-expanded') === 'true') set(other, false);
+            const was = button.getAttribute('aria-expanded') === 'true';
             const panel = wired.get(button)?.panel;
+            const item = button.parentElement;
+            if (open) item?.removeAttribute('data-kp-nav-closing');
+            button.setAttribute('aria-expanded', String(open));
             if (open && panel) placeNavPanel(panel);
+            if (!open && was && item) settleClosing(item, panel);
+        };
+
+        // A dropdown that opens on hover and focus closes in CSS, the instant
+        // the pointer or the focus leaves, which no engine can hold open for a
+        // close that plays (Firefox does not hold `display`). A register that
+        // plays one (`--kp-nav-close-time`, cyberpunk) gets the same hold as
+        // the mega menu: the item is marked while the close plays.
+        const holdsClose = () => getComputedStyle(nav).getPropertyValue('--kp-nav-close-time').trim() !== '';
+        /** @param {Event} event */
+        const onLeave = (event) => {
+            if (!holdsClose()) return;
+            const item = itemOf(event.target);
+            if (!item || !nav.contains(item)) return;
+            const panel = item.querySelector(DROPDOWN);
+            if (!panel) return;
+            const to = /** @type {FocusEvent | PointerEvent} */ (event).relatedTarget;
+            if (to instanceof Node && item.contains(to)) return;
+            // Still held open by the other way in (the state is read before the
+            // leaving event's own effect lands, so only the other one counts).
+            if (item.hasAttribute('data-kp-nav-menu-open')) return;
+            if (event.type === 'pointerout' ? item.matches(':focus-within') : item.matches(':hover')) return;
+            // Held for the close's own time, not for a transition: the pointer's
+            // `:hover` may not have changed yet when this runs, so none has begun.
+            const raw = getComputedStyle(nav).getPropertyValue('--kp-nav-close-time').trim();
+            const ms = raw.endsWith('ms') ? parseFloat(raw) : parseFloat(raw) * 1000;
+            if (!(ms > 0)) return;
+            item.setAttribute('data-kp-nav-closing', '');
+            setTimeout(() => {
+                if (!item.matches(':hover, :focus-within, [data-kp-nav-menu-open]')) item.removeAttribute('data-kp-nav-closing');
+            }, ms || 0);
+        };
+        /** @param {Event} event */
+        const onReturn = (event) => {
+            const item = itemOf(event.target);
+            if (item?.hasAttribute('data-kp-nav-closing') && item.querySelector(DROPDOWN)) item.removeAttribute('data-kp-nav-closing');
         };
 
         /** @param {Event} event */
@@ -993,6 +1087,10 @@ export function attachNavMenus(root = document, { strings, ownedBy = NAV_OWNED }
 
         nav.addEventListener('pointerover', onEnter);
         nav.addEventListener('focusin', onEnter);
+        nav.addEventListener('pointerover', onReturn);
+        nav.addEventListener('focusin', onReturn);
+        nav.addEventListener('pointerout', onLeave);
+        nav.addEventListener('focusout', onLeave);
         nav.addEventListener('keydown', /** @type {EventListener} */ (onKey));
         nav.addEventListener('focusout', /** @type {EventListener} */ (onFocusOut));
         for (const button of buttons) button.addEventListener('click', onClick);
@@ -1003,6 +1101,10 @@ export function attachNavMenus(root = document, { strings, ownedBy = NAV_OWNED }
         cleanups.push(() => {
             nav.removeEventListener('pointerover', onEnter);
             nav.removeEventListener('focusin', onEnter);
+            nav.removeEventListener('pointerover', onReturn);
+            nav.removeEventListener('focusin', onReturn);
+            nav.removeEventListener('pointerout', onLeave);
+            nav.removeEventListener('focusout', onLeave);
             nav.removeEventListener('keydown', /** @type {EventListener} */ (onKey));
             nav.removeEventListener('focusout', /** @type {EventListener} */ (onFocusOut));
             document.removeEventListener('click', onOutside, true);

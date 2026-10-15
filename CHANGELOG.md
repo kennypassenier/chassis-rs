@@ -7,6 +7,18 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed
+
+- **kp-themes 10.1.0 vendored** (verified against the release SHA256SUMS;
+  `js/loading-pieces.js` joins the `webapp` asset set; the Atkinson
+  Hyperlegible and Pixelify Sans fonts, no longer in the release and named
+  by no stylesheet, are dropped). What a web app notices: the date picker
+  writes dd/mm/yyyy by default (`data-kp-date-format="locale"` opts back),
+  key-figure labels wrap instead of ending in an ellipsis, the sidenav opens
+  from its edge tab when the page has one (`data-kp-sidenav-opener=
+  "launcher"` or `"both"` for the old look), and menus gain
+  `--kp-menu-anchor-x` and `--kp-menu-count`.
+
 ## [3.7.0] - 2026-10-08
 
 ### Changed

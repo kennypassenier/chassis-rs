@@ -23,7 +23,7 @@
 // what attach changed.
 
 import { getStrings } from './strings.js';
-import { leave, playEntranceBackwards, stopReversing } from './motion.js';
+import { arriveShown, leave, leavesState, playEntranceBackwards, stopReversing } from './motion.js';
 
 /** How long a toast stays before it removes itself. An operational knob; per toast as `ms`. */
 export const TOAST_MS = 5000;
@@ -256,7 +256,18 @@ export function attachTabs(root = document, { activation = 'automatic', loop = t
                 const back = leaving.get(show);
                 if (back) going.push(back);
                 if (going.length === 0) show.hidden = false;
-                else {
+                // A theme that lets states leave first (leavesState()) lets
+                // the new panel grow while the old one withers, one picture
+                // in one time, instead of one after the other.
+                else if (!back && leavesState(show)) {
+                    // Marked for the arrival that follows: a theme that folds in
+                    // whole ticks (`--kp-swap-fold-ease`) shifts the new panel's
+                    // fold one tick against the old one's, so the two always add
+                    // up to the one panel and the box does not move.
+                    show.setAttribute('data-kp-tabs-swapping', '');
+                    setTimeout(() => show.removeAttribute('data-kp-tabs-swapping'), 400);
+                    show.hidden = false;
+                } else {
                     if (!back) show.hidden = true;
                     void Promise.all(going).then(() => {
                         if (turn === mine) show.hidden = false;
@@ -492,7 +503,19 @@ export function attachDismissals(root = document, { ownedBy = DISMISS_OWNED } = 
         if (!alert) return;
         const proceed = alert.dispatchEvent(new CustomEvent(ALERT_DISMISS_EVENT, { bubbles: true, cancelable: true, detail: { alert, button } }));
         // It leaves the theme's way, its space folding shut, then is hidden.
-        if (proceed) void leave(alert, { hide: true });
+        if (!proceed) return;
+        void leave(alert, { hide: true }).then(() => {
+            // In a theme that lets states leave first (leavesState()), the
+            // alert shown again (`hidden = false`) arrives as it leaves, played
+            // backwards; nothing else would play it, as it sits in no box.
+            if (!leavesState(alert)) return;
+            const back = new MutationObserver(() => {
+                if (alert.hidden) return;
+                back.disconnect();
+                arriveShown(alert);
+            });
+            back.observe(alert, { attributes: true, attributeFilter: ['hidden'] });
+        });
     };
     root.addEventListener('click', onClick);
     return () => root.removeEventListener('click', onClick);

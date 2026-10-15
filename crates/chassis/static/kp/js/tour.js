@@ -193,6 +193,28 @@ const make = (doc, tag, className, text) => {
 let endRunning = null;
 
 /**
+ * The card keeps one shape for the whole tour: its height is the tallest step's, measured once
+ * as the tour opens, so going to the next step moves the card and swaps its words without the
+ * box changing size (Kenny, 2026-10-12, round 5: "de box moet gewoon zijn vorm behouden").
+ * @param {HTMLDialogElement} card
+ * @param {{ title: string, text: string }[]} steps
+ * @param {HTMLElement} title
+ * @param {HTMLElement} text
+ */
+function fixShape(card, steps, title, text) {
+    const was = [title.textContent, text.textContent];
+    card.style.removeProperty('min-block-size');
+    let tallest = 0;
+    for (const step of steps) {
+        title.textContent = step.title;
+        text.textContent = step.text;
+        tallest = Math.max(tallest, card.getBoundingClientRect().height);
+    }
+    [title.textContent, text.textContent] = was;
+    if (tallest > 0) card.style.minBlockSize = `${Math.ceil(tallest)}px`;
+}
+
+/**
  * Walk the reader over the page, one card per step, beside its target.
  * Steps whose target is not on the page are left out before counting, so the
  * count is exact. The card is a non-modal dialog: the page stays usable. Esc
@@ -213,8 +235,9 @@ export function startTour(steps, { start = 0, remember, decorate, returnFocus, o
     let index = Math.min(Math.max(0, start), live.length - 1);
     /** @type {HTMLElement | null} */
     let target = null;
-    let targetPosition = '';
     const card = /** @type {HTMLDialogElement} */ (make(doc, 'dialog', 'kp-tour'));
+    // The words change on every step; that is no arrival of new content to play the theme's way.
+    card.dataset.kpArrive = 'none';
     const title = make(doc, 'h3', 'kp-tour__title');
     title.id = nextId('kp-tour-title');
     const text = make(doc, 'p', 'kp-tour__text');
@@ -242,18 +265,13 @@ export function startTour(steps, { start = 0, remember, decorate, returnFocus, o
     const unmark = () => {
         if (!target) return;
         target.removeAttribute('data-kp-tour-target');
-        target.style.position = targetPosition;
         target = null;
     };
     /** @param {HTMLElement} el */
     const mark = (el) => {
         unmark();
         target = el;
-        targetPosition = el.style.position;
         el.setAttribute('data-kp-tour-target', '');
-        // The ring and the dimming paint over what follows the target only
-        // when it is positioned; a static one becomes relative while marked.
-        if (view.getComputedStyle(el).position === 'static') el.style.position = 'relative';
     };
     const place = () => {
         if (!target || !card.open) return;
@@ -329,15 +347,29 @@ export function startTour(steps, { start = 0, remember, decorate, returnFocus, o
             host.append(card);
         }
         if (!card.open) card.show();
+        if (!stepping) fixShape(card, live, title, text);
         title.textContent = step.title;
         text.textContent = step.text;
-        if (stepping) markStep();
+        if (stepping) {
+            card.setAttribute('data-kp-tour-stepping', '');
+            markStep();
+        }
         count.textContent = strings.tourCount(index + 1, live.length);
         backButton.hidden = index === 0;
         const last = index === live.length - 1;
         nextButton.textContent = last ? strings.tourDone : strings.tourNext;
         nextButton.title = last ? strings.tourDoneTitle : strings.tourNextTitle;
-        if (scroll) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reducedMotion(doc) ? 'auto' : 'smooth' });
+        if (scroll) {
+            const rect = el.getBoundingClientRect();
+            const inView =
+                rect.top >= 0 &&
+                rect.bottom <= (view.innerHeight || doc.documentElement.clientHeight) &&
+                rect.left >= 0 &&
+                rect.right <= (view.innerWidth || doc.documentElement.clientWidth);
+            if (!inView) {
+                el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+            }
+        }
         place();
         nextButton.focus({ preventScroll: true });
     };
@@ -347,16 +379,22 @@ export function startTour(steps, { start = 0, remember, decorate, returnFocus, o
         // Once: a handle's end() after the tour already ended does nothing.
         if (ended) return;
         ended = true;
-        unmark();
         unmarkStep();
         // The card goes as it came: its entrance played backwards, then it
         // is closed and taken out (Kenny, 2026-10-05: it faded in and
-        // vanished at once).
+        // vanished at once). The target's mark stays until the card is gone,
+        // so the screen un-dims together with the card.
         card.inert = true;
+        card.removeAttribute('data-kp-tour-stepping');
         void playEntranceBackwards(card).then(() => {
+            unmark();
             if (card.open) card.close();
             card.remove();
             stopReversing(card);
+            // The focus ring on the opener comes back with the card gone, the
+            // way it left when the card came: a ring that appears at once at
+            // the start of the close is not the opening played backwards.
+            if (back?.isConnected) back.focus();
         });
         view.removeEventListener('keydown', onKey, true);
         view.removeEventListener('resize', onMove);
@@ -365,7 +403,6 @@ export function startTour(steps, { start = 0, remember, decorate, returnFocus, o
         // A tour that ended, finished or skipped, does not start by itself
         // again; Help can start it.
         if (remember) tourMemory(remember)?.write(TOUR_SLOT, true);
-        if (back?.isConnected) back.focus();
         onEnd?.(finished);
     };
     let frame = 0;

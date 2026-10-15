@@ -150,7 +150,7 @@ export function install(ctx) {
             return;
         }
         if (routine === 'ink') {
-            // The sepia headline [S48, LIFT_PLAN row 9]: no per-word
+            // The Sepia headline (theme removed 2026-10-08) [S48, LIFT_PLAN row 9]: no per-word
             // stagger — the whole line is one CSS transition, a faint
             // ghost of the ink colour settling to the full one, because
             // this theme (anatomy.md) is "unhurried on purpose". `settling`
@@ -159,7 +159,7 @@ export function install(ctx) {
             // motion — which skip straight to `rest(true)` above and never
             // add it — render the plain, already-settled headline rather
             // than a permanent ghost. A transition, not a keyframe
-            // animation (css/sepia-register.css carries no `@keyframes`
+            // animation (the removed sepia register carried no `@keyframes`
             // for it, so it has no TIMINGS row).
             state.pending++;
             el.classList.add(STATE.settling);
@@ -392,12 +392,12 @@ export function install(ctx) {
                 done();
             };
             finishers.push(finish);
-            const keyframe = routine === 'blur' ? 'kp-word-in' : `kp-${routine}`;
+            const keyframe = routine === 'blur' ? 'kp-word-in' : routine === 'shout' ? 'kp-sig-phantom-fly' : `kp-${routine}`;
             later(finish, TIMINGS[keyframe].durationMs + index * cfg.wordStagger + 50);
             return;
         }
         if (routine === 'dissolve') {
-            // The retro headline [RT2]: the text is whole under a dither the
+            // The Retro headline (theme removed 2026-10-09) [RT2]: the text is whole under a dither the
             // register paints; the class runs the dither's clearing, then the
             // element rests. Without an animation the class comes off by the
             // table's duration.

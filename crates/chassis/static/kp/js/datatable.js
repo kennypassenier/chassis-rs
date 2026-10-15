@@ -115,7 +115,7 @@ import { attachTableRegions } from './tables.js';
 import { attachDatePickers, datePicker, DATE_EVENT } from './datepicker.js';
 import { attachSelect, drawsSelect } from './combobox.js';
 import { columnId, paintRemembered } from './remember.js';
-import { FOLDING_OUT, playArrivalBackwards, stopReversing } from './motion.js';
+import { FOLDING_OUT, leave, leavesState, playArrivalBackwards, playClose, stopReversing } from './motion.js';
 
 const TABLE = '[data-kp-datatable]';
 const SEARCH = '[data-kp-datatable-search]';
@@ -1009,9 +1009,28 @@ export function attachDataTables(
         const drawOverlay = (s) => {
             overlayUnwatch?.();
             overlayUnwatch = null;
-            overlayLayer?.remove();
-            overlayLayer = null;
-            overlayClock = null;
+            if (overlayLayer) {
+                const toClose = overlayLayer;
+                overlayLayer = null;
+                overlayClock = null;
+                const panel = /** @type {HTMLElement | null} */ (toClose.querySelector('.kp-datatable__busy-panel'));
+                if (panel && toClose.isConnected && state !== 'loading') {
+                    // A theme that leaves its states whole (forest: the
+                    // layer arrived as its leave played backwards) lets the
+                    // layer leave the way it came (leavesState()); the
+                    // others close the panel on its own.
+                    if (leavesState(toClose)) {
+                        void leave(toClose);
+                    } else {
+                        toClose.setAttribute('data-kp-closing', '');
+                        void playClose(panel).then(() => {
+                            toClose.remove();
+                        });
+                    }
+                } else {
+                    toClose.remove();
+                }
+            }
             // Placed in the wrapper rather than in the box that scrolls, so a
             // panel taller than a few rows never adds a scrollbar there.
             const host = wrap;
@@ -1061,6 +1080,29 @@ export function attachDataTables(
         /** The server's count, in a server-backed table. */
         let total = Number.parseInt(wrap.dataset.kpTotal ?? '', 10);
         const emptyWasHidden = empty?.hidden ?? false;
+        /** The empty state is leaving now, before it is hidden (leavesState()). */
+        let emptyLeaving = false;
+        let emptyHidden = emptyWasHidden;
+        /**
+         * Show or hide the empty state. In a theme that lets a hidden part
+         * leave first it withers before it goes, and what the table wants
+         * when that is over (typing went on) is applied then.
+         * @param {boolean} hide
+         */
+        const showEmpty = (hide) => {
+            if (empty === null) return;
+            emptyHidden = hide;
+            if (emptyLeaving) return;
+            if (hide && !empty.hidden && empty.isConnected && leavesState(empty)) {
+                emptyLeaving = true;
+                void leave(empty, { hide: true }).then(() => {
+                    emptyLeaving = false;
+                    empty.hidden = emptyHidden;
+                });
+                return;
+            }
+            empty.hidden = hide;
+        };
         const densityWas = wrap.getAttribute('data-density');
         const busyWas = wrap.getAttribute('aria-busy');
 
@@ -2109,7 +2151,7 @@ export function attachDataTables(
                 pager.append(pagerButton(s.next, page < pages - 1, () => (page += 1)));
             }
             if (empty !== null) {
-                empty.hidden = count > 0 || state !== 'ready';
+                showEmpty(count > 0 || state !== 'ready');
                 // Nothing yet, or nothing matching: each of the slot's two
                 // optional parts says its own thing and offers its own way
                 // out [fix-85].

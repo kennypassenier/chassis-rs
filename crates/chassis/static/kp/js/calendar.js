@@ -85,7 +85,7 @@ export const CALENDAR_MONTH_EVENT = 'kp-calendar-month';
  *   strings: Strings, months: string[], decorate?: CalendarOptions['decorate'], title: HTMLElement,
  *   stateLine: HTMLElement, grid: HTMLTableElement,
  *   cells: { td: HTMLTableCellElement, button: HTMLButtonElement, num: HTMLElement, count: HTMLElement, pad: HTMLElement }[],
- *   legend: HTMLElement, shownMonth: string }} CalendarModel
+ *   legend: HTMLElement, shownMonth: string, busyText?: HTMLElement }} CalendarModel
  */
 
 /** @type {WeakMap<Element, CalendarModel>} */
@@ -193,8 +193,48 @@ function dayFor(c, iso, today) {
     return { tone: 'none', label: s.calendarUnknown };
 }
 
+/** The marks of a busy layer: the whole grid's card and a day's spinner. */
+const BUSY_LAYERS = '.kp-calendar__busy, .kp-calendar__day-busy';
+
+/**
+ * The busy layers a theme holds on screen while their state goes (`--kp-calendar-busy-leave:
+ * hold`, set on the layers by cyberpunk): each is marked `[data-kp-leaving]`, which the
+ * register draws as the leave of its arrival played backwards and keeps displayed until it is
+ * over. Then the mark goes and the layer is hidden by the calendar's own rules.
+ * @param {Element[]} layers
+ */
+function leaveBusyLayers(layers) {
+    for (const layer of layers) {
+        layer.setAttribute('data-kp-leaving', '');
+        getComputedStyle(layer).animationName;
+        const plays = layer.getAnimations().filter((a) => a instanceof CSSAnimation && /** @type {KeyframeEffect} */ (a.effect)?.target === layer);
+        const done = () => {
+            layer.removeAttribute('data-kp-leaving');
+            // Words kept on the card through its leave (see setCalendarState()) go with it.
+            const words = layer.querySelector(':scope > .kp-calendar__busy-text');
+            if (words !== null && layer.hasAttribute('data-kp-busy-words-held')) {
+                layer.removeAttribute('data-kp-busy-words-held');
+                words.textContent = '';
+            }
+        };
+        if (plays.length === 0) done();
+        else void Promise.all(plays.map((a) => a.finished)).then(done, done);
+    }
+}
+
 /** Repaint the grid in place: tones, words and the tab stop, never new buttons. @param {CalendarModel} c */
 function paintCalendar(c) {
+    const busy = c.state === 'loading';
+    // The layers on screen now, which a theme may let leave first.
+    const leaving =
+        !busy && c.grid.getAttribute('aria-busy') === 'true'
+            ? [...c.el.querySelectorAll(BUSY_LAYERS)].filter(
+                  (layer) =>
+                      layer.getClientRects().length > 0 && getComputedStyle(layer).getPropertyValue('--kp-calendar-busy-leave').trim() === 'hold',
+              )
+            : [];
+    // Loading again while they leave: they stay, as they arrive.
+    if (busy) for (const layer of c.el.querySelectorAll(`:is(${BUSY_LAYERS})[data-kp-leaving]`)) layer.removeAttribute('data-kp-leaving');
     const ym = monthKey(c);
     const today = dayKey(c.now(), c.timeZone);
     const cells = monthCells(c.year, c.month, c.firstDay);
@@ -210,8 +250,15 @@ function paintCalendar(c) {
         if (!cell) return;
         const mine = inMonth(iso);
         cell.button.hidden = !mine;
+        cell.pad.hidden = mine;
         cell.pad.textContent = mine ? '' : iso.slice(8, 10);
         cell.td.toggleAttribute('data-kp-pad', !mine);
+        if (monthChanged) {
+            const animTarget = mine ? cell.button : cell.pad;
+            animTarget.style.animation = 'none';
+            void animTarget.offsetHeight;
+            animTarget.style.animation = '';
+        }
         if (!mine) {
             cell.td.removeAttribute('aria-selected');
             delete cell.button.dataset.kpDate;
@@ -233,6 +280,7 @@ function paintCalendar(c) {
         cell.button.tabIndex = iso === stop ? 0 : -1;
         if (monthChanged) c.decorate?.(cell.button, { kind: 'day', host: c.el, key: keyOf(c.el), index: i, value: iso });
     });
+    if (leaving.length > 0) leaveBusyLayers(leaving);
 }
 
 /** @param {CalendarModel} c @param {number} year @param {number} month @param {boolean} announce */
@@ -363,7 +411,10 @@ export function attachCalendars(root = document, options = {}) {
         // One spinner over the whole grid while it loads, shown only by `.kp-calendar--busy-whole`.
         const busy = make(doc, 'div', 'kp-calendar__busy');
         busy.setAttribute('aria-hidden', 'true');
-        busy.append(make(doc, 'span', 'kp-spinner'));
+        const busyText = make(doc, 'span', 'kp-calendar__busy-text');
+        busyText.textContent = s.loading ?? 'Loading…';
+        const spinner = make(doc, 'span', 'kp-spinner');
+        busy.append(busyText, spinner);
         el.replaceChildren(nav, stateLine, grid, busy, legend);
         if (!el.hasAttribute('aria-labelledby') && !el.hasAttribute('aria-label')) el.setAttribute('aria-labelledby', title.id);
         /** @type {CalendarModel} */
@@ -387,6 +438,7 @@ export function attachCalendars(root = document, options = {}) {
             cells,
             legend,
             shownMonth: '',
+            busyText,
         };
         calendars.set(el, c);
         decorate?.(prev, { kind: 'month-prev', host: el, key: keyOf(el) });
@@ -481,6 +533,23 @@ export function setCalendarState(el, state, words = '') {
     c.state = state;
     c.stateLine.textContent = words;
     c.stateLine.dataset.kpState = state;
+    if (c.busyText) {
+        const next = words || (state === 'loading' ? (c.strings.loading ?? 'Loading…') : '');
+        // A theme that takes the whole grid's card off as its arrival backwards keeps the card's words on it
+        // until it is gone (`--kp-calendar-busy-words: hold`, pastel), so the card that leaves is the one that came.
+        const card = c.busyText.parentElement;
+        const held =
+            next === '' &&
+            card !== null &&
+            c.grid.getAttribute('aria-busy') === 'true' &&
+            card.getClientRects().length > 0 &&
+            getComputedStyle(card).getPropertyValue('--kp-calendar-busy-words').trim() === 'hold';
+        if (held) card.setAttribute('data-kp-busy-words-held', '');
+        else {
+            card?.removeAttribute('data-kp-busy-words-held');
+            c.busyText.textContent = next;
+        }
+    }
     paintCalendar(c);
 }
 
