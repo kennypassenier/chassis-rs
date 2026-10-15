@@ -9,7 +9,7 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Changed
 
-- **kp-themes 10.1.0 vendored** (verified against the release SHA256SUMS;
+- **kp-themes 10.1.1 vendored** (10.1.0 plus its two CSS fixes: a comment in the brutalism register that closed early, and 21 empty entries in a cyberpunk `:is()` list; verified against the release SHA256SUMS;
   `js/loading-pieces.js` joins the `webapp` asset set; the Atkinson
   Hyperlegible and Pixelify Sans fonts, no longer in the release and named
   by no stylesheet, are dropped). What a web app notices: the date picker

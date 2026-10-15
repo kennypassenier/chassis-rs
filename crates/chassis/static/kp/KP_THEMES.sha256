@@ -1,5 +1,5 @@
-# @kp-soft/themes v10.1.0 — lines copied verbatim from the release's own SHA256SUMS
-# (gh release download v10.1.0 --repo kennypassenier/kp-themes -p SHA256SUMS), for
+# @kp-soft/themes v10.1.1 — lines copied verbatim from the release's own SHA256SUMS
+# (gh release download v10.1.1 --repo kennypassenier/kp-themes -p SHA256SUMS), for
 # every file vendored under static/kp/ with the package's own paths kept, so the
 # relative url('../fonts/…') references and the JS import closure stay valid.
 # Checked by a unit test, so the gate holds offline: these hashes say "our copies
@@ -13,7 +13,7 @@
 # dist/kp-themes.css is the release's own bundle of themes, components, layout,
 # utilities and every register (D2, 2026-09-09) — see docs/DASHBOARD.md.
 d12f4c502946a9aa708fb5987f2c3d9d9be64bcac819a61ac47ba2114c508da7  css/fonts.css
-10b2af8383ce461f47296b1be3a72e2e59129af1d56e4666a6c2a315d4748eee  dist/kp-themes.css
+a8afaa6ad1c5fe4ead6801a2799641286f3b372f2d1af6ac0e4794451b255e5d  dist/kp-themes.css
 108b4e57c9c796d3d38d0428ca7ee39de47ad93187302718d9b2d8864b9b716b  fonts/archivo/LICENSE
 cc013bad1c1f61f6375da91d4942ce0b2469d09667105f5fc915004609cedf54  fonts/archivo/archivo-italic-variable.woff2
 6f4f59f1d0435992e9a73541c2bd98bdf75c8145adb6b7b9cad08eb8e8a65580  fonts/archivo/archivo-variable.woff2
@@ -136,7 +136,7 @@ fb232a0ee9d708c1d631a87702d54e7df6036c7fb3a6ab98c22134882d3f07b3  js/remember.js
 6a335d7f186473e88782e4bf7f91cbf6c873b957850f9030a3d0b406f632da54  js/tables.js
 89aef0f00a870825f27a7e62ea368685092a544b09ca9f6de9d32566bf5d9429  js/theme-core.js
 231dfbdba65c10b5d66f2dcf79933635ba02c0fabbbc77d3b8523edd84d05216  js/theme-picker.js
-c707d8694d935358be434494987c165ba6d2ad537cd1dcc344010ef1e0d68f23  js/theme-registry.js
+9ef6d48caf86082914d8ad53ab34f91e797f6697f7590438a4a02fd8511c3896  js/theme-registry.js
 50ce81d2a9555861e5c2beaa792e24c3dd609b3582031928ed3f669d00a8b322  js/tiles.js
 9cbd599de04a5ed8979a86cd62683b4292a9084ffbefa8245171caec59fc4394  js/top-layer.js
 434426fbd4d14bc2761f14c0d9c3a7f5ef2d7e2fa4f4e26db5b9c9129e2c06e8  js/tour.js

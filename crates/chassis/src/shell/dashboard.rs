@@ -818,7 +818,7 @@ mod tests {
         assert_eq!(
             t.len(),
             19,
-            "kp-themes 10.1.0 ships exactly 19 themes (10.0.0 removed lapis, shade-light and shade-dark); the vendored registry is pinned"
+            "kp-themes 10.1.1 ships exactly 19 themes (10.0.0 removed lapis, shade-light and shade-dark); the vendored registry is pinned"
         );
         assert_eq!(t[0].name, "formal");
         assert_eq!(t[0].label, "Formal");
