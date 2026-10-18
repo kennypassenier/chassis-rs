@@ -31,6 +31,12 @@
 //       <aside>…the page's own detail of the picked day…</aside>
 //   </div>
 //
+// Calm tones [kpadopt6]: `data-kp-tones="calm"` swaps ok, warn and bad for `logged` (the theme's accent), `quiet` (nothing
+// logged: lighter than muted, no border, no count, never "missed") and `paused` (`data-kp-paused-range="2026-10-03/2026-10-14"`,
+// hatched), for a calendar that tracks a person and not a machine (js/calm-tones.js). A month with nothing logged keeps its six
+// rows quiet under a centred plate; a month that could not be read is dimmed under one with Retry (`kp-calendar-retry`);
+// `data-kp-legend="hide"` leaves out the legend, `setCalendarCaption` writes a sentence under the grid.
+//
 // Every date a person reads is dd/mm/yyyy (rule 52); the machine's date is
 // `YYYY-MM-DD`, the key of setCalendarDays() and of every event. The words
 // are the dictionary's (`calendar…` in js/strings.js). Nothing runs on
@@ -41,7 +47,9 @@
 
 import { CHART_TIME_ZONE, wallTime } from './chart.js';
 import { calendarNames, resolveLocale, weekStartsOn } from './locale.js';
-import { DEFAULT_STRINGS, resolveStrings } from './strings.js';
+import { DEFAULT_STRINGS, getStrings, resolveStrings } from './strings.js';
+import { calmTone, calmWord, inPausedRange, isCalmTones } from './calm-tones.js';
+import { statePlate } from './state-plate.js';
 
 /** A month heatmap: `section.kp-calendar[data-kp-calendar]`. */
 export const CALENDAR = '[data-kp-calendar]';
@@ -49,9 +57,11 @@ export const CALENDAR = '[data-kp-calendar]';
 export const CALENDAR_PICK_EVENT = 'kp-calendar-pick';
 /** Fired on the calendar, bubbling, when a person moves it to another month: `detail` `{ year, month }` (month 1-12). */
 export const CALENDAR_MONTH_EVENT = 'kp-calendar-month';
+/** Fired on a calm calendar, bubbling, when Retry is pressed on its failed plate. */
+export const CALENDAR_RETRY_EVENT = 'kp-calendar-retry';
 
 /**
- * @typedef {'ok' | 'warn' | 'bad' | 'muted' | 'future' | 'before' | 'loading' | 'none'} CalendarTone
+ * @typedef {'ok' | 'warn' | 'bad' | 'muted' | 'future' | 'before' | 'loading' | 'none' | 'logged' | 'quiet' | 'paused'} CalendarTone
  * @typedef {{ tone: CalendarTone, count?: string, label: string }} CalendarDay
  *   One day's state: its tone, a short count under the number (`7/9`), and the words a screen reader and the
  *   title say after the date (`7 of 9 services backed up; missing: …`)
@@ -181,8 +191,38 @@ let idSeq = 0;
 /** @param {CalendarModel} c */
 const monthKey = (c) => `${c.year}-${two(c.month)}`;
 
+/**
+ * A day in the calm vocabulary: what the page gave, mapped to logged, quiet or paused, with words that never say "missed".
+ * @param {CalendarModel} c @param {string} iso @param {string} today @returns {CalendarDay}
+ */
+function calmDayFor(c, iso, today) {
+    const s = c.strings;
+    const words = c.el.getAttribute('data-kp-quiet-words') === 'none' ? '' : (calmWord('quiet') ?? '');
+    if (c.state === 'loading') return { tone: 'loading', label: s.calendarLoading };
+    if (c.state === 'empty' || c.state === 'error') return { tone: 'quiet', label: words };
+    const given = c.days[iso];
+    if (iso > today && !given) return { tone: 'future', label: s.calendarFuture };
+    const tone = given ? calmTone(given.tone, c.el) : 'quiet';
+    if (tone === 'quiet' || tone === 'paused') {
+        const paused = tone === 'paused' || inPausedRange(c.el.getAttribute('data-kp-paused-range'), iso);
+        return paused ? { tone: 'paused', label: calmWord('paused') ?? '' } : { tone: 'quiet', label: words };
+    }
+    if (tone === 'logged')
+        return { tone: 'logged', label: given?.label || (calmWord('logged') ?? ''), ...(given?.count ? { count: given.count } : {}) };
+    return given ? { ...given, tone: /** @type {CalendarTone} */ (tone) } : { tone: 'quiet', label: words };
+}
+
+/** The calm legend's entries. @param {{ calmLegendLogged: string, calmLegendQuiet: string, calmLegendPaused: string }} s */
+const calmLegend = (s) =>
+    /** @type {{ tone: CalendarTone, label: string }[]} */ ([
+        { tone: 'logged', label: s.calmLegendLogged },
+        { tone: 'quiet', label: s.calmLegendQuiet },
+        { tone: 'paused', label: s.calmLegendPaused },
+    ]);
+
 /** @param {CalendarModel} c @param {string} iso @param {string} today @returns {CalendarDay} */
 function dayFor(c, iso, today) {
+    if (isCalmTones(c.el) && c.el.getAttribute('data-kp-calm-map') !== 'none') return calmDayFor(c, iso, today);
     const s = c.strings;
     if (c.state === 'loading') return { tone: 'loading', label: s.calendarLoading };
     if (c.state === 'empty') return { tone: 'muted', label: c.stateLine.textContent || s.calendarUnknown };
@@ -270,10 +310,11 @@ function paintCalendar(c) {
         cell.button.dataset.kpTone = day.tone;
         cell.button.toggleAttribute('data-kp-today', iso === today);
         cell.num.textContent = iso.slice(8, 10);
-        const counted = day.count && !['future', 'before', 'loading'].includes(day.tone);
+        // A calm cell prints a count on a logged day only, never on a quiet or a paused one.
+        const counted = day.count && (isCalmTones(c.el) ? day.tone === 'logged' : !['future', 'before', 'loading'].includes(day.tone));
         // A no-break space keeps the count's line when there is none, so every day is one height.
         cell.count.textContent = counted ? /** @type {string} */ (day.count) : ' ';
-        const words = c.strings.calendarDay(formatDayKey(iso), day.label);
+        const words = day.label === '' ? formatDayKey(iso) : c.strings.calendarDay(formatDayKey(iso), day.label);
         cell.button.setAttribute('aria-label', words);
         cell.button.title = words;
         cell.td.setAttribute('aria-selected', String(iso === c.selected));
@@ -281,6 +322,39 @@ function paintCalendar(c) {
         if (monthChanged) c.decorate?.(cell.button, { kind: 'day', host: c.el, key: keyOf(c.el), index: i, value: iso });
     });
     if (leaving.length > 0) leaveBusyLayers(leaving);
+    syncCalmPlate(c);
+}
+
+/**
+ * The plate over a calm calendar's grid: "Nothing logged this month" over an empty month (the grid keeps its six quiet rows),
+ * or "Could not read this month" with Retry over a month that failed (the grid dimmed under it).
+ * @param {CalendarModel} c
+ */
+function syncCalmPlate(c) {
+    const calm = isCalmTones(c.el);
+    const kind = calm && c.state === 'empty' ? 'empty' : calm && c.state === 'error' ? 'error' : null;
+    const old = c.el.querySelector(':scope > .kp-calendar__plate');
+    c.grid.toggleAttribute('data-kp-dim', kind !== null);
+    c.grid.toggleAttribute('inert', kind === 'error');
+    if (kind === null) {
+        old?.remove();
+        return;
+    }
+    if (old?.getAttribute('data-kp-plate') === kind) return;
+    old?.remove();
+    const s = getStrings();
+    const inner = statePlate(c.el.ownerDocument, {
+        kind,
+        title: kind === 'empty' ? s.calmEmptyTitle : s.calmFailedTitle,
+        text: kind === 'empty' ? s.calmEmptyText : s.calmFailedText,
+        ...(kind === 'error'
+            ? { actionLabel: s.calmRetry, onAction: () => c.el.dispatchEvent(new CustomEvent(CALENDAR_RETRY_EVENT, { bubbles: true })) }
+            : {}),
+    });
+    const plate = make(c.el.ownerDocument, 'div', 'kp-calendar__plate');
+    plate.setAttribute('data-kp-plate', kind);
+    plate.append(inner);
+    c.grid.after(plate);
 }
 
 /** @param {CalendarModel} c @param {number} year @param {number} month @param {boolean} announce */
@@ -415,7 +489,9 @@ export function attachCalendars(root = document, options = {}) {
         busyText.textContent = s.loading ?? 'Loading…';
         const spinner = make(doc, 'span', 'kp-spinner');
         busy.append(busyText, spinner);
-        el.replaceChildren(nav, stateLine, grid, busy, legend);
+        const caption = make(doc, 'p', 'kp-calendar__caption');
+        caption.hidden = true;
+        el.replaceChildren(nav, stateLine, grid, busy, caption, legend);
         if (!el.hasAttribute('aria-labelledby') && !el.hasAttribute('aria-label')) el.setAttribute('aria-labelledby', title.id);
         /** @type {CalendarModel} */
         const c = {
@@ -445,6 +521,19 @@ export function attachCalendars(root = document, options = {}) {
         decorate?.(next, { kind: 'month-next', host: el, key: keyOf(el) });
         decorate?.(todayButton, { kind: 'today', host: el, key: keyOf(el) });
         paintCalendar(c);
+        if (isCalmTones(el) && el.getAttribute('data-kp-legend') !== 'hide') setCalendarLegend(el, calmLegend(s));
+        const watch = new MutationObserver(() => {
+            // The legend follows its option: `hide` takes the calm legend away, anything else puts it back.
+            if (isCalmTones(el)) {
+                if (el.getAttribute('data-kp-legend') === 'hide') setCalendarLegend(el, []);
+                else if (c.legend.hidden) setCalendarLegend(el, calmLegend(s));
+            }
+            paintCalendar(c);
+        });
+        watch.observe(el, {
+            attributes: true,
+            attributeFilter: ['data-kp-tones', 'data-kp-paused-range', 'data-kp-quiet-words', 'data-kp-calm-map', 'data-kp-legend'],
+        });
         const step = (/** @type {number} */ months) => {
             const [y = 0, m = 1] = shiftMonth(isoOf(c.year, c.month, 1), months)
                 .split('-')
@@ -492,6 +581,7 @@ export function attachCalendars(root = document, options = {}) {
         body.addEventListener('click', onDay);
         body.addEventListener('keydown', onKey);
         undo.push(() => {
+            watch.disconnect();
             prev.removeEventListener('click', onPrev);
             next.removeEventListener('click', onNext);
             todayButton.removeEventListener('click', onToday);
@@ -602,4 +692,17 @@ export function setCalendarLegend(el, entries) {
         }),
     );
     c.legend.hidden = entries.length === 0;
+}
+
+/**
+ * A sentence under the grid, for the page's own words (a calm calendar's "trends count the days that were logged"); an empty
+ * text hides it.
+ * @param {Element} el
+ * @param {string} text
+ */
+export function setCalendarCaption(el, text) {
+    const caption = /** @type {HTMLElement | null} */ (el.querySelector(':scope > .kp-calendar__caption'));
+    if (!caption) return;
+    caption.textContent = text;
+    caption.hidden = text === '';
 }

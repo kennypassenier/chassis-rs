@@ -5,7 +5,7 @@
         "licence": "OFL-1.1",
         "reservedFontName": false,
         "subset": true,
-        "themes": ["formal", "light", "dark", "pastel", "forest", "blueprint", "solstice"],
+        "themes": ["formal", "dark", "pastel", "forest", "blueprint", "solstice"],
         "scripts": ["latin"],
         "upstream": "ofl/instrumentsans",
         "faces": [
@@ -112,7 +112,7 @@
         "licence": "OFL-1.1",
         "reservedFontName": true,
         "subset": true,
-        "themes": ["terminal"],
+        "themes": ["cyberpunk", "synthwave"],
         "scripts": ["latin"],
         "upstream": "ofl/sharetechmono",
         "faces": [
@@ -235,98 +235,6 @@
             }
         ]
     },
-    "barlow": {
-        "family": "Barlow",
-        "licence": "OFL-1.1",
-        "reservedFontName": false,
-        "subset": true,
-        "themes": ["phantom"],
-        "scripts": ["latin"],
-        "upstream": "ofl/barlow",
-        "faces": [
-            {
-                "file": "barlow-bold",
-                "source": "Barlow-Bold.ttf",
-                "weight": "700",
-                "style": "normal",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "barlow-italic",
-                "source": "Barlow-Italic.ttf",
-                "weight": "400",
-                "style": "italic",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "barlow-medium",
-                "source": "Barlow-Medium.ttf",
-                "weight": "500",
-                "style": "normal",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "barlow-regular",
-                "source": "Barlow-Regular.ttf",
-                "weight": "400",
-                "style": "normal",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "barlow-semibold",
-                "source": "Barlow-SemiBold.ttf",
-                "weight": "600",
-                "style": "normal",
-                "scripts": ["latin"]
-            }
-        ]
-    },
-    "barlowcondensed": {
-        "family": "Barlow Condensed",
-        "licence": "OFL-1.1",
-        "reservedFontName": false,
-        "subset": true,
-        "themes": ["phantom"],
-        "scripts": ["latin"],
-        "upstream": "ofl/barlowcondensed",
-        "faces": [
-            {
-                "file": "barlowcondensed-blackitalic",
-                "source": "BarlowCondensed-BlackItalic.ttf",
-                "weight": "900",
-                "style": "italic",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "barlowcondensed-bold",
-                "source": "BarlowCondensed-Bold.ttf",
-                "weight": "700",
-                "style": "normal",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "barlowcondensed-extrabolditalic",
-                "source": "BarlowCondensed-ExtraBoldItalic.ttf",
-                "weight": "800",
-                "style": "italic",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "barlowcondensed-regular",
-                "source": "BarlowCondensed-Regular.ttf",
-                "weight": "400",
-                "style": "normal",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "barlowcondensed-semibold",
-                "source": "BarlowCondensed-SemiBold.ttf",
-                "weight": "600",
-                "style": "normal",
-                "scripts": ["latin"]
-            }
-        ]
-    },
     "ibmplexmono": {
         "family": "IBM Plex Mono",
         "licence": "OFL-1.1",
@@ -387,37 +295,12 @@
             }
         ]
     },
-    "inter": {
-        "family": "Inter",
-        "licence": "OFL-1.1",
-        "reservedFontName": false,
-        "subset": true,
-        "themes": ["grotesk"],
-        "scripts": ["latin"],
-        "upstream": "ofl/inter",
-        "faces": [
-            {
-                "file": "inter-italic-variable",
-                "source": "Inter-Italic[opsz,wght].ttf",
-                "weight": "100 900",
-                "style": "italic",
-                "scripts": ["latin"]
-            },
-            {
-                "file": "inter-variable",
-                "source": "Inter[opsz,wght].ttf",
-                "weight": "100 900",
-                "style": "normal",
-                "scripts": ["latin"]
-            }
-        ]
-    },
     "archivo": {
         "family": "Archivo",
         "licence": "OFL-1.1",
         "reservedFontName": false,
         "subset": true,
-        "themes": ["grotesk", "dark"],
+        "themes": ["dark"],
         "scripts": ["latin"],
         "upstream": "ofl/archivo",
         "faces": [

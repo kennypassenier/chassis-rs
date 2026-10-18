@@ -7,7 +7,8 @@
 // pieces to every waiting part while it waits and takes them away after:
 //
 //   - a row (a skeleton line, the busy progress bar's track, a loading
-//     meter): pom-poms as round as the row is high, and a head at its end;
+//     meter, a heat grid's row of waiting cells, which is one caterpillar and
+//     not thirty): pom-poms as round as the row is high, and a head at its end;
 //   - a day of the month that loads: two legs under it, and a head beside
 //     the last loading day of its week; the day itself rises in turn;
 //   - a plate that waits (a block skeleton, the busy table's panel, the busy
@@ -36,9 +37,9 @@ export const PIECES_ATTRIBUTE = 'data-kp-pieces';
 
 /** The parts that wait, by the shape the pieces take on them. */
 export const PIECE_CARRIERS = /** @type {const} */ ({
-    row: '.kp-skeleton:not(.kp-skeleton--circle, .kp-skeleton--block), .kp-progressbar[data-kp-indeterminate] > .kp-progressbar__track, :is(.kp-meter, .kp-kpi__meter)[data-kp-loading]',
+    row: '.kp-skeleton:not(.kp-skeleton--circle, .kp-skeleton--block), .kp-progressbar[data-kp-indeterminate] > .kp-progressbar__track, :is(.kp-meter, .kp-kpi__meter)[data-kp-loading], .kp-heat__cells:has(> .kp-heat__cell.kp-skeleton)',
     day: ':is(.kp-calendar--busy-days, .kp-calendar--busy-whole) .kp-calendar__day[data-kp-tone="loading"], .kp-skeleton--circle',
-    plate: '.kp-skeleton--block, .kp-datatable__busy-panel, .kp-calendar--busy-whole:has(> .kp-calendar__grid[aria-busy="true"]) > .kp-calendar__busy, .kp-menu-button > .kp-menu[aria-busy="true"], .kp-kpi[aria-busy="true"], .kp-card[aria-busy="true"]',
+    plate: '.kp-skeleton--block:not(.kp-heat__cell, .kp-matrix__cell), .kp-datatable__busy-panel, .kp-calendar--busy-whole:has(> .kp-calendar__grid[aria-busy="true"]) > .kp-calendar__busy, .kp-menu-button > .kp-menu[aria-busy="true"], .kp-kpi[aria-busy="true"], .kp-card[aria-busy="true"]',
     spinner: '.kp-spinner',
 });
 
@@ -102,7 +103,9 @@ function caterpillar(el, kind) {
         const h = H - 2 * inset;
         const w = W - 2 * inset;
         const step = h * 0.78;
-        const n = Math.max(3, Math.floor((w - h * 1.1) / step));
+        // A grid's row ends at the grid's own edge: its head and feelers stay inside it.
+        const reserve = el.classList.contains('kp-heat__cells') ? h * 0.6 : 0;
+        const n = Math.max(3, Math.floor((w - h * 1.1 - reserve) / step));
         let html = '';
         for (let k = 0; k < n; k++)
             html += `<i class="kp-pieces__bead" style="left: ${px(at(inset + k * step, h))}; top: ${px(inset)}; --s: ${px(h)}; --k: ${k}"></i>`;
@@ -242,6 +245,8 @@ export function attachLoadingPieces(root = document) {
                 for (const el of target.querySelectorAll?.(ALL) ?? []) queue(el);
                 for (const el of dressed) if (target.contains?.(el)) queue(/** @type {Element} */ (el));
             } else {
+                // A part that waits by what it holds (a heat grid's row of waiting cells) changes with its children.
+                if (target.matches?.(ALL) || dressed.has(target)) queue(target);
                 for (const node of r.addedNodes) {
                     if (!(node instanceof Element) || node.classList.contains('kp-pieces')) continue;
                     if (node.matches(ALL)) queue(node);

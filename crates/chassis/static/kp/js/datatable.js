@@ -76,11 +76,19 @@
 // asks for it:
 //
 //   data-kp-sort-multi       Shift + click adds a sort key; the header numbers the keys
+//                            ="click": a plain click adds it, Shift + click sorts on it alone
 //   data-kp-column-menu      a menu of columns, the key column locked
 //   data-kp-expandable       a button opens a detail row the consumer supplies
 //   data-kp-fixed-columns    the key column stays while the box scrolls sideways
 //   data-kp-server           the rows come from the consumer's `load`, stale answers dropped
 //   th data-kp-edit          a value is edited in its cell; the app hears it and may refuse it
+//   td data-kp-sort-value    the value a cell sorts and range/date-filters by in place of the text it shows
+//   data-kp-sort-external    the page sorts [kpadopt4]: a header press draws the arrow, aria-sort, the key
+//                            numbers, the summary and Reset, remembers the sort and fires kp-datatable-sort,
+//                            and the rows stay in the order the page renders them (it reorders, then calls
+//                            refresh()); th aria-disabled="true" is a column that cannot be sorted now
+//   td data-kp-filter-value  the word a choice filter lists and matches a cell by in place of the text it shows [kpadopt3]
+//                            (on a header the same attribute is the filter the page opens with)
 //   data-kp-grid             a roving focus grid: arrows, Home/End, Page Up/Down
 //
 // And the add-filter mode of Kenny's form of 2026-09-14 ("Allebei, per
@@ -699,7 +707,8 @@ let instances = 0;
  * @property {Filter} [filter]
  * @property {number} [debounceMs]  Default 0, and 300 for a server-backed table.
  * @property {'two' | 'three'} [sortCycle]
- * @property {boolean} [multiSort]  Shift + click adds a sort key. Default false; per table `data-kp-sort-multi`.
+ * @property {boolean | 'click'} [multiSort]  Shift + click adds a sort key; 'click': a plain click adds it and Shift + click sorts on the column alone. Default false; per table `data-kp-sort-multi` (`="click"`).
+ * @property {boolean} [sortExternal]  The page sorts: the table draws and announces the sort, the rows keep the order the page renders [kpadopt4]. Default false; per table `data-kp-sort-external`.
  * @property {'panel' | 'add'} [filterMode]  How the header-declared filters are set: a panel of every filter, or "+ Add filter" with one pill per filter. Default panel; per table `data-kp-filter-mode`.
  * @property {string} [pagerClassName]
  * @property {(at: number, of: number) => string} [pageLabel]
@@ -744,6 +753,7 @@ export function attachDataTables(
         debounceMs,
         sortCycle = 'two',
         multiSort = false,
+        sortExternal = false,
         filterMode = 'panel',
         // The theme's own button, not the ghost: a ghost is text alone at rest
         // in eleven of the twenty-two themes, so the pager did not read as
@@ -818,10 +828,16 @@ export function attachDataTables(
         let size = Number.parseInt(wrap.dataset.kpPageSize ?? '', 10) || PAGE_SIZE;
         const locale = resolveLocale(wrap.dataset.kpLocale ?? localeOption, wrap);
         const serverMode = wrap.dataset.kpServer !== undefined;
+        // The page owns the order [kpadopt4]: everything about the sort but the moving of rows.
+        const externalSort = wrap.dataset.kpSortExternal === undefined ? sortExternal : wrap.dataset.kpSortExternal !== 'false';
         const debounce = Number.parseInt(wrap.dataset.kpDebounce ?? '', 10) || debounceMs || (serverMode ? SERVER_DEBOUNCE_MS : 0);
         const cycle = wrap.dataset.kpSortCycle ?? sortCycle;
         const cycleName = cycle === 'three' ? 'three' : 'two';
-        const multi = wrap.dataset.kpSortMulti === undefined ? multiSort : wrap.dataset.kpSortMulti !== 'false';
+        const multi = wrap.dataset.kpSortMulti === undefined ? multiSort !== false : wrap.dataset.kpSortMulti !== 'false';
+        // `data-kp-sort-multi="click"` [kpadopt]: every plain press adds the
+        // column as a key (ascending, descending, out); Shift flips to the
+        // old plain press, "this column alone", the quick way back to one key.
+        const addOnClick = multi && (wrap.dataset.kpSortMulti === 'click' || (wrap.dataset.kpSortMulti === undefined && multiSort === 'click'));
         const glyphs = {
             expand: wrap.dataset.kpExpandGlyph ?? expandGlyph,
             collapse: wrap.dataset.kpCollapseGlyph ?? collapseGlyph,
@@ -951,6 +967,20 @@ export function attachDataTables(
             if (cell === undefined) return '';
             return ((cell.querySelector(EDIT_VALUE) ?? cell).textContent ?? '').trim();
         };
+        /**
+         * What a cell sorts and range-filters by: its `data-kp-sort-value` [kpadopt2-grids] when it has one (a
+         * bar cell shows "62%" and sorts by 62; a size shows "1.4 GB" and sorts by its bytes), else what it shows.
+         * Search and choice filters keep reading the shown text.
+         * @param {HTMLTableRowElement} row @param {number} at
+         */
+        const cellValue = (row, at) => row.cells[at]?.getAttribute('data-kp-sort-value') ?? cellText(row, at);
+        /**
+         * What a choice filter reads of a cell: its `data-kp-filter-value` [kpadopt3] when it has one (a status cell shows a
+         * dot, a word and a time, and is listed and matched as "running"), else what it shows. Search keeps the shown text.
+         * On a header the same attribute is the filter the page opens with (read below, from `headers`).
+         * @param {HTMLTableRowElement} row @param {number} at
+         */
+        const choiceText = (row, at) => row.cells[at]?.getAttribute('data-kp-filter-value')?.trim() ?? cellText(row, at);
         /** @param {HTMLTableRowElement} row */
         const keyOf = (row) => row.dataset.kpRowKey ?? row.id ?? '';
 
@@ -1359,7 +1389,7 @@ export function attachDataTables(
         function choiceValues(at) {
             const declared = splitList(headers[at]?.dataset.kpFilterOptions);
             if (declared.length > 0) return declared;
-            const values = [...new Set(all.map((row) => cellText(row, at)).filter((v) => v !== ''))];
+            const values = [...new Set(all.map((row) => choiceText(row, at)).filter((v) => v !== ''))];
             const order = orders[at];
             return values.sort((a, b) => (order ? compareByOrder(order, a, b, collator(locale).compare) : collator(locale).compare(a, b)));
         }
@@ -1837,7 +1867,8 @@ export function attachDataTables(
             for (const [key, heading] of groups) {
                 const count = matched.get(key) ?? 0;
                 const open = !folded.has(key);
-                heading.hidden = !onPage.has(key);
+                // `data-kp-group-always` [kpadopt]: the heading stays with no data row under it (rows still loading, failed, or none).
+                heading.hidden = !onPage.has(key) && heading.dataset.kpGroupAlways === undefined;
                 const button = heading.querySelector(GROUP_TOGGLE);
                 if (button !== null) {
                     button.setAttribute('aria-expanded', String(open));
@@ -2598,14 +2629,20 @@ export function attachDataTables(
                 const order = orders[key.column];
                 /** @param {string} x @param {string} y */
                 const by = (x, y) => compareFn(x, y, kind, locale);
-                const left = cellText(a, key.column);
-                const right = cellText(b, key.column);
+                const left = cellValue(a, key.column);
+                const right = cellValue(b, key.column);
                 const c = order ? compareByOrder(order, left, right, by) : by(left, right);
                 if (c !== 0) return key.direction === 'ascending' ? c : -c;
             }
             return 0;
         };
         const applySorts = () => {
+            if (externalSort) {
+                // The order the page rendered, which it changes itself on kp-datatable-sort and then refresh().
+                const keep = new Set(shownRows);
+                shownRows = arrange(all.filter((row) => keep.has(row)));
+                return;
+            }
             if (sorts.length === 0) {
                 // Back to the rendered order, filtered.
                 const keep = new Set(shownRows);
@@ -2631,7 +2668,7 @@ export function attachDataTables(
                 }
                 for (const [at, value] of filters) {
                     const kind = filterKinds[at];
-                    if (kind && !matchesFilter(kind, value, cellText(row, at), locale)) return false;
+                    if (kind && !matchesFilter(kind, value, kind === 'choice' ? choiceText(row, at) : cellValue(row, at), locale)) return false;
                 }
                 return true;
             });
@@ -2846,7 +2883,9 @@ export function attachDataTables(
         const toggleSort = (header, addKey) => {
             const at = headers.indexOf(header);
             if (at === -1) return;
-            const next = nextSorts(sorts, at, { add: multi && addKey, cycle: cycleName });
+            // A column that cannot be sorted now (aria-disabled) keeps the sort as it is [kpadopt4].
+            if (header.getAttribute('aria-disabled') === 'true') return;
+            const next = nextSorts(sorts, at, { add: multi && (addOnClick ? !addKey : addKey), cycle: cycleName });
             if (next.length === 0) commitSorts([], { column: at, direction: 'none' });
             else commitSorts(next);
         };

@@ -576,6 +576,17 @@ function placeMenu(s, view, covered) {
         room.left = MENU_GUTTER;
         room.right = html.clientWidth - MENU_GUTTER;
     }
+    // A button the window does not show (a menu opened by a script before its page was scrolled there) has no room to
+    // fit the menu into: clamping it to the window would hang it somewhere that has nothing to do with the button, and
+    // the raised menu keeps that offset for good. On that axis the menu stays where the layout puts it.
+    if (button.bottom < 0 || button.top > html.clientHeight) {
+        room.top = Number.NEGATIVE_INFINITY;
+        room.bottom = Number.POSITIVE_INFINITY;
+    }
+    if (button.right < 0 || button.left > html.clientWidth) {
+        room.left = Number.NEGATIVE_INFINITY;
+        room.right = Number.POSITIVE_INFINITY;
+    }
     // Measured where the layout put it: a theme's arrival may still be
     // drawing it elsewhere on this frame (forest's growth, layoutRect).
     const box = layoutRect(menu);

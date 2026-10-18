@@ -12,7 +12,7 @@
  * measured on 2026-09-04 carrying a hand-kept copy of which themes
  * exist, and both had it wrong.
  *
- * @typedef {'formal' | 'light' | 'dark' | 'cyberpunk' | 'synthwave' | 'pastel' | 'terminal' | 'forest' | 'blueprint' | 'solstice' | 'brutalism' | 'deco' | 'phantom' | 'grotesk' | 'nostromo' | 'titanium'} ThemeName
+ * @typedef {'formal' | 'dark' | 'cyberpunk' | 'synthwave' | 'pastel' | 'forest' | 'blueprint' | 'solstice' | 'brutalism' | 'deco' | 'nostromo' | 'titanium'} ThemeName
  */
 
 /** @typedef {{name: ThemeName, label: string, dark: boolean}} ThemeRecord */
@@ -20,19 +20,15 @@
 /** @type {readonly ThemeRecord[]} */
 export const THEMES = Object.freeze([
     { name: 'formal', label: 'Formal', dark: false },
-    { name: 'light', label: 'Light', dark: false },
     { name: 'dark', label: 'Dark', dark: true },
     { name: 'cyberpunk', label: 'Cyberpunk', dark: true },
     { name: 'synthwave', label: 'Synthwave', dark: true },
     { name: 'pastel', label: 'Pastel', dark: false },
-    { name: 'terminal', label: 'Terminal', dark: true },
     { name: 'forest', label: 'Forest', dark: false },
     { name: 'blueprint', label: 'Blueprint', dark: true },
     { name: 'solstice', label: 'Solstice', dark: true },
     { name: 'brutalism', label: 'Brutalism', dark: false },
     { name: 'deco', label: 'Art Deco', dark: true },
-    { name: 'phantom', label: 'Phantom', dark: true },
-    { name: 'grotesk', label: 'Grotesk', dark: false },
     { name: 'nostromo', label: 'Nostromo', dark: false },
     { name: 'titanium', label: 'Titanium', dark: true },
 ]);
@@ -57,4 +53,4 @@ export const STORAGE_KEY = 'theme';
  * matters happens in the browser, on a page where the two files may
  * have arrived separately. js/diagnostics.js does it.
  */
-export const VERSION = '10.1.1';
+export const VERSION = '11.0.0';

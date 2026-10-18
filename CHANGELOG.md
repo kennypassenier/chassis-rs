@@ -7,6 +7,26 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed
+
+- **kp-themes 11.0.0 vendored** (verified against the release SHA256SUMS; the
+  component rounds kpadopt4 to kpadopt6 add eighty-seven framework-free
+  modules under `js/` (tabbar, toolbar, timer, undo-toast, qr, …), all
+  embedded with the `webapp` feature, and the Barlow, Barlow Condensed and
+  Inter font families, named by no remaining theme, leave the embedded
+  assets). **Four themes are gone: `terminal`, `phantom`, `light` and
+  `grotesk`** (Kenny's decision in kp-themes; twelve remain: formal, dark,
+  cyberpunk, synthwave, pastel, forest, blueprint, solstice, brutalism, deco,
+  nostromo and titanium). A viewer whose stored choice was one of them
+  is mapped once in `static/theme-boot.js` to the nearest remaining theme
+  (`terminal` to `nostromo`, `phantom` to `dark`, `grotesk` to `brutalism`,
+  `light` and the earlier `shade-light` to `formal`) and sees it in the
+  picker; nothing in the kit named them otherwise. A web app of a consumer
+  that writes one of the four names itself (`applyTheme('light')`,
+  `data-theme="light"`, a `light` default) falls back to `formal` and has to
+  change it, and `setTabbarBadge(tab, count)` no longer takes a `max`
+  option: it no longer caps at `99+`.
+
 ## [3.7.1] - 2026-10-15
 
 ### Security

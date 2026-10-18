@@ -15,6 +15,19 @@
 //   events   markers above the plot; hover shows the event, a click pins it
 //            with its link
 //   ranges   `[data-kp-chart-range]` buttons set the group's window
+//   notes    annotations [kpadopt5-people; homelab's `mk-annkey`, Life's run
+//            charts]: an event with `until` is a band (a maintenance window),
+//            an event's `kind` maps to a tone through `kinds`, a key above the
+//            plot names the kinds present and each item switches its kind on
+//            and off (`data-kp-chart-annotation-key`, on while events exist,
+//            `off` hides it), events outside the window show as an arrow with
+//            their count at the edge; `data-kp-chart-median` draws each shown
+//            source's median line with its value (`data-kp-chart-median-label`
+//            words it), `data-kp-chart-runs="mark"` marks the points of every
+//            run of six or more on one side of it, and `data-kp-chart-min-points
+//            ="7"` shows "3 of 7 readings needed before a trend means
+//            something" (`data-kp-chart-min-unit` names them) over the faint
+//            points already known, until there are enough
 //   spark    `data-kp-chart="spark"`: the 24 h line of a tile, drawn by
 //            drawSparkline() (js/kpi.js), on the group's crosshair
 //   trend    the spark variant in a key figure (`.kp-kpi--trend`):
@@ -80,6 +93,7 @@
 import { resolveLocale } from './locale.js';
 import { DEFAULT_STRINGS, getStrings } from './strings.js';
 import { drawSparkline } from './kpi.js';
+import { statePlate } from './state-plate.js';
 
 /** A chart: `data-kp-chart` (a plot) or `data-kp-chart="spark"`. */
 export const CHART = '[data-kp-chart]';
@@ -91,6 +105,8 @@ export const CHART_SELECT_EVENT = 'kp-chart-select';
 export const CHART_ZOOM_EVENT = 'kp-chart-zoom';
 /** Fired on a group, bubbling, when a range button is pressed, before the charts redraw: `detail` `{ range, span }`. */
 export const CHART_RANGE_EVENT = 'kp-chart-range';
+/** Fired on a chart, bubbling, when the Retry of a failed chart (`{ error }` in its data) is pressed: the page reads again and draws again. */
+export const CHART_RETRY_EVENT = 'kp-chart-retry';
 /** The zone a chart prints its times in and aligns its time axis to, unless attachCharts() is given another (rule 52). */
 export const CHART_TIME_ZONE = 'Europe/Brussels';
 /** A key figure's 24-hour trend: the spark variant without its head line. */
@@ -111,6 +127,8 @@ export const TREND_CHART = '[data-kp-chart="spark"][data-kp-spark-head="none"]';
  * @property {string} label
  * @property {'critical' | 'warning' | 'info'} [tone]
  * @property {string} [href] offered once the event is pinned
+ * @property {string} [kind] the app's own name for it ("operation", "update", "failure"); `kinds` maps it to a tone and a word
+ * @property {number} [until] ms: the event is a band from `at` to here (a maintenance window) instead of a line
  * @typedef {'percent' | 'bytes' | 'bytes/s' | 'rate' | 'celsius' | 'count' | 'flag'} ChartUnitKind a value's kind:
  *   `bytes` and `bytes/s` (`rate` is the same) in binary steps, B to PiB; `percent` with an axis of 10, 25, 50 or
  *   100 (above 100 only when a value is); `celsius` whole degrees; `count` and `flag` exact numbers, abbreviated
@@ -141,6 +159,13 @@ export const TREND_CHART = '[data-kp-chart="spark"][data-kp-spark-head="none"]';
  * @property {boolean} [onePointNote] while every source has a single reading, say so under the plot (`chartOnePoint`)
  * @property {ChartSeries[]} series
  * @property {ChartEvent[]} [events]
+ * @property {Record<string, { label?: string, tone?: 'critical' | 'warning' | 'info' }>} [kinds] what each event `kind` is called in the key, and its tone
+ * @property {boolean | string} [median] a dashed median line per shown source; a string is the words in front of its value (`data-kp-chart-median`, `-median-label`)
+ * @property {'off' | 'mark'} [runs] `mark` rings the points of every run of six or more on one side of the median (`data-kp-chart-runs`)
+ * @property {number} [minPoints] below this many readings the chart says it is too early for a trend (`data-kp-chart-min-points`)
+ * @property {string} [minUnit] what the readings are called in that sentence ("days"; `data-kp-chart-min-unit`)
+ * @property {'tint' | 'hatch' | 'bracket'} [band] how a band is drawn: a `tint` across the plot (default), `hatch` diagonal lines (readable without colour) or a `bracket` along the top with short ticks (`data-kp-chart-band`)
+ * @property {boolean} [annotationKey] false leaves the key above the plot out (`data-kp-chart-annotation-key="off"`)
  * @property {number} [from] the window, when the group's range should not set it
  * @property {number} [to]
  * @property {number} [yMax] the top of the axis; else a round number above the highest value
@@ -206,12 +231,24 @@ export function chartWords(overrides) {
         same: s.chartSame,
         now: s.chartNow,
         empty: s.chartEmpty,
+        retry: s.chartRetry,
         onePoint: s.chartOnePoint,
         loading: s.chartLoading,
         pinnedOutside: s.chartPinnedOutside,
         today: s.chartToday,
         yesterday: s.chartYesterday,
         trendKeys: s.chartTrendKeys,
+        median: s.chartMedian,
+        few: s.chartFew,
+        fewUnit: s.chartFewUnit,
+        keyLabel: s.chartAnnotationKey,
+        kindTone: s.chartKindTone,
+        runsKey: s.chartRunsKey,
+        markBand: s.chartMarkBand,
+        bandWhen: s.chartBandWhen,
+        edgeBefore: s.chartEdgeBefore,
+        edgeAfter: s.chartEdgeAfter,
+        kindOn: s.chartKindOn,
     };
 }
 
@@ -232,6 +269,51 @@ export function parseSpan(text) {
     const m = /^\s*(\d+(?:\.\d+)?)\s*(m|h|d)\s*$/.exec(text ?? '');
     if (!m) return null;
     return Number(m[1]) * { m: 60_000, h: 3_600_000, d: 86_400_000 }[/** @type {'m' | 'h' | 'd'} */ (m[2])];
+}
+
+/**
+ * The median of a list of numbers (the mean of the two in the middle when
+ * their count is even), or null for none [kpadopt5-people].
+ * @param {readonly number[]} values
+ * @returns {number | null}
+ */
+export function chartMedian(values) {
+    const sorted = values.filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
+    if (sorted.length === 0) return null;
+    const mid = sorted.length >> 1;
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * The places of the points that belong to a run: six or more in a row on one
+ * side of the median (the run-chart rule). A point exactly on the median
+ * neither breaks a run nor counts in it.
+ * @param {readonly number[]} values oldest first
+ * @param {number} median
+ * @param {number} [least] the run's least length, 6
+ * @returns {Set<number>} indexes into `values`
+ */
+export function chartRuns(values, median, least = 6) {
+    /** @type {Set<number>} */
+    const marked = new Set();
+    /** @type {number[]} */
+    let run = [];
+    let side = 0;
+    const close = () => {
+        if (run.length >= least) for (const i of run) marked.add(i);
+        run = [];
+    };
+    values.forEach((v, i) => {
+        const now = Math.sign(v - median);
+        if (now === 0) return;
+        if (now !== side) {
+            close();
+            side = now;
+        }
+        run.push(i);
+    });
+    close();
+    return marked;
 }
 
 /** Binary byte units, a step of 1024 apart. */
@@ -825,6 +907,28 @@ function s(doc, tag, attrs = {}) {
 }
 
 /**
+ * The axis labels are centred on their ticks, which puts half of the first and of the last one outside the drawing when a tick
+ * stands near an edge. Those two are anchored to their tick instead (the first starts at it, the last ends at it), so no label
+ * crosses the edge and the plot keeps its width. Needs the labels laid out; a hidden chart keeps them centred.
+ * @param {readonly SVGTextElement[]} labels the axis labels, left to right, already in the document
+ * @param {number} width the drawing's width
+ * @param {number} [inset] the least room kept between a label and the edge
+ */
+function keepEndsInside(labels, width, inset = 4) {
+    if (labels.length === 0) return;
+    const first = labels[0];
+    const last = labels[labels.length - 1];
+    try {
+        const a = first.getBBox();
+        if (a.width > 0 && a.x < inset) first.setAttribute('text-anchor', 'start');
+        const b = last.getBBox();
+        if (b.width > 0 && b.x + b.width > width - inset) last.setAttribute('text-anchor', 'end');
+    } catch {
+        // not laid out (display: none): nothing to measure, the labels stay centred
+    }
+}
+
+/**
  * Hand a control to the page's `decorate`, the info without its empty
  * fields. A throwing decorate is the page's fault and must not stop the
  * chart drawing.
@@ -1203,7 +1307,19 @@ function plotChart(host, group, locale, ctx) {
         h(doc, 'span', { 'data-kp-when': 'pointer' }, strings.hintPointer),
         h(doc, 'span', { 'data-kp-when': 'touch' }, strings.hintTouch),
     );
-    const parts = [plot, tip, note, readout, legend, hint];
+    // The key above the plot [kpadopt5-people]: the kinds of event the data holds, each a switch.
+    const annKey = h(doc, 'div', { class: 'kp-chart__annkey', role: 'group' });
+    annKey.hidden = true;
+    /** The kinds the reader switched off. @type {Set<string>} */
+    const kindsOff = new Set();
+    /** What the key was last built from, so a redraw keeps the focused switch. */
+    let keyMemo = '';
+    /** The median of each shown source, as last drawn. @type {{ si: number, label: string, v: number }[]} */
+    let medians = [];
+    const tipMedian = h(doc, 'p', { class: 'kp-chart__tip-median' });
+    tipMedian.hidden = true;
+    tip.append(tipMedian);
+    const parts = [annKey, plot, tip, note, readout, legend, hint];
     host.append(...parts);
 
     /** @type {{ button: HTMLElement, value: HTMLElement }[]} */
@@ -1235,6 +1351,116 @@ function plotChart(host, group, locale, ctx) {
         decorateWith(decorate, showAll, { kind: 'show-all', host, key: key() });
         decorateWith(decorate, release, { kind: 'release', host, key: key() });
     };
+
+    /** @param {ChartEvent} ev the tone an event is drawn in: its own, else its kind's, else info */
+    const toneOf = (ev) => ev.tone ?? (ev.kind ? data.kinds?.[ev.kind]?.tone : undefined) ?? 'info';
+    /** @param {ChartEvent} ev the key item an event belongs to: its kind, else its tone */
+    const kindOf = (ev) => ev.kind ?? toneOf(ev);
+    /** @param {string} kind */
+    const kindWord = (kind) =>
+        data.kinds?.[kind]?.label ?? (kind === 'info' || kind === 'warning' || kind === 'critical' ? strings.kindTone(kind) : kind);
+    /** The events the key has not switched off. */
+    const shownEvents = () => (data.events ?? []).filter((ev) => !kindsOff.has(kindOf(ev)));
+    /** Reads a chart option from the data, else from the element's attribute. */
+    const option = () => {
+        const attr = (/** @type {string} */ name) => host.getAttribute(`data-kp-chart-${name}`);
+        const medianAttr = attr('median');
+        const median = data.median ?? (medianAttr !== null && medianAttr !== 'off');
+        const min = Number(data.minPoints ?? attr('min-points'));
+        return {
+            median: median !== false,
+            medianWords: typeof data.median === 'string' ? data.median : (attr('median-label') ?? ''),
+            runs: (data.runs ?? attr('runs')) === 'mark',
+            minPoints: Number.isFinite(min) && min > 0 ? Math.floor(min) : 0,
+            minUnit: data.minUnit ?? attr('min-unit') ?? '',
+            key: data.annotationKey ?? attr('annotation-key') !== 'off',
+            band: /** @type {'tint' | 'hatch' | 'bracket'} */ (
+                (data.band ?? attr('band')) === 'hatch' ? 'hatch' : (data.band ?? attr('band')) === 'bracket' ? 'bracket' : 'tint'
+            ),
+        };
+    };
+
+    /** Build (or update) the key above the plot: one switch per kind, and a note for the median and the runs. @param {ReturnType<typeof option>} opt */
+    function paintKey(opt) {
+        const all = data.events ?? [];
+        /** @type {Map<string, { tone: string, count: number }>} */
+        const kinds = new Map();
+        for (const ev of all) {
+            const k = kindOf(ev);
+            const was = kinds.get(k);
+            if (was) was.count += 1;
+            else kinds.set(k, { tone: toneOf(ev), count: 1 });
+        }
+        const notes = [opt.median && medians.length === 1 ? 'median' : '', opt.median && opt.runs ? 'runs' : ''].filter(Boolean);
+        const wanted = opt.key && (kinds.size > 0 || notes.length > 0);
+        annKey.hidden = !wanted;
+        annKey.removeAttribute('data-kp-wait');
+        if (!wanted) {
+            keyMemo = '';
+            annKey.replaceChildren();
+            return;
+        }
+        annKey.setAttribute('aria-label', strings.keyLabel);
+        const signature = JSON.stringify([...kinds].map(([k, v]) => [k, v.tone, v.count, kindWord(k)]).concat(notes.map((n) => [n])));
+        if (signature !== keyMemo) {
+            keyMemo = signature;
+            const focused =
+                doc.activeElement instanceof HTMLElement && annKey.contains(doc.activeElement)
+                    ? doc.activeElement.getAttribute('data-kp-kind')
+                    : null;
+            const items = [...kinds].map(([k, v]) => {
+                const dot = h(doc, 'i', { class: 'kp-chart__dot', 'data-kp-tone': v.tone, 'aria-hidden': 'true' });
+                const button = h(
+                    doc,
+                    'button',
+                    { type: 'button', class: 'kp-chart__annkey-item', 'data-kp-kind': k, title: strings.kindOn(kindWord(k)) },
+                    dot,
+                    h(doc, 'span', {}, kindWord(k)),
+                    h(doc, 'b', { class: 'kp-chart__annkey-count' }, String(v.count)),
+                );
+                button.addEventListener('click', () => {
+                    if (kindsOff.has(k)) kindsOff.delete(k);
+                    else kindsOff.add(k);
+                    host.dispatchEvent(new CustomEvent('kp-chart-kinds', { bubbles: true, detail: { off: [...kindsOff] } }));
+                    draw();
+                });
+                return button;
+            });
+            const extra = notes.map((n) =>
+                n === 'median'
+                    ? h(
+                          doc,
+                          'span',
+                          { class: 'kp-chart__annkey-note', 'data-kp-note': 'median' },
+                          h(doc, 'i', { class: 'kp-chart__annkey-line', 'aria-hidden': 'true' }),
+                          h(doc, 'span', { class: 'kp-chart__annkey-median' }),
+                      )
+                    : h(
+                          doc,
+                          'span',
+                          { class: 'kp-chart__annkey-note', 'data-kp-note': 'runs' },
+                          h(doc, 'i', { class: 'kp-chart__annkey-ring', 'aria-hidden': 'true' }),
+                          strings.runsKey,
+                      ),
+            );
+            annKey.replaceChildren(...items, ...extra);
+            if (focused) /** @type {HTMLElement | null} */ (annKey.querySelector(`[data-kp-kind="${CSS.escape(focused)}"]`))?.focus();
+        }
+        for (const button of annKey.querySelectorAll('[data-kp-kind]')) {
+            const off = kindsOff.has(button.getAttribute('data-kp-kind') ?? '');
+            button.setAttribute('aria-pressed', String(!off));
+            button.toggleAttribute('data-kp-off', off);
+        }
+        const note = annKey.querySelector('[data-kp-note="median"]');
+        if (note && medians.length === 1) {
+            const m = medians[0];
+            const words = note.querySelector('.kp-chart__annkey-median');
+            if (words) words.textContent = `${medianWords(opt)} ${fmt(m.v, 'tip')}`;
+        }
+    }
+
+    /** @param {ReturnType<typeof option>} opt the words in front of a median's value */
+    const medianWords = (opt) => opt.medianWords || strings.median;
 
     function buildLegend() {
         skeleton = false;
@@ -1312,6 +1538,9 @@ function plotChart(host, group, locale, ctx) {
      */
     function drawState(kind, H) {
         geo = null;
+        // A key already drawn keeps its room (unseen), so the chart's height is the same in every state.
+        if (keyMemo) annKey.setAttribute('data-kp-wait', '');
+        else annKey.hidden = true;
         tip.hidden = true;
         note.hidden = true;
         hint.hidden = true;
@@ -1324,17 +1553,22 @@ function plotChart(host, group, locale, ctx) {
         box.style.blockSize = `${H}px`;
         const words = kind === 'loading' ? strings.loading : kind === 'error' ? (data.error ?? '') : strings.empty;
         if (kind === 'loading') box.append(h(doc, 'span', { class: 'kp-sr-only' }, words));
-        else if (kind === 'error')
+        else if (kind === 'error') {
+            // The failed plate is the package's own (`statePlate`: the destructive alert every other failed area uses, so each
+            // register dresses it): what failed, and a normal Retry under it (`kp-chart-retry`). The button goes with the state,
+            // so the focus moves to the plot first, as a card's Try again hands it to its stage.
             box.append(
-                h(
-                    doc,
-                    'div',
-                    { class: 'kp-chart__state-text' },
-                    h(doc, 'i', { class: 'kp-chart__dot', 'data-kp-tone': 'critical', 'aria-hidden': 'true' }),
-                    words,
-                ),
+                statePlate(doc, {
+                    kind: 'error',
+                    title: words,
+                    actionLabel: strings.retry,
+                    onAction: () => {
+                        plot.focus({ preventScroll: true });
+                        host.dispatchEvent(new CustomEvent(CHART_RETRY_EVENT, { bubbles: true }));
+                    },
+                }),
             );
-        else box.append(h(doc, 'div', { class: 'kp-chart__state-text' }, words));
+        } else box.append(h(doc, 'div', { class: 'kp-chart__state-text' }, words));
         plot.replaceChildren(box);
         // Said once, not on every redraw.
         if (shown !== `${kind} ${words}`) {
@@ -1409,21 +1643,79 @@ function plotChart(host, group, locale, ctx) {
         const axisKey = `${from} ${to} ${most} ${ctx.timeZone}`;
         if (axisKey !== axisMemo.key) axisMemo = { key: axisKey, axis: timeTicks(from, to, most, ctx.timeZone) };
         const { axis } = axisMemo;
+        /** @type {SVGTextElement[]} */
+        const axisLabels = [];
         for (const t of axis.ticks) {
-            const tick = s(doc, 'text', { class: 'kp-chart__tick', x: x(t), y: H - 6, 'text-anchor': 'middle' });
+            const tick = /** @type {SVGTextElement} */ (s(doc, 'text', { class: 'kp-chart__tick', x: x(t), y: H - 6, 'text-anchor': 'middle' }));
             tick.textContent = time(t, 'tick', { stride: axis.stride });
             svg.append(tick);
+            axisLabels.push(tick);
         }
         const g = s(doc, 'g', { 'clip-path': `url(#${clip})` });
         svg.append(g);
         if (data.threshold != null)
             g.append(s(doc, 'line', { class: 'kp-chart__threshold', x1: P.l, x2: W - P.r, y1: y(data.threshold), y2: y(data.threshold) }));
-        const events = (data.events ?? []).filter((ev) => ev.at >= from && ev.at <= to);
-        for (const ev of events) g.append(s(doc, 'line', { class: 'kp-chart__event-line', x1: x(ev.at), x2: x(ev.at), y1: P.t - 4, y2: H - P.b }));
+        const opt = option();
+        /** The hatch patterns this drawing needs, one per tone. @type {Set<string>} */
+        const hatches = new Set();
+        const pool = shownEvents();
+        // A band (an event with `until`) is in the window while any of it is; the rest count at the edge.
+        const events = pool.filter((ev) => ev.at <= to && (ev.until ?? ev.at) >= from);
+        const beforeCount = pool.filter((ev) => (ev.until ?? ev.at) < from).length;
+        const afterCount = pool.filter((ev) => ev.at > to).length;
+        for (const ev of events) {
+            if (ev.until != null && ev.until > ev.at) {
+                const x0 = x(Math.max(ev.at, from));
+                const x1 = x(Math.min(ev.until, to));
+                const tone = toneOf(ev);
+                const band = s(doc, 'g', { class: 'kp-chart__band', 'data-kp-tone': tone, 'data-kp-band': opt.band });
+                if (opt.band === 'bracket') {
+                    // Only a bracket along the top: a bar between two short ticks, nothing across the readings.
+                    band.append(s(doc, 'line', { class: 'kp-chart__band-bar', x1: x0, x2: x1, y1: P.t - 4, y2: P.t - 4 }));
+                    if (ev.at >= from) band.append(s(doc, 'line', { class: 'kp-chart__band-edge', x1: x0, x2: x0, y1: P.t - 4, y2: P.t + 8 }));
+                    if (ev.until <= to) band.append(s(doc, 'line', { class: 'kp-chart__band-edge', x1: x1, x2: x1, y1: P.t - 4, y2: P.t + 8 }));
+                } else {
+                    let fill = '';
+                    if (opt.band === 'hatch') {
+                        const id = `${clip}-hatch-${tone}`;
+                        if (!hatches.has(id)) {
+                            hatches.add(id);
+                            const pattern = s(doc, 'pattern', {
+                                id,
+                                width: 6,
+                                height: 6,
+                                patternUnits: 'userSpaceOnUse',
+                                patternTransform: 'rotate(45)',
+                                'data-kp-tone': tone,
+                            });
+                            pattern.append(s(doc, 'line', { class: 'kp-chart__hatch', x1: 0, y1: 0, x2: 0, y2: 6 }));
+                            defs.append(pattern);
+                        }
+                        fill = `url(#${id})`;
+                    }
+                    const rect = s(doc, 'rect', {
+                        class: 'kp-chart__band-fill',
+                        x: x0,
+                        y: P.t - 4,
+                        width: Math.max(1, x1 - x0),
+                        height: H - P.b - P.t + 4,
+                    });
+                    if (fill) rect.setAttribute('fill', fill);
+                    band.append(rect);
+                    if (ev.at >= from) band.append(s(doc, 'line', { class: 'kp-chart__band-edge', x1: x0, x2: x0, y1: P.t - 4, y2: H - P.b }));
+                    if (ev.until <= to) band.append(s(doc, 'line', { class: 'kp-chart__band-edge', x1: x1, x2: x1, y1: P.t - 4, y2: H - P.b }));
+                }
+                g.append(band);
+            } else g.append(s(doc, 'line', { class: 'kp-chart__event-line', x1: x(ev.at), x2: x(ev.at), y1: P.t - 4, y2: H - P.b }));
+        }
+        const have = Math.max(0, ...points.map((p) => p.length));
+        const few = opt.minPoints > 0 && have < opt.minPoints;
         const base = (points[0] ?? []).map(() => 0);
         const fill = vis.length <= 2 && !stacked;
         data.series.forEach((series, si) => {
-            if (!vis.includes(si)) return;
+            // Too few readings for a trend: no line, no area and no dot is drawn, only the empty plot and the sentence
+            // (Kenny, 2026-10-18 17:45: a faint line still showed through the "3 of 7 days" plate).
+            if (!vis.includes(si) || few) return;
             const pts = points[si].map((p, k) => [x(p[0]), y(stacked ? (base[k] ?? 0) + p[1] : p[1])]);
             if (pts.length === 0) return;
             const d = pts.map((p, k) => `${k ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('');
@@ -1459,14 +1751,77 @@ function plotChart(host, group, locale, ctx) {
                 svg.append(dot);
             }
         });
+        // The median of each shown source and, when asked, the runs of six or more on one side of it.
+        medians = [];
+        if (opt.median && !stacked && !few) {
+            for (const si of vis) {
+                const inside = points[si].filter(inR);
+                const m = chartMedian(inside.map((p) => p[1]));
+                if (m != null) medians.push({ si, label: data.series[si].label || label(), v: m });
+            }
+            for (const m of medians) {
+                const sg = s(doc, 'g', { class: 'kp-chart__series kp-chart__median-series' });
+                paintSeries(sg, data.series[m.si], m.si);
+                sg.append(s(doc, 'line', { class: 'kp-chart__median', x1: P.l, x2: W - P.r, y1: y(m.v), y2: y(m.v) }));
+                g.append(sg);
+                if (opt.runs) {
+                    const inside = points[m.si].filter(inR);
+                    const marked = chartRuns(
+                        inside.map((p) => p[1]),
+                        m.v,
+                    );
+                    for (const i of marked) {
+                        const ring = s(doc, 'g', { class: 'kp-chart__series kp-chart__run-series' });
+                        paintSeries(ring, data.series[m.si], m.si);
+                        ring.append(s(doc, 'circle', { class: 'kp-chart__run', cx: x(inside[i][0]), cy: y(inside[i][1]), r: 4.25 }));
+                        g.append(ring);
+                    }
+                }
+            }
+            if (medians.length === 1) {
+                const m = medians[0];
+                const up = y(m.v) - 6 < P.t + 8;
+                const text = s(doc, 'text', {
+                    class: 'kp-chart__median-label',
+                    x: W - P.r - 4,
+                    y: up ? y(m.v) + 14 : y(m.v) - 6,
+                    'text-anchor': 'end',
+                });
+                text.textContent = `${medianWords(opt)} ${fmt(m.v, 'tip')}`;
+                svg.append(text);
+            }
+        }
         for (const ev of events) {
-            const mark = s(doc, 'g', { class: 'kp-chart__mark', 'data-kp-tone': ev.tone ?? 'info', 'data-at': ev.at });
-            mark.append(s(doc, 'circle', { class: 'kp-chart__mark-hit', cx: x(ev.at), cy: P.t - 9, r: 10 }));
-            mark.append(s(doc, 'circle', { class: 'kp-chart__mark-dot', cx: x(ev.at), cy: P.t - 9, r: 5 }));
+            const at = Math.min(to, Math.max(from, ev.at));
+            const mark = s(doc, 'g', { class: 'kp-chart__mark', 'data-kp-tone': toneOf(ev), 'data-at': at });
+            mark.append(s(doc, 'circle', { class: 'kp-chart__mark-hit', cx: x(at), cy: P.t - 9, r: 10 }));
+            mark.append(s(doc, 'circle', { class: 'kp-chart__mark-dot', cx: x(at), cy: P.t - 9, r: 5 }));
             const title = s(doc, 'title');
-            title.textContent = strings.mark(ev.label, time(ev.at, 'full', {}));
+            title.textContent =
+                ev.until != null && ev.until > ev.at
+                    ? strings.markBand(ev.label, time(ev.at, 'full', {}), time(ev.until, 'full', {}))
+                    : strings.mark(ev.label, time(ev.at, 'full', {}));
             mark.append(title);
             svg.append(mark);
+        }
+        // Events past the window: an arrow at that edge with their count.
+        for (const [count, side] of /** @type {const} */ ([
+            [beforeCount, 'start'],
+            [afterCount, 'end'],
+        ])) {
+            if (count === 0) continue;
+            const edge = s(doc, 'g', { class: 'kp-chart__edge', 'data-kp-side': side });
+            const text = s(doc, 'text', {
+                class: 'kp-chart__edge-text',
+                x: side === 'start' ? P.l + 2 : W - P.r - 2,
+                y: P.t - 5,
+                'text-anchor': side === 'start' ? 'start' : 'end',
+            });
+            text.textContent = side === 'start' ? `◂ ${count}` : `${count} ▸`;
+            const title = s(doc, 'title');
+            title.textContent = side === 'start' ? strings.edgeBefore(count) : strings.edgeAfter(count);
+            edge.append(title, text);
+            svg.append(edge);
         }
         if (brush) {
             svg.append(
@@ -1502,7 +1857,38 @@ function plotChart(host, group, locale, ctx) {
             });
         }
         plot.replaceChildren(svg);
+        keepEndsInside(axisLabels, W);
         geo = { x, inv: (px) => from + ((px - P.l) / (W - P.l - P.r)) * (to - from), W, P, from, to, svg };
+        paintKey(opt);
+        const aria = [strings.plot(label())];
+        for (const m of medians) aria.push(`${medianWords(opt)} ${medians.length > 1 ? `${m.label} ` : ''}${fmt(m.v, 'readout')}`);
+        if (beforeCount) aria.push(strings.edgeBefore(beforeCount));
+        if (afterCount) aria.push(strings.edgeAfter(afterCount));
+        plot.setAttribute('aria-label', aria.join(', '));
+        if (few) {
+            // Too early for a trend: the empty plot, faint, and the sentence on an opaque plate in the middle of its whole height.
+            const words = strings.few(have, opt.minPoints, opt.minUnit || strings.fewUnit);
+            svg.setAttribute('data-kp-faint', '');
+            geo = null;
+            tip.hidden = true;
+            hint.hidden = true;
+            note.hidden = true;
+            // The plate stands on an opaque ground of the card's colour, so a theme that draws its empty plate as a
+            // see-through texture keeps that texture and still lets nothing of the plot show through (Kenny, 2026-10-18 17:45).
+            const plate = h(
+                doc,
+                'div',
+                { class: 'kp-chart__few' },
+                h(doc, 'div', { class: 'kp-chart__few-ground' }, h(doc, 'p', { class: 'kp-empty kp-chart__few-plate', role: 'status' }, words)),
+            );
+            plot.append(plate);
+            if (shown !== `few ${words}`) {
+                shown = `few ${words}`;
+                readout.textContent = `${label()}: ${words}`;
+            }
+            paintLegend();
+            return;
+        }
         const withPoints = vis.filter((si) => points[si].length > 0);
         note.hidden = !(data.onePointNote && withPoints.length > 0 && withPoints.every((si) => points[si].length === 1));
         paintLegend();
@@ -1545,7 +1931,9 @@ function plotChart(host, group, locale, ctx) {
     const eventsNear = (t) => {
         if (!geo) return [];
         const reach = (geo.to - geo.from) / 30;
-        return (data.events ?? []).filter((ev) => Math.abs(ev.at - t) < reach);
+        return shownEvents().filter((ev) =>
+            ev.until != null && ev.until > ev.at ? t >= ev.at - reach && t <= ev.until + reach : Math.abs(ev.at - t) < reach,
+        );
     };
     /** @param {number} d */
     const change = (d) => (d === 0 ? '±0' : `${d > 0 ? '▲' : '▼'} ${fmt(Math.abs(d), 'delta')}`);
@@ -1598,13 +1986,21 @@ function plotChart(host, group, locale, ctx) {
                     doc,
                     'p',
                     { class: 'kp-chart__tip-event' },
-                    h(doc, 'i', { class: 'kp-chart__dot', 'data-kp-tone': ev.tone ?? 'info', 'aria-hidden': 'true' }),
-                    `${time(ev.at, 'clock', {})} ${ev.label}`,
+                    h(doc, 'i', { class: 'kp-chart__dot', 'data-kp-tone': toneOf(ev), 'aria-hidden': 'true' }),
+                    ev.until != null && ev.until > ev.at
+                        ? `${strings.bandWhen(time(ev.at, 'clock', {}), time(ev.until, 'clock', {}))} ${ev.label}`
+                        : `${time(ev.at, 'clock', {})} ${ev.label}`,
                 );
                 if (pinned != null && ev.href) line.append(h(doc, 'a', { href: ev.href }, strings.open));
                 return line;
             }),
         );
+        // On a phone the median's words are not on the plot: the tooltip carries them.
+        tipMedian.hidden = medians.length === 0;
+        if (medians.length)
+            tipMedian.textContent = medians
+                .map((m) => `${medians.length > 1 ? `${m.label}: ` : ''}${medianWords(option())} ${fmt(m.v, 'tip')}`)
+                .join('; ');
         tip.hidden = false;
         tip.toggleAttribute('data-kp-pinned', pinned != null);
         tip.toggleAttribute('data-kp-outside', outside);
@@ -1629,6 +2025,7 @@ function plotChart(host, group, locale, ctx) {
                 `${r.label} ${fmt(r.v, 'readout')}, ${r.d > 0 ? strings.up : r.d < 0 ? strings.down : strings.same}${r.d ? ` ${fmt(Math.abs(r.d), 'readout')}` : ''}`,
         );
         const near = eventsNear(t).map((ev) => `${ev.label} ${time(ev.at, 'clock', {})}`);
+        for (const m of medians) near.push(`${medianWords(option())} ${fmt(m.v, 'readout')}`);
         const head = `${time(t, 'full', {})}${pinned == null ? '' : outside ? ` ${strings.pinnedOutside}` : ` (${strings.pinned})`}`;
         readout.textContent = [head, ...said, ...near].join('; ');
     }

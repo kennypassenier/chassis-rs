@@ -120,7 +120,12 @@ export function raiseOverlay(element, place) {
     const added = !element.hasAttribute('popover');
     if (added) element.setAttribute('popover', 'manual');
     if (!element.matches(':popover-open')) element.showPopover();
-    const follow = () => place(element);
+    const follow = () => {
+        // Moved in the document (a page that re-parents its sections, the review dialog's stage) the browser takes a
+        // popover out of the top layer without a word; while the overlay is still meant to be showing, it is put back.
+        if (element.isConnected && !element.hidden && !element.matches(':popover-open')) element.showPopover();
+        place(element);
+    };
     follow();
     window.addEventListener('scroll', follow, { capture: true, passive: true });
     window.addEventListener('resize', follow);

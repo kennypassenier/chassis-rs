@@ -22,7 +22,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 /// The kp-themes version the kit vendors (C3: one place).
-pub const KP_THEMES_VERSION: &str = "10.1.1";
+pub const KP_THEMES_VERSION: &str = "11.0.0";
 
 /// name → (content type, bytes). Explicit list, no path joining (kyu's
 /// traversal-proof shape).
@@ -138,58 +138,6 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/fonts/archivoblack/archivoblack-regular.woff2"),
     ),
     (
-        "kp/fonts/barlow/barlow-bold.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/barlow/barlow-bold.woff2"),
-    ),
-    (
-        "kp/fonts/barlow/barlow-italic.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/barlow/barlow-italic.woff2"),
-    ),
-    (
-        "kp/fonts/barlow/barlow-medium.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/barlow/barlow-medium.woff2"),
-    ),
-    (
-        "kp/fonts/barlow/barlow-regular.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/barlow/barlow-regular.woff2"),
-    ),
-    (
-        "kp/fonts/barlow/barlow-semibold.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/barlow/barlow-semibold.woff2"),
-    ),
-    (
-        "kp/fonts/barlowcondensed/barlowcondensed-blackitalic.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/barlowcondensed/barlowcondensed-blackitalic.woff2"),
-    ),
-    (
-        "kp/fonts/barlowcondensed/barlowcondensed-bold.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/barlowcondensed/barlowcondensed-bold.woff2"),
-    ),
-    (
-        "kp/fonts/barlowcondensed/barlowcondensed-extrabolditalic.woff2",
-        "font/woff2",
-        include_bytes!(
-            "../../static/kp/fonts/barlowcondensed/barlowcondensed-extrabolditalic.woff2"
-        ),
-    ),
-    (
-        "kp/fonts/barlowcondensed/barlowcondensed-regular.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/barlowcondensed/barlowcondensed-regular.woff2"),
-    ),
-    (
-        "kp/fonts/barlowcondensed/barlowcondensed-semibold.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/barlowcondensed/barlowcondensed-semibold.woff2"),
-    ),
-    (
         "kp/fonts/bevietnampro/bevietnampro-400.woff2",
         "font/woff2",
         include_bytes!("../../static/kp/fonts/bevietnampro/bevietnampro-400.woff2"),
@@ -270,16 +218,6 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/fonts/instrumentserif/instrumentserif-regular.woff2",
         "font/woff2",
         include_bytes!("../../static/kp/fonts/instrumentserif/instrumentserif-regular.woff2"),
-    ),
-    (
-        "kp/fonts/inter/inter-italic-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/inter/inter-italic-variable.woff2"),
-    ),
-    (
-        "kp/fonts/inter/inter-variable.woff2",
-        "font/woff2",
-        include_bytes!("../../static/kp/fonts/inter/inter-variable.woff2"),
     ),
     (
         "kp/fonts/josefinsans/josefinsans-italic-variable.woff2",
@@ -401,6 +339,16 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
 #[cfg(feature = "webapp")]
 pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
     (
+        "kp/js/ack-gate.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/ack-gate.js"),
+    ),
+    (
+        "kp/js/action-tiles.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/action-tiles.js"),
+    ),
+    (
         "kp/js/actions.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/actions.js"),
@@ -411,9 +359,24 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/alarm.js"),
     ),
     (
+        "kp/js/anchors.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/anchors.js"),
+    ),
+    (
+        "kp/js/art.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/art.js"),
+    ),
+    (
         "kp/js/attention.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/attention.js"),
+    ),
+    (
+        "kp/js/auto-refresh.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/auto-refresh.js"),
     ),
     (
         "kp/js/auto.js",
@@ -421,9 +384,69 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/auto.js"),
     ),
     (
+        "kp/js/autosize.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/autosize.js"),
+    ),
+    (
+        "kp/js/availability.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/availability.js"),
+    ),
+    (
+        "kp/js/barcell.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/barcell.js"),
+    ),
+    (
+        "kp/js/bullets.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/bullets.js"),
+    ),
+    (
+        "kp/js/busy-card.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/busy-card.js"),
+    ),
+    (
+        "kp/js/calendar.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/calendar.js"),
+    ),
+    (
+        "kp/js/calm-tones.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/calm-tones.js"),
+    ),
+    (
+        "kp/js/calm.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/calm.js"),
+    ),
+    (
+        "kp/js/card-state.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/card-state.js"),
+    ),
+    (
         "kp/js/chart.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/chart.js"),
+    ),
+    (
+        "kp/js/checklist.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/checklist.js"),
+    ),
+    (
+        "kp/js/claim.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/claim.js"),
+    ),
+    (
+        "kp/js/code.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/code.js"),
     ),
     (
         "kp/js/colorpicker.js",
@@ -436,9 +459,24 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/combobox.js"),
     ),
     (
-        "kp/js/calendar.js",
+        "kp/js/command.js",
         "text/javascript; charset=utf-8",
-        include_bytes!("../../static/kp/js/calendar.js"),
+        include_bytes!("../../static/kp/js/command.js"),
+    ),
+    (
+        "kp/js/compare.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/compare.js"),
+    ),
+    (
+        "kp/js/connection.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/connection.js"),
+    ),
+    (
+        "kp/js/console.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/console.js"),
     ),
     (
         "kp/js/contrast.js",
@@ -446,9 +484,19 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/contrast.js"),
     ),
     (
+        "kp/js/countdown.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/countdown.js"),
+    ),
+    (
         "kp/js/datatable.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/datatable.js"),
+    ),
+    (
+        "kp/js/dated-options.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/dated-options.js"),
     ),
     (
         "kp/js/datepicker.js",
@@ -456,9 +504,44 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/datepicker.js"),
     ),
     (
+        "kp/js/deplist.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/deplist.js"),
+    ),
+    (
         "kp/js/diagnostics.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/diagnostics.js"),
+    ),
+    (
+        "kp/js/docpreview.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/docpreview.js"),
+    ),
+    (
+        "kp/js/entity-card.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/entity-card.js"),
+    ),
+    (
+        "kp/js/facets.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/facets.js"),
+    ),
+    (
+        "kp/js/flash.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/flash.js"),
+    ),
+    (
+        "kp/js/focus-steps.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/focus-steps.js"),
+    ),
+    (
+        "kp/js/footprint.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/footprint.js"),
     ),
     (
         "kp/js/forms.js",
@@ -471,6 +554,16 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/freshness.js"),
     ),
     (
+        "kp/js/gallery.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/gallery.js"),
+    ),
+    (
+        "kp/js/gantt.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/gantt.js"),
+    ),
+    (
         "kp/js/graph.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/graph.js"),
@@ -481,6 +574,36 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/gridlayout.js"),
     ),
     (
+        "kp/js/heat.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/heat.js"),
+    ),
+    (
+        "kp/js/hovercard.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/hovercard.js"),
+    ),
+    (
+        "kp/js/idmark.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/idmark.js"),
+    ),
+    (
+        "kp/js/intent.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/intent.js"),
+    ),
+    (
+        "kp/js/json-field.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/json-field.js"),
+    ),
+    (
+        "kp/js/keys.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/keys.js"),
+    ),
+    (
         "kp/js/kpi.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/kpi.js"),
@@ -489,6 +612,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/lazy-register.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/lazy-register.js"),
+    ),
+    (
+        "kp/js/lede.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/lede.js"),
     ),
     (
         "kp/js/listbox.js",
@@ -511,6 +639,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/log.js"),
     ),
     (
+        "kp/js/master-detail.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/master-detail.js"),
+    ),
+    (
         "kp/js/menu-button.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/menu-button.js"),
@@ -519,6 +652,21 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/motion.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/motion.js"),
+    ),
+    (
+        "kp/js/nav-fold.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/nav-fold.js"),
+    ),
+    (
+        "kp/js/newpill.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/newpill.js"),
+    ),
+    (
+        "kp/js/notices.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/notices.js"),
     ),
     (
         "kp/js/overlays.js",
@@ -531,9 +679,34 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/palette.js"),
     ),
     (
+        "kp/js/passkeys.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/passkeys.js"),
+    ),
+    (
+        "kp/js/path-trace.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/path-trace.js"),
+    ),
+    (
         "kp/js/patterns.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/patterns.js"),
+    ),
+    (
+        "kp/js/pipeline.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/pipeline.js"),
+    ),
+    (
+        "kp/js/print.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/print.js"),
+    ),
+    (
+        "kp/js/problems.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/problems.js"),
     ),
     (
         "kp/js/progressbar.js",
@@ -541,9 +714,79 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/progressbar.js"),
     ),
     (
+        "kp/js/qr.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/qr.js"),
+    ),
+    (
+        "kp/js/quantity.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/quantity.js"),
+    ),
+    (
+        "kp/js/question-card.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/question-card.js"),
+    ),
+    (
+        "kp/js/quote.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/quote.js"),
+    ),
+    (
+        "kp/js/range.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/range.js"),
+    ),
+    (
+        "kp/js/rating.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/rating.js"),
+    ),
+    (
+        "kp/js/reason.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/reason.js"),
+    ),
+    (
         "kp/js/remember.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/remember.js"),
+    ),
+    (
+        "kp/js/request-inspector.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/request-inspector.js"),
+    ),
+    (
+        "kp/js/row-select.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/row-select.js"),
+    ),
+    (
+        "kp/js/runs.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/runs.js"),
+    ),
+    (
+        "kp/js/segmented.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/segmented.js"),
+    ),
+    (
+        "kp/js/selection-bar.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/selection-bar.js"),
+    ),
+    (
+        "kp/js/sentence.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/sentence.js"),
+    ),
+    (
+        "kp/js/shortcuts.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/shortcuts.js"),
     ),
     (
         "kp/js/sidenav.js",
@@ -551,9 +794,44 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/sidenav.js"),
     ),
     (
+        "kp/js/slider.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/slider.js"),
+    ),
+    (
+        "kp/js/snooze.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/snooze.js"),
+    ),
+    (
+        "kp/js/stackbar.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/stackbar.js"),
+    ),
+    (
+        "kp/js/state-plate.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/state-plate.js"),
+    ),
+    (
+        "kp/js/statusrow.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/statusrow.js"),
+    ),
+    (
+        "kp/js/steplist.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/steplist.js"),
+    ),
+    (
         "kp/js/structure.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/structure.js"),
+    ),
+    (
+        "kp/js/tabbar.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/tabbar.js"),
     ),
     (
         "kp/js/tables.js",
@@ -561,9 +839,44 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/tables.js"),
     ),
     (
+        "kp/js/thread.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/thread.js"),
+    ),
+    (
+        "kp/js/tick.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/tick.js"),
+    ),
+    (
         "kp/js/tiles.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/tiles.js"),
+    ),
+    (
+        "kp/js/timefield.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/timefield.js"),
+    ),
+    (
+        "kp/js/timer-disc.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/timer-disc.js"),
+    ),
+    (
+        "kp/js/timer.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/timer.js"),
+    ),
+    (
+        "kp/js/toggle.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/toggle.js"),
+    ),
+    (
+        "kp/js/toolbar.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/toolbar.js"),
     ),
     (
         "kp/js/top-layer.js",
@@ -576,6 +889,21 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/tour.js"),
     ),
     (
+        "kp/js/transfer.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/transfer.js"),
+    ),
+    (
+        "kp/js/undo-toast.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/undo-toast.js"),
+    ),
+    (
+        "kp/js/unsaved.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/unsaved.js"),
+    ),
+    (
         "kp/js/update.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/update.js"),
@@ -584,6 +912,51 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/upload.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/upload.js"),
+    ),
+    (
+        "kp/js/uptime.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/uptime.js"),
+    ),
+    (
+        "kp/js/uses-map.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/uses-map.js"),
+    ),
+    (
+        "kp/js/usual-picker.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/usual-picker.js"),
+    ),
+    (
+        "kp/js/vendor/qr-encode.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/vendor/qr-encode.js"),
+    ),
+    (
+        "kp/js/version-delta.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/version-delta.js"),
+    ),
+    (
+        "kp/js/viewer.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/viewer.js"),
+    ),
+    (
+        "kp/js/week.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/week.js"),
+    ),
+    (
+        "kp/js/weekdays.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/weekdays.js"),
+    ),
+    (
+        "kp/js/wheel.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/wheel.js"),
     ),
     (
         "kp/js/wizard.js",

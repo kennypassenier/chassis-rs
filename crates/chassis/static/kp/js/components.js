@@ -79,6 +79,123 @@ let unlocked = null;
 /** Ids for the dialog's title and description, unique per page. */
 let dialogSeq = 0;
 
+/** Fired on a typed confirmation block whenever what is typed starts or stops matching: `{ matched, value, name }`. */
+export const TYPE_CONFIRM_EVENT = 'kp-type-confirm';
+/** A typed confirmation block a page puts in its own dialog or form. */
+export const TYPE_CONFIRM = '[data-kp-type-confirm]';
+
+/**
+ * Whether `typed` is the name [kpadopt4-ideas]. Spaces at the start and the
+ * end never count (a name pasted with a trailing space is the name); capitals
+ * count unless `anyCase`. Nothing else is forgiven: the point is that the
+ * reader looked at the name.
+ * @param {string} typed @param {string} name @param {{ anyCase?: boolean }} [options]
+ */
+export function typeConfirmMatches(typed, name, { anyCase = false } = {}) {
+    const a = typed.trim();
+    const b = name.trim();
+    if (b === '') return false;
+    return anyCase ? a.toLocaleLowerCase() === b.toLocaleLowerCase() : a === b;
+}
+
+let typeSeq = 0;
+
+/**
+ * The typed confirmation [kpadopt4-ideas; Kenny, 2026-10-16]: what will be
+ * lost, the field the name is typed into, the rule it is matched by and a
+ * line that says whether it matches, in one block that keeps its height
+ * while the reader types. `onChange(matched)` runs whenever the answer turns.
+ * Used by openConfirmation() for `data-kp-confirm-type`, and by
+ * attachTypeConfirms() for a block a page puts in its own dialog.
+ *
+ * @param {Document} doc
+ * @param {{ name: string, anyCase?: boolean, loses?: Node | readonly string[] | null, strings?: Partial<import('./strings.js').Strings>, onChange?: (matched: boolean, value: string) => void, block?: HTMLElement }} options
+ * @returns {{ block: HTMLElement, input: HTMLInputElement, matched: () => boolean }}
+ */
+export function buildTypeConfirm(doc, { name, anyCase = false, loses = null, strings, onChange, block: given }) {
+    const s = { ...getStrings(), ...strings };
+    const id = `kp-type-confirm-${++typeSeq}`;
+    const block = given ?? doc.createElement('div');
+    block.classList.add('kp-type-confirm', 'kp-field');
+    block.replaceChildren();
+
+    if (loses !== null && (!Array.isArray(loses) || loses.length > 0)) {
+        const box = doc.createElement('div');
+        box.className = 'kp-type-confirm__loses';
+        const head = doc.createElement('p');
+        head.className = 'kp-type-confirm__loses-title';
+        head.id = `${id}-loses`;
+        head.textContent = s.typeConfirmLoses;
+        box.append(head);
+        if (Array.isArray(loses)) {
+            const list = doc.createElement('ul');
+            list.className = 'kp-type-confirm__list';
+            list.setAttribute('aria-labelledby', head.id);
+            for (const line of loses) {
+                const item = doc.createElement('li');
+                item.textContent = line;
+                list.append(item);
+            }
+            box.append(list);
+        } else box.append(/** @type {Node} */ (loses));
+        block.append(box);
+    }
+
+    // The label is the dictionary's sentence with the name set in as code, wherever the language puts it.
+    const label = doc.createElement('label');
+    label.className = 'kp-field__label kp-type-confirm__label';
+    label.htmlFor = `${id}-input`;
+    const [before, after = ''] = s.typeConfirmLabel('\u0000').split('\u0000');
+    const code = doc.createElement('code');
+    code.className = 'kp-type-confirm__name';
+    code.textContent = name;
+    label.append(before, code, after);
+
+    const input = doc.createElement('input');
+    input.type = 'text';
+    input.className = 'kp-field__input kp-type-confirm__input';
+    input.id = `${id}-input`;
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.setAttribute('autocapitalize', 'off');
+    input.setAttribute('autocorrect', 'off');
+    input.setAttribute('aria-describedby', `${id}-rule ${id}-status`);
+
+    const rule = doc.createElement('p');
+    rule.className = 'kp-field__help kp-type-confirm__rule';
+    rule.id = `${id}-rule`;
+    rule.textContent = anyCase ? s.typeConfirmRuleAnyCase : s.typeConfirmRuleExact;
+
+    // One line, always there, so nothing moves when the answer turns.
+    const status = doc.createElement('p');
+    status.className = 'kp-type-confirm__status';
+    status.id = `${id}-status`;
+    status.setAttribute('aria-live', 'polite');
+
+    block.append(label, input, rule, status);
+
+    let matched = false;
+    const update = () => {
+        const now = typeConfirmMatches(input.value, name, { anyCase });
+        const typed = input.value.trim() !== '';
+        block.dataset.kpMatched = String(now);
+        if (now) {
+            const badge = doc.createElement('span');
+            badge.className = 'kp-badge kp-badge--success kp-type-confirm__match';
+            badge.textContent = s.typeConfirmMatched;
+            status.replaceChildren(badge);
+        } else status.textContent = typed ? s.typeConfirmMismatch : '';
+        if (now !== matched) {
+            matched = now;
+            onChange?.(now, input.value);
+            block.dispatchEvent(new CustomEvent(TYPE_CONFIRM_EVENT, { bubbles: true, detail: { matched: now, value: input.value, name } }));
+        }
+    };
+    input.addEventListener('input', update);
+    update();
+    return { block, input, matched: () => matched };
+}
+
 /**
  * Open the modal confirmation for `button`, and call `onAccept` if it is
  * taken [TH107, T14, AR28].
@@ -96,13 +213,64 @@ let dialogSeq = 0;
  * confirmations and the skip links with it. `gates/check-closure.mjs`
  * holds that closure at six.
  *
+ * Two opt-in checks for a removal that depends on something [kpadopt4]:
+ * `dependents` lists what still uses the thing under the description (a
+ * heading with the exact count, then one line each); `blocked` (the sentence
+ * that says what to do first) makes it a notice instead of a question, with
+ * one Close button and no Confirm. Each also comes from the button:
+ * `data-kp-confirm-dependents` (one name per `;`) and
+ * `data-kp-confirm-blocked` (empty: the dictionary's sentence).
+ *
+ * With `typeName` (or `data-kp-confirm-type` on the button) the reader
+ * types that name before Confirm turns on [kpadopt4-ideas]: the dialog shows
+ * what will be lost (`loses`, or the element `data-kp-confirm-loses` names),
+ * the field, the rule (`anyCase`, `data-kp-confirm-case="any"`) and whether it
+ * matches; Confirm stays disabled until it does, Enter in the field confirms a
+ * match, and the field has the focus. Confirm carries `acceptLabel`
+ * (`data-kp-confirm-label`), else the button's own words. A blocked removal
+ * shows no field: there is nothing to confirm.
+ *
  * @param {HTMLElement} button the control the confirmation belongs to
- * @param {{ phrase?: string, strings?: Partial<import('./strings.js').Strings>, onAccept?: () => void, onCancel?: () => void, className?: string, initialFocus?: 'cancel' | 'accept' }} [options]
+ * @param {{ phrase?: string, strings?: Partial<import('./strings.js').Strings>, onAccept?: () => void, onCancel?: () => void, className?: string, initialFocus?: 'cancel' | 'accept', dependents?: readonly string[], blocked?: string | boolean, typeName?: string, anyCase?: boolean, loses?: Node | readonly string[] | null, acceptLabel?: string }} [options]
  * @returns {HTMLDialogElement} the dialog, so a consumer can reach the state this set [KT6]
  */
-export function openConfirmation(button, { phrase, strings, onAccept, onCancel, className = '', initialFocus = 'cancel' } = {}) {
+export function openConfirmation(
+    button,
+    {
+        phrase,
+        strings,
+        onAccept,
+        onCancel,
+        className = '',
+        initialFocus = 'cancel',
+        dependents,
+        blocked,
+        typeName,
+        anyCase,
+        loses,
+        acceptLabel,
+    } = {},
+) {
     const s = { ...getStrings(), ...strings };
     const text = phrase ?? button.getAttribute('data-kp-confirm') ?? s.confirm;
+    const users = (
+        dependents ??
+        (button.getAttribute('data-kp-confirm-dependents') ?? '')
+            .split(';')
+            .map((name) => name.trim())
+            .filter(Boolean)
+    ).slice();
+    const blockedAttribute = button.getAttribute('data-kp-confirm-blocked');
+    const stop =
+        blocked === undefined
+            ? blockedAttribute === null
+                ? null
+                : blockedAttribute.trim() || s.confirmBlocked
+            : blocked === false
+              ? null
+              : blocked === true
+                ? s.confirmBlocked
+                : blocked;
 
     // showModal() light-dismisses every open `popover="auto"` — measured
     // for AR28: the menu goes open → closed, the button stays connected
@@ -126,13 +294,13 @@ export function openConfirmation(button, { phrase, strings, onAccept, onCancel, 
     const description = document.createElement('p');
     description.className = 'kp-dialog__description';
     description.id = `${id}-description`;
-    description.textContent = s.confirmDescription;
+    description.textContent = stop ?? s.confirmDescription;
 
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.className = 'kp-button';
     cancel.setAttribute('data-kp-confirm-cancel', '');
-    cancel.textContent = s.confirmCancel;
+    cancel.textContent = stop === null ? s.confirmCancel : s.confirmClose;
     cancel.addEventListener('click', () => dialog.close(''));
 
     const accept = document.createElement('button');
@@ -140,12 +308,78 @@ export function openConfirmation(button, { phrase, strings, onAccept, onCancel, 
     accept.className = 'kp-button kp-button--destructive';
     accept.setAttribute('data-kp-confirm-accept', '');
     accept.textContent = s.confirmAccept;
-    accept.addEventListener('click', () => dialog.close('accept'));
+    accept.addEventListener('click', () => {
+        if (!accept.disabled) dialog.close('accept');
+    });
 
     const actions = document.createElement('div');
     actions.className = 'kp-dialog__actions';
-    actions.append(cancel, accept);
-    dialog.append(title, description, actions);
+    // A removal something still depends on is a notice: one way out, nothing to confirm [kpadopt4].
+    if (stop === null) actions.append(cancel, accept);
+    else actions.append(cancel);
+    dialog.append(title, description);
+
+    if (users.length > 0) {
+        const block = document.createElement('section');
+        block.className = 'kp-confirm__dependents';
+        block.setAttribute('aria-labelledby', `${id}-dependents`);
+        const heading = document.createElement('h3');
+        heading.className = 'kp-dialog__heading';
+        heading.id = `${id}-dependents`;
+        heading.textContent = s.confirmDependents(users.length);
+        const list = document.createElement('ul');
+        list.className = 'kp-confirm__list';
+        for (const name of users) {
+            const item = document.createElement('li');
+            item.textContent = name;
+            list.append(item);
+        }
+        block.append(heading, list);
+        dialog.append(block);
+        dialog.setAttribute('aria-describedby', `${id}-description ${id}-dependents`);
+    }
+
+    // The typed name, opt-in: `typeName` or the button's `data-kp-confirm-type`.
+    const name = typeName ?? button.getAttribute('data-kp-confirm-type') ?? '';
+    /** @type {HTMLInputElement | null} */
+    let field = null;
+    if (name.trim() !== '' && stop === null) {
+        dialog.classList.add('kp-confirm--typed');
+        // The button's own words, without the "…" that said a question comes first: this press is the action.
+        const own = (button.textContent ?? '').trim().replace(/\s*(?:…|\.\.\.)$/, '');
+        accept.textContent = acceptLabel ?? button.getAttribute('data-kp-confirm-label') ?? (own || s.confirmAccept);
+        const lostId = button.getAttribute('data-kp-confirm-loses');
+        const lostSource = lostId ? document.getElementById(lostId) : null;
+        const lost =
+            loses ??
+            (lostSource instanceof HTMLTemplateElement ? lostSource.content.cloneNode(true) : lostSource ? lostSource.cloneNode(true) : null);
+        if (lost instanceof Element) {
+            lost.removeAttribute('id');
+            lost.removeAttribute('hidden');
+        }
+        const body = document.createElement('div');
+        body.className = 'kp-dialog__body';
+        const typed = buildTypeConfirm(document, {
+            name,
+            anyCase: anyCase ?? button.getAttribute('data-kp-confirm-case') === 'any',
+            loses: lost,
+            strings,
+            onChange: (matched) => {
+                accept.disabled = !matched;
+            },
+        });
+        accept.disabled = !typed.matched();
+        typed.input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !accept.disabled) {
+                event.preventDefault();
+                dialog.close('accept');
+            }
+        });
+        body.append(typed.block);
+        field = typed.input;
+        dialog.append(body);
+    }
+    dialog.append(actions);
     document.body.append(dialog);
 
     dialog.addEventListener('close', () => {
@@ -162,8 +396,67 @@ export function openConfirmation(button, { phrase, strings, onAccept, onCancel, 
     dialog.showModal();
     // The destructive answer must not be the one a stray Enter takes.
     // A consumer whose confirmation is not destructive says so [KT6].
-    (initialFocus === 'accept' ? accept : cancel).focus();
+    // A typed confirmation starts in its field: typing is the question; a notice on its one button.
+    (field ?? (initialFocus === 'accept' && stop === null ? accept : cancel)).focus();
     return dialog;
+}
+
+/**
+ * Wire every typed confirmation block a page put in its own dialog or form
+ * [kpadopt4-ideas]:
+ *
+ *   <div data-kp-type-confirm="media" data-kp-type-confirm-for="wipe" data-kp-type-confirm-loses="wipe-list"></div>
+ *   <button type="button" class="kp-button kp-button--destructive" id="wipe">Wipe media</button>
+ *
+ * The block is filled (what is lost, the field, the rule, the match line),
+ * and the button `data-kp-type-confirm-for` names stays disabled until the
+ * name is typed; `data-kp-type-confirm-case="any"` lets capitals pass. The
+ * block fires `kp-type-confirm` when the answer turns. Detach empties the
+ * block and gives the button back its own disabled state.
+ *
+ * @param {ParentNode} [root]
+ * @param {{ strings?: Partial<import('./strings.js').Strings> }} [options]
+ * @returns {() => void} detach
+ */
+export function attachTypeConfirms(root = document, { strings } = {}) {
+    /** @type {(() => void)[]} */
+    const cleanups = [];
+    for (const el of root.querySelectorAll(TYPE_CONFIRM)) {
+        const block = /** @type {HTMLElement} */ (el);
+        if (block.dataset.kpTypeConfirmAttached !== undefined) continue;
+        block.dataset.kpTypeConfirmAttached = '';
+        const doc = block.ownerDocument;
+        const target = block.dataset.kpTypeConfirmFor ? doc.getElementById(block.dataset.kpTypeConfirmFor) : null;
+        const button = target instanceof HTMLButtonElement || target instanceof HTMLInputElement ? target : null;
+        const wasDisabled = button?.disabled ?? false;
+        const lostSource = block.dataset.kpTypeConfirmLoses ? doc.getElementById(block.dataset.kpTypeConfirmLoses) : null;
+        const lost = lostSource instanceof HTMLTemplateElement ? lostSource.content.cloneNode(true) : lostSource ? lostSource.cloneNode(true) : null;
+        if (lost instanceof Element) {
+            lost.removeAttribute('id');
+            lost.removeAttribute('hidden');
+        }
+        const typed = buildTypeConfirm(doc, {
+            name: block.dataset.kpTypeConfirm ?? '',
+            anyCase: block.dataset.kpTypeConfirmCase === 'any',
+            loses: lost,
+            strings,
+            block,
+            onChange: (matched) => {
+                if (button) button.disabled = !matched || wasDisabled;
+            },
+        });
+        if (button) button.disabled = !typed.matched() || wasDisabled;
+        cleanups.push(() => {
+            block.replaceChildren();
+            block.classList.remove('kp-type-confirm', 'kp-field');
+            delete block.dataset.kpMatched;
+            delete block.dataset.kpTypeConfirmAttached;
+            if (button) button.disabled = wasDisabled;
+        });
+    }
+    return () => {
+        for (const c of cleanups) c();
+    };
 }
 
 /** Markup the consumer excludes from enforcement: `data-kp-contract-ignore`. */

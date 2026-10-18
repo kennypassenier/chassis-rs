@@ -8,11 +8,14 @@
 // back, so the visitor is not warned about it on every visit. 5.0.0 renamed
 // three themes; 6.0.0 removed academia, mono, ticker and woodblock, which
 // map to `formal`, the fallback kp-themes itself suggests (MIGRATION.md);
-// 10.0.0 removed lapis and shade-dark (to `dark`) and shade-light (to `light`).
+// 10.0.0 removed lapis and shade-dark (to `dark`) and shade-light; 11.0.0
+// removed terminal (to `nostromo`), phantom (to `dark`), light (and with it
+// shade-light, to `formal`) and grotesk (to `brutalism`), the nearest of the
+// twelve themes left by kp-themes' MIGRATION.md.
 // The themes' registers need no loading step: dist/kp-themes.css carries
 // them all, each scoped to its theme (D2, 2026-09-09).
 (function () {
-    var renamed = { topo: "forest", tazhib: "dark", lapis: "dark", "shade-dark": "dark", "shade-light": "light", nishiki: "formal", academia: "formal", mono: "formal", ticker: "formal", woodblock: "formal" };
+    var renamed = { topo: "forest", tazhib: "dark", lapis: "dark", "shade-dark": "dark", "shade-light": "formal", light: "formal", terminal: "nostromo", phantom: "dark", grotesk: "brutalism", nishiki: "formal", academia: "formal", mono: "formal", ticker: "formal", woodblock: "formal" };
     try {
         var stored = localStorage.getItem("theme");
         if (stored && renamed[stored]) {

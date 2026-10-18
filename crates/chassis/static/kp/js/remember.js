@@ -86,7 +86,7 @@ export const REMEMBER_PREFIX = 'kp-remember';
 /**
  * The kinds of state this package remembers.
  *
- * @typedef {'sidenav' | 'disclosure' | 'tree' | 'split' | 'datatable' | 'tour'} Remembered
+ * @typedef {'sidenav' | 'disclosure' | 'tree' | 'split' | 'datatable' | 'tour' | 'refresh' | 'notices' | 'claim' | 'availability' | 'time' | 'console' | 'focus-steps' | 'picker'} Remembered
  */
 
 /**
@@ -307,7 +307,8 @@ function paintSidenav(panel, memory) {
     // A width the reader dragged to, kept only for a panel that can be dragged;
     // js/sidenav.js clamps it between the panel's own limits.
     const width = memory.read('width', null);
-    if (typeof width === 'number' && panel.hasAttribute('data-kp-sidenav-resizable') && panel instanceof HTMLElement) panel.style.setProperty('--kp-sidenav-width', `${width}px`);
+    if (typeof width === 'number' && panel.hasAttribute('data-kp-sidenav-resizable') && panel instanceof HTMLElement)
+        panel.style.setProperty('--kp-sidenav-width', `${width}px`);
     const groups = memory.read('groups', null);
     if (!isFlags(groups)) return;
     for (const { group, toggle, id } of sidenavGroups(panel)) {
@@ -386,6 +387,17 @@ const PAINTERS = {
     datatable: paintDatatable,
     // A tour has no markup to paint: js/tour.js reads its memory itself.
     tour: () => {},
+    // The refresh chooser and the notification centre read their own memory [kpadopt5-ops].
+    refresh: () => {},
+    notices: () => {},
+    // The claim chips, the availability grid, the time field and the console read their own memory [kpadopt6].
+    claim: () => {},
+    availability: () => {},
+    time: () => {},
+    console: () => {},
+    // The check-in's progress and the picker's folded list are read by their own modules [kpadopt6].
+    'focus-steps': () => {},
+    picker: () => {},
 };
 
 /**

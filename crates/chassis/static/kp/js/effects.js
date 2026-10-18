@@ -432,9 +432,9 @@ export const TIMINGS = Object.freeze({
     'kp-bar-in': { durationMs: 520, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
     'kp-floor-drift': { durationMs: 6000, cycles: Infinity, property: 'background-position', luminanceSteps: [] },
     'kp-crt-off': { durationMs: 550, cycles: 1, property: 'opacity', luminanceSteps: [1, 0] },
-    // The phantom register [PH1]: the loader's bar and its shove out to the left
-    // (the words of a headline and the toast are thrown in on the grammar's
-    // pair, below).
+    // The Phantom register (theme removed 2026-10-16) [PH1]: the arrival
+    // card's bar and its shove out to the left; js/effects/arrival.js still
+    // times a card arrival by these two rows.
     'kp-bar-run': { durationMs: 900, cycles: 1, property: 'transform', luminanceSteps: [] },
     'kp-load-out': { durationMs: 640, cycles: 1, property: 'transform', luminanceSteps: [] },
     // The Retro register (theme removed 2026-10-09) [RT1]: the dither clearing off a headline and off
@@ -444,14 +444,6 @@ export const TIMINGS = Object.freeze({
     'kp-dither-out': { durationMs: 520, cycles: 1, property: 'opacity', luminanceSteps: [1, 1, 1, 1, 0] },
     'kp-drag-select': { durationMs: 360, cycles: 1, property: 'clip-path', luminanceSteps: [] },
     'kp-redact-lift': { durationMs: 400, cycles: 1, property: 'clip-path', luminanceSteps: [] },
-    // The terminal register [TM1]: the sweep band that rests eight of ten
-    // seconds and the tube collapsing the boot screen.
-    'kp-sweep': { durationMs: 10000, cycles: Infinity, property: 'transform', luminanceSteps: [] },
-    'kp-tube-off': { durationMs: 420, cycles: 1, property: 'opacity', luminanceSteps: [1, 1, 0] },
-    // The cursor in the box [TM2, R6-Q7]: one character cell on and off, once a second.
-    'kp-caret': { durationMs: 1000, cycles: Infinity, property: 'background-size', luminanceSteps: [1, 1, 0, 0] },
-    // The character the cursor stands on (the ghost button's `]`), reversed in step with kp-caret.
-    'kp-caret-reverse': { durationMs: 1000, cycles: Infinity, property: 'color', luminanceSteps: [1, 1, 0, 0] },
     // The alarm [scope-94]: the plate fading in, the frame's glow breathing
     // (one half-cycle per 1.4 s), the panel flickering in once (cyberpunk's
     // own keyframe since scope-100, below), each letter cell's two noise glyphs and its letter (once per
@@ -646,23 +638,12 @@ export const TIMINGS = Object.freeze({
     'kp-sig-formal-ruled-pen': { durationMs: 560, cycles: 1, property: 'clip-path', luminanceSteps: [] },
     'kp-sig-formal-ruled-pen-rtl': { durationMs: 560, cycles: 1, property: 'clip-path', luminanceSteps: [] },
     'kp-sig-formal-pen': { durationMs: 180, cycles: 1, property: 'clip-path', luminanceSteps: [] },
-    'kp-sig-light-meter-expose-d': { durationMs: 700, cycles: 1, property: 'filter', luminanceSteps: [] },
-    'kp-sig-light-meter-expose-o': { durationMs: 700, cycles: 1, property: 'filter', luminanceSteps: [] },
-    'kp-sig-light-meter-expose-w': { durationMs: 700, cycles: 1, property: 'filter', luminanceSteps: [] },
     'kp-sig-synthwave-meter-grow-o': { durationMs: 600, cycles: 1, property: 'scale', luminanceSteps: [] },
     'kp-sig-synthwave-meter-pos': { durationMs: 1800, cycles: Infinity, property: 'background-position', luminanceSteps: [] },
     'kp-sig-pastel-meter-drift': { durationMs: 1600, cycles: Infinity, property: 'translate', luminanceSteps: [] },
     'kp-sig-pastel-meter-drop-d': { durationMs: 600, cycles: 1, property: 'translate', luminanceSteps: [] },
     'kp-sig-pastel-meter-drop-o': { durationMs: 600, cycles: 1, property: 'translate', luminanceSteps: [] },
     'kp-sig-pastel-meter-drop-w': { durationMs: 600, cycles: 1, property: 'translate', luminanceSteps: [] },
-    'kp-sig-terminal-meter-tone-w': { durationMs: 900, cycles: 1, property: 'filter', luminanceSteps: [] },
-    'kp-sig-terminal-meter-tone-d': { durationMs: 900, cycles: 1, property: 'filter', luminanceSteps: [] },
-    'kp-sig-terminal-tm-fill': { durationMs: 1000, cycles: Infinity, property: '--kp-sig-tm-k', luminanceSteps: [] },
-    'kp-sig-terminal-tm-head': { durationMs: 1000, cycles: Infinity, property: '--kp-sig-tm-head', luminanceSteps: [] },
-    'kp-sig-terminal-tm-k': { durationMs: 1088, cycles: 1, property: '--kp-sig-tm-k', luminanceSteps: [] },
-    'kp-sig-terminal-tm-feed': { durationMs: 816, cycles: 1, property: 'inset-block-start', luminanceSteps: [] },
-    'kp-sig-terminal-update-blink': { durationMs: 900, cycles: 1, property: 'color', luminanceSteps: [] },
-    'kp-sig-terminal-update-blink-line': { durationMs: 900, cycles: 1, property: 'color', luminanceSteps: [] },
     'kp-sig-forest-meter-wipe-o': { durationMs: 1000, cycles: 1, property: 'clip-path', luminanceSteps: [] },
     'kp-sig-forest-meter-wipe-o-rtl': { durationMs: 1000, cycles: 1, property: 'clip-path', luminanceSteps: [] },
     'kp-sig-solstice-meter-bump-d': { durationMs: 500, cycles: 1, property: 'scale', luminanceSteps: [] },
@@ -674,10 +655,6 @@ export const TIMINGS = Object.freeze({
     'kp-sig-deco-meter-knock-o': { durationMs: 300, cycles: 1, property: 'translate', luminanceSteps: [] },
     'kp-sig-deco-meter-knock-w': { durationMs: 300, cycles: 1, property: 'translate', luminanceSteps: [] },
     'kp-sig-deco-meter-wipe-o': { durationMs: 900, cycles: 1, property: 'clip-path', luminanceSteps: [] },
-    'kp-sig-phantom-meter-redraw-d': { durationMs: 400, cycles: 1, property: 'mask-image', luminanceSteps: [] },
-    'kp-sig-phantom-meter-redraw-o': { durationMs: 400, cycles: 1, property: 'mask-image', luminanceSteps: [] },
-    'kp-sig-phantom-meter-redraw-w': { durationMs: 400, cycles: 1, property: 'mask-image', luminanceSteps: [] },
-    'kp-sig-phantom-meter-slant-o': { durationMs: 400, cycles: 1, property: 'clip-path', luminanceSteps: [] },
     'kp-sig-nostromo-meter-scan': { durationMs: 2000, cycles: Infinity, property: 'background-position', luminanceSteps: [] },
     'kp-sig-nostromo-meter-wipe-o': { durationMs: 1600, cycles: 1, property: 'clip-path', luminanceSteps: [] },
     // titanium's loading is the anodising bath on every carrier (themes/titanium/CHARACTER.md G10).
@@ -690,7 +667,6 @@ export const TIMINGS = Object.freeze({
     // dark (loading and arrival redrawn), cyberpunk and grotesk
     // (high-contrast and retro have since been removed). Every loading picture loops while loading.
     'kp-sig-cyberpunk-meter-slip-o': { durationMs: 320, cycles: 1, property: 'translate', luminanceSteps: [] },
-    'kp-sig-grotesk-meter-grow-o': { durationMs: 400, cycles: 1, property: 'scale', luminanceSteps: [] },
     // ── Rows added by the port session [scope-143, 2026-10-08]: every keyframe the
     // character rounds declared without a row. Generated from the stylesheets,
     // not measured in a browser: the duration is the literal, else the shortest
@@ -733,40 +709,9 @@ export const TIMINGS = Object.freeze({
     'kp-sig-synthwave-sink': { durationMs: 225, cycles: 1, property: 'translate, clip-path', luminanceSteps: [] },
     'kp-sig-synthwave-sun': { durationMs: 225, cycles: 1, property: 'translate, visibility', luminanceSteps: [] },
     'kp-sig-synthwave-update-laser': { durationMs: 225, cycles: 1, property: 'opacity', luminanceSteps: [1, 1, 0] },
-    // phantom-register
-    'kp-sig-phantom-phantom-snap': { durationMs: 260, cycles: Infinity, property: 'transform', luminanceSteps: [] },
-    'kp-sig-phantom-phantom-slash': { durationMs: 1400, cycles: Infinity, property: 'translate', luminanceSteps: [] },
-    'kp-progressbar-phantom-shove': { durationMs: 1500, cycles: Infinity, property: 'transform', luminanceSteps: [] },
-    // The grammar [themes/phantom/CHARACTER.md, Kenny, 2026-10-09]: the throw
-    // (translate, rotate, scale and a visibility that hides a part not yet
-    // drawn), its resolve in cuts of the screen (mask-image), their leaves, the
-    // bar thrown in on contact, the face of a pressed cap, the ink flipping at
-    // the second cut and a live update's six cuts. None changes a colour but
-    // the ink, once, on contact.
+    // The Phantom throw (theme removed 2026-10-16): the `shout` headline
+    // routine in js/effects/headline.js still times its words by this row.
     'kp-sig-phantom-fly': { durationMs: 700, cycles: 1, property: 'translate, rotate, scale, visibility', luminanceSteps: [] },
-    'kp-sig-phantom-fly-out': { durationMs: 700, cycles: 1, property: 'translate, rotate, scale, visibility', luminanceSteps: [] },
-    'kp-sig-phantom-resolve': { durationMs: 700, cycles: 1, property: 'mask-image', luminanceSteps: [] },
-    'kp-sig-phantom-resolve-out': { durationMs: 700, cycles: 1, property: 'mask-image', luminanceSteps: [] },
-    'kp-sig-phantom-resolve-tip': { durationMs: 300, cycles: 1, property: 'mask-image', luminanceSteps: [] },
-    'kp-sig-phantom-bar': { durationMs: 120, cycles: 1, property: 'mask-image', luminanceSteps: [] },
-    'kp-sig-phantom-face': { durationMs: 120, cycles: 1, property: 'mask-image', luminanceSteps: [] },
-    'kp-sig-phantom-ink': { durationMs: 120, cycles: 1, property: 'color', luminanceSteps: [] },
-    'kp-sig-phantom-update': { durationMs: 400, cycles: 1, property: 'mask-image', luminanceSteps: [] },
-    // terminal-register
-    'kp-sig-terminal-tm-dot': { durationMs: 800, cycles: Infinity, property: 'transform', luminanceSteps: [] },
-    'kp-sig-terminal-tm-trail': { durationMs: 800, cycles: Infinity, property: 'transform', luminanceSteps: [] },
-    'kp-sig-terminal-tm-decay': { durationMs: 800, cycles: Infinity, property: 'opacity', luminanceSteps: [0.6, 0.15] },
-    'kp-sig-terminal-tm-type': { durationMs: 800, cycles: 1, property: 'clip-path', luminanceSteps: [] },
-    'kp-sig-terminal-tm-rows': { durationMs: 800, cycles: 1, property: 'clip-path', luminanceSteps: [] },
-    'kp-sig-terminal-tm-menu': { durationMs: 136, cycles: 1, property: 'clip-path', luminanceSteps: [] },
-    'kp-sig-terminal-tm-menu-feed': { durationMs: 136, cycles: 1, property: 'inset-block-start, visibility', luminanceSteps: [] },
-    'kp-sig-terminal-tm-wash': { durationMs: 800, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
-    'kp-sig-terminal-tm-blink': { durationMs: 1000, cycles: 5, property: 'opacity', luminanceSteps: [0] },
-    'kp-tp-caret': { durationMs: 1000, cycles: Infinity, property: 'opacity', luminanceSteps: [0] },
-    'kp-tp-walk': { durationMs: 2400, cycles: Infinity, property: 'transform', luminanceSteps: [] },
-    'kp-sig-terminal-leave': { durationMs: 480, cycles: 1, property: 'clip-path', luminanceSteps: [] },
-    'kp-sig-terminal-leave-rtl': { durationMs: 480, cycles: 1, property: 'clip-path', luminanceSteps: [] }, // swapped in by animation-name on the rule that runs its sibling
-    'kp-sig-terminal-leave-2': { durationMs: 480, cycles: 1, property: 'inset-inline-end', luminanceSteps: [] },
     // brutalism-register
     'kp-progressbar-brutalism-hop': { durationMs: 2400, cycles: Infinity, property: 'translate', luminanceSteps: [] },
     'kp-sig-brutalism-hoist': { durationMs: 1200, cycles: Infinity, property: 'background-position-y', luminanceSteps: [] },
@@ -830,32 +775,10 @@ export const TIMINGS = Object.freeze({
     'kp-sig-deco-deco-turn': { durationMs: 3600, cycles: Infinity, property: 'transform', luminanceSteps: [] },
     'kp-sig-deco-deco-unfold': { durationMs: 340, cycles: 1, property: 'clip-path', luminanceSteps: [] },
     'kp-sig-deco-deco-grow': { durationMs: 340, cycles: 1, property: 'transform', luminanceSteps: [] },
-    // light-register
-    'kp-sig-light-light-orbit': { durationMs: 1200, cycles: Infinity, property: 'transform', luminanceSteps: [] },
-    'kp-sig-light-light-tick': { durationMs: 200, cycles: 1, property: 'clip-path', luminanceSteps: [] },
     // Light's grammar, 2026-10-08 (themes/light/CHARACTER.md §4): the exposure
     // and its leave (opacity, 0 to 1 and 1 to 0), the filter keyframes (a
     // re-exposure, out of focus, the burnt bead, the shutter), the bead on the
     // hairline and the line exposed start to end.
-    'kp-sig-light-expose': { durationMs: 700, cycles: 1, property: 'opacity', luminanceSteps: [0, 1] },
-    'kp-sig-light-leave': { durationMs: 700, cycles: 1, property: 'opacity', luminanceSteps: [1, 0] },
-    'kp-sig-light-reexpose': { durationMs: 700, cycles: 1, property: 'filter', luminanceSteps: [] },
-    'kp-sig-light-breathe': { durationMs: 3600, cycles: Infinity, property: 'filter', luminanceSteps: [] },
-    'kp-sig-light-breathe-ink': { durationMs: 3600, cycles: Infinity, property: 'text-shadow', luminanceSteps: [] },
-    'kp-sig-light-burn': { durationMs: 1200, cycles: Infinity, property: 'filter', luminanceSteps: [] },
-    'kp-sig-light-flash': { durationMs: 200, cycles: 1, property: 'filter', luminanceSteps: [] },
-    'kp-sig-light-line': { durationMs: 3600, cycles: Infinity, property: 'transform', luminanceSteps: [] },
-    'kp-sig-light-feed': { durationMs: 700, cycles: 1, property: 'clip-path, filter', luminanceSteps: [] },
-    // grotesk-register
-    'kp-sig-grotesk-fall': { durationMs: 34, cycles: 1, property: 'filter', luminanceSteps: [] },
-    'kp-sig-grotesk-fall-again': { durationMs: 960, cycles: 1, property: 'filter', luminanceSteps: [] },
-    'kp-sig-grotesk-update-plate': { durationMs: 34, cycles: 1, property: 'filter', luminanceSteps: [] },
-    'kp-sig-grotesk-loop': { durationMs: 2640, cycles: Infinity, property: '--kp-sig-gr-a, --kp-sig-gr-q', luminanceSteps: [] },
-    'kp-sig-grotesk-turn': { durationMs: 2640, cycles: Infinity, property: 'rotate', luminanceSteps: [] },
-    'kp-sig-grotesk-gr-cut': { durationMs: 34, cycles: 1, property: 'clip-path', luminanceSteps: [] },
-    'kp-sig-grotesk-gr-disc': { durationMs: 34, cycles: 1, property: 'transform', luminanceSteps: [] },
-    'kp-sig-grotesk-gr-rule': { durationMs: 34, cycles: 1, property: 'transform', luminanceSteps: [] },
-    'kp-sig-grotesk-leave': { durationMs: 960, cycles: 1, property: '--kp-sig-gr-a, --kp-sig-gr-q, visibility', luminanceSteps: [] },
     // blueprint-register
     'kp-sig-blueprint-callout': { durationMs: 300, cycles: 1, property: 'color, border-color, background-color, --kp-bp-r', luminanceSteps: [] },
     'kp-sig-blueprint-leader': { durationMs: 360, cycles: 1, property: 'transform', luminanceSteps: [] },
@@ -926,6 +849,16 @@ export const TIMINGS = Object.freeze({
     'kp-sig-dark-figure': { durationMs: 660, cycles: 1, property: '--kp-sig-dk-at', luminanceSteps: [] },
     'kp-sig-dark-lay': { durationMs: 660, cycles: 1, property: 'clip-path', luminanceSteps: [] },
     'kp-sig-dark-comet': { durationMs: 2400, cycles: Infinity, property: 'background-position', luminanceSteps: [] },
+    'kp-sig-cyberpunk-blink': { durationMs: 1800, cycles: Infinity, property: 'box-shadow', luminanceSteps: [] },
+    'kp-sig-cyberpunk-feed': { durationMs: 1800, cycles: Infinity, property: 'transform', luminanceSteps: [] },
+    'kp-sig-synthwave-bulb': { durationMs: 900, cycles: Infinity, property: 'background-color', luminanceSteps: [] },
+    'kp-sig-synthwave-chase': { durationMs: 900, cycles: Infinity, property: 'background-position', luminanceSteps: [] },
+    'kp-sig-synthwave-lane': { durationMs: 600, cycles: Infinity, property: 'transform', luminanceSteps: [] },
+    'kp-sig-pastel-tape-drift': { durationMs: 600, cycles: Infinity, property: 'background-position', luminanceSteps: [] },
+    'kp-sig-blueprint-hatch': { durationMs: 2880, cycles: Infinity, property: 'background-size', luminanceSteps: [] },
+    'kp-sig-blueprint-chain': { durationMs: 960, cycles: Infinity, property: 'background-position', luminanceSteps: [] },
+    'kp-sig-nostromo-bank': { durationMs: 1600, cycles: Infinity, property: 'background-position', luminanceSteps: [] },
+    'kp-sig-dark-run': { durationMs: 2400, cycles: Infinity, property: 'background-position', luminanceSteps: [] },
     'kp-sig-dark-bars': { durationMs: 2400, cycles: Infinity, property: '--kp-sig-dk-ph', luminanceSteps: [] },
     'kp-sig-dark-tap': { durationMs: 220, cycles: 1, property: 'background-position', luminanceSteps: [] },
     'kp-sig-dark-meter-lay': { durationMs: 660, cycles: 1, property: 'mask-size', luminanceSteps: [] },
@@ -1011,7 +944,7 @@ export function attachEffects(root = document, options = {}) {
     const manageRoot = options.manageRoot ?? true;
     const view = doc.defaultView;
     const query = view && typeof view.matchMedia === 'function' ? view.matchMedia('(prefers-reduced-motion: reduce)') : null;
-    const reduced = () => options.reduceMotion ?? (query ? query.matches : false);
+    const reduced = () => options.reduceMotion ?? ((query ? query.matches : false) || html.hasAttribute('data-kp-calm'));
     const rootStyle = view ? view.getComputedStyle(html) : null;
     /** @param {string} name @param {number} fallback */
     const knob = (name, fallback) => {

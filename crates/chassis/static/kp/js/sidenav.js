@@ -85,6 +85,7 @@
 // says so.
 
 import { getStrings } from './strings.js';
+import { motionAllowed } from './calm.js';
 import { paintRemembered, sidenavGroups } from './remember.js';
 import { playEntranceBackwards, reversedEase, stopReversing } from './motion.js';
 
@@ -868,7 +869,7 @@ export function attachSidenavs(root = document, { strings, ownedBy = SIDENAV_OWN
             const travel = style.getPropertyValue('--kp-sidenav-refuse-travel').trim() || '0.75rem';
             const property = edge() === 'end' ? 'marginInlineEnd' : 'marginInlineStart';
             let duration = 600;
-            if (!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+            if (motionAllowed()) {
                 const probe = doc.createElement('span');
                 probe.style.cssText = `position:absolute;visibility:hidden;transition-duration:${time}`;
                 panel.append(probe);

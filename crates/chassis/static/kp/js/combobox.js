@@ -44,6 +44,14 @@ const STATUS = '[data-kp-combobox-status]';
 const TAGS = '[data-kp-tag-list]';
 const EMPTY = '[data-kp-combobox-empty]';
 
+/**
+ * What an option reads as once chosen: its `data-kp-label` when it has one (an option drawn in two lines, a name and
+ * its detail, is chosen by its name alone), else its text [kpadopt5-time].
+ * @param {HTMLElement | null | undefined} option
+ * @param {string} [fallback]
+ */
+const labelOf = (option, fallback = '') => option?.dataset.kpLabel ?? (option?.textContent ?? fallback).trim();
+
 /** Announced when the list changes; the words come from the dictionary [KT5]. */
 const RESULTS_TEXT = /** @param {number} n */ (n) => {
     const s = getStrings();
@@ -77,6 +85,18 @@ export const MATCHERS = {
  * @property {() => void} close
  * @property {(text: string) => void} query type on the consumer's behalf
  * @property {() => void} refresh re-read the options after the consumer changed them
+ * @property {(hook: ComboboxHook | null) => void} extend let a layer on top of the combobox (js/usual-picker.js) decide which options show, what the status says and what a choice does [kpadopt6]
+ */
+
+/**
+ * What a layer on top of the combobox may decide [kpadopt6]. `shown` has the last word on one option (its default is what
+ * the matcher said), `after` runs once the options are filtered, `status` replaces the status line, `choose` returns true to
+ * swallow a choice (a row that is not a value).
+ * @typedef {object} ComboboxHook
+ * @property {(option: HTMLElement, query: string, matched: boolean) => boolean} [shown]
+ * @property {(query: string, visible: number) => void} [after]
+ * @property {(query: string, visible: number) => string | null} [status]
+ * @property {(option: HTMLElement) => boolean} [choose]
  */
 
 /** @type {WeakMap<Element, ComboboxHandle>} */
@@ -124,6 +144,8 @@ export function attachComboboxes(
     for (const element of root.querySelectorAll(COMBOBOX)) {
         const box = /** @type {HTMLElement} */ (element);
         if (box.dataset.kpComboboxAttached !== undefined) continue;
+        // A picker with the usual on top is made ready by js/usual-picker.js, which attaches it itself [kpadopt6].
+        if (box.hasAttribute('data-kp-usual') && box.dataset.kpUsualReady === undefined) continue;
         const input = /** @type {HTMLInputElement | null} */ (box.querySelector(INPUT));
         const list = /** @type {HTMLElement | null} */ (box.querySelector(LIST));
         if (input === null || list === null) continue;
@@ -167,6 +189,14 @@ export function attachComboboxes(
         const chosen = tagList
             ? [...tagList.querySelectorAll('.kp-tag')].map((t) => /** @type {HTMLElement} */ (t).dataset.value ?? (t.textContent ?? '').trim())
             : [];
+        // A tag list written `hidden` is hidden while it holds no tag, and shown the moment one is added: the package
+        // never un-hid it, so every pick of the usual picker's symptoms went into a list nobody could see (Kenny,
+        // 2026-10-18 18:42: "MIJN SELECTIES KOMEN NIET IN DE LIJST TEVOORSCHIJN"). A list written without `hidden` is
+        // left as it is.
+        const tagsHidden = tagList?.hidden ?? false;
+        const showTags = () => {
+            if (tagList !== null && tagsHidden) tagList.hidden = chosen.length === 0;
+        };
         const before = {
             expanded: input.getAttribute('aria-expanded'),
             listHidden: list.hidden,
@@ -196,6 +226,9 @@ export function attachComboboxes(
         const open = () => setOpen(true);
         const close = () => setOpen(false);
 
+        /** @type {ComboboxHook | null} */
+        let hook = null;
+
         /** Show only the options whose text matches, and say how many are left. */
         const filter = () => {
             const query = input.value.trim().toLowerCase();
@@ -204,12 +237,16 @@ export function attachComboboxes(
                 const option = /** @type {HTMLElement} */ (element);
                 const text = (option.textContent ?? '').toLowerCase();
                 const taken = isTags && !duplicates && chosen.includes(option.dataset.value ?? text);
-                const shown = !taken && (query === '' || matcher(text, query));
+                const matched = !taken && (query === '' || matcher(text, query));
+                const shown = hook?.shown && !taken ? hook.shown(option, query, matched) : matched;
                 option.hidden = !shown;
                 if (shown) visible += 1;
             }
+            hook?.after?.(query, visible);
+            // The rows a layer added are options too: count what is shown now.
+            if (hook?.after) visible = [...list.querySelectorAll(OPTION_SELECTOR)].filter((o) => !(/** @type {HTMLElement} */ (o).hidden)).length;
             listbox.refresh();
-            if (status !== null) status.textContent = RESULTS_TEXT(visible);
+            if (status !== null) status.textContent = hook?.status?.(query, visible) ?? RESULTS_TEXT(visible);
             if (empty !== null) {
                 empty.hidden = !showsEmpty || visible > 0;
                 if (empty !== serverEmpty) empty.textContent = getStrings().noResults;
@@ -263,6 +300,7 @@ export function attachComboboxes(
             if (duplicates || !chosen.includes(value)) {
                 chosen.push(value);
                 if (tagList !== null) tagList.append(tagElement(value, label));
+                showTags();
             }
             input.value = '';
             filter();
@@ -276,12 +314,13 @@ export function attachComboboxes(
 
         /** @param {HTMLElement} option */
         const take = (option) => {
+            if (hook?.choose?.(option)) return;
             // Two different things, and conflating them is a real bug the
             // contract suite caught between the channels: the LABEL is
             // what a person reads in the field, the VALUE is what the
             // consumer gets in the event. `data-value` is optional, so an
             // option without one uses its own text for both.
-            const label = (option.textContent ?? '').trim();
+            const label = labelOf(option);
             const value = option.dataset.value ?? label;
             if (isTags) {
                 addTag(value, label);
@@ -325,6 +364,7 @@ export function attachComboboxes(
             const tag = /** @type {HTMLElement | null} */ (tagList?.querySelector(`.kp-tag[data-value="${CSS.escape(value)}"]`) ?? null);
             const label = tag?.querySelector('span')?.textContent ?? value;
             tag?.remove();
+            showTags();
             filter();
             announce(value, label, 'remove');
         };
@@ -414,6 +454,7 @@ export function attachComboboxes(
         box.addEventListener('focusout', onFocusOut);
         list.addEventListener('mousedown', onListMouseDown);
         tagList?.addEventListener('click', onTagClick);
+        showTags();
         filter();
         list.hidden = true;
         input.setAttribute('aria-expanded', 'false');
@@ -430,14 +471,15 @@ export function attachComboboxes(
                         if (!duplicates && chosen.includes(value)) continue;
                         chosen.push(value);
                         const option = optionFor(value);
-                        tagList?.append(tagElement(value, (option?.textContent ?? value).trim()));
+                        tagList?.append(tagElement(value, labelOf(option, value)));
                     }
+                    showTags();
                     filter();
                     announce(values[values.length - 1] ?? '', '', 'set');
                 } else {
                     const value = values[0] ?? '';
                     const option = optionFor(value);
-                    input.value = (option?.textContent ?? value).trim();
+                    input.value = labelOf(option, value);
                     announce(value, input.value, 'set');
                 }
             },
@@ -448,6 +490,10 @@ export function attachComboboxes(
                 onInput();
             },
             refresh: () => void filter(),
+            extend: (next) => {
+                hook = next;
+                filter();
+            },
         };
         handles.set(box, handle);
         created.push(handle);
@@ -468,7 +514,10 @@ export function attachComboboxes(
             [...list.querySelectorAll(OPTION_SELECTOR)].forEach((o, i) => {
                 /** @type {HTMLElement} */ (o).hidden = before.hidden[i] ?? false;
             });
-            if (tagList) tagList.replaceChildren(...before.tags);
+            if (tagList) {
+                tagList.replaceChildren(...before.tags);
+                tagList.hidden = tagsHidden;
+            }
             if (status) status.textContent = before.status;
             if (empty !== null && empty !== serverEmpty) empty.remove();
             if (serverEmpty !== null) serverEmpty.hidden = emptyWasHidden;

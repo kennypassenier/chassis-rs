@@ -36,6 +36,7 @@
 // appear later (a framework's render) are picked up as they arrive.
 
 import { afterPaint, settling } from './as-of.js';
+import { isCalm } from './calm.js';
 
 /** Any box a consumer wants eased, beside the components below. */
 export const SIZE_ATTRIBUTE = 'data-kp-size-motion';
@@ -128,7 +129,7 @@ reducedQuery?.addEventListener('change', (event) => {
 });
 
 /** @returns {boolean} */
-const reduced = () => reducedNow;
+const reduced = () => reducedNow || isCalm();
 
 /**
  * The theme's motion, read from its dialog entrance: a dialog drawn for an
@@ -1327,6 +1328,11 @@ function foldFrames(el, style) {
               paddingTop: style.paddingTop,
               paddingBottom: style.paddingBottom,
           };
+    // A floor of its own (the toolbar's "Showing only" row keeps 1.75rem)
+    // would hold the box open at that size for the first part of the fold,
+    // which then showed as a jump of the floor's size when it began.
+    const floor = sideways ? 'minWidth' : 'minHeight';
+    if (parseFloat(style[floor]) > 0) from[floor] = style[floor];
     /** @type {Record<string, string>} */
     const to = Object.fromEntries(Object.keys(from).map((k) => [k, '0px']));
     // The gap a flex box keeps between its items stays until the item is
@@ -1353,6 +1359,36 @@ function foldFrames(el, style) {
         else if (near('nextElementSibling')) to[end] = `${-gapOf}px`;
     }
     return [from, to];
+}
+
+/**
+ * Whether folding the width of `el` to nothing would re-wrap the row it
+ * sits in. Folding sideways moves the neighbours up with the closing
+ * space; in a wrapping row that puts a neighbour on another line half way,
+ * so the row (and the page under it) is a line shorter or taller for the
+ * length of the fold and jumps to its real height when the fold ends (a
+ * filter tag arriving in the toolbar's "Showing only" row at 390 px: 28 px
+ * while it grew, 62 px after; Kenny, kpadopt-controls, 2026-10-16). Read by
+ * laying the end of the fold out for one read and comparing the heights of
+ * the ancestors; a fold that re-wraps is not played: the neighbours take
+ * their place at once and the box around them glides.
+ * @param {HTMLElement} el @param {Record<string, string>} from @param {Record<string, string>} to
+ * @returns {boolean}
+ */
+function foldReflows(el, from, to) {
+    if (!('width' in from)) return false;
+    /** @type {HTMLElement[]} */
+    const chain = [];
+    for (let up = el.parentElement; up && up !== document.body && chain.length < 6; up = up.parentElement) chain.push(up);
+    const before = chain.map((n) => n.getBoundingClientRect().height);
+    const dashed = (/** @type {string} */ k) => k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+    const keys = Object.keys(to).map(dashed);
+    const kept = keys.map((k) => el.style.getPropertyValue(k));
+    const values = Object.values(to);
+    keys.forEach((k, i) => el.style.setProperty(k, values[i], 'important'));
+    const after = chain.map((n) => n.getBoundingClientRect().height);
+    keys.forEach((k, i) => (kept[i] ? el.style.setProperty(k, kept[i]) : el.style.removeProperty(k)));
+    return after.some((h, i) => Math.abs(h - before[i]) >= 1);
 }
 
 /**
@@ -1523,7 +1559,8 @@ function arriveAsReversedLeave(el) {
     const pause = parseFloat(style.getPropertyValue('--kp-leave-pause')) || 0;
     const timing = foldTiming(style);
     const foldEase = foldCurve(style, ease);
-    const foldFor = size > 0 && !floats(el, style) ? steppedDuration(el, withoutOvershoot(foldEase), Math.max(size, lasts) * timing.grow) : 0;
+    const frames = size > 0 && !floats(el, style) ? foldFrames(el, style) : null;
+    const foldFor = frames && !foldReflows(el, ...frames) ? steppedDuration(el, withoutOvershoot(foldEase), Math.max(size, lasts) * timing.grow) : 0;
     const foldAt = onStepClock(el, withoutOvershoot(foldEase), after ? lasts + pause : timing.start(lasts));
     // The leave is over when its last exit (a pseudo-element's may run
     // longer than the first) and its fold are.
@@ -1571,10 +1608,9 @@ function arriveAsReversedLeave(el) {
             : stagger > 0 && stagger < 1
               ? Math.max(0, ...exits.map((exit) => reaches(exit.timing, exit.end, stagger)))
               : Math.max(lasts, ...exits.map((exit) => exit.end));
-    if (foldFor > 0) {
+    if (foldFor > 0 && frames) {
         el.style.setProperty('overflow', 'clip');
         el.style.setProperty('box-sizing', 'border-box');
-        const frames = foldFrames(el, style);
         if ('height' in frames[0]) heightFolds.add(el);
         plays.push(
             el.animate(frames, {
@@ -1923,10 +1959,11 @@ async function leaveOne(el, hide, exited, count = 1) {
     running.push(exit);
     // A table row cannot be folded below its cells' content: it plays its
     // leave, and the table glides shut once it is out.
-    if (size > 0 && !(el instanceof HTMLTableRowElement) && !floats(el, style)) {
+    const foldTo = size > 0 && !(el instanceof HTMLTableRowElement) && !floats(el, style) ? foldFrames(el, style) : null;
+    if (foldTo && !foldReflows(el, ...foldTo)) {
         el.style.setProperty('overflow', 'clip');
         el.style.setProperty('box-sizing', 'border-box');
-        const [from, to] = foldFrames(el, style);
+        const [from, to] = foldTo;
         if ('height' in from) heightFolds.add(el);
         // The space closes slower than a plain resize, so the eye can follow
         // what closes up (Kenny, 2026-10-04: "ik zou het graag iets trager

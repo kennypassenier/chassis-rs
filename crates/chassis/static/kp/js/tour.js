@@ -36,6 +36,7 @@
 // tour builds them. Nothing runs on import.
 
 import { playEntranceBackwards, stopReversing } from './motion.js';
+import { motionAllowed } from './calm.js';
 import { REMEMBER_ATTRIBUTE, memoryFor } from './remember.js';
 import { resolveStrings } from './strings.js';
 import { markUpdating, unmarkUpdating, updateIdea, updatePlays, updateTiming } from './update.js';
@@ -156,7 +157,7 @@ export function tourCardPlace(target, card, view, { gutter = TOUR_GUTTER, gap = 
 }
 
 /** @param {Document} doc @returns {boolean} */
-const reducedMotion = (doc) => !!doc.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const reducedMotion = (doc) => !motionAllowed(doc);
 
 /** Is `el` laid out (not hidden, not inside something hidden)? @param {Element | null} el */
 const isShown = (el) => !!el && el.isConnected && el.getClientRects().length > 0;
