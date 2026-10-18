@@ -30,14 +30,15 @@ attachThemePickers();
 enforceContracts();
 attachConfirmations();
 // K15, kp-themes 5.0.0 (R2-b, 2026-09-09): js/effects.js performs what a
-// stylesheet cannot — the terminal theme's block cursor inside a focused
-// field (the register paints the cell, the module writes the column), the
+// stylesheet cannot — the block cursor inside a focused field for a theme
+// that sets `--kp-caret: block` (none of kp-themes 11.0.0's twelve does, since
+// terminal left; the hook stays for one that will) (the register paints the cell, the module writes the column), the
 // themes' arrivals and reveals. The kit's own pages carry no reveal hooks,
 // so on them the module does the caret and the arrival only.
 //
 // The caret is bound at attach time and only if the theme active at that
 // moment answers `--kp-caret: block`; a page loaded in formal and switched
-// to terminal would keep the browser's caret. Measured 2026-09-09: detach()
+// to a caret theme would keep the browser's caret. Measured 2026-09-09: detach()
 // does not forget the fields it bound (a module-level WeakSet), so
 // detach-and-reattach cannot rebind them — instead the kit attaches once
 // more, the first time a caret theme becomes active after load. Bound

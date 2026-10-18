@@ -516,10 +516,11 @@ gate test compares all 115 of them, fonts and licences included).
   `strings`, `components`), `js/effects.js`, and since kp-themes 7.0.0 the
   nine hooks under `js/effects/` plus `js/as-of.js`, which `effects.js`
   imports on demand (R2-b, 2026-09-09): on the kit's
-  pages it does the terminal theme's block cursor inside a focused field
-  (the register paints the cell, the module writes the column) and the
-  themes' arrivals (terminal boots once per browser session per page, with
-  a Skip button; reduced motion resolves it at once). The kit's pages carry
+  pages it does the block cursor inside a focused field for a theme that
+  sets `--kp-caret: block` (the register paints the cell, the module
+  writes the column; none of the twelve themes of kp-themes 11.0.0 sets
+  it, since terminal left) and the themes' arrivals (reduced motion
+  resolves them at once). The kit's pages carry
   no reveal hooks, so headlines do not type and marks do not clear; a
   project page may use the hooks. `chassis.js` attaches the module at load
   and once more the first time a caret theme becomes active, because
@@ -531,7 +532,11 @@ gate test compares all 115 of them, fonts and licences included).
   removed in 6.0.0 and map to `formal`, and so does `nishiki`, which 5.0.0
   had renamed to `woodblock`. `theme-boot.js` maps a stored old name once
   and writes the new one back, so a visitor gets no console warning on
-  every visit. `cyberpunk` is a different theme under the same name (signal
+  every visit. kp-themes 10.0.0 removed `lapis` and `shade-dark` (to
+  `dark`) and `shade-light`; 11.0.0 removed `terminal` (to `nostromo`),
+  `phantom` (to `dark`), `light` and `shade-light` (to `formal`) and
+  `grotesk` (to `brutalism`), the nearest of the twelve left per
+  kp-themes' MIGRATION.md. `cyberpunk` is a different theme under the same name (signal
   yellow instead of neon-on-violet).
 - **Left aside, on purpose:** the minified twins (`dist/kp-themes.min.css`,
   45 % smaller) — they reference a source map the kit does not serve, and
