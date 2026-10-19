@@ -808,6 +808,34 @@ pre.snippet {
    field at 28rem, which left the input 22 px short of the Register button). */
 .kit-register .kp-field { max-inline-size: none; }
 
+/* Before the modules attach, the list and the code hold the room their
+   loading state takes (the list's three waiting rows from the package's own
+   knobs; the code's plate, link and Copy), so nothing under them moves when
+   the busy card arrives and the data replaces it. */
+.kit-ops .kp-passkeys:empty {
+  min-block-size: calc(var(--kp-passkeys-row-min, 5rem) * 3 + var(--kp-passkeys-gap, var(--kp-space-sm, 0.5rem)) * 2);
+}
+.kit-ops .kp-qr:empty { min-block-size: 21.7rem; }
+@media (max-width: 40rem) { .kit-ops .kp-qr:empty { min-block-size: 22.15rem; } }
+
+/* One left edge on a phone (Kenny, 2026-10-19: align on the grid). The
+   package centres the code's plate in a narrow card while the link and Copy
+   under it start at the left edge, and it puts the primary header button on
+   a line of its own with the menu button left-aligned under it. Here the
+   plate starts at the edge like the link under it, and the primary button
+   and the menu button share one row of two grid columns. */
+@container kp-qr (max-width: 23rem) {
+  [data-kit-passkeys-page] .kp-qr__plate { justify-self: start; }
+}
+@container kp-page-header (max-width: 40rem) {
+  [data-kit-passkeys-page] .kp-page-header__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
+  }
+  [data-kit-passkeys-page] .kp-page-header__actions > .kp-button--primary { order: 0; }
+}
+
 /* TEMPORARY: .kp-formgrid until the next kp-themes release is vendored
    (kp-themes main, css/components.css "Form grid"; remove with the vendoring). */
 /* --- Form grid: one set of column tracks for every row ---------------
