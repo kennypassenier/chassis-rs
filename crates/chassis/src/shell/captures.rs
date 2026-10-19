@@ -53,7 +53,8 @@ impl CaptureConfig {
 
     pub fn is_redacted(&self, name: &str) -> bool {
         let n = name.to_ascii_lowercase();
-        Self::ALWAYS_REDACTED.contains(&n.as_str())
+        n == TEST_HEADER
+            || Self::ALWAYS_REDACTED.contains(&n.as_str())
             || self.redact.iter().any(|r| r.eq_ignore_ascii_case(&n))
     }
 }
@@ -63,6 +64,10 @@ impl CaptureConfig {
 pub struct Captures {
     pub config: CaptureConfig,
     rings: Arc<std::sync::RwLock<HashMap<String, VecDeque<Capture>>>>,
+    /// A random value made at start-up: the dashboard's own test route sends
+    /// it in [`TEST_HEADER`], so only that request is filed as a test. A
+    /// client that sends the header with any other value is an `api` call.
+    test_key: Arc<str>,
 }
 
 impl Captures {
@@ -70,7 +75,21 @@ impl Captures {
         Self {
             config,
             rings: Arc::new(std::sync::RwLock::new(HashMap::new())),
+            test_key: uuid::Uuid::new_v4().simple().to_string().into(),
         }
+    }
+
+    /// The value the dashboard's test route puts in [`TEST_HEADER`].
+    pub(crate) fn test_key(&self) -> &str {
+        &self.test_key
+    }
+
+    /// Whether `headers` carry this process's test key.
+    fn is_own_test(&self, headers: &axum::http::HeaderMap) -> bool {
+        headers
+            .get(TEST_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|v| v == &*self.test_key)
     }
 
     /// Record one request for `client_id`.
@@ -143,7 +162,7 @@ impl Captures {
     }
 }
 
-/// The header the dashboard's test button sends.
+/// The header the dashboard's test route sends, carrying the per-process key.
 pub(crate) const TEST_HEADER: &str = "x-chassis-test";
 
 /// Middleware for API routes: after `require_caller` attached a `Caller`,
@@ -181,9 +200,10 @@ pub async fn capture_requests(
     let headers = parts.headers.clone();
     let req = Request::from_parts(parts, Body::from(bytes.clone()));
     let response = next.run(req).await;
-    // The dashboard's test button marks its request with this header
-    // (`clients_api::send_test`); the list says where each came from.
-    let source = if headers.contains_key(TEST_HEADER) {
+    // The dashboard's test route marks its request with this header and the
+    // per-process key (`clients_api::send_test`); a header from outside,
+    // without the key, is an ordinary call.
+    let source = if captures.is_own_test(&headers) {
         "test"
     } else {
         "api"
@@ -310,10 +330,11 @@ mod tests {
                     next.run(req).await
                 },
             ));
-        for (header, _) in [(Some(TEST_HEADER), "test"), (None, "api")] {
+        let key = captures.test_key().to_string();
+        for header in [Some(key.as_str()), None] {
             let mut req = Request::post("/v1/x");
-            if let Some(h) = header {
-                req = req.header(h, "1");
+            if let Some(v) = header {
+                req = req.header(TEST_HEADER, v);
             }
             let res = app
                 .clone()
@@ -325,5 +346,43 @@ mod tests {
         let list = captures.list("id");
         assert_eq!(list[0].source, "api", "newest first");
         assert_eq!(list[1].source, "test");
+    }
+
+    /// kit-kp11: any client can send the header; only the dashboard's own
+    /// key makes a request a test. Outside values are recorded as `api`.
+    #[tokio::test]
+    async fn an_outside_test_header_is_recorded_as_api() {
+        use axum::{Router, body::Body, middleware::from_fn_with_state, routing::post};
+        use tower::ServiceExt;
+
+        let captures = Captures::new(cfg());
+        let app = Router::new()
+            .route("/v1/x", post(|| async { "ok" }))
+            .layer(from_fn_with_state(captures.clone(), capture_requests))
+            .layer(axum::middleware::from_fn(
+                |mut req: Request<Body>, next: Next| async move {
+                    req.extensions_mut().insert(Caller::Client {
+                        id: "id".into(),
+                        name: "n".into(),
+                    });
+                    next.run(req).await
+                },
+            ));
+        for value in ["1", "true", ""] {
+            let req = Request::post("/v1/x")
+                .header(TEST_HEADER, value)
+                .body(Body::empty())
+                .unwrap();
+            assert_eq!(app.clone().oneshot(req).await.unwrap().status(), 200);
+        }
+        let list = captures.list("id");
+        assert_eq!(list.len(), 2, "ring keeps two of the three");
+        assert!(list.iter().all(|c| c.source == "api"));
+        assert!(
+            list.iter()
+                .flat_map(|c| &c.headers)
+                .all(|(k, v)| k != TEST_HEADER || v == "***"),
+            "the header is never shown"
+        );
     }
 }

@@ -325,7 +325,7 @@ pub async fn send_test(
         .request(method, &url)
         .bearer_auth(&token)
         .header("content-type", &route.content_type)
-        .header(crate::shell::captures::TEST_HEADER, "1")
+        .header(crate::shell::captures::TEST_HEADER, api.captures.test_key())
         .body(route.body.clone())
         .send()
         .await
@@ -338,6 +338,6 @@ pub async fn send_test(
     let status = res.status().as_u16();
     let body = res.text().await.unwrap_or_default();
     // The capture middleware files this request as a test: it carries
-    // `x-chassis-test`, which only this function sends.
+    // `x-chassis-test` with the per-process key only this function sends.
     Ok(Json(TestResult { status, body }))
 }
