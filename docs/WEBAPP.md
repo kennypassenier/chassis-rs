@@ -51,11 +51,12 @@ app.webapp(WebApp::embedded(FILES));            // served at the root (3.1.0)
   connections from this origin only). `.csp("…")` replaces it for the
   app's responses only. kp-themes' framework-free modules run under the
   default, and the vendored kp-themes files are served at `/static/kp/…`
-  (`/static/kp/dist/kp-themes.css`, `/static/kp/js/…`). With `webapp` that
-  is the whole framework-free module set of the vendored release (the
-  wizard, the data table, the palette, the date picker, `auto.js`, …), not
-  only the modules the kit's own pages use; without it those modules are
-  not in the binary.
+  (`/static/kp/dist/kp-themes.css`, `/static/kp/js/…`). Every build that
+  serves the kit's pages (`dashboard`, and so `webapp`) serves the whole
+  framework-free module set of the vendored release (the wizard, the data
+  table, the palette, the date picker, `auto.js`, …) since 3.9.0; before, only
+  `webapp` did and a page under `dashboard` alone got a 404 for them. A
+  build without `dashboard` carries none.
 - **Refusals at start and `--check`.** A mount that starts with one of the
   kit's routes (`/status`, `/login`, `/logout`, `/static`, `/api`,
   `/clients`, `/passkeys`, `/healthz`, `/readyz`, `/metrics`); an embedded

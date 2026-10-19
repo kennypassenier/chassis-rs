@@ -28,6 +28,7 @@
 
 mod clients;
 mod drift;
+mod failed_tests;
 mod kit_docs;
 mod release;
 mod templates;
@@ -177,7 +178,7 @@ fn scaffold_features() -> Vec<String> {
         .collect()
 }
 const TOOLCHAIN: &str = "1.97";
-const KP_THEMES: &str = "11.0.0";
+const KP_THEMES: &str = "11.1.1";
 const CHASSIS_REPO: &str = "https://github.com/kennypassenier/chassis-rs";
 
 #[derive(Parser)]
@@ -249,6 +250,9 @@ enum Cmd {
         /// Print every step without running any of them (no gate, no build)
         #[arg(long)]
         plan: bool,
+        /// Run the whole test suite even when a failed run is recorded (.chassis/release-failed.json)
+        #[arg(long)]
+        full_tests: bool,
     },
     /// Move a project to another kit version: the record, both dependency lines, cargo, the gates
     #[command(
@@ -310,7 +314,8 @@ fn main() -> ExitCode {
             dir,
             dry_run,
             plan,
-        } => cmd_release(&dir, &version, dry_run, plan),
+            full_tests,
+        } => cmd_release(&dir, &version, dry_run, plan, full_tests),
         Cmd::Upgrade {
             version,
             dir,
@@ -1083,7 +1088,13 @@ fn release_plan(rec: &Recorded, v: &str, tag: &str, image: bool) -> Vec<String> 
     plan
 }
 
-fn cmd_release(dir: &Path, version: &str, dry_run: bool, plan: bool) -> Result<(), Error> {
+fn cmd_release(
+    dir: &Path,
+    version: &str,
+    dry_run: bool,
+    plan: bool,
+    full_tests: bool,
+) -> Result<(), Error> {
     let rec = read_recorded(dir)?;
     let v = chassis::core::update::Version::parse(version)?;
     let tag = format!("v{v}");
@@ -1186,7 +1197,7 @@ fn cmd_release(dir: &Path, version: &str, dry_run: bool, plan: bool) -> Result<(
     check_major_has_migration(&changelog, current, v)?;
 
     // 1. The gate: everything the kit's CI workflow ran, on this tree.
-    release::gate(dir, &rec, image)?;
+    release::gate(dir, &rec, image, full_tests)?;
 
     // 2. Bump Cargo.toml (and, for real, the changelog). A dry run builds
     // the bumped version too, so the binary and the image it proves answer
@@ -1285,6 +1296,8 @@ fn cmd_release(dir: &Path, version: &str, dry_run: bool, plan: bool) -> Result<(
     run(dir, "git", &["push", "-q", "origin", &tag], false)?;
     println!("chassis release: pushed {sha} to main and tagged it {tag}");
     release::publish(dir, &rec, &tag, images.as_ref())?;
+    // The tests this release carried are behind it now.
+    failed_tests::clear(dir);
 
     // 6. Sign locally and upload .minisig before VERSION. Interactive: minisign
     // prints its password prompt and must be seen where there is a terminal.

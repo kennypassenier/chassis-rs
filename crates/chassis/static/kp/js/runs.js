@@ -32,6 +32,7 @@
 
 import { getStrings } from './strings.js';
 import { openBusyCard } from './busy-card.js';
+import { statePlate } from './state-plate.js';
 import { dayNames } from './weekdays.js';
 import { humanDuration } from './freshness.js';
 import { CHART_TIME_ZONE, wallTime } from './chart.js';
@@ -264,38 +265,21 @@ export function attachRuns(root = document, { now: nowOption } = {}) {
             note.replaceChildren();
             note.hidden = state !== 'empty' && state !== 'error';
             note.removeAttribute('role');
-            if (state === 'empty') {
-                const plate = doc.createElement('div');
-                plate.className = 'kp-empty kp-runs__empty';
-                const t = doc.createElement('p');
-                t.className = 'kp-empty__title kp-runs__empty-title';
-                t.textContent = given.reason ?? s.runsEmpty;
-                plate.append(t);
+            if (state === 'empty' || state === 'error') {
+                // The package plate (js/state-plate.js), dressed by the part's own class so a theme's runs look stays; the Retry is
+                // the delegated `[data-kp-runs-retry]` (it carries `detail.element`) [states-check-1019].
+                const failed = state === 'error';
+                const plate = statePlate(doc, {
+                    kind: failed ? 'error' : 'empty',
+                    title: failed ? (given.title ?? s.runsFailed) : (given.reason ?? s.runsEmpty),
+                    ...(failed ? { text: given.text ?? s.stateFailedText, actionLabel: s.runsRetry, actionAttribute: 'data-kp-runs-retry' } : {}),
+                });
+                plate.classList.add(failed ? 'kp-runs__failure' : 'kp-runs__empty');
+                plate.querySelector('.kp-stateplate__title')?.classList.add(failed ? 'kp-runs__failure-title' : 'kp-runs__empty-title');
+                plate.querySelector('.kp-stateplate__text')?.classList.add('kp-runs__failure-text');
+                plate.querySelector('.kp-stateplate__action')?.classList.add('kp-runs__retry');
                 note.append(plate);
-                note.setAttribute('role', 'status');
-            } else if (state === 'error') {
-                const alert = doc.createElement('div');
-                alert.className = 'kp-alert kp-alert--destructive kp-runs__failure';
-                const body = doc.createElement('div');
-                body.className = 'kp-alert__body';
-                const t = doc.createElement('strong');
-                t.className = 'kp-runs__failure-title';
-                t.textContent = given.title ?? s.runsFailed;
-                body.append(t);
-                if (given.text) {
-                    const p = doc.createElement('span');
-                    p.className = 'kp-runs__failure-text';
-                    p.textContent = given.text;
-                    body.append(p);
-                }
-                const retry = doc.createElement('button');
-                retry.type = 'button';
-                retry.className = 'kp-button kp-runs__retry';
-                retry.dataset.kpRunsRetry = '';
-                retry.textContent = s.runsRetry;
-                alert.append(body, retry);
-                note.append(alert);
-                note.setAttribute('role', 'alert');
+                note.setAttribute('role', failed ? 'alert' : 'status');
             }
         };
 

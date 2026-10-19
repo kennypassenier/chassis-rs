@@ -18,11 +18,20 @@
 //
 //   state    `queued` (a dashed, hollow bar from the moment it was queued to
 //            now), `running` (a striped bar growing to now, a bright
-//            leading edge), `ok` (a solid bar from start to end) and
+//            leading edge), `ok` (a solid bar from start to end),
 //            `failed` (solid, taller than the others, with a cap at its end
-//            and a cross where the bar is wide enough). The tone is never
-//            the only carrier: the height, the cap, the stripes and the
-//            dashes are, and so is the bar's name
+//            and a cross where the bar is wide enough) and `planned`
+//            [gaps-time-1019] (still to come: an outlined bar on the card's own
+//            ground with the theme's own hatching, from `start` to `end`, so it
+//            is the dated plan, never a run; with a `series` its outline and
+//            hatching take that colour). The tone is never the only carrier:
+//            the height, the cap, the stripes, the dashes and the hatching
+//            are, and so is the bar's name
+//   label    a label that does not fit its bar stands outside it [gaps-time-1019]: after the bar when the lane has room before the
+//            next bar of its row, else before it, else (a lane too full for either) not drawn: a label is never cut with an ellipsis,
+//            the bar's name and card carry it. A label stands clear of the mark beside its bar, and a mark that would lie on a bar
+//            stands clear of it (--kp-g-dodge). A label that fits stays inside. Measured against the bar's
+//            real width, so a growing bar takes its label back in when it is wide enough
 //   live     a running or queued bar ends at now, whatever `end` says; one
 //            custom property (`--kp-g-now`) moves every second and the
 //            stylesheet places every bar from it, so the page repaints
@@ -82,6 +91,11 @@
 //            label. The range word `all` fits the window to everything on the
 //            timeline and now, and stays fitted as the data changes. The axis
 //            steps go up to four weeks, a week starting on Monday
+//   chrome   [gaps-time-1019] options read again when the attribute changes (js/live-options.js):
+//            `data-kp-gantt-toolbar="off"` leaves out the range buttons and Live (and the brush that selects a range: the
+//            timeline is read, not searched; the window is still `data-kp-gantt-range`'s or the page's own setGanttWindow);
+//            `data-kp-gantt-legend="off"` leaves out the legend of the states (the page's own series, kinds and stretches stay,
+//            and a legend left with nothing is not drawn); `data-kp-gantt-hint="off"` leaves out the line under the timeline
 //   line     `.kp-gantt--line` [kpadopt4]: one lane and no toolbar, no lane
 //            names and no brush, fitted to its data: the dated line under a
 //            journey stepper
@@ -101,6 +115,8 @@ import { CHART_TIME_ZONE, wallTime, zonedTime } from './chart.js';
 import { dayKey, formatDayKey, shiftDay } from './calendar.js';
 import { resolveStrings } from './strings.js';
 import { openBusyCard } from './busy-card.js';
+import { hostStatePlate } from './state-plate.js';
+import { watchOptions } from './live-options.js';
 
 /** A run timeline: `section.kp-gantt[data-kp-gantt]`. */
 export const GANTT = '[data-kp-gantt]';
@@ -112,6 +128,8 @@ export const GANTT_SELECT_EVENT = 'kp-gantt-select';
 export const GANTT_WINDOW_EVENT = 'kp-gantt-window';
 /** How often a live window moves, in ms. */
 export const GANTT_TICK_MS = 1000;
+/** Fired on the timeline, bubbling, when the Retry of its failed state is pressed [state-plates-1019]. */
+export const GANTT_RETRY_EVENT = 'kp-gantt-retry';
 /** The steps an axis chooses from, in seconds. */
 export const GANTT_STEPS = Object.freeze([60, 300, 900, 1800, 3600, 10_800, 21_600, 43_200, 86_400, 172_800, 604_800, 1_209_600, 2_419_200]);
 /** A week step and longer starts on a Monday: 1970-01-05, in seconds [kpadopt4]. */
@@ -122,13 +140,13 @@ const CLUSTER_PX = 14;
 const CLUSTER_PLATE_PX = 24;
 
 /**
- * @typedef {'queued' | 'running' | 'ok' | 'failed'} GanttRunState
+ * @typedef {'queued' | 'running' | 'ok' | 'failed' | 'planned'} GanttRunState
  * @typedef {object} GanttRun
  * @property {string} id what the page calls the run; reported by `kp-gantt-open`
  * @property {string} lane the lane's id
  * @property {string} label what the run is, one line
- * @property {number | string} start epoch ms or an ISO string; for a queued run, the moment it was queued
- * @property {number | string | null} [end] when it ended; ignored for a queued or running run
+ * @property {number | string} start epoch ms or an ISO string; for a queued run, the moment it was queued; for a planned run, when it is to begin
+ * @property {number | string | null} [end] when it ended, or for a planned run when it is to end; ignored for a queued or running run
  * @property {GanttRunState} state
  * @property {string} [detail] more words for the hover card
  * @property {1 | 2 | 3 | 4 | 5} [series] a finished run's colour, `--chart-1` … `--chart-5`, in place of the success colour [kpadopt3]
@@ -162,11 +180,11 @@ const CLUSTER_PLATE_PX = 24;
  *   bars: Map<string, HTMLButtonElement>, states: Map<string, GanttRunState>, state: GanttState, active: string | null,
  *   selected: { from: number, to: number } | null, body: HTMLElement, scroll: HTMLElement, axis: HTMLElement,
  *   plot: HTMLElement, lines: HTMLElement, nowLine: HTMLElement, brushBox: HTMLElement, selectBox: HTMLElement,
- *   stateLine: HTMLElement, announcer: HTMLElement, ranges: HTMLElement, liveButton: HTMLButtonElement,
+ *   stateLine: HTMLElement, plate: HTMLElement, plateKey: string, plateText: string, plateArt: Node | string | null, announcer: HTMLElement, ranges: HTMLElement, liveButton: HTMLButtonElement,
  *   selection: HTMLElement, selectionText: HTMLElement, ticks: Map<number, { label: HTMLElement, line: HTMLElement }>,
  *   legend: HTMLElement, days: boolean, dayStop: string | null,
  *   points: GanttPoint[], pointEls: Map<string, HTMLButtonElement>, kinds: GanttKind[], zones: GanttZone[], fit: boolean, line: boolean,
- *   ghosts: HTMLElement[], held: number | null, busy: import('./busy-card.js').BusyCard | null, leaving: Promise<void> | null, drawn: boolean, timer: number, observer: ResizeObserver | null, drag: { a: number, b: number } | null, dragMoved: boolean, tickKey: string }} GanttModel
+ *   ghosts: HTMLElement[], held: number | null, busy: import('./busy-card.js').BusyCard | null, leaving: Promise<void> | null, drawn: boolean, timer: number, observer: ResizeObserver | null, drag: { a: number, b: number } | null, dragMoved: boolean, tickKey: string, labels: Map<HTMLElement, { key: string, width: number }>, outside: Map<HTMLElement, HTMLElement> }} GanttModel
  */
 
 /** @type {WeakMap<Element, GanttModel>} */
@@ -229,12 +247,14 @@ export function axisStep(span, room, gap = 72) {
  * @param {{ id: string, s: number, e: number | null }[]} runs in any order, seconds
  * @param {Map<string, number>} [before] the rows the runs had
  * @param {number} [pad] the seconds two runs keep between them
+ * @param {{ s: number, e: number }[]} [fixed] stretches of the first row that are taken (the marks of a lane's points, as
+ *   wide as they are drawn): a run keeps the same gap from them as from another run [hlthree-1019 gantt-points]
  * @returns {{ rows: Map<string, number>, count: number }}
  */
-export function packRows(runs, before = new Map(), pad = 0) {
+export function packRows(runs, before = new Map(), pad = 0, fixed = []) {
     const sorted = [...runs].sort((a, b) => a.s - b.s);
     /** @type {{ s: number, e: number }[][]} */
-    const rows = [];
+    const rows = fixed.length > 0 ? [fixed.map((f) => ({ s: f.s, e: f.e }))] : [];
     /** @type {Map<string, number>} */
     const given = new Map();
     const free = (/** @type {number} */ row, /** @type {{ s: number, e: number | null }} */ run) =>
@@ -276,7 +296,7 @@ function stamp(c, ms) {
 
 /** @param {GanttModel} c @param {GanttRunState} state */
 const stateWord = (c, state) =>
-    ({ queued: c.strings.ganttQueued, running: c.strings.ganttRunning, ok: c.strings.ganttOk, failed: c.strings.ganttFailed })[state];
+    ({ queued: c.strings.ganttQueued, running: c.strings.ganttRunning, ok: c.strings.ganttOk, failed: c.strings.ganttFailed, planned: c.strings.ganttPlanned })[state];
 
 /** The seconds, relative to the base, of a moment. @param {GanttModel} c @param {number} ms */
 const rel = (c, ms) => ms / 1000 - c.base;
@@ -411,11 +431,15 @@ function build(c) {
     c.announcer.setAttribute('role', 'status');
     const frame = make(doc, 'div', 'kp-gantt__frame');
     c.selection.hidden = true;
-    frame.append(c.scroll, c.stateLine);
+    // Empty and failed are the package's state plate over the plot, not a sentence; the line keeps only the loading words for a
+    // screen reader (the busy card is drawn) [state-plates-1019].
+    c.plate = make(doc, 'div', 'kp-gantt__plate');
+    c.plate.hidden = true;
+    frame.append(c.scroll, c.stateLine, c.plate);
     const hint = make(doc, 'p', 'kp-gantt__hint', c.el.hasAttribute('data-kp-gantt-points') ? s.ganttPointsHint : s.ganttHint);
     const legend = make(doc, 'ul', 'kp-gantt__legend');
     c.legend = legend;
-    for (const state of /** @type {const} */ (['ok', 'failed', 'running', 'queued'])) {
+    for (const state of /** @type {const} */ (['ok', 'failed', 'running', 'queued', 'planned'])) {
         const li = make(doc, 'li', 'kp-gantt__legend-state');
         const swatch = make(doc, 'span', 'kp-gantt__swatch');
         swatch.dataset.kpState = state;
@@ -595,7 +619,7 @@ function paint(c) {
             byLane.set(run.lane, []);
         }
         const open = run.state === 'running' || run.state === 'queued';
-        const endRaw = open ? null : run.end == null ? startMs : toMs(run.end);
+        const endRaw = open ? null : run.end == null || !Number.isFinite(toMs(run.end)) ? startMs : toMs(run.end);
         let bar = c.bars.get(run.id);
         if (!bar) {
             bar = make(doc, 'button', 'kp-gantt__run');
@@ -628,7 +652,33 @@ function paint(c) {
             byLane.set(point.lane, []);
         }
     // Lanes: build in the given order, then any a run named on its own.
-    const pad = c.span * 0.006;
+    // Two runs of a row keep a gap in PIXELS, not in time: a run is never drawn narrower than `--kp-gantt-bar-min`, so a short run
+    // reaches past its end by the rest of that width, and on a phone one second is a fraction of a pixel [hlcomp-1019 gantt-gap].
+    // Packing counts that reach and the gap in the seconds one pixel stands for; positions stay laid by time.
+    const room = c.plot.clientWidth;
+    const perPx = room > 0 ? c.span / room : 0;
+    const sample = c.bars.values().next().value;
+    const minBar = (sample && Number.parseFloat(getComputedStyle(sample).minWidth)) || 8;
+    const pad = Math.max(c.span * 0.006, RUN_GAP_PX * perPx);
+    const reach = minBar * perPx;
+    // The marks of a lane's points stand on its first row, as wide as they are drawn: a run never lies on one, it takes the next
+    // row, so the mark and the run both stay at their moment [hlthree-1019 gantt-points].
+    const markPx = (() => {
+        const el = c.pointEls.values().next().value;
+        const w = el ? Number.parseFloat(getComputedStyle(el, '::before').width) : Number.NaN;
+        return Number.isFinite(w) && w > 0 ? w : 12;
+    })();
+    const markHalf = (markPx / 2 + MARK_GAP_PX) * perPx;
+    /** @type {Map<string, { s: number, e: number }[]>} */
+    const marksOf = new Map();
+    for (const point of c.points) {
+        const ms = toMs(point.at);
+        if (!Number.isFinite(ms) || perPx === 0) continue;
+        const at = rel(c, ms);
+        const list = marksOf.get(point.lane) ?? [];
+        list.push({ s: at - markHalf, e: at + markHalf });
+        marksOf.set(point.lane, list);
+    }
     const before = new Map(c.lanes.flatMap((l) => l.bars.map((b) => [b.run.id, b.row])));
     const old = new Map(c.lanes.map((l) => [l.lane.id, l]));
     /** @type {GanttLaneModel[]} */
@@ -636,9 +686,10 @@ function paint(c) {
     for (const [id, lane] of laneById) {
         const bars = (byLane.get(id) ?? []).sort((a, b) => a.s - b.s);
         const packed = packRows(
-            bars.map((b) => ({ id: b.run.id, s: b.s, e: b.e })),
+            bars.map((b) => ({ id: b.run.id, s: b.s, e: b.e == null ? null : Math.max(b.e, b.s + reach) })),
             before,
             pad,
+            marksOf.get(id) ?? [],
         );
         let model = old.get(id);
         if (!model) {
@@ -692,41 +743,47 @@ function paint(c) {
     paintPoints(c, lanes);
     paintZones(c, lanes);
     paintKinds(c);
+    paintChrome(c);
     c.el.dataset.kpState = c.state;
     c.body.toggleAttribute('aria-busy', c.state === 'loading');
     drawBusy(c);
     const empty = c.state === 'ready' && c.runs.length === 0 && c.points.length === 0 && lanes.length === 0;
-    const words = c.state === 'loading' ? s.ganttLoading : c.state === 'empty' || empty ? s.ganttEmpty : c.stateLine.dataset.kpWords || '';
+    const words =
+        c.state === 'loading'
+            ? s.ganttLoading
+            : c.state === 'empty' || empty
+              ? c.stateLine.dataset.kpWords || s.ganttEmpty
+              : c.stateLine.dataset.kpWords || s.heatFailed;
     // A timeline of moments with nothing to show has no line for now running through its sentence [kpadopt4].
     c.nowLine.hidden = c.el.hasAttribute('data-kp-gantt-points') && (c.state === 'error' || c.state === 'empty' || empty);
     // An empty or failed sentence waits, as the runs do, until the card has gone.
-    c.stateLine.textContent = (c.state === 'ready' && !empty) || c.leaving !== null ? '' : words;
+    const plateKind = c.leaving === null && (c.state === 'error' || c.state === 'empty' || (c.state === 'ready' && empty)) ? c.state : null;
+    c.stateLine.textContent = c.state === 'loading' && c.leaving === null ? words : '';
     c.stateLine.dataset.kpState = empty && c.state === 'ready' ? 'empty' : c.state;
+    // Rebuilt only when what it says changes, so the focus on its Retry survives a repaint.
+    const plateKey = plateKind ? `${plateKind}|${words}|${c.plateText}` : '';
+    if (c.plateKey !== plateKey) {
+        c.plateKey = plateKey;
+        c.plate.replaceChildren();
+        if (plateKind)
+            c.plate.append(
+                hostStatePlate(c.el, {
+                    kind: plateKind === 'error' ? 'error' : 'empty',
+                    title: words,
+                    ...(c.plateText ? { text: c.plateText } : {}),
+                    art: c.plateArt,
+                    retryEvent: GANTT_RETRY_EVENT,
+                }),
+            );
+    }
+    c.plate.hidden = plateKind === null;
+    c.plate.dataset.kpState = plateKind ?? '';
     paintGhosts(c);
     c.busy?.place();
-    roomForWords(c);
     holdHeight(c);
     visible(c);
     refresh(c, nowMs);
     syncTabStops(c);
-}
-
-/**
- * A timeline with no lane (empty or failed) gives its sentence a room of its own under the axis, as tall as the words
- * need at this width (a long failure reason wraps on a phone), so the sentence never runs out of the frame onto the
- * legend. The room is `--kp-gantt-words` on the body, read by the body's min-block-size in css/components.css.
- * @param {GanttModel} c
- */
-function roomForWords(c) {
-    if (c.state === 'loading' || !c.stateLine.textContent || c.body.querySelector('.kp-gantt__lane')) {
-        c.body.style.removeProperty('--kp-gantt-words');
-        return;
-    }
-    const range = c.el.ownerDocument.createRange();
-    range.selectNodeContents(c.stateLine);
-    const style = getComputedStyle(c.stateLine);
-    const need = range.getBoundingClientRect().height + parseFloat(style.paddingBlockStart) + parseFloat(style.paddingBlockEnd);
-    c.body.style.setProperty('--kp-gantt-words', `${Math.ceil(need)}px`);
 }
 
 /**
@@ -735,12 +792,36 @@ function roomForWords(c) {
  * releases it. @param {GanttModel} c
  */
 function holdHeight(c) {
-    if (c.state !== 'ready' || c.lanes.length === 0) return;
+    if (c.state !== 'ready' || c.lanes.length === 0) {
+        c.body.style.removeProperty('--kp-g-view');
+        return;
+    }
     if (c.held === null) {
         c.scroll.style.removeProperty('block-size');
-        c.held = c.scroll.getBoundingClientRect().height;
+        c.held = viewHeight(c);
     }
-    if (c.held > 0) c.scroll.style.setProperty('block-size', `${c.held}px`);
+    if (c.held > 0) {
+        c.scroll.style.setProperty('block-size', `${c.held}px`);
+        // The layers over the lanes are as tall as the viewport under the axis, no taller [r3r5-1019 gantt-frame].
+        c.body.style.setProperty('--kp-g-view', `${Math.max(0, c.held - c.axis.offsetHeight)}px`);
+    }
+}
+
+/**
+ * The height the viewport holds: all the lanes when they fit under the frame's cap, else the whole lanes that do, so a lane is never
+ * cut at the frame's edge and the rules and bands end where the last visible lane ends [r3r5-1019 gantt-frame].
+ * @param {GanttModel} c
+ */
+function viewHeight(c) {
+    const natural = c.scroll.getBoundingClientRect().height;
+    if (c.scroll.scrollHeight <= c.scroll.clientHeight + 1) return natural;
+    let fit = 0;
+    for (const lane of c.lanes) {
+        const bottom = lane.label.offsetTop + lane.label.offsetHeight;
+        if (bottom > natural + 0.5) break;
+        fit = bottom;
+    }
+    return fit > c.axis.offsetHeight ? fit : natural;
 }
 
 /**
@@ -774,11 +855,16 @@ function drawBusy(c) {
         });
         return;
     }
-    for (const old of frameBox.querySelectorAll(':scope > .kp-gantt__busy')) old.remove();
+    // A timeline's card is laid on the whole component and covers what the held footprint holds under the toolbar: the frame, and the
+    // legend and hint beneath it, which a frame as short as its ghost lanes would leave the card (100 px over a 260 px area at 390)
+    // [hlcomp-1019 gantt-busy]. A dated line keeps the card in its frame.
+    const laid = c.line ? frameBox : c.el;
+    for (const old of laid.querySelectorAll(':scope > .kp-gantt__busy')) old.remove();
     c.leaving = null;
-    c.busy = openBusyCard(frameBox, {
+    c.busy = openBusyCard(laid, {
         words: c.strings.ganttLoading,
         area: () => {
+            const hostFloor = () => c.el.getBoundingClientRect().bottom - c.el.clientTop - (Number.parseFloat(getComputedStyle(c.el).paddingBottom) || 0);
             // A dated line is short: its card covers the whole frame, the line and its dates [kpadopt4].
             if (c.line) return [c.scroll];
             const tracks = /** @type {HTMLElement[]} */ ([...c.body.querySelectorAll(':scope > .kp-gantt__track')]);
@@ -790,10 +876,12 @@ function drawBusy(c) {
             return [
                 {
                     // A dated line has its axis under the lane [kpadopt4].
-                    top: c.line ? Math.min(...boxes.map((b) => b.top)) : Math.max(axis.bottom, Math.min(...boxes.map((b) => b.top))),
-                    left: Math.min(...boxes.map((b) => b.left)),
-                    right: Math.max(...boxes.map((b) => b.right)),
-                    bottom: Math.min(c.line ? axis.top : scroll.bottom, Math.max(...boxes.map((b) => b.bottom))),
+                    // The whole frame, axis and lane names included: the card covers the data area the timeline holds [gaps-time-1019].
+                    top: c.line ? Math.min(...boxes.map((b) => b.top)) : frameBox.getBoundingClientRect().top,
+                    left: c.line ? Math.min(...boxes.map((b) => b.left)) : frameBox.getBoundingClientRect().left,
+                    right: c.line ? Math.max(...boxes.map((b) => b.right)) : frameBox.getBoundingClientRect().right,
+                    // The whole data area: down to the frame's foot, which a held footprint has grown past the ghost lanes [gaps-time-1019].
+                    bottom: c.line ? Math.min(axis.top, Math.max(...boxes.map((b) => b.bottom))) : Math.max(scroll.bottom, frameBox.getBoundingClientRect().bottom - 1, hostFloor()),
                 },
             ];
         },
@@ -1026,6 +1114,41 @@ function paintZones(c, lanes) {
     }
 }
 
+/**
+ * The legend's states and the legend as a whole: the states go when there are no runs [kpadopt4], when the timeline asks for none
+ * (`data-kp-gantt-legend="off"`) and, for `planned`, when no run is planned; a legend with nothing left is not drawn [gaps-time-1019].
+ * @param {GanttModel} c
+ */
+function syncLegend(c) {
+    const runless = c.runs.length === 0 && (c.points.length > 0 || c.kinds.length > 0);
+    const off = c.el.getAttribute('data-kp-gantt-legend') === 'off';
+    const planned = c.runs.some((run) => run.state === 'planned');
+    for (const li of /** @type {NodeListOf<HTMLElement>} */ (c.legend.querySelectorAll(':scope > .kp-gantt__legend-state'))) {
+        const isPlanned = li.firstElementChild?.getAttribute('data-kp-state') === 'planned';
+        li.hidden = runless || off || (isPlanned && !planned);
+    }
+    c.legend.hidden = [...c.legend.children].every((li) => /** @type {HTMLElement} */ (li).hidden);
+}
+
+/**
+ * The toolbar, the legend and the hint as the options ask [gaps-time-1019]; drawn again when an option changes.
+ * @param {GanttModel} c
+ */
+function paintChrome(c) {
+    const bare = c.el.getAttribute('data-kp-gantt-toolbar') === 'off';
+    c.el.toggleAttribute('data-kp-gantt-bare', bare);
+    // The range buttons and Live are not in the way of a screen reader or the keyboard either; a selection the page makes (a day
+    // button, setGanttSelection) still shows its chip in the toolbar's place.
+    c.ranges.toggleAttribute('hidden', bare);
+    c.liveButton.toggleAttribute('hidden', bare);
+    syncLegend(c);
+    const hint = /** @type {HTMLElement | null} */ (c.el.querySelector(':scope > .kp-gantt__hint'));
+    if (hint) {
+        hint.hidden = c.el.getAttribute('data-kp-gantt-hint') === 'off';
+        hint.textContent = c.el.hasAttribute('data-kp-gantt-points') ? c.strings.ganttPointsHint : bare ? c.strings.ganttHintOpen : c.strings.ganttHint;
+    }
+}
+
 /** The kinds and the plot's stretches in the legend, after the states; the states go when there are no runs [kpadopt4]. @param {GanttModel} c */
 function paintKinds(c) {
     const doc = c.el.ownerDocument;
@@ -1051,8 +1174,226 @@ function paintKinds(c) {
         li.append(swatch, make(doc, 'span', '', zone.label));
         c.legend.append(li);
     }
-    const runless = c.runs.length === 0 && (c.points.length > 0 || c.kinds.length > 0);
-    for (const li of c.legend.querySelectorAll(':scope > .kp-gantt__legend-state')) /** @type {HTMLElement} */ (li).hidden = runless;
+    syncLegend(c);
+}
+
+/** The canvas the labels are measured on, one per document. @type {WeakMap<Document, CanvasRenderingContext2D | null>} */
+const MEASURERS = new WeakMap();
+
+/**
+ * How wide a bar's label wants to be on one line: its text in its own font, the bar's padding and, on a failed bar, the cross.
+ * Measured once per text and font (a label hidden by its narrow bar can be measured too), and again only when either changes.
+ * @param {GanttModel} c @param {HTMLElement} bar
+ */
+function labelWidth(c, bar) {
+    const label = /** @type {HTMLElement} */ (bar.firstElementChild);
+    const text = label.textContent ?? '';
+    const style = getComputedStyle(label);
+    const key = `${text}\u0000${style.font}`;
+    const known = c.labels.get(bar);
+    if (known && known.key === key) return known.width;
+    const doc = c.el.ownerDocument;
+    if (!MEASURERS.has(doc)) MEASURERS.set(doc, doc.createElement('canvas').getContext('2d'));
+    const ctx = MEASURERS.get(doc);
+    let width = Number.POSITIVE_INFINITY;
+    if (ctx) {
+        ctx.font = style.font;
+        const size = Number.parseFloat(style.fontSize) || 11;
+        // The theme's own letter-spacing and case count: the words are measured as they are drawn.
+        const spacing = style.letterSpacing === 'normal' ? 0 : Number.parseFloat(style.letterSpacing) || 0;
+        const shown = style.textTransform === 'uppercase' ? text.toUpperCase() : style.textTransform === 'lowercase' ? text.toLowerCase() : text;
+        width = ctx.measureText(shown).width + spacing * [...shown].length + 2 * 0.375 * 16 + (bar.dataset.kpState === 'failed' ? size * 1.25 : 0);
+    }
+    c.labels.set(bar, { key, width });
+    return width;
+}
+
+/** The air kept after an outside label, in px, before the next bar or label of its row. */
+const OUTSIDE_GAP_PX = 6;
+/** The air, in px, between a mark's button and the bar it stands beside, or the label beside a mark. */
+const MARK_GAP_PX = 2;
+/** The least gap, in px, between two runs of one row of a lane. */
+const RUN_GAP_PX = 3;
+/** The air, in px, kept between the line for now and the words of a label inside a bar. */
+const NOW_GAP_PX = 4;
+
+/**
+ * The label that stands outside a bar: a sibling of the bar in its lane (a bar clips what is inside it, and a theme may cut its
+ * corners), placed by the same custom properties as the bar, so it moves with the window as the bar does.
+ * @param {GanttModel} c @param {GanttLaneModel} lane @param {HTMLElement} bar @param {'after' | 'before' | ''} side @param {number} room px
+ * @param {number} [shift] px the label stands clear of a mark that is beside the bar, away from the bar
+ */
+function setOutside(c, lane, bar, side, room, shift = 0) {
+    let el = c.outside.get(bar);
+    if (!side) {
+        el?.remove();
+        c.outside.delete(bar);
+        return;
+    }
+    if (!el) {
+        el = make(c.el.ownerDocument, 'span', 'kp-gantt__outside');
+        el.setAttribute('aria-hidden', 'true');
+        c.outside.set(bar, el);
+    }
+    if (el.parentElement !== lane.track) lane.track.append(el);
+    const text = bar.firstElementChild?.textContent ?? '';
+    if (el.textContent !== text) el.textContent = text;
+    if (el.dataset.kpSide !== side) el.dataset.kpSide = side;
+    if (el.dataset.kpState !== bar.dataset.kpState) el.dataset.kpState = bar.dataset.kpState ?? '';
+    for (const name of ['--kp-g-s', '--kp-g-e', '--kp-g-row']) {
+        const value = bar.style.getPropertyValue(name);
+        if (el.style.getPropertyValue(name) !== value) el.style.setProperty(name, value);
+    }
+    el.style.setProperty('--kp-g-label-room', `${Math.floor(room)}px`);
+    el.style.setProperty('--kp-g-label-shift', `${Math.round(shift)}px`);
+}
+
+/** The outside labels of bars that are gone or out of the window go with them. @param {GanttModel} c */
+function dropOutside(c) {
+    for (const [bar, el] of c.outside)
+        if (!bar.isConnected || bar.hidden) {
+            el.remove();
+            c.outside.delete(bar);
+        }
+    for (const bar of c.labels.keys()) if (!bar.isConnected) c.labels.delete(bar);
+}
+
+/**
+ * A mark (a start diamond) whose button would lie on a bar of its row stands clear of it: moved away from the bar's edge it is
+ * at, by the overlap and a small gap, so a mark and a bar never overlap. A mark that is well inside a bar (an event during the
+ * run) stays where its moment is.
+ * @param {GanttLaneModel} lane @param {{ left: number, right: number }[]} bars the lane's first-row bars, in px
+ * @returns {{ left: number, right: number }[]} the boxes of the lane's marks, in px
+ */
+function clearMarks(lane, bars) {
+    /** @type {{ left: number, right: number }[]} */
+    const boxes = [];
+    for (const el of lane.points) {
+        if (el.hidden || el.hasAttribute('data-kp-clustered')) continue;
+        const width = el.offsetWidth;
+        if (!width) continue;
+        const was = Number.parseFloat(el.style.getPropertyValue('--kp-g-dodge')) || 0;
+        let left = el.offsetLeft - was;
+        let right = left + width;
+        let dodge = 0;
+        const centre = (left + right) / 2;
+        for (const bar of bars) {
+            if (right <= bar.left || left >= bar.right) continue;
+            // Only at an edge: the centre of the mark is within its own half-width of the bar's start or end.
+            const half = width / 2;
+            if (Math.abs(centre - bar.left) <= half + 1) dodge = Math.min(dodge, bar.left - MARK_GAP_PX - right);
+            else if (Math.abs(centre - bar.right) <= half + 1) dodge = Math.max(dodge, bar.right + MARK_GAP_PX - left);
+        }
+        if (dodge !== 0) {
+            left += dodge;
+            right += dodge;
+        }
+        const value = dodge === 0 ? '' : `${dodge.toFixed(1)}px`;
+        if (el.style.getPropertyValue('--kp-g-dodge') !== value) {
+            if (value) el.style.setProperty('--kp-g-dodge', value);
+            else el.style.removeProperty('--kp-g-dodge');
+        }
+        boxes.push({ left, right });
+    }
+    return boxes.sort((a, b) => a.left - b.left);
+}
+
+/**
+ * A label that does not fit its bar stands outside it [gaps-time-1019]: after the bar when the room before the next bar or mark
+ * of its row (or the plot's end) holds it, else before the bar, else it is not drawn: a label is never cut (the house rule has no
+ * ellipsis), and the bar's name and card carry the words. A label stands clear of a mark beside its bar. The rows are walked in
+ * time order and the room a label took is not offered to the next bar, so two labels never meet.
+ * @param {GanttModel} c
+ */
+function placeLabels(c) {
+    const room = c.plot.clientWidth;
+    dropOutside(c);
+    if (!room || c.state === 'loading') return;
+    const nowRect = c.nowLine.hidden || c.nowLine.hasAttribute('data-kp-out') ? null : c.nowLine.getBoundingClientRect();
+    for (const lane of c.lanes) {
+        // The line for now crosses every row of the lane: a label never stands on it [ganttlabel-1019].
+        const nowBox = nowRect ? { left: nowRect.left - lane.track.getBoundingClientRect().left, right: nowRect.right - lane.track.getBoundingClientRect().left } : null;
+        /** @type {Map<number, { bar: HTMLButtonElement, left: number, right: number }[]>} */
+        const rows = new Map();
+        for (const b of lane.bars) {
+            if (b.bar.hidden) continue;
+            const left = b.bar.offsetLeft;
+            const right = left + b.bar.offsetWidth;
+            const list = rows.get(b.row) ?? [];
+            list.push({ bar: b.bar, left, right });
+            rows.set(b.row, list);
+        }
+        // The marks stand on the lane's first row.
+        const first = clearMarks(lane, rows.get(0) ?? []);
+        for (const [row, list] of rows) {
+            const marks = (row === 0 ? (nowBox ? [...first, nowBox] : first) : nowBox ? [nowBox] : []).sort((a, b) => a.left - b.left);
+            list.sort((a, b) => a.left - b.left);
+            let taken = 0;
+            list.forEach((item, i) => {
+                const { bar, left, right } = item;
+                const need = labelWidth(c, bar);
+                /** @type {string} */
+                let place = '';
+                let roomPx = 0;
+                let shift = 0;
+                // A label that fits its bar but would be crossed by the line for now steps to the side of the line with room for it
+                // (--kp-g-label-inset), and stands outside the bar when neither side holds it.
+                let inset = 0;
+                let crossed = false;
+                if (nowBox && need <= right - left - 2 && nowBox.right + NOW_GAP_PX > left && nowBox.left - NOW_GAP_PX < left + need) {
+                    crossed = nowBox.left > left && nowBox.left < right;
+                    if (crossed) {
+                        const free = right - nowBox.right - NOW_GAP_PX - 1;
+                        if (need <= free) {
+                            inset = nowBox.right + NOW_GAP_PX - left;
+                            crossed = false;
+                        }
+                    }
+                }
+                if (inset) bar.style.setProperty('--kp-g-label-inset', `${Math.round(inset)}px`);
+                else bar.style.removeProperty('--kp-g-label-inset');
+                if (need > right - left - 2 || crossed) {
+                    // A label stands 4 px from its bar (8 px from one that is still open: the line for now is there).
+                    const start = bar.dataset.kpState === 'running' || bar.dataset.kpState === 'queued' ? 8 : 4;
+                    const wanted = need - 2 * 0.375 * 16 + 8;
+                    let next = list[i + 1]?.left ?? room;
+                    let from = right + start;
+                    let upTo = left - 4;
+                    let floor = taken;
+                    // A mark (first row) or the line for now in the way: after the bar the label starts past it, before the bar it ends short of it.
+                    for (const m of marks) {
+                        if (m.right <= from - 1) continue;
+                        if (m.left < from + wanted + OUTSIDE_GAP_PX) from = m.right + MARK_GAP_PX + 2;
+                        else {
+                            next = Math.min(next, m.left);
+                            break;
+                        }
+                    }
+                    for (let k = marks.length - 1; k >= 0; k--) {
+                        const m = /** @type {{ left: number, right: number }} */ (marks[k]);
+                        if (m.left >= upTo + 1) continue;
+                        if (m.right > upTo - wanted - OUTSIDE_GAP_PX) upTo = m.left - MARK_GAP_PX - 2;
+                        else {
+                            floor = Math.max(floor, m.right);
+                            break;
+                        }
+                    }
+                    const after = next - from - OUTSIDE_GAP_PX;
+                    const before = upTo - floor - OUTSIDE_GAP_PX;
+                    if (after >= wanted) [place, roomPx, shift] = ['after', after, from - (right + start)];
+                    else if (before >= wanted) [place, roomPx, shift] = ['before', before, left - 4 - upTo];
+                    else place = 'none';
+                    if (place === 'after') taken = from + Math.min(wanted, roomPx) + OUTSIDE_GAP_PX;
+                    else taken = Math.max(taken, right);
+                } else taken = Math.max(taken, right);
+                if (bar.dataset.kpLabel !== place) {
+                    if (place) bar.dataset.kpLabel = place;
+                    else delete bar.dataset.kpLabel;
+                }
+                setOutside(c, lane, bar, place === 'after' || place === 'before' ? place : '', roomPx, shift);
+            });
+        }
+    }
 }
 
 /** Hide a bar wholly outside the window (it takes no tab stop). @param {GanttModel} c */
@@ -1070,6 +1411,7 @@ function visible(c) {
         }
     }
     clusterPoints(c);
+    placeLabels(c);
 }
 
 /** Words that grow with the clock: a running bar's name and card. @param {GanttModel} c @param {number} nowMs */
@@ -1194,6 +1536,10 @@ export function attachGantts(root = document, options = {}) {
             brushBox: el,
             selectBox: el,
             stateLine: el,
+            plate: el,
+            plateKey: '',
+            plateText: '',
+            plateArt: null,
             announcer: el,
             ranges: el,
             liveButton: /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (el)),
@@ -1219,6 +1565,8 @@ export function attachGantts(root = document, options = {}) {
             drag: null,
             dragMoved: false,
             tickKey: '',
+            labels: new Map(),
+            outside: new Map(),
         };
         gantts.set(el, c);
         build(c);
@@ -1389,7 +1737,7 @@ export function attachGantts(root = document, options = {}) {
         /** @param {PointerEvent} event */
         const onDown = (event) => {
             // A dated line has no brush: it is read, not searched [kpadopt4].
-            if (event.button !== 0 || c.state === 'loading' || c.line) return;
+            if (event.button !== 0 || c.state === 'loading' || c.line || c.el.getAttribute('data-kp-gantt-toolbar') === 'off') return;
             const x = plotX(event);
             if (x < 0 || x > c.plot.clientWidth) return;
             c.drag = { a: x, b: x };
@@ -1434,6 +1782,19 @@ export function attachGantts(root = document, options = {}) {
         c.scroll.addEventListener('pointerup', onUp);
         c.scroll.addEventListener('pointercancel', onCancel);
         c.timer = window.setInterval(() => tick(c), GANTT_TICK_MS);
+        // The toolbar, the legend and the hint are drawn again when their attribute changes [gaps-time-1019].
+        // A web font that arrives after the first measure changes every width: the labels are measured again.
+        const fonts = el.ownerDocument.fonts;
+        const refit = () => {
+            c.labels.clear();
+            tick(c);
+        };
+        fonts?.addEventListener?.('loadingdone', refit);
+        void fonts?.ready?.then(refit);
+        const stopOptions = watchOptions(el, ['data-kp-gantt-toolbar', 'data-kp-gantt-legend', 'data-kp-gantt-hint'], () => {
+            paintChrome(c);
+            tick(c);
+        });
         if (typeof ResizeObserver !== 'undefined') {
             let last = 0;
             c.observer = new ResizeObserver(() => {
@@ -1441,8 +1802,14 @@ export function attachGantts(root = document, options = {}) {
                 if (width === last) return;
                 last = width;
                 c.tickKey = '';
+                // Rows are packed with a gap in pixels: another width packs them again.
+                if (c.runs.length) paint(c);
+                // Lane names wrap differently at another width: the viewport is measured again for whole lanes.
+                if (c.held !== null) {
+                    c.held = null;
+                    holdHeight(c);
+                }
                 tick(c);
-                roomForWords(c);
             });
             c.observer.observe(c.plot);
         }
@@ -1455,6 +1822,8 @@ export function attachGantts(root = document, options = {}) {
             c.scroll.removeEventListener('pointerup', onUp);
             c.scroll.removeEventListener('pointercancel', onCancel);
             window.clearInterval(c.timer);
+            stopOptions();
+            fonts?.removeEventListener?.('loadingdone', refit);
             c.observer?.disconnect();
             gantts.delete(el);
         });
@@ -1506,23 +1875,28 @@ export function setGanttRuns(el, runs, lanes) {
     if (!c) return;
     c.runs = runs;
     if (lanes) c.lanesGiven = lanes;
-    if (c.state === 'loading' || c.state === 'empty') c.state = 'ready';
+    if (c.state === 'loading' || c.state === 'empty' || c.state === 'error') c.state = 'ready';
     paint(c);
     tick(c);
 }
 
 /**
  * The timeline as a whole: `loading` (ghost lanes at their final size),
- * `ready`, `empty` or `error` (`words` over the plot).
+ * `ready`, `empty` or `error`. An empty or failed timeline is the package's state plate over the whole plot (`words` its
+ * heading, `text` its sentence, `art` a picture over the heading), an error with a Retry that fires `kp-gantt-retry`
+ * [state-plates-1019].
  * @param {Element} el
  * @param {GanttState} state
  * @param {string} [words]
+ * @param {{ text?: string, art?: Node | string | null }} [plate]
  */
-export function setGanttState(el, state, words = '') {
+export function setGanttState(el, state, words = '', { text = '', art = null } = {}) {
     const c = gantts.get(el);
     if (!c) return;
     c.state = state;
     c.stateLine.dataset.kpWords = words;
+    c.plateText = text;
+    c.plateArt = art;
     paint(c);
 }
 
@@ -1583,6 +1957,7 @@ export function setGanttLegend(el, entries) {
         li.append(swatch, make(doc, 'span', '', label));
         c.legend.append(li);
     }
+    syncLegend(c);
 }
 
 /**
@@ -1597,7 +1972,7 @@ export function setGanttPoints(el, points, lanes) {
     if (!c) return;
     c.points = points;
     if (lanes) c.lanesGiven = lanes;
-    if (c.state === 'loading' || c.state === 'empty') c.state = 'ready';
+    if (c.state === 'loading' || c.state === 'empty' || c.state === 'error') c.state = 'ready';
     paint(c);
     tick(c);
 }

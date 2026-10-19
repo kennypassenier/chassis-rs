@@ -7,6 +7,116 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed
+
+- **kp-themes 11.1.1 vendored** (verified against the release SHA256SUMS;
+  four new modules: `diff`, `feed`, `live-options`, `logviewer`). Every data
+  component has one loading look per kind, the form grid (`.kp-formgrid`),
+  the page-header and QR grid fixes and the passkey list's confirm fix come
+  from the package; the kit's temporary copies of them are gone. No consumer
+  action (kp-themes 11.1.x is a minor without a migration section; 11.1.1 counts a menu button as a page header's second action).
+- **The passkeys page is the approved kp-themes 11 composition** (kit-kp11):
+  one card of ways to sign in (this-device badge from `current`, rename in
+  place through `PATCH /api/passkeys/{id}`, an unused flag, removal behind a
+  confirm dialog), a code and three steps to register another device, and a
+  not-on-HTTPS alert in plain words. Register and login buttons are kp flash
+  buttons that show the browser's refusal as one sentence.
+- **The login page is the approved kp-themes 11 composition** (kit-kp11): the
+  intro and the service's health, version and age on the left (read from the
+  open `/healthz`), the card on the right with "Log in with a passkey" as the
+  one primary button, "or with the token", Show/Hide on the token field, a
+  switch for keep-signed-in and a three-part alert (what, why, what now) for
+  a wrong token. The Log in button keeps its width while it works.
+- **Every kp-themes module is served under `dashboard`**, no longer only with
+  `webapp` (kyu, gap 30): a status section or page a service adds under
+  `dashboard` alone loaded `/static/kp/js/datatable.js` or another module and
+  got a 404. The kit's pages on kp-themes 11 use these modules themselves, so
+  the set follows the pages; `webapp` keeps meaning a project's own browser
+  app. A build without `dashboard` (kyu-runner) is unchanged.
+- **The client dialogs are the approved kp-themes 11 compositions, round 3**
+  (kit-kp11): the issue fields are rows of one `.kp-formgrid` and fill their
+  cell; the manage dialog is identity and three figures, a rail with the token
+  (`.kp-secret`, asked of the service only when shown or copied), the command
+  with `$CLIENT_TOKEN` (`.kp-command`) and the project's actions, the Test it
+  card (a JSON field and Send test on one form-grid row), the request
+  inspector (`.kp-inspector`, replacing the hand-built log) and a danger band
+  of three equal cells with a typed confirmation on Delete. The list has its
+  own empty, loading and failed states, and the walk-through's wait step its
+  failed state. `POST /api/clients/{id}/test` takes an optional
+  `{"body": "…"}` (at most 64 KiB); without it the route's own body is sent.
+
+### Added
+
+- **`chassis release` reruns only the tests that failed last time** (kit-kp11;
+  Almanac's wish, backing the rule "never rerun green tests"). A red nextest
+  step writes the failed tests, the tree they ran on and the time to
+  `.chassis/release-failed.json` (the scaffold's `.gitignore` now lists
+  `/.chassis/`). The next release reruns just those tests when the change
+  since that tree touches no `Cargo.toml`, `Cargo.lock`, build script,
+  toolchain or cargo config and stays inside crates that had a failing test;
+  it prints one line saying what was skipped and why, runs the doctests as
+  before, and deletes the record once the release is published. Any other
+  change runs the whole suite and says why. `--full-tests` forces the whole
+  suite. The measured duration of the test step is printed either way.
+- **The status page as an operations page** (kit-kp11, approved demo
+  `research/chassis-kit-status` in kp-themes). A `.kp-ops` frame: header with
+  a remembered refresh control and "updated N s ago", four key figures
+  (health with a meter, running version with a version chip when a newer
+  release is known, up for, and a tile linked to the clients list), an
+  attention band built from `Problem` (what, why, what now, and a Copy button
+  when the remedy quotes a command in backticks), cards for service facts
+  (copyable address), health rows with Retry that re-poll `/api/kit/status`,
+  the update card in plain words, and an availability strip of the last 48
+  hours. The history is bounded and in memory (sampled every five minutes and
+  on every poll): a restart empties it. `POST /api/kit/status/update-check`
+  does one read-only look at the release host for the "Check for updates"
+  button. `/api/kit/status` gains `up_for`, `parts`, `update_facts`,
+  `uptime`, `clients`, `repository_url`, per problem a `key`, `severity` and
+  `command`, and per section `body`, `parts`, `span`, `slug` and
+  `flash_actions`. `layout.html` is untouched.
+- **Status sections as data** (kit-kp11). `StatusSection::body()` returns a
+  `SectionBody` (`Rows`, `Table { columns, rows, key }`, `Kpis`, `Checks`,
+  `Json { url, render }`, `Many`); `Section::html` stays the escape hatch and
+  `Section` is unchanged, so struct literals keep compiling. A table sorts,
+  searches and remembers; a `Json` card reads its own address and shows
+  loading, empty and failed with Try again; the cards of one row always add
+  up to twelve columns. New public items: `SectionBody`, `JsonRender`, `Kpi`,
+  `KpiTone`, `Check`, `CheckState`.
+- **Section buttons that keep the page** (kit-kp11).
+  `StatusSection::flash_actions()` returns `FlashAction`s: a spinner, a short
+  word and a success toast carrying the count the route answered
+  (`{"count": 12}` becomes "Retried 12 entries"); `destructive(confirm)` keeps
+  the confirmation dialog. A type of its own because `SectionAction` is an
+  open struct services build as a literal; it keeps its reload.
+
+- **A kit toast region and a page-ready signal** (kit-kp11). `layout.html`
+  carries one empty `<div id="chassis-toasts" class="kp-toasts"
+  aria-live="polite">` on every page. After chassis.js has attached its kp
+  modules (theme picker, contracts, confirmations, effects, skip links) it
+  fires `chassis:ready` on `document` and resolves `window.chassis.ready`,
+  so an app attaches its own kp modules after the kit without
+  double-attaching the theme picker. docs/DASHBOARD.md lists what the kit
+  attaches itself. No Rust API change.
+- **Status sections declare their module script and stylesheet** (kit-kp11).
+  `StatusSection::assets()` (a default method) returns a `SectionAssets`
+  (`module_script(path)`, `stylesheet(path)`); the kit renders the tags once
+  in the status page's `<head>`, even when several sections name the same
+  file, and `/api/kit/status` carries them as `section_assets`. Paths must be
+  same-origin and absolute (the CSP is `script-src 'self'`); anything else
+  is dropped and logged. Documented in docs/DASHBOARD.md. Public surface:
+  `SectionAssets`, `StatusSection::assets`.
+- **Passkeys: `current` flag and rename** (kit-kp11). `/api/kit/passkeys` and
+  `GET /api/passkeys` carry `current: true` on the passkey this session logged
+  in with (the dashboard remembers, in memory, which stored passkey opened
+  each session; a token login has none, and a restart forgets it until the
+  next passkey login, so every row is `false` until then).
+  `PATCH /api/passkeys/{id}` and `PATCH /api/kit/passkeys/{id}` take
+  `{ "name": "…" }`, trim it, accept 1 to 64 characters, and answer the
+  updated passkey; same admin session and CSRF guard as the delete. Public
+  surface (additive): `PasskeyListing` (`PasskeyView` plus `current`),
+  `PasskeyState::list_for` and `list_for_request`, `passkeys::list_current`,
+  `rename`, `RenameBody`, `clean_name`, `MAX_NAME_CHARS`.
+
 ## [3.8.0] - 2026-10-19
 
 ### Changed

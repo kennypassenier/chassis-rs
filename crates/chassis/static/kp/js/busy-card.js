@@ -52,6 +52,32 @@ export const BUSY_CARD = '.kp-datatable__busy-card';
 /** @param {number} v */
 const px = (v) => `${Math.round(v)}px`;
 
+/** The ancestors of `host` that clip it sideways (overflow-x other than visible), nearest first. @param {HTMLElement} host */
+export function scrollersAround(host) {
+    /** @type {HTMLElement[]} */
+    const found = [];
+    for (let a = host.parentElement; a && a !== host.ownerDocument.documentElement; a = a.parentElement) {
+        const x = getComputedStyle(a).overflowX;
+        if (x !== 'visible' && a.clientWidth > 0) found.push(a);
+    }
+    return found;
+}
+
+/**
+ * The span of `host`'s width (left to right, in viewport pixels) that no ancestor's sideways scrolling hides.
+ * @param {HTMLElement} host @param {number} left @param {number} right
+ */
+export function seenAcross(host, left, right) {
+    let seenLeft = left;
+    let seenRight = right;
+    for (const a of scrollersAround(host)) {
+        const box = a.getBoundingClientRect();
+        seenLeft = Math.max(seenLeft, box.left + a.clientLeft);
+        seenRight = Math.min(seenRight, box.left + a.clientLeft + a.clientWidth);
+    }
+    return { left: seenLeft, right: Math.max(seenLeft, seenRight) };
+}
+
 /**
  * Lay the busy card over a data area of `host`.
  * @param {HTMLElement} host
@@ -81,12 +107,15 @@ export function openBusyCard(host, { words, area, className = '', arrive = true 
         const viewLeft = box.left + host.clientLeft;
         const viewBottom = viewTop + host.clientHeight;
         const viewRight = viewLeft + host.clientWidth;
+        // A host wider than the box that scrolls it (a heat grid on a phone, in its page's scroller) is covered only where it is
+        // seen, so the panel is centred on what the reader sees and not on a middle off screen [hltwo-1019].
+        const seen = seenAcross(host, viewLeft, viewRight);
         const rects = area().map((b) => ('getBoundingClientRect' in b ? b.getBoundingClientRect() : b));
         if (!rects.length) return;
         let top = Math.max(viewTop, Math.min(...rects.map((r) => r.top)));
-        const left = Math.max(viewLeft, Math.min(...rects.map((r) => r.left)));
+        let left = Math.max(seen.left, Math.min(...rects.map((r) => r.left)));
         let bottom = Math.max(top, Math.min(viewBottom, Math.max(...rects.map((r) => r.bottom))));
-        const right = Math.max(left, Math.min(viewRight, Math.max(...rects.map((r) => r.right))));
+        let right = Math.max(left, Math.min(seen.right, Math.max(...rects.map((r) => r.right))));
         const originTop = viewTop - host.scrollTop;
         const originLeft = viewLeft - host.scrollLeft;
         const write = () => {
@@ -105,6 +134,23 @@ export function openBusyCard(host, { words, area, className = '', arrive = true 
             bottom = Math.min(viewBottom, bottom + grow);
             write();
         }
+        // The same sideways: an area narrower than the panel (the cells of a heat grid on a phone, beside its label column, in
+        // the part a scroller shows) lends the card the width the panel needs, over what stands beside it, within what is seen,
+        // so the panel stands centred in its card and is never cut [laststates-1019].
+        // (the panel keeps a gutter of 0.5rem a side in a narrow container, and its grid track is the panel and that gutter.)
+        // It also covers at least half of what is seen, so it is a card and not a strip beside the labels.
+        const wide = Math.max(panel.offsetWidth + 17, (seen.right - seen.left) / 2 + 1);
+        if (wide > right - left) {
+            const grow = (wide - (right - left)) / 2;
+            left = Math.max(seen.left, left - grow);
+            right = Math.min(seen.right, right + grow);
+            // Where one side met the edge of what is seen, the other side takes the rest.
+            if (right - left < wide) {
+                if (left === seen.left) right = Math.min(seen.right, left + wide);
+                else left = Math.max(seen.left, right - wide);
+            }
+            write();
+        }
     };
 
     host.append(layer);
@@ -112,9 +158,12 @@ export function openBusyCard(host, { words, area, className = '', arrive = true 
     const watcher = typeof ResizeObserver === 'function' ? new ResizeObserver(() => place()) : null;
     watcher?.observe(host);
     host.addEventListener('scroll', place, { passive: true });
+    const scrollers = scrollersAround(host);
+    for (const scroller of scrollers) scroller.addEventListener('scroll', place, { passive: true });
     const unwatch = () => {
         watcher?.disconnect();
         host.removeEventListener('scroll', place);
+        for (const scroller of scrollers) scroller.removeEventListener('scroll', place);
     };
     if (arrive) void import('./motion.js').then((m) => layer.isConnected && m.arriveShown(layer));
 

@@ -24,6 +24,7 @@
 
 import { toast } from './overlays.js';
 import { getStrings } from './strings.js';
+import { watchOptions } from './live-options.js';
 
 const COPY = '[data-kp-copy]';
 const UNDO = '[data-kp-undo-action]';
@@ -228,7 +229,8 @@ export function attachPatterns(
 // reason a field is disabled, or why it could not be read. That line always
 // has its height, so nothing moves when it fills.
 //
-//   data-kp-secret-ttl="30"        seconds a shown value stays; 0: until Hide is pressed
+//   data-kp-secret-ttl="30"        seconds a shown value stays; 0: until Hide is pressed (the ttl, the mask and reveal-on
+//                                  are read again when the attribute changes, js/live-options.js)
 //   data-kp-secret-mask="12"       the mask's length (`data-kp-secret-mask-char`, default •)
 //   data-kp-secret-reveal-on="hold" shown only while the button is held (pointer, or Space / Enter held)
 //   data-kp-secret-copy="false"    no Copy button
@@ -294,11 +296,19 @@ export function attachSecrets(root = document, { load, copiedMs = COPIED_MS } = 
         if (!field.hasAttribute('role')) field.setAttribute('role', 'group');
         if (!field.hasAttribute('aria-label') && !field.hasAttribute('aria-labelledby'))
             field.setAttribute('aria-label', field.dataset.kpSecretLabel ?? s.secretLabel);
-        const hold = field.dataset.kpSecretRevealOn === 'hold';
-        const ttl = Math.max(0, Number.parseInt(field.dataset.kpSecretTtl ?? '', 10));
-        const seconds = Number.isFinite(ttl) ? ttl : SECRET_TTL;
-        const maskLength = Math.max(1, Number.parseInt(field.dataset.kpSecretMask ?? '', 10) || SECRET_MASK);
-        const mask = (field.dataset.kpSecretMaskChar ?? '•').repeat(maskLength);
+        // The three options are read again when their attribute changes [live-options-1019]; `readOptions()` is the one place
+        // that reads them.
+        let hold = false;
+        let seconds = SECRET_TTL;
+        let mask = '';
+        const readOptions = () => {
+            hold = field.dataset.kpSecretRevealOn === 'hold';
+            const ttl = Math.max(0, Number.parseInt(field.dataset.kpSecretTtl ?? '', 10));
+            seconds = Number.isFinite(ttl) ? ttl : SECRET_TTL;
+            const maskLength = Math.max(1, Number.parseInt(field.dataset.kpSecretMask ?? '', 10) || SECRET_MASK);
+            mask = (field.dataset.kpSecretMaskChar ?? '•').repeat(maskLength);
+        };
+        readOptions();
 
         // The parts, built where the markup has none.
         const built = /** @type {Element[]} */ ([]);
@@ -378,6 +388,7 @@ export function attachSecrets(root = document, { load, copiedMs = COPIED_MS } = 
             reveal.disabled = why !== undefined || next === 'loading';
             reveal.setAttribute('aria-expanded', String(next === 'shown'));
             if (hold) reveal.setAttribute('aria-pressed', String(next === 'shown'));
+            else reveal.removeAttribute('aria-pressed');
             if (copy) copy.disabled = why !== undefined;
             value.setAttribute('aria-busy', String(next === 'loading'));
             if (next !== 'shown') {
@@ -591,10 +602,34 @@ export function attachSecrets(root = document, { load, copiedMs = COPIED_MS } = 
             writeLine();
         });
         watch.observe(field, { attributes: true, attributeFilter: ['data-kp-secret-disabled'] });
+        const stopOptions = watchOptions(field, ['data-kp-secret-ttl', 'data-kp-secret-reveal-on', 'data-kp-secret-mask', 'data-kp-secret-mask-char'], (names) => {
+            const wasHold = hold;
+            // A value shown the old way is hidden first: a held reveal has no timer, a timed one has no button to hold.
+            if (names.includes('data-kp-secret-reveal-on') && (state === 'shown' || state === 'loading')) hide('call');
+            readOptions();
+            field.style.setProperty('--kp-secret-ttl', `${seconds}s`);
+            if (hold !== wasHold) setState(state);
+            if (names.includes('data-kp-secret-mask') || names.includes('data-kp-secret-mask-char')) {
+                if (state !== 'shown') value.textContent = mask;
+            }
+            if (state === 'shown' && names.includes('data-kp-secret-ttl')) {
+                // The new time starts now, and the drain with it.
+                stop();
+                left = seconds;
+                paused = false;
+                field.removeAttribute('data-kp-secret-paused');
+                drain.style.animation = 'none';
+                void drain.offsetWidth;
+                drain.style.removeProperty('animation');
+                if (seconds > 0 && !hold) timer = window.setInterval(tick, 1000);
+                writeLine();
+            }
+        });
         secrets.set(field, { reveal: (reason) => void show(reason), hide: (reason) => hide(reason) });
 
         cleanups.push(() => {
             watch.disconnect();
+            stopOptions();
             stop();
             window.clearTimeout(copiedTimer);
             reveal.removeEventListener('click', onReveal);

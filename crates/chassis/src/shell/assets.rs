@@ -22,7 +22,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 /// The kp-themes version the kit vendors (C3: one place).
-pub const KP_THEMES_VERSION: &str = "11.0.0";
+pub const KP_THEMES_VERSION: &str = "11.1.1";
 
 /// name → (content type, bytes). Explicit list, no path joining (kyu's
 /// traversal-proof shape).
@@ -332,11 +332,13 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
 ];
 
 /// feat-webapp-1: the rest of kp-themes' framework-free modules (the wizard,
-/// the data table, the palette, the date picker, …) for a project's own
-/// browser app. Only with the `webapp` feature: the kit's own pages use none
-/// of them, and a service without a browser app should not carry half a
-/// megabyte of JavaScript it never serves (kyu-runner's size, measured).
-#[cfg(feature = "webapp")]
+/// the data table, the palette, the date picker, …). Served by every build
+/// that serves the kit's pages (`assets`, implied by `dashboard`) since 3.9.0:
+/// a section or page a service adds under `dashboard` alone loaded a module
+/// and got a 404 (kyu, gap 30), and the kit's own pages on kp-themes 11 use
+/// them too. A service without pages (kyu-runner: `core` only) still carries
+/// none of it.
+#[cfg(feature = "assets")]
 pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
     (
         "kp/js/ack-gate.js",
@@ -514,6 +516,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/diagnostics.js"),
     ),
     (
+        "kp/js/diff.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/diff.js"),
+    ),
+    (
         "kp/js/docpreview.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/docpreview.js"),
@@ -527,6 +534,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/facets.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/facets.js"),
+    ),
+    (
+        "kp/js/feed.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/feed.js"),
     ),
     (
         "kp/js/flash.js",
@@ -624,6 +636,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/listbox.js"),
     ),
     (
+        "kp/js/live-options.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/live-options.js"),
+    ),
+    (
         "kp/js/loading-pieces.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/loading-pieces.js"),
@@ -637,6 +654,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/log.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/log.js"),
+    ),
+    (
+        "kp/js/logviewer.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/logviewer.js"),
     ),
     (
         "kp/js/master-detail.js",
@@ -966,13 +988,9 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
 ];
 
 /// Every asset this build serves: the kit's own set, plus the full
-/// kp-themes module set when the `webapp` feature is on.
+/// kp-themes module set (every build with `assets`).
 pub fn all_assets() -> impl Iterator<Item = &'static (&'static str, &'static str, &'static [u8])> {
-    #[cfg(feature = "webapp")]
-    let extra = WEBAPP_KP_ASSETS.iter();
-    #[cfg(not(feature = "webapp"))]
-    let extra = [].iter();
-    ASSETS.iter().chain(extra)
+    ASSETS.iter().chain(WEBAPP_KP_ASSETS.iter())
 }
 
 /// The vendored manifest, for the gate test and `--print-config`'s
@@ -1075,15 +1093,12 @@ mod tests {
                 None => {
                     let bytes = std::fs::read(root.join(name))
                         .unwrap_or_else(|e| panic!("manifest names {name}, missing on disk: {e}"));
-                    // Without `webapp` the component modules are vendored
-                    // but not embedded; with it (the gates build every
-                    // feature) every served kind of file must be.
-                    let webapp_only = !cfg!(feature = "webapp") && name.starts_with("js/");
+                    // Every served kind of file is embedded wherever the
+                    // kit serves assets (3.9.0: no longer only with `webapp`).
                     assert!(
-                        webapp_only
-                            || (!name.ends_with(".css")
-                                && !name.ends_with(".js")
-                                && !name.ends_with(".woff2")),
+                        (!name.ends_with(".css")
+                            && !name.ends_with(".js")
+                            && !name.ends_with(".woff2")),
                         "{name} is a served kind of file but not embedded"
                     );
                     hex::encode(Sha256::digest(bytes))

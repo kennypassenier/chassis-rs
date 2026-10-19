@@ -1,6 +1,6 @@
 // The footprint: a data component keeps the height it had while a state shows in its place [t56-statefix-1018, S9].
 //
-// A data component (the matrix, the entity grid, the checklist, the notices, the gallery, the availability grid, the operations page and the request
+// A data component (the matrix, the heat grid, the pipeline, the entity grid, the checklist, the notices, the activity feed, the gallery, the availability grid, the operations page, the diff view and the request
 // inspector) writes its state as `data-kp-state` on its host: `loading`, `empty`, `error`, or `ready`. Loaded, it is as high as its
 // rows; loading, empty or failed it used to shrink to the height of a skeleton or one plate, and the page under it jumped twice. Kenny's
 // rule (2026-10-16 "de hele grootte van de component gebruiken"): a state fills the component's loaded footprint.
@@ -10,7 +10,8 @@
 //   · while the host is ready (no state, or `ready`) a ResizeObserver remembers its height
 //   · the moment the state becomes loading, empty or error, the host gets that height as `min-block-size`, so the plate (or the
 //     skeleton with the busy card over it) is as high as the list was; back to ready the minimum goes again
-//   · the first load has nothing remembered and is left alone: there is no footprint yet to hold
+//   · the first load has nothing remembered and is left alone: there is no footprint yet to hold (a table is held at an
+//     estimate of its rows, as cards when it is laid out as cards)
 //
 // Three guards, so the hold is never a trap:
 //
@@ -25,12 +26,26 @@
 /** Every host that writes `data-kp-state` and fills its footprint with it. */
 export const FOOTPRINT_HOSTS = [
     '[data-kp-matrix]',
+    '[data-kp-heat]',
+    '[data-kp-uptime]',
     '[data-kp-entity-grid]',
     '[data-kp-checklist]',
+    '[data-kp-timers]',
     '[data-kp-notices]',
+    '[data-kp-feed]',
     '[data-kp-gallery]',
     '[data-kp-availability]',
     '[data-kp-requests]',
+    '[data-kp-pipeline]',
+    '[data-kp-diffview]',
+    '[data-kp-datatable]',
+    '[data-kp-runs]',
+    '[data-kp-gantt]',
+    '[data-kp-graph]',
+    '[data-kp-week]',
+    '[data-kp-chart]:not([data-kp-chart="spark"])',
+    '[data-kp-deplist]',
+    '[data-kp-code]:not(.kp-code--cell)',
     '.kp-ops',
 ].join(', ');
 
@@ -61,12 +76,64 @@ export function holdFootprint(host) {
     let ownPriority = '';
     let ownComputed = '';
 
-    const state = () => host.getAttribute('data-kp-state') ?? 'ready';
+    // The data table writes `loading`, `failed` and `ready` as its state, and `data-kp-state-covered` (`empty` or `error`) while its plate
+    // stands in the rows' place [states-check-1019]; the covered plate wins, because the table is `ready` with no rows when empty.
+    const state = () => host.getAttribute('data-kp-state-covered') ?? (host.getAttribute('data-kp-state') === 'failed' ? 'error' : (host.getAttribute('data-kp-state') ?? 'ready'));
+
+    /**
+     * A host that fails or turns up empty on its very first read has no loaded height to hold [statestwo-1019, almanac 26]. A table
+     * (and any host that says so with `data-kp-footprint-rows="N"`) is held at what N rows would make it: its own frame (toolbar, head
+     * and foot: the host less what stands in the rows' place) plus N rows of `--kp-footprint-row` (default 2.75rem); N is the hint, else the table's
+     * `data-kp-page-size`, else 10. Worked out once, when the hold starts; a loaded height, once there is one, wins.
+     */
+    let guess = 0;
+    const rowsHint = () => {
+        const given = Number.parseInt(host.getAttribute('data-kp-footprint-rows') ?? '', 10);
+        if (given > 0) return given;
+        if (!host.matches('[data-kp-datatable]')) return 0;
+        const size = Number.parseInt(host.getAttribute('data-kp-page-size') ?? '', 10);
+        return size > 0 ? size : 10;
+    };
+    /**
+     * What one row is as a card [px], or 0 when the table is not laid out as cards: the card layout is on while the table's own
+     * width is under 40rem (css/components.css, the `kp-table` container) and the markup asked for it with `data-kp-cards`. A card
+     * is its padding, border and gap (1.75rem) and one line of 2.5rem for each column with words.
+     * @param {number} rem
+     */
+    const cardRow = (rem) => {
+        if (!host.matches('[data-kp-datatable]') || !(host.hasAttribute('data-kp-cards') || host.querySelector('table[data-kp-cards]'))) return 0;
+        if (host.getBoundingClientRect().width > 40 * rem) return 0;
+        const lines = [...host.querySelectorAll('thead th')].filter((th) => (th.textContent ?? '').trim() !== '').length;
+        return lines > 0 ? (1.75 + lines * 2.5) * rem : 0;
+    };
+    /** Whether a table has rows of data to be measured: a table with none has no loaded height to remember. */
+    const hasRows = () => !host.matches('[data-kp-datatable]') || host.querySelector('tbody > tr:not([data-kp-skeleton-row])') !== null;
+    const estimate = () => {
+        const rows = rowsHint();
+        if (!rows) return 0;
+        const view = host.ownerDocument.defaultView;
+        const rem = parseFloat(view?.getComputedStyle(host.ownerDocument.documentElement).fontSize ?? '16') || 16;
+        const raw = getComputedStyle(host).getPropertyValue('--kp-footprint-row').trim();
+        const unit = /^(\d+(?:\.\d+)?)(px|rem)?$/.exec(raw);
+        // A row in the card layout is a card of one line per column, not one line: on a phone the table's rows are as high as
+        // their columns are many [kyugaps-1019, gap kyu 50]. `--kp-footprint-row` still wins when the page sets it.
+        const row = unit ? Number(unit[1]) * (unit[2] === 'px' ? 1 : rem) : cardRow(rem) || 2.75 * rem;
+        // What stands in the rows' place now (skeleton rows, the plate, the empty slot) is not frame.
+        const inPlace = [...host.querySelectorAll('tbody, .kp-stateplate, [data-kp-datatable-empty]')].reduce(
+            (sum, e) => sum + (e.parentElement?.closest('.kp-stateplate, [data-kp-datatable-empty]') ? 0 : e.getBoundingClientRect().height),
+            0,
+        );
+        return Math.max(0, host.getBoundingClientRect().height - inPlace) + rows * row;
+    };
 
     /** The height to hold, for the host's own box model. */
-    const height = () => (getComputedStyle(host).boxSizing === 'border-box' ? border : content);
+    const height = () => {
+        const loaded = getComputedStyle(host).boxSizing === 'border-box' ? border : content;
+        return loaded || guess;
+    };
 
     const release = () => {
+        guess = 0;
         if (!holding) return;
         holding = false;
         if (ownInline) host.style.setProperty('min-block-size', ownInline, ownPriority);
@@ -74,6 +141,7 @@ export function holdFootprint(host) {
     };
 
     const hold = () => {
+        if (!holding && !border && !guess) guess = estimate();
         const wanted = height();
         if (!wanted) return release();
         if (!holding) {
@@ -95,6 +163,9 @@ export function holdFootprint(host) {
         // A host taken out of the page has nothing to hold: let go of everything.
         if (!host.isConnected) return detach();
         if (HOLDING.has(state())) return;
+        // A table with no rows (it opened empty or failed) is its frame alone: not a loaded height, so the first-load
+        // footprint above stands in for it [kyugaps-1019, gap kyu 50].
+        if (!hasRows()) return;
         const entry = entries[entries.length - 1];
         const rect = host.getBoundingClientRect();
         border = entry?.borderBoxSize?.[0]?.blockSize ?? rect.height;
@@ -102,7 +173,7 @@ export function holdFootprint(host) {
     });
     const states = new MutationObserver(sync);
     sizes.observe(host);
-    states.observe(host, { attributes: true, attributeFilter: ['data-kp-state'] });
+    states.observe(host, { attributes: true, attributeFilter: ['data-kp-state', 'data-kp-state-covered'] });
 
     function detach() {
         sizes.disconnect();

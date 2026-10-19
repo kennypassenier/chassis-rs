@@ -158,6 +158,12 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         format!("http://{}:{}", host, addr.port())
     };
     let has_test_route = test_route.is_some();
+    let test_body = test_route
+        .as_ref()
+        .map(|t| (t.body.clone(), t.content_type.clone()))
+        .unwrap_or_default();
+    let command_template =
+        clients_api::command_template(&self_base_url, test_route.as_ref().map(|t| t.path.as_str()));
     let api = ClientsApi {
         clients: clients.clone(),
         captures: captures.clone(),
@@ -242,7 +248,11 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         open,
     )?
     .with_vocabulary(vocab.clone())
-    .with_client_actions(registry.client_actions);
+    .with_client_actions(registry.client_actions)
+    .with_update_check(registry.check_update)
+    .with_repository(spec.repository)
+    .with_command_template(command_template)
+    .with_test_body(test_body.0, &test_body.1);
 
     // feat-pages-1: one list of pages for every navigation. `nav_entry`
     // links from before 3.1.0 join it as visible project pages.
@@ -272,6 +282,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         ),
     );
     let dash = dash.with_pages(&page_set);
+    dash.spawn_uptime_sampler();
     let kit_renders = !extra.kit_in_webapp;
 
     let pages_public = Router::new()
@@ -292,7 +303,12 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
     let (status_on, clients_on) = (on("status"), on("clients"));
     let mut pages_admin = Router::new();
     if status_on {
-        pages_admin = pages_admin.route("/api/kit/status", get(dashboard::status_json));
+        pages_admin = pages_admin
+            .route("/api/kit/status", get(dashboard::status_json))
+            .route(
+                "/api/kit/status/update-check",
+                axum::routing::post(dashboard::update_check),
+            );
     }
     if clients_on {
         pages_admin = pages_admin.route("/api/kit/clients", get(dashboard::clients_json));
@@ -346,7 +362,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
             .route("/api/clients/{id}/revoke", post(clients_api::revoke))
             .route("/api/clients/{id}/token", get(clients_api::reveal))
             .route("/api/clients/{id}/requests", get(clients_api::requests))
-            .route("/api/clients/{id}/test", post(clients_api::send_test))
+            .route("/api/clients/{id}/test", post(clients_api::send_test_body))
             .with_state(api)
             // K28: the handlers word their refusals in the project's vocabulary.
             .layer(axum::Extension(vocab))
@@ -358,6 +374,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         Router::new()
     } else {
         use crate::shell::passkeys::{self, PasskeyState};
+        use axum::routing::patch;
         let webauthn = passkeys::build_webauthn(spec.name, &prefix, limits.public_url.as_deref())?;
         let pk = PasskeyState::open(
             webauthn,
@@ -385,8 +402,12 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         let admin_api = Router::new()
             .route("/passkeys/register/start", post(passkeys::register_start))
             .route("/passkeys/register/finish", post(passkeys::register_finish))
-            .route("/api/passkeys", get(passkeys::list))
-            .route("/api/passkeys/{id}", delete(passkeys::delete))
+            .route("/api/passkeys", get(passkeys::list_current))
+            .route(
+                "/api/passkeys/{id}",
+                delete(passkeys::delete).patch(passkeys::rename),
+            )
+            .route("/api/kit/passkeys/{id}", patch(passkeys::rename))
             .layer(from_fn_with_state(pk.clone(), passkeys::require_https))
             .with_state(pk.clone())
             .layer(from_fn_with_state(auth.clone(), require_admin));
@@ -400,7 +421,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
                 >,
                  headers: axum::http::HeaderMap| async move {
                     let https = d.is_https(peer, &headers);
-                    d.passkeys_page(https, pk.list())
+                    d.passkeys_page(https, pk.list_for_request(&headers).await)
                 },
             ),
         );
@@ -418,7 +439,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
                         axum::Json(serde_json::json!({
                             "https": d.is_https(peer, &headers),
                             "public_url": d.public_url,
-                            "passkeys": pk.list(),
+                            "passkeys": pk.list_for_request(&headers).await,
                         })),
                     )
                 },

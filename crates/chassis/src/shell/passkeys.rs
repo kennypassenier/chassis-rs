@@ -28,6 +28,7 @@ use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use serde::{Deserialize, Serialize};
 use webauthn_rs::prelude::*;
 
+use crate::core::crypto::sha256_hex;
 use crate::core::error::{Error, Kind};
 use crate::shell::auth::AuthState;
 use crate::shell::guards::is_https;
@@ -151,7 +152,12 @@ pub struct PasskeyState {
     pending: Arc<Mutex<Ceremonies<Pending>>>,
     /// For the client IP behind a trusted proxy (the per-IP share).
     guards: crate::shell::guards::Guards,
+    /// Session (SHA-256 of its cookie) to the stored passkey that opened it.
+    logins: Arc<Mutex<HashMap<String, (u64, String)>>>,
 }
+
+/// How many passkey logins `PasskeyState` remembers for `current`.
+const LOGINS_CAP: usize = 256;
 
 /// Parse `<P>_PUBLIC_URL` into the relying party.
 pub fn build_webauthn(
@@ -218,6 +224,7 @@ impl PasskeyState {
             store: Arc::new(Mutex::new(loaded)),
             pending: Arc::new(Mutex::new(Ceremonies::new(limits))),
             guards,
+            logins: Arc::default(),
         })
     }
 
@@ -262,6 +269,62 @@ impl PasskeyState {
             })
             .collect()
     }
+
+    /// Every passkey, with `current` set on the one whose store id is
+    /// `current` (the passkey this session logged in with).
+    pub fn list_for(&self, current: Option<&str>) -> Vec<PasskeyListing> {
+        self.list()
+            .into_iter()
+            .map(|view| PasskeyListing {
+                current: current == Some(view.id.as_str()),
+                view,
+            })
+            .collect()
+    }
+
+    /// Remember that the session for `cookie_value` was opened with the
+    /// stored passkey `passkey_id`. In memory, bounded: a restart forgets
+    /// it and the next passkey login records it again.
+    fn remember_login(&self, cookie_value: &str, passkey_id: &str) {
+        let mut map = self.logins.lock().expect("logins lock");
+        if map.len() >= LOGINS_CAP
+            && let Some(oldest) = map
+                .iter()
+                .min_by_key(|(_, (t, _))| *t)
+                .map(|(k, _)| k.clone())
+        {
+            map.remove(&oldest);
+        }
+        map.insert(
+            sha256_hex(cookie_value.as_bytes()),
+            (now_epoch(), passkey_id.to_string()),
+        );
+    }
+
+    /// The passkeys as seen by the caller whose request carried `headers`:
+    /// `current` marks the passkey that caller's session was opened with.
+    pub async fn list_for_request(&self, headers: &HeaderMap) -> Vec<PasskeyListing> {
+        let jar = CookieJar::from_headers(headers);
+        let current = match jar.get(&self.auth.cookie_name()) {
+            Some(c)
+                if self
+                    .auth
+                    .sessions
+                    .state
+                    .read()
+                    .await
+                    .is_live(c.value(), now_epoch()) =>
+            {
+                self.logins
+                    .lock()
+                    .expect("logins lock")
+                    .get(&sha256_hex(c.value().as_bytes()))
+                    .map(|(_, id)| id.clone())
+            }
+            _ => None,
+        };
+        self.list_for(current.as_deref())
+    }
 }
 
 /// Middleware: passkey routes exist only over HTTPS (K9).
@@ -289,6 +352,17 @@ pub struct PasskeyView {
     pub label: String,
     pub created_at: String,
     pub last_used_at: Option<String>,
+}
+
+/// A passkey as the admin API lists it: the [`PasskeyView`] fields plus
+/// `current`, true for the passkey the asking session logged in with.
+#[derive(Debug, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct PasskeyListing {
+    #[serde(flatten)]
+    pub view: PasskeyView,
+    #[serde(default)]
+    pub current: bool,
 }
 
 #[derive(Serialize)]
@@ -425,12 +499,14 @@ pub async fn login_finish(
         .webauthn
         .finish_passkey_authentication(&body.credential, &auth)
         .map_err(webauthn_error)?;
+    let mut used_id = None;
     {
         let mut store = s.store.lock().expect("passkeys lock");
         for p in store.passkeys.iter_mut() {
             if p.passkey.cred_id() == result.cred_id() {
                 p.passkey.update_credential(&result);
                 p.last_used_at = Some(now_rfc3339());
+                used_id = Some(p.id.clone());
             }
         }
     }
@@ -442,6 +518,9 @@ pub async fn login_finish(
         sessions.create(&value, now_epoch(), s.auth.session_ttl_secs, false);
     }
     s.auth.sessions.save().await?;
+    if let Some(id) = &used_id {
+        s.remember_login(&value, id);
+    }
     let mut cookie = Cookie::new(s.auth.cookie_name(), value);
     cookie.set_http_only(true);
     cookie.set_same_site(SameSite::Lax);
@@ -454,6 +533,73 @@ pub async fn login_finish(
 /// `GET /api/passkeys` (admin).
 pub async fn list(State(s): State<PasskeyState>) -> Json<Vec<PasskeyView>> {
     Json(s.list())
+}
+
+/// `GET /api/passkeys` as the router serves it: like [`list`], with
+/// `current` set for the caller's session.
+pub async fn list_current(
+    State(s): State<PasskeyState>,
+    headers: HeaderMap,
+) -> Json<Vec<PasskeyListing>> {
+    Json(s.list_for_request(&headers).await)
+}
+
+/// Longest passkey name `rename` accepts, in characters (as at registration).
+pub const MAX_NAME_CHARS: usize = 64;
+
+#[derive(Deserialize)]
+#[non_exhaustive]
+pub struct RenameBody {
+    pub name: String,
+}
+
+/// Trim a passkey name and check it is 1 to 64 characters.
+pub fn clean_name(raw: &str) -> Result<String, Error> {
+    let name = raw.trim();
+    let n = name.chars().count();
+    if n == 0 {
+        return Err(Error::invalid(
+            "the name is empty",
+            "type a short name, such as \"Kenny's phone\"",
+        ));
+    }
+    if n > MAX_NAME_CHARS {
+        return Err(Error::invalid(
+            format!("the name is {n} characters long; the limit is {MAX_NAME_CHARS}"),
+            "use a shorter name",
+        ));
+    }
+    Ok(name.to_string())
+}
+
+/// `PATCH /api/passkeys/{id}` and `PATCH /api/kit/passkeys/{id}` (admin):
+/// rename a passkey. Body `{ "name": "…" }`; answers the updated view.
+pub async fn rename(
+    State(s): State<PasskeyState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(body): Json<RenameBody>,
+) -> Result<Json<PasskeyListing>, Error> {
+    let name = clean_name(&body.name)?;
+    {
+        let mut store = s.store.lock().expect("passkeys lock");
+        let Some(p) = store.passkeys.iter_mut().find(|p| p.id == id) else {
+            return Err(Error::new(
+                Kind::NotFound,
+                format!("no passkey {id}"),
+                "reload the Passkeys page; it may have been deleted",
+            ));
+        };
+        p.label = name;
+    }
+    s.save()?;
+    let view = s
+        .list_for_request(&headers)
+        .await
+        .into_iter()
+        .find(|v| v.view.id == id)
+        .expect("just renamed");
+    Ok(Json(view))
 }
 
 /// `DELETE /api/passkeys/{id}` (admin).
@@ -488,6 +634,16 @@ fn webauthn_error(e: WebauthnError) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rename_trims_and_bounds_the_name_in_plain_language() {
+        assert_eq!(clean_name("  Phone  ").unwrap(), "Phone");
+        assert!(clean_name("   ").unwrap_err().message.contains("empty"));
+        assert!(clean_name(&"x".repeat(64)).is_ok());
+        let err = clean_name(&"x".repeat(65)).unwrap_err();
+        assert!(err.message.contains("limit is 64"));
+        assert!(clean_name(&"é".repeat(64)).is_ok(), "counted in characters");
+    }
 
     #[test]
     fn public_url_is_required_https_and_names_the_proxy() {

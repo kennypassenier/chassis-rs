@@ -93,7 +93,8 @@
 import { resolveLocale } from './locale.js';
 import { DEFAULT_STRINGS, getStrings } from './strings.js';
 import { drawSparkline } from './kpi.js';
-import { statePlate } from './state-plate.js';
+import { hostStatePlate, statePlate } from './state-plate.js';
+import { openBusyCard } from './busy-card.js';
 
 /** A chart: `data-kp-chart` (a plot) or `data-kp-chart="spark"`. */
 export const CHART = '[data-kp-chart]';
@@ -156,6 +157,8 @@ export const TREND_CHART = '[data-kp-chart="spark"][data-kp-spark-head="none"]';
  *   the axis too; `unit` and `digits` then do nothing
  * @property {number} [digits] fraction digits of a value; else by its size
  * @property {string} [error] why there are no readings: shown in the plot, at its height, instead of the lines
+ * @property {string} [errorText] a sentence under `error` on a key figure's trend (its failed plate; else the package's own)
+ * @property {Node | string | null} [art] a picture over the heading of a key figure's empty and failed trend plate
  * @property {boolean} [onePointNote] while every source has a single reading, say so under the plot (`chartOnePoint`)
  * @property {ChartSeries[]} series
  * @property {ChartEvent[]} [events]
@@ -232,6 +235,7 @@ export function chartWords(overrides) {
         now: s.chartNow,
         empty: s.chartEmpty,
         retry: s.chartRetry,
+        trendFailed: s.chartTrendFailed,
         onePoint: s.chartOnePoint,
         loading: s.chartLoading,
         pinnedOutside: s.chartPinnedOutside,
@@ -762,7 +766,11 @@ export function setChartData(el, data) {
 
 /**
  * @typedef {object} TrendData a key figure's trend, the short way
- * @property {ChartPoint[]} points `[[ms, value]…]`, oldest first
+ * @property {ChartPoint[]} [points] `[[ms, value]…]`, oldest first
+ * @property {string} [error] why the trend could not be read: the tile's trend is the failed plate (its heading) with a Retry
+ *   that fires `kp-chart-retry` on the figure, bubbling [kyu-plates-1019]
+ * @property {string} [text] one sentence under `error` (else the package's own), or under the empty plate
+ * @property {Node | string | null} [art] a picture over the heading of the empty and failed plates
  * @property {number} [step] the points' spacing, ms (the axis says `now` while the last is at most two steps old)
  * @property {string} [unit]
  * @property {ChartUnitKind} [unitKind]
@@ -773,7 +781,8 @@ export function setChartData(el, data) {
  * Give a key figure's trend its points: setChartData() with one source, the
  * short way. `null` is loading: the trend stays empty at its final height
  * and the tile around it is `aria-busy` until data comes. An empty
- * `points` is a tile with no trend.
+ * `points` is the empty plate over the trend's place; `{ error }` is the failed plate with a Retry (`kp-chart-retry`); loading is the
+ * theme's busy card over the trend [kyu-plates-1019].
  * @param {Element} figure the `[data-kp-chart="spark"]` element
  * @param {TrendData | null} data
  */
@@ -783,8 +792,16 @@ export function setTrendData(figure, data) {
         CHARTS.get(figure)?.draw();
         return;
     }
-    const { points, step, unit, unitKind, digits } = data;
-    setChartData(figure, { unit, unitKind, digits, series: [{ label: figure.getAttribute('aria-label') ?? '', points, step }] });
+    const { points = [], step, unit, unitKind, digits, error, text, art } = data;
+    setChartData(figure, {
+        unit,
+        unitKind,
+        digits,
+        ...(error ? { error } : {}),
+        ...(text ? { errorText: text } : {}),
+        ...(art ? { art } : {}),
+        series: [{ label: figure.getAttribute('aria-label') ?? '', points, step }],
+    });
 }
 
 /**
@@ -1538,6 +1555,8 @@ function plotChart(host, group, locale, ctx) {
      */
     function drawState(kind, H) {
         geo = null;
+        // The state on the host too, so js/footprint.js holds the loaded height while it shows.
+        host.setAttribute('data-kp-state', kind);
         // A key already drawn keeps its room (unseen), so the chart's height is the same in every state.
         if (keyMemo) annKey.setAttribute('data-kp-wait', '');
         else annKey.hidden = true;
@@ -1598,6 +1617,7 @@ function plotChart(host, group, locale, ctx) {
             return;
         }
         shown = '';
+        host.setAttribute('data-kp-state', 'ready');
         hint.hidden = data.series.length <= 1;
         const { from, to } = win;
         const W = Math.max(240, plot.clientWidth);
@@ -2415,6 +2435,14 @@ function trendChart(host, group, locale, ctx) {
     if (data?.key != null) host.setAttribute('data-kp-key', data.key);
     decorateWith(decorate, plot, { kind: 'plot', host, key: data?.key ?? host.getAttribute('data-kp-key') ?? undefined });
     const link = /** @type {HTMLElement | null} */ (host.closest('.kp-kpi')?.querySelector('.kp-kpi__link') ?? null);
+    /** The busy card over the plot while it loads, and the state plate in the plot's place when it is empty or failed [kyu-plates-1019]. */
+    /** @type {import('./busy-card.js').BusyCard | null} */
+    let busy = null;
+    /** @type {HTMLElement | null} */
+    let plate = null;
+    /** Set while the busy card leaves: the data is drawn once it has gone. */
+    let leaving = false;
+    let first = true;
 
     const hide = () => {
         at = null;
@@ -2467,9 +2495,45 @@ function trendChart(host, group, locale, ctx) {
         if (announce) live.textContent = `${moment} · ${fmt(value, 'readout')}`;
     };
 
+    /** @returns {'loading' | 'error' | 'empty' | 'ready'} */
+    const kind = () => (loading() ? 'loading' : data?.error ? 'error' : (data?.series[0] ? pointsOf(data.series[0]).length : 0) === 0 ? 'empty' : 'ready');
+
+    /** The state plate, or nothing: the plot and the axis give way to it while it stands. @param {'empty' | 'error' | null} k */
+    function setPlate(k) {
+        plate?.remove();
+        plate = null;
+        plot.hidden = k !== null;
+        if (axis) axis.row.hidden = k !== null;
+        if (k === null) return;
+        plate = hostStatePlate(host, {
+            kind: k,
+            title: k === 'error' ? (data?.error ?? strings.trendFailed) : strings.empty,
+            ...(k === 'error' && data?.errorText ? { text: data.errorText } : {}),
+            art: data?.art,
+            retryEvent: CHART_RETRY_EVENT,
+            retryLabel: strings.retry,
+        });
+        // The Retry goes with the state: the focus goes to the tile's link first, as a chart's Retry hands it to its plot.
+        plate.addEventListener('click', (event) => {
+            if (event.target instanceof Element && event.target.closest('button')) link?.focus({ preventScroll: true });
+        }, true);
+        host.append(plate);
+    }
+
     function draw() {
         const series = data?.series[0];
-        pts = !loading() && series ? pointsOf(series) : [];
+        const k = kind();
+        host.setAttribute('data-kp-state', k);
+        setPlate(k === 'empty' || k === 'error' ? k : null);
+        if (k === 'loading') {
+            if (busy && !leaving) busy.place();
+            else if (!busy) busy = openBusyCard(host, { words: strings.loading, area: () => [plot], className: 'kp-kpi__busy', arrive: !first });
+        } else if (busy && !leaving) {
+            busy.remove();
+            busy = null;
+        }
+        first = false;
+        pts = k === 'ready' && series ? pointsOf(series) : [];
         plot.setAttribute('aria-label', data?.label ?? host.getAttribute('aria-label') ?? series?.label ?? '');
         drawSparkline(
             svg,
@@ -2565,7 +2629,18 @@ function trendChart(host, group, locale, ctx) {
         setData: (next) => {
             data = next;
             if (data.key != null) host.setAttribute('data-kp-key', data.key);
-            draw();
+            if (busy && !leaving && kind() !== 'loading') {
+                // The busy card leaves the theme's way first, and nothing is drawn under it on its way out.
+                const card = busy;
+                busy = null;
+                leaving = true;
+                void card.close().then(() => {
+                    leaving = false;
+                    draw();
+                });
+                return;
+            }
+            if (!leaving) draw();
         },
         select: () => false,
         // The trend reads on its own crosshair, not the group's.
@@ -2573,6 +2648,9 @@ function trendChart(host, group, locale, ctx) {
         lastTime: () => pts[pts.length - 1]?.[0] ?? null,
         destroy: () => {
             for (const part of parts) part.remove();
+            plate?.remove();
+            busy?.remove();
+            host.removeAttribute('data-kp-state');
             host.closest('.kp-kpi')?.removeAttribute('aria-busy');
         },
         unobserve: () => {},

@@ -741,6 +741,9 @@ pub struct DashboardRegistry {
     pub on_client_deleted: Option<crate::shell::clients_api::DeleteHook>,
     pub problems: Option<Arc<dyn Fn() -> Vec<crate::shell::dashboard::Problem> + Send + Sync>>,
     pub update: Option<Arc<dyn Fn() -> crate::shell::dashboard::UpdateView + Send + Sync>>,
+    /// kit-kp11: the checker behind the status page's "Check for updates".
+    /// Not public: the kit sets it where it builds the updater.
+    pub(crate) check_update: Option<crate::shell::dashboard::UpdateCheck>,
     pub clients_label: Option<String>,
     /// K28: what this service calls a client; `None` keeps `client`/`clients`.
     pub vocabulary: Option<crate::shell::dashboard::Vocabulary>,
@@ -2298,6 +2301,13 @@ impl App {
                 let reason = updater.effective.reason.to_string();
                 let overridden = updater.cfg.pubkey_overridden;
                 let no_url = updater.cfg.url.is_empty();
+                if !no_url {
+                    let checker = updater.clone();
+                    self.dash.check_update = Some(Arc::new(move || {
+                        let checker = checker.clone();
+                        Box::pin(async move { checker.watch_once().await.map(|_| ()) })
+                    }));
+                }
                 self.dash.update = Some(Arc::new(move || {
                     let last = updater.last_check();
                     let mut note = last

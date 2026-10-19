@@ -25,6 +25,12 @@
 //
 // The mark column is reserved by the stylesheet, so the spinner arriving
 // moves nothing. Every word this module adds is in js/strings.js.
+//
+// Option (markup attribute, with its default [KT6]):
+//   data-kp-action-size   compact | large: how big the tiles are; none is the theme's own size   none
+// On the `.kp-actions` grid, on one tile or on any element above them. It is read by the stylesheet alone, so it is live by
+// nature: change the attribute and every tile follows, with no script and no observer (nothing for js/live-options.js to
+// watch). `setActionSize(el, size)` writes it for a script that would rather not touch an attribute by hand.
 
 import { getStrings } from './strings.js';
 
@@ -32,6 +38,23 @@ import { getStrings } from './strings.js';
 export const ACTION_TILE = '.kp-action';
 /** Fired on the tile, bubbling, when it becomes busy or stops being busy: `{ tile, busy }`. */
 export const ACTION_BUSY_EVENT = 'kp-action-busy';
+
+/** The tile sizes the stylesheet knows; no size is the theme's own. */
+export const ACTION_SIZES = /** @type {const} */ (['compact', 'large']);
+
+/**
+ * Set the size of the tiles under `element` (or of one tile): `compact`, `large`, or `null` for the theme's own.
+ * The stylesheet follows the attribute, so this is only a typed way to write it.
+ *
+ * @param {Element} element a `.kp-actions` grid, a tile, or any element above them
+ * @param {(typeof ACTION_SIZES)[number] | null} size
+ * @returns {Element}
+ */
+export function setActionSize(element, size) {
+    if (size === null) element.removeAttribute('data-kp-action-size');
+    else if (ACTION_SIZES.includes(size)) element.setAttribute('data-kp-action-size', size);
+    return element;
+}
 
 /** The busy state each tile was last synced to, to tell a change from a first sync. @type {WeakMap<Element, boolean>} */
 const synced = new WeakMap();

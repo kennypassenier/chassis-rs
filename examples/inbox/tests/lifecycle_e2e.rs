@@ -493,6 +493,19 @@ async fn in_flight_request_completes_during_drain() {
     );
 }
 
+/// K16: a page says what it does. The kit's kp-themes 11 pages do it in the
+/// page header's description or a `.kp-lede`; the project's own pages in a
+/// plain `.explain` paragraph (a class token, alone or among others).
+fn explains_itself(html: &str) -> bool {
+    html.contains("kp-page-header__description")
+        || html.contains("kp-lede")
+        || html
+            .split("class=\"")
+            .skip(1)
+            .filter_map(|rest| rest.split('"').next())
+            .any(|classes| classes.split_whitespace().any(|c| c == "explain"))
+}
+
 // K15 + K16 + K17 over the wire: the HTML pages render inside the shared
 // layout with an explain block, the theme picker and the vendored assets.
 #[test]
@@ -510,7 +523,7 @@ fn dashboard_pages_render_with_layout_and_assets() {
     let res = http.get(format!("{base}/login")).send().unwrap();
     assert_eq!(res.status(), 200);
     let html = res.text().unwrap();
-    assert!(html.contains("class=\"explain\""), "explain block (K16)");
+    assert!(explains_itself(&html), "explain block (K16)");
     assert!(html.contains("data-kp-theme-picker"), "theme picker (K15)");
     assert!(
         html.contains("data-kp-theme=\"cyberpunk\""),
@@ -588,7 +601,7 @@ fn dashboard_pages_render_with_layout_and_assets() {
     let html = res.text().unwrap();
     assert!(html.contains("page-test"));
     assert!(
-        html.contains("<th>Messages</th>"),
+        html.contains(">Messages</th>"),
         "the project's extra client column (K16)"
     );
     // feat-clients-4 (2026-09-10): the row carries one button now and every
@@ -597,11 +610,13 @@ fn dashboard_pages_render_with_layout_and_assets() {
     // itself is inside the dialog and loads when it opens.
     for needle in [
         "data-manage=",
-        "data-close-manage",
-        "data-reveal=",
-        "data-copy-token=",
-        "data-copy-command=",
-        "data-test=",
+        // kit-kp11: the dialog's close, the secret (Reveal and Copy of the
+        // token), the full-command copy and the test send, as the approved
+        // manage dialog names them.
+        "data-kp-dialog-close",
+        "data-manage-secret",
+        "data-manage-copy-full",
+        "data-manage-send",
         "data-kp-confirm=",
     ] {
         assert!(html.contains(needle), "clients page lacks {needle}");
@@ -610,10 +625,16 @@ fn dashboard_pages_render_with_layout_and_assets() {
         !html.contains("data-requests="),
         "the panel toggle is gone with feat-clients-4"
     );
-    assert!(
-        !html.contains("Bearer "),
-        "no token or command in the page HTML (K12)"
-    );
+    // K12: the page holds no token. Since kit-kp11 it does hold the command
+    // template, whose token is the `$CLIENT_TOKEN` placeholder: every
+    // `Bearer ` in the page must be followed by that placeholder.
+    for (i, _) in html.match_indices("Bearer ") {
+        assert!(
+            html[i + "Bearer ".len()..].starts_with("$CLIENT_TOKEN"),
+            "a real token or command in the page HTML (K12): {}",
+            &html[i..(i + 80).min(html.len())]
+        );
+    }
 }
 
 // K9 gating: passkey routes exist only when the request came over HTTPS
@@ -1714,10 +1735,7 @@ fn project_page_renders_inside_the_layout_with_security_headers() {
         html.contains("<h1>Messages</h1>") && html.contains("pager") && html.contains("hello"),
         "{html}"
     );
-    assert!(
-        html.contains("class=\"explain\""),
-        "every page explains itself (K16)"
-    );
+    assert!(explains_itself(&html), "every page explains itself (K16)");
     assert!(!html.contains("bunny.net"), "no third party: {html}");
     // Every kit page: scripts only by src (the CSP blocks inline ones).
     let mut pages = vec![(
@@ -1748,7 +1766,7 @@ fn project_page_renders_inside_the_layout_with_security_headers() {
                 "{p} carries an inline script the CSP would block: {tag}"
             );
         }
-        assert!(page.contains("class=\"explain\""), "{p} explains itself");
+        assert!(explains_itself(page), "{p} explains itself");
     }
     for asset in [
         "/static/kp/css/fonts.css",
@@ -1832,7 +1850,7 @@ fn the_declared_field_and_the_project_series_are_what_a_consumer_sees() {
         .text()
         .unwrap();
     assert!(
-        html.contains("<th>Topic</th>") && html.contains("forecasts"),
+        html.contains(">Topic</th>") && html.contains("forecasts"),
         "and renders it as a column under the project's own label"
     );
 

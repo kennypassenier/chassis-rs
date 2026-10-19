@@ -89,7 +89,7 @@ async fn a_browser_form_submit_is_accepted_and_a_cross_site_one_is_refused_as_a_
         body.contains("kp-nav"),
         "rendered inside the layout: {body}"
     );
-    assert!(body.contains("cross-site request"), "{body}");
+    assert!(body.contains("Cross-site request"), "{body}");
     assert!(body.contains("Back to the dashboard"), "{body}");
 
     // A script (no fetch metadata, no Accept for HTML) keeps the JSON shape.

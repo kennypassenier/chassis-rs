@@ -18,10 +18,14 @@
 //   data-kp-anchor-target    highlight | none: mark the place a link lands on             highlight
 //   data-kp-anchor-offset    a CSS length a sticky bar covers                              --kp-header-height, else 0
 //   data-kp-anchor-open      on | off: open a folded group first (`details`), and ask the page to reveal a row on another page  on
+//   data-kp-anchor-wait      the longest wait, in ms, for a place that is not drawn yet; 0 says "no longer here" at once         10000
 //   data-kp-flash-ms         how long "Copied" stays                                       1500
 //
-// A hash that arrives before its row is drawn is kept for 10 s and resolved when the row renders. A hash with no place to land says
-// so in a notice ("That item is no longer here") with a button that clears the hash. A press also writes the address bar
+// A hash that arrives before its row is drawn is kept while the container is still drawing (a busy or skeleton row inside it, or
+// a change within the last second in any container of the page; at most 10 s, or `data-kp-anchor-wait` on the first container, which says the notice) and resolved when the row renders; a container that has been still for a second
+// and has no such row says so at once, not after the full wait. A hash with no place to land says so in a notice ("That item is
+// no longer here") with a button that clears the hash. Under a `.kp-formgrid` the mark of a row stands at the end of the label
+// cell and the mark of a group heading at the grid's end edge, so every mark has one x [anchors-picker-1019]. A press also writes the address bar
 // (`history.replaceState`), and Shift with the press copies a Markdown link. With the shortcut engine, `y` then `l` on a focused row
 // copies its link. Fires `kp-anchor-copy` `{ id, url, text, markdown }`, `kp-anchor-reveal` (cancelable) `{ id, target }` and
 // `kp-anchor-missing` `{ id }`. Nothing runs on import.
@@ -52,8 +56,10 @@ export const ANCHOR_REVEAL_EVENT = 'kp-anchor-reveal';
 export const ANCHOR_MISSING_EVENT = 'kp-anchor-missing';
 /** How long a place a link landed on stays marked, in ms. */
 export const ANCHOR_HIT_MS = 2000;
-/** How long a hash that has no row yet is waited for, in ms. */
+/** The longest a hash that has no row yet is waited for, in ms. */
 export const ANCHOR_WAIT_MS = 10000;
+/** How long a container must have been still, with nothing in it drawing, before a hash without a place is given up, in ms. */
+export const ANCHOR_QUIET_MS = 1000;
 /** How long "Copied" stays on the mark, in ms. */
 export const ANCHOR_COPIED_MS = 1500;
 
@@ -91,10 +97,14 @@ export function uniqueAnchorId(doc, slug, fallback = 'section') {
  * @property {'highlight' | 'none'} [target]
  * @property {boolean} [open]
  * @property {number} [copiedMs]
+ * @property {number} [wait] the longest wait for a place not drawn yet, in ms
  */
 
 /** @param {Element} el @param {string} name @param {string} fallback */
 const attr = (el, name, fallback) => el.getAttribute(name) ?? fallback;
+
+/** A heading: an h1 to h6, or the heading of a form grid's group. @param {Element} el */
+const isHeading = (el) => /^h[1-6]$/i.test(el.tagName) || el.matches('legend, .kp-formgrid__heading');
 
 /** Rows that carry a key the page already writes. */
 const KEYED_ROWS = 'tr[data-kp-row-key], [role="row"][data-kp-row-key], li[data-kp-row-key]';
@@ -110,7 +120,7 @@ function plainText(el) {
 function nameOf(el) {
     const own = el.getAttribute('data-kp-anchor-label');
     if (own) return own;
-    if (/^h[1-6]$/i.test(el.tagName)) return plainText(el);
+    if (isHeading(el)) return plainText(el);
     const cell = el.querySelector('th, td, [role="cell"], [role="gridcell"], .kp-action-list__title') ?? el;
     return plainText(cell) || el.id;
 }
@@ -138,6 +148,61 @@ async function copyText(doc, text) {
     }
 }
 
+/** Per document: when a container last changed, for the quiet a missing hash waits for. @type {WeakMap<Document, number>} */
+const LAST_CHANGE = new WeakMap();
+
+/**
+ * The page's one `y l` entry, which asks every container in turn whether a row of its own is focused. One entry per document,
+ * not one per container: with anchors on `main` (headings) and on a table (rows) the shortcut sheet listed the key twice.
+ * @type {WeakMap<Document, { providers: Set<() => (() => void) | null>, off: (() => void) | null }>}
+ */
+const COPY_KEY = new WeakMap();
+
+/**
+ * @param {Document} doc
+ * @param {ReturnType<typeof getStrings>} strings
+ * @param {() => (() => void) | null} provider the container's way to copy its focused row, or null when none is focused
+ * @returns {() => void} release
+ */
+function serveCopyKey(doc, strings, provider) {
+    let shared = COPY_KEY.get(doc);
+    if (!shared) {
+        const made = { providers: new Set(), off: /** @type {(() => void) | null} */ (null) };
+        shared = made;
+        COPY_KEY.set(doc, made);
+        void import('./shortcuts.js').then(({ registerShortcuts }) => {
+            if (made.providers.size === 0 || COPY_KEY.get(doc) !== made) return;
+            made.off = registerShortcuts(
+                doc.body,
+                [
+                    {
+                        keys: 'y l',
+                        what: strings.anchorKeyCopy,
+                        group: strings.anchorKeyGroup,
+                        when: () => [...made.providers].some((p) => p() !== null),
+                        run: () => {
+                            for (const p of made.providers) {
+                                const go = p();
+                                if (go) return go();
+                            }
+                        },
+                    },
+                ],
+                { dev: false },
+            );
+        });
+    }
+    const mine = shared;
+    mine.providers.add(provider);
+    return () => {
+        mine.providers.delete(provider);
+        if (mine.providers.size === 0) {
+            mine.off?.();
+            if (COPY_KEY.get(doc) === mine) COPY_KEY.delete(doc);
+        }
+    };
+}
+
 /**
  * Wire every container under `root`.
  * @param {ParentNode} [root]
@@ -147,7 +212,10 @@ async function copyText(doc, text) {
 export function attachAnchors(root = document, options = {}) {
     /** @type {(() => void)[]} */
     const cleanups = [];
-    const found = /** @type {HTMLElement[]} */ ([...(root instanceof HTMLElement && root.matches(ANCHORS) ? [root] : []), ...root.querySelectorAll(ANCHORS)]);
+    const found = /** @type {HTMLElement[]} */ ([
+        ...(root instanceof HTMLElement && root.matches(ANCHORS) ? [root] : []),
+        ...root.querySelectorAll(ANCHORS),
+    ]);
     for (const box of found) {
         if (box.dataset.kpAnchorsAttached !== undefined) continue;
         const mode = options.anchors ?? attr(box, 'data-kp-anchors', 'off');
@@ -162,6 +230,15 @@ export function attachAnchors(root = document, options = {}) {
         const highlights = () => (options.target ?? attr(box, 'data-kp-anchor-target', 'highlight')) !== 'none';
         const opensFirst = () => (options.open ?? attr(box, 'data-kp-anchor-open', 'on') !== 'off') !== false;
         const copiedMs = () => Number(attr(box, 'data-kp-flash-ms', '')) || options.copiedMs || ANCHOR_COPIED_MS;
+        const waitMs = () => {
+            const said = options.wait ?? (box.hasAttribute('data-kp-anchor-wait') ? Number(box.getAttribute('data-kp-anchor-wait')) : Number.NaN);
+            return Number.isFinite(said) && said >= 0 ? said : ANCHOR_WAIT_MS;
+        };
+        /** Whether something is still being drawn in any container of the page: the hash may be a row of another one. */
+        const drawing = () =>
+            [...doc.querySelectorAll(ANCHORS)].some(
+                (c) => c.matches('[aria-busy="true"]') || c.querySelector('[aria-busy="true"], .kp-skeleton, [data-kp-state="loading"]') !== null,
+            );
 
         box.classList.add('kp-anchors');
         box.setAttribute('data-kp-anchor-show', showMode());
@@ -190,12 +267,17 @@ export function attachAnchors(root = document, options = {}) {
             const said = el.getAttribute('data-kp-anchor');
             if (said) return said;
             if (el.id) return el.id;
-            const base = /^h[1-6]$/i.test(el.tagName) ? anchorSlug(nameOf(el)) : el.getAttribute('data-kp-row-key') ? `row-${anchorSlug(el.getAttribute('data-kp-row-key') ?? '')}` : '';
-            return uniqueAnchorId(doc, base, /^h[1-6]$/i.test(el.tagName) ? 'section' : 'row');
+            const base = isHeading(el)
+                ? anchorSlug(nameOf(el))
+                : el.getAttribute('data-kp-row-key')
+                  ? `row-${anchorSlug(el.getAttribute('data-kp-row-key') ?? '')}`
+                  : '';
+            return uniqueAnchorId(doc, base, isHeading(el) ? 'section' : 'row');
         };
 
         /** Whether this row is real: a skeleton row has no anchor. @param {HTMLElement} el */
-        const isReal = (el) => !el.matches('.kp-skeleton, [aria-busy="true"], [data-kp-state="loading"]') && el.querySelector(':scope > .kp-skeleton') === null;
+        const isReal = (el) =>
+            !el.matches('.kp-skeleton, [aria-busy="true"], [data-kp-state="loading"]') && el.querySelector(':scope > .kp-skeleton') === null;
 
         /** @param {HTMLElement} el @param {'heading' | 'row'} kind */
         const mark = (el, kind) => {
@@ -220,9 +302,14 @@ export function attachAnchors(root = document, options = {}) {
             // A row's mark stands in a narrow first column: it shows a tick, and the words are said politely.
             done.setAttribute('data-kp-text', kind === 'row' ? '✓' : strings.anchorCopied);
             button.append(hash, done);
-            const before = (el.getAttribute('data-kp-anchor-position') ?? box.getAttribute('data-kp-anchor-position') ?? (kind === 'row' ? 'before' : 'after')) === 'before';
+            const before =
+                (el.getAttribute('data-kp-anchor-position') ??
+                    box.getAttribute('data-kp-anchor-position') ??
+                    (kind === 'row' ? 'before' : 'after')) === 'before';
             if (kind === 'row') {
-                const cell = el.matches('tr, [role="row"]') ? (el.querySelector('th, td, [role="cell"], [role="gridcell"], [role="rowheader"]') ?? el) : el;
+                const cell = el.matches('tr, [role="row"]')
+                    ? (el.querySelector('th, td, [role="cell"], [role="gridcell"], [role="rowheader"]') ?? el)
+                    : el;
                 if (before) cell.prepend(button);
                 else cell.append(button);
             } else if (before) el.prepend(button);
@@ -233,15 +320,20 @@ export function attachAnchors(root = document, options = {}) {
         const scan = () => {
             const want = options.anchors ?? attr(box, 'data-kp-anchors', 'off');
             if (want === 'headings' || want === 'both') {
-                const wanted = levels().map((n) => `h${n}`).join(',');
-                if (wanted) for (const h of box.querySelectorAll(wanted)) if (h instanceof HTMLElement && !h.closest('[data-kp-anchors="off"]')) mark(h, 'heading');
+                const wanted = levels()
+                    .map((n) => `h${n}`)
+                    .join(',');
+                if (wanted)
+                    for (const h of box.querySelectorAll(wanted))
+                        if (h instanceof HTMLElement && !h.closest('[data-kp-anchors="off"]')) mark(h, 'heading');
             }
             // A row that says its own id is anchored in every mode that has rows; a keyed row only when rows are asked for.
             if (want === 'rows' || want === 'both') {
-                for (const row of box.querySelectorAll(`[data-kp-anchor], ${KEYED_ROWS}`)) if (row instanceof HTMLElement && !/^h[1-6]$/i.test(row.tagName)) mark(row, 'row');
+                for (const row of box.querySelectorAll(`[data-kp-anchor], ${KEYED_ROWS}`))
+                    if (row instanceof HTMLElement && !isHeading(row)) mark(row, 'row');
             }
             for (const lone of box.querySelectorAll('[data-kp-anchor]')) {
-                if (lone instanceof HTMLElement && /^h[1-6]$/i.test(lone.tagName)) mark(lone, 'heading');
+                if (lone instanceof HTMLElement && isHeading(lone)) mark(lone, 'heading');
             }
             // Marks of rows that left.
             for (const [el, button] of marks) {
@@ -342,7 +434,11 @@ export function attachAnchors(root = document, options = {}) {
                 }
                 // The place belongs to another part of the page: not this container's to answer for.
                 if (there) return;
-                if (Date.now() - startedAt >= ANCHOR_WAIT_MS) {
+                // Give up at the longest wait, or as soon as the container has been still and nothing in it is drawing: a row that
+                // was deleted is not waited for ten seconds.
+                const now = Date.now();
+                const still = !drawing() && now - Math.max(startedAt, LAST_CHANGE.get(doc) ?? 0) >= ANCHOR_QUIET_MS;
+                if (now - startedAt >= waitMs() || still) {
                     // One notice for the page: the first container says it.
                     if (doc.querySelector(ANCHORS) === box) showMissing(id);
                     return;
@@ -355,7 +451,8 @@ export function attachAnchors(root = document, options = {}) {
         // A press copies.
         /** @param {Event} event */
         const onClick = async (event) => {
-            const button = event.target instanceof Element ? /** @type {HTMLButtonElement | null} */ (event.target.closest('[data-kp-anchor-mark]')) : null;
+            const button =
+                event.target instanceof Element ? /** @type {HTMLButtonElement | null} */ (event.target.closest('[data-kp-anchor-mark]')) : null;
             if (!button || !box.contains(button)) return;
             const el = [...marks].find(([, b]) => b === button)?.[0];
             if (!el) return;
@@ -379,7 +476,8 @@ export function attachAnchors(root = document, options = {}) {
             button.setAttribute('data-kp-anchor-state', ok ? 'copied' : 'failed');
             const done = button.querySelector('.kp-anchor__done');
             const kind = el.getAttribute('data-kp-anchored');
-            if (done) done.setAttribute('data-kp-text', ok ? (kind === 'row' ? '✓' : strings.anchorCopied) : kind === 'row' ? '!' : strings.anchorFailed);
+            if (done)
+                done.setAttribute('data-kp-text', ok ? (kind === 'row' ? '✓' : strings.anchorCopied) : kind === 'row' ? '!' : strings.anchorFailed);
             say(ok ? strings.anchorCopiedAnnounce(nameOf(el)) : strings.anchorFailedAnnounce);
             button.dispatchEvent(new CustomEvent(ANCHOR_COPY_EVENT, { bubbles: true, detail: { id, url, text, markdown, ok } }));
             const timer = view.setTimeout(() => {
@@ -394,6 +492,7 @@ export function attachAnchors(root = document, options = {}) {
         // The page's rows come and go: a datatable draws them again on a sort.
         let scheduled = false;
         const observer = new MutationObserver(() => {
+            LAST_CHANGE.set(doc, Date.now());
             if (scheduled) return;
             scheduled = true;
             queueMicrotask(() => {
@@ -403,35 +502,18 @@ export function attachAnchors(root = document, options = {}) {
         });
         observer.observe(box, { childList: true, subtree: true });
 
-        // y then l on a focused row copies its link; listed in the ? sheet.
-        /** @type {(() => void) | null} */
-        let unregister = null;
-        void import('./shortcuts.js').then(({ registerShortcuts }) => {
-            if (!box.isConnected && !doc.contains(box)) return;
-            unregister = registerShortcuts(
-                box,
-                [
-                    {
-                        keys: 'y l',
-                        what: strings.anchorKeyCopy,
-                        group: strings.anchorKeyGroup,
-                        when: () => focusedRow() !== null,
-                        run: () => {
-                            const el = focusedRow();
-                            const button = el ? marks.get(el) : undefined;
-                            if (el && button) void copyLink(el, button);
-                        },
-                    },
-                ],
-                { dev: false },
-            );
-        });
+        // y then l on a focused row copies its link; listed in the ? sheet, once for the page however many containers there are.
         const focusedRow = () => {
             const active = doc.activeElement;
             if (!(active instanceof Element) || !box.contains(active)) return null;
             for (const el of marks.keys()) if (el.contains(active) && el.getAttribute('data-kp-anchored') === 'row') return el;
             return null;
         };
+        const releaseKey = serveCopyKey(doc, strings, () => {
+            const el = focusedRow();
+            const button = el ? marks.get(el) : undefined;
+            return el && button ? () => void copyLink(el, button) : null;
+        });
 
         REBUILD.set(box, () => {
             for (const [el, button] of marks) {
@@ -450,7 +532,7 @@ export function attachAnchors(root = document, options = {}) {
             view.removeEventListener('hashchange', arrive);
             observer.disconnect();
             REBUILD.delete(box);
-            unregister?.();
+            releaseKey();
             for (const t of timers) view.clearTimeout(t);
             window.clearTimeout(waitTimer);
             window.clearTimeout(litTimer);

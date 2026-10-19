@@ -1,3 +1,16 @@
+{#- kit-kp11 shell: one glyph per page id, drawn with currentColor. -#}
+{%- macro glyph(id) -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if id == "status" %}<path d="M3 12h4l3-7 4 14 3-7h4"/>
+{%- elif id == "clients" %}<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16.5 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c2 .7 3.2 2.4 3.5 5.2"/>
+{%- elif id == "passkeys" %}<circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v4M15 12v3"/>
+{%- elif id == "search" %}<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>
+{%- elif id == "messages" or id == "inbox" %}<path d="M4 5h16v11H8l-4 4z"/>
+{%- else %}<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 9v11"/>
+{%- endif -%}
+</svg>
+{%- endmacro -%}
+{%- set hints = {"status": "Version, health and updates", "clients": "The programs that call this service", "passkeys": "Ways to sign in"} -%}
 <!doctype html>
 <html lang="en" data-theme="formal">
 <head>
@@ -16,14 +29,25 @@
 <!-- kp-themes 4.0.0: .kp-nav needs this wrapper for its container query, or
      the narrow form never kicks in. The skip link stays outside it. -->
 <div class="kp-nav-wrap">
-<nav class="kp-nav">
+<nav class="kp-nav"{% if logged_in %} data-kp-nav-fold{% endif %} aria-label="Main">
   <a class="kp-nav__brand" href="{{ brand_href | default('/') }}">{{ brand_title | default(app_name) }}</a>
+  {% if logged_in %}
   <ul class="kp-nav__links">
     {% for item in nav %}
     <li><a class="kp-nav__link" href="{{ item.href }}"{% if item.href == active_nav %} aria-current="page"{% endif %}>{{ item.label }}</a></li>
     {% endfor %}
     {% block nav_extra %}{% endblock %}
   </ul>
+  {% else %}
+  <ul class="kp-nav__links" aria-hidden="true"></ul>
+  {% endif %}
+  {% if logged_in %}
+  <!-- kit-kp11: Search opens the palette (Ctrl or Cmd K); the word goes on a
+       phone and the icon stays. -->
+  <div class="kp-nav__search">
+    <button type="button" class="kp-nav__search-trigger" data-kp-palette-open="chassis-palette" aria-label="Search">{{ glyph("search") }}<span class="chassis-search-word">Search</span> <kbd class="kp-palette__keys" data-kp-palette-keys></kbd></button>
+  </div>
+  {% endif %}
   <!-- The shape @kp-soft/themes calls a theme menu: an icon button and a
        popover list; data-kp-theme-picker, data-kp-theme, kp-swatch and
        data-kp-theme-status are that package's contract values. Rendered
@@ -51,12 +75,19 @@
   </span>
   <p class="kp-m-0" data-kp-theme-status hidden></p>
   {% if logged_in and not open_dashboard %}
-  <form method="post" action="/logout" class="kp-m-0">
-    <button type="submit" class="kp-button">Log out</button>
+  <form method="post" action="/logout" class="kp-m-0 chassis-logout" id="chassis-logout" data-kp-form novalidate>
+    <div class="kp-form__summary" data-kp-form-summary tabindex="-1" hidden></div>
+    <button type="submit" class="kp-button" data-kp-submit data-kp-busy="Log out…">Log out</button>
   </form>
   {% endif %}
 </nav>
 </div>
+{% if logged_in %}
+<!-- kit-kp11: one line under the bar when the connection is gone or the
+     service refuses; it takes no room while all is well. chassis.js reports
+     what the page's own requests see. -->
+<div class="kp-connection" data-kp-connection data-kp-connection-source="app" data-kp-retry-delays="off"></div>
+{% endif %}
 
 <main id="main" class="kp-page">
 {% if open_dashboard %}
@@ -71,5 +102,57 @@
 {% endif %}
 {% block content %}{% endblock %}
 </main>
+{% if logged_in %}
+<!-- kit-kp11 shell: the search palette, the shortcut sheet and, on a phone,
+     the tab bar with its More drawer. Every page comes from the registry
+     (`nav`, `pages`); chassis.js adds the chords, the clients and the counts. -->
+<dialog class="kp-palette" data-kp-palette data-kp-hotkey="k" id="chassis-palette" aria-label="Search and commands" data-chassis-singular="{{ vocab.singular }}" data-chassis-plural="{{ vocab.plural }}">
+  <input class="kp-palette__input" type="text" role="combobox" aria-label="Search and commands" aria-expanded="false" aria-controls="chassis-palette-list" autocomplete="off" placeholder="Go to a page, or do something…">
+  <ul class="kp-palette__list" id="chassis-palette-list" role="listbox" aria-label="Search and commands">
+    <li role="presentation" class="kp-palette__group" data-kp-group data-chassis-group="go"><span class="kp-palette__group-label">Go to</span>
+      <ul role="group" aria-label="Go to">
+        {% for item in nav %}{% set page = pages[loop.index0] %}
+        <li role="presentation"><a class="kp-palette__option" role="option" data-kp-option data-kp-static data-value="go-{{ page.id }}" data-chassis-go="{{ page.id }}" href="{{ item.href }}">{{ item.label }}{% if hints[page.id] %}<span class="kp-palette__description">{{ hints[page.id] }}</span>{% endif %}</a></li>
+        {% endfor %}
+      </ul>
+    </li>
+    <li role="presentation" class="kp-palette__group" data-kp-group data-chassis-group="service"><span class="kp-palette__group-label">This service</span>
+      <ul role="group" aria-label="This service">
+        <li class="kp-palette__option" role="option" data-kp-option data-value="refresh">Refresh the status<span class="kp-palette__description">Read health and version again</span><kbd class="kp-palette__keys" data-kp-keys="r">r</kbd></li>
+        <li class="kp-palette__option" role="option" data-kp-option data-value="updates">Check for updates<span class="kp-palette__description">Look for a newer release</span></li>
+      </ul>
+    </li>
+    <li role="presentation" class="kp-palette__group" data-kp-group data-chassis-group="account"><span class="kp-palette__group-label">Account</span>
+      <ul role="group" aria-label="Account">
+        <li class="kp-palette__option" role="option" data-kp-option data-value="theme">Choose a theme</li>
+        {% if not open_dashboard %}<li class="kp-palette__option" role="option" data-kp-option data-value="logout">Log out</li>{% endif %}
+      </ul>
+    </li>
+  </ul>
+  <p class="kp-palette__status" role="status" aria-live="polite"></p>
+</dialog>
+<dialog class="kp-shortcuts" data-kp-shortcuts data-kp-shortcuts-live id="chassis-sheet" aria-labelledby="chassis-sheet-title">
+  <h2 class="kp-dialog__title" id="chassis-sheet-title">Keyboard shortcuts</h2>
+</dialog>
+<nav class="kp-tabbar chassis-tabbar" id="chassis-tabbar" aria-label="Areas">
+  {% for item in nav %}{% if loop.index <= 3 %}{% set page = pages[loop.index0] %}
+  <a class="kp-tabbar__tab" href="{{ item.href }}" data-kp-tab="{{ page.id }}"{% if item.href == active_nav %} aria-current="page"{% endif %}{% if page.id == "clients" and idle_clients %} data-kp-count="{{ idle_clients }}"{% endif %}><span class="kp-tabbar__icon">{{ glyph(page.id) }}</span><span class="kp-tabbar__label">{{ item.label }}</span>{% if page.id == "clients" and idle_clients %}<span class="kp-badge kp-tabbar__badge">{{ idle_clients }}</span>{% endif %}</a>
+  {% endif %}{% endfor %}
+  <button type="button" class="kp-tabbar__tab kp-tabbar__tab--more" data-kp-dialog="chassis-more"><span class="kp-tabbar__icon kp-tabbar__icon--more" aria-hidden="true"></span><span class="kp-tabbar__label">More</span></button>
+</nav>
+<dialog class="kp-drawer kp-dialog" id="chassis-more" aria-labelledby="chassis-more-title">
+  <header class="kp-drawer__head"><h2 class="kp-dialog__title" id="chassis-more-title">More</h2><button type="button" class="kp-icon-button kp-dialog__close" data-kp-dialog-close aria-label="Close">×</button><p class="kp-drawer__desc">The pages you need less often, and your session.</p></header>
+  <div class="kp-drawer__body"><div class="kp-menu kp-menu--rich" role="group" aria-label="More">
+    {% for item in nav %}{% if loop.index > 3 %}{% set page = pages[loop.index0] %}
+    <a class="kp-menu__item" href="{{ item.href }}"{% if item.href == active_nav %} aria-current="page"{% endif %}><span class="kp-menu__label">{{ item.label }}</span>{% if hints[page.id] %}<span class="kp-menu__hint">{{ hints[page.id] }}</span>{% endif %}</a>
+    {% endif %}{% endfor %}
+    <button type="button" class="kp-menu__item" data-chassis-run="theme"><span class="kp-menu__label">Choose a theme</span><span class="kp-menu__hint">Colours and feel of this dashboard</span></button>
+    {% if not open_dashboard %}<button type="submit" form="chassis-logout" class="kp-menu__item"><span class="kp-menu__label">Log out</span><span class="kp-menu__hint">End this session on this browser</span></button>{% endif %}
+  </div></div>
+</dialog>
+{% endif %}
+<!-- kit-kp11: one empty toast region for the kit and the app. The kit puts
+     nothing in it; mount kp toasts here so a screen reader announces them. -->
+<div id="chassis-toasts" class="kp-toasts" aria-live="polite"></div>
 </body>
 </html>

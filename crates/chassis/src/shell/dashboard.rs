@@ -24,9 +24,14 @@ use serde::Serialize;
 use crate::core::error::Error;
 use crate::shell::assets::{KP_THEMES_VERSION, asset_version};
 use crate::shell::auth::{AuthState, LoginForm, LoginOutcome, login};
+use crate::shell::client_list;
 use crate::shell::clients_api::ClientView;
 use crate::shell::health::Health;
 use crate::shell::store::Clients;
+
+mod sections;
+pub use sections::{Check, CheckState, FlashAction, JsonRender, Kpi, KpiTone, SectionBody};
+use sections::{Sample, UptimeHistory};
 
 /// One link in the top navigation.
 #[derive(Debug, Clone, Serialize)]
@@ -47,15 +52,114 @@ pub struct Section {
     pub html: Option<String>,
 }
 
+/// The module scripts and stylesheets a status section needs (kit-kp11).
+///
+/// Declared instead of writing `<script type=module>` / `<link>` into
+/// [`Section::html`]: the kit renders them once in the status page's
+/// `<head>`, in the order sections were registered, even when several
+/// sections name the same file. Every path must be same-origin and absolute
+/// (`/static/…`, `/app/orders.js`), because the kit's CSP is
+/// `script-src 'self'`; the project serves the file itself (a route from
+/// `dashboard_routes`, or a [`crate::shell::webapp`] mount). A path that is
+/// not a plain same-origin path is dropped and logged, never rendered.
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SectionAssets {
+    pub module_scripts: Vec<String>,
+    pub stylesheets: Vec<String>,
+}
+
+impl SectionAssets {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A JavaScript module to load with `<script type="module">`.
+    pub fn module_script(mut self, path: &str) -> Self {
+        self.module_scripts.push(path.to_string());
+        self
+    }
+
+    /// A stylesheet to load with `<link rel="stylesheet">`.
+    pub fn stylesheet(mut self, path: &str) -> Self {
+        self.stylesheets.push(path.to_string());
+        self
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.module_scripts.is_empty() && self.stylesheets.is_empty()
+    }
+}
+
+/// Is `path` a plain same-origin absolute path the CSP allows (`/…`, not
+/// `//host`, no scheme, no characters that could leave an attribute)?
+pub fn is_same_origin_asset_path(path: &str) -> bool {
+    path.starts_with('/')
+        && !path.starts_with("//")
+        && !path.contains("..")
+        && path
+            .chars()
+            .all(|c| c.is_ascii_graphic() && !matches!(c, '"' | '\'' | '<' | '>' | '\\' | '`'))
+}
+
+/// Merge what every section declared: valid paths only, each file once,
+/// first-registered order.
+pub(crate) fn merge_section_assets(all: &[SectionAssets]) -> SectionAssets {
+    fn push_unique(out: &mut Vec<String>, kind: &str, path: &str) {
+        if !is_same_origin_asset_path(path) {
+            tracing::warn!(
+                path,
+                kind,
+                "status section asset dropped: not a same-origin absolute path"
+            );
+        } else if !out.iter().any(|p| p == path) {
+            out.push(path.to_string());
+        }
+    }
+    let mut merged = SectionAssets::default();
+    for a in all {
+        for p in &a.module_scripts {
+            push_unique(&mut merged.module_scripts, "module script", p);
+        }
+        for p in &a.stylesheets {
+            push_unique(&mut merged.stylesheets, "stylesheet", p);
+        }
+    }
+    merged
+}
+
 /// What a project implements to put a section on the status page.
 pub trait StatusSection: Send + Sync {
     fn render(&self) -> Section;
+
+    /// Module scripts and stylesheets this section needs (kit-kp11); see
+    /// [`SectionAssets`]. A default so every existing section compiles.
+    fn assets(&self) -> SectionAssets {
+        SectionAssets::default()
+    }
 
     /// Buttons under the section's rows (K29): each one POSTs to a route
     /// the project registered with `dashboard_routes`. A default so every
     /// existing section keeps compiling; Almanac's "Reload profiles from
     /// disk" form becomes one `SectionAction`.
     fn actions(&self) -> Vec<SectionAction> {
+        Vec::new()
+    }
+
+    /// The section's body as data (kit-kp11): a table, key figures, check
+    /// rows or a card that reads its own JSON. When this returns `Some`, it
+    /// replaces [`Section::rows`]; [`Section::html`] is still rendered
+    /// after it, as the escape hatch. A default so every existing section
+    /// compiles and looks as before.
+    fn body(&self) -> Option<SectionBody> {
+        None
+    }
+
+    /// Buttons under the section that do their work without leaving the
+    /// page (kit-kp11): a spinner, a short word and a toast that can carry
+    /// a count. See [`FlashAction`]; [`StatusSection::actions`] keeps its
+    /// reload.
+    fn flash_actions(&self) -> Vec<FlashAction> {
         Vec::new()
     }
 }
@@ -379,8 +483,33 @@ pub struct Dashboard {
     pub auth: AuthState,
     /// The service opted in and runs without secrets: no door, a banner.
     pub open: bool,
+    /// kit-kp11: the curl line with `$CLIENT_TOKEN` where the token goes,
+    /// for `/api/kit/clients`. Private so the public surface stays as it was.
+    command_template: Arc<str>,
+    /// kit-kp11 (clients-manage): the test route's body, which the Test it
+    /// field starts with, and whether it is JSON (the field's Format and
+    /// Minify tools only make sense then).
+    test_body: Arc<str>,
+    test_json: bool,
     env: Arc<Environment<'static>>,
+    /// The last 48 hours of health, one sample per check (kit-kp11); in
+    /// memory only.
+    uptime: UptimeHistory,
+    /// Where the Clients page lives, when the kit serves one.
+    clients_href: Option<String>,
+    /// One read-only look at the release host, when a checker exists.
+    check_update: Option<UpdateCheck>,
+    /// `https://github.com/<repository>`, for the release notes link of a
+    /// version chip.
+    repository_url: Option<String>,
 }
+
+/// The "Check for updates" button's work.
+pub(crate) type UpdateCheck = Arc<
+    dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Error>> + Send>>
+        + Send
+        + Sync,
+>;
 
 impl Dashboard {
     #[allow(clippy::too_many_arguments)]
@@ -445,12 +574,32 @@ impl Dashboard {
         // feat-ui-1: every template renders a timestamp through this, so
         // there is one place that decides what a reader sees.
         env.add_filter("human_time", |v: String| crate::shell::time::human_time(&v));
+        // kit-kp11: dd/mm/yyyy HH:mm, 24 hours (UI principles, rule 52); the
+        // page shows it in the reader's zone once the script has run.
+        env.add_filter("kit_when", |v: String| sections::when_words(&v));
         env.add_global("app_name", app_name);
         env.add_global("open_dashboard", open);
         env.add_global("prefix", prefix.clone());
         env.add_global("assets", asset_version());
         env.add_global("themes", minijinja::Value::from_serialize(themes()));
         env.add_global("nav", minijinja::Value::from_serialize(&kit_nav));
+        // kit-kp11: the shell reads each navigation entry's page id from
+        // `pages`, entry for entry (with_pages replaces both from the registry).
+        env.add_global(
+            "pages",
+            minijinja::Value::from_serialize(
+                kit_nav
+                    .iter()
+                    .map(|n| {
+                        let id = match n.href.as_str() {
+                            "/" => "status",
+                            other => other.trim_matches('/'),
+                        };
+                        serde_json::json!({ "id": id, "title": n.label, "path": n.href })
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+        );
         env.add_global("chassis_version", crate::VERSION);
         env.add_global("kp_themes_version", KP_THEMES_VERSION);
         env.add_global("clients_label", clients_label.clone());
@@ -482,8 +631,73 @@ impl Dashboard {
             clients,
             auth,
             open,
+            command_template: Arc::from(""),
+            test_body: Arc::from(""),
+            test_json: false,
             env: Arc::new(env),
+            uptime: UptimeHistory::default(),
+            clients_href: Some("/clients".to_string()),
+            check_update: None,
+            repository_url: None,
         })
+    }
+
+    /// kit-kp11: where the service's releases are described, from
+    /// `AppSpec::repository`.
+    pub(crate) fn with_repository(mut self, repository: Option<&str>) -> Self {
+        self.repository_url = repository
+            .filter(|r| r.split('/').count() == 2)
+            .map(|r| format!("https://github.com/{r}"));
+        self
+    }
+
+    /// kit-kp11: the checker behind "Check for updates".
+    pub(crate) fn with_update_check(mut self, check: Option<UpdateCheck>) -> Self {
+        self.check_update = check;
+        self
+    }
+
+    /// kit-kp11: keep the availability strip: one sample now, then one every
+    /// five minutes for as long as the service runs.
+    pub(crate) fn spawn_uptime_sampler(&self) {
+        let d = self.clone();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(300));
+            loop {
+                tick.tick().await;
+                d.sample_health().await;
+            }
+        });
+    }
+
+    /// Read the health once and note it in the history.
+    async fn sample_health(&self) -> crate::shell::health::Report {
+        let report = self.health.report().await;
+        self.note_report(&report);
+        report
+    }
+
+    fn note_report(&self, report: &crate::shell::health::Report) {
+        let (parts, failing) = match report.subsystems.as_object() {
+            Some(map) => (map.len(), map.values().filter(|v| v["ok"] == false).count()),
+            None => (0, 0),
+        };
+        self.uptime
+            .record(Sample::from_report(report.status == "ok", parts, failing));
+    }
+
+    /// kit-kp11: the command a program is wired up with, token as
+    /// `$CLIENT_TOKEN` (see `clients_api::command_template`).
+    pub(crate) fn with_command_template(mut self, template: String) -> Self {
+        self.command_template = Arc::from(template);
+        self
+    }
+
+    /// kit-kp11 (clients-manage): what the Test it field starts with.
+    pub(crate) fn with_test_body(mut self, body: String, content_type: &str) -> Self {
+        self.test_json = content_type.to_ascii_lowercase().contains("json");
+        self.test_body = Arc::from(body);
+        self
     }
 
     /// K28: what this service calls a client, for every template
@@ -508,8 +722,27 @@ impl Dashboard {
                 href: p.path.clone(),
             })
             .collect();
+        self.clients_href = set
+            .pages
+            .iter()
+            .find(|p| p.id == "clients")
+            .map(|p| p.path.clone());
         let env = Arc::make_mut(&mut self.env);
         env.add_global("nav", minijinja::Value::from_serialize(&self.nav));
+        env.add_global(
+            "pages",
+            minijinja::Value::from_serialize(
+                set.pages
+                    .iter()
+                    .filter(|p| p.nav)
+                    .map(|p| {
+                        serde_json::json!({
+                            "id": p.id, "title": p.title, "path": p.path, "group": p.group,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+        );
         env.add_global("brand_href", set.brand.href.clone());
         env.add_global("brand_title", set.brand.title.clone());
         self
@@ -540,6 +773,7 @@ impl Dashboard {
         let own = minijinja::Value::from_serialize(&ctx);
         let full = context! {
             logged_in => true,
+            idle_clients => self.idle_clients(),
             active_nav => active_nav,
             ..own
         };
@@ -549,20 +783,49 @@ impl Dashboard {
     /// CF-7: a refusal shown to a browser as a page in the layout — the
     /// kit's error and remedy, with the navigation around it and a way
     /// back — instead of a JSON document on its own tab.
+    ///
+    /// kit-kp11: the page also says why in plain words, draws the kind of
+    /// error, carries the request id to quote in a report, and draws the
+    /// navigation when the browser is signed in. The id and the session
+    /// come from [`crate::shell::http::error_context`], set for this call.
     pub fn render_error(&self, status: StatusCode, message: &str, remedy: &str) -> Option<String> {
+        let ctx = crate::shell::http::error_context();
+        let signed_in = crate::shell::auth::still_valid_now(&self.auth, &ctx.headers);
+        let (art, why) = error_look(status);
         self.render(
             "error.html",
             context! {
-                logged_in => false,
+                logged_in => signed_in,
+                idle_clients => if signed_in { self.idle_clients() } else { 0 },
                 active_nav => "",
                 status => status.as_u16(),
                 reason => status.canonical_reason().unwrap_or(""),
-                message => message,
-                remedy => remedy,
+                message => capitalised(message),
+                remedy => sentence(remedy),
+                why => why,
+                art => art,
+                request_id => ctx.request_id,
+                when => crate::shell::time::now_rfc3339(),
             },
         )
         .ok()
         .map(|h| h.0)
+    }
+
+    /// kit-kp11: how many clients are idle, the number on the Clients tab.
+    /// The same figure as `counts.idle` on the Clients page (one rule, in
+    /// `client_list`), written into the page by the server so the bar never
+    /// waits on a read.
+    fn idle_clients(&self) -> usize {
+        let now = chrono::Utc::now();
+        let views: Vec<ClientView> = self
+            .clients
+            .snapshot()
+            .clients
+            .iter()
+            .map(ClientView::from)
+            .collect();
+        client_list::counts(views.iter().map(|v| (client_list::standing(v, now).0, v))).idle
     }
 
     fn render(&self, name: &str, ctx: minijinja::Value) -> Result<Html<String>, Error> {
@@ -579,6 +842,9 @@ impl Dashboard {
                 error => error,
                 remember_me_days => self.remember_me_days,
                 passkeys => self.passkeys_enabled && https,
+                // The login page says what the service is before anyone is in.
+                version => self.version,
+                started_at => self.started_at,
             },
         )
     }
@@ -598,12 +864,55 @@ impl Dashboard {
             "passkeys.html",
             context! {
                 logged_in => true,
+                idle_clients => self.idle_clients(),
                 active_nav => "/passkeys",
                 https => https,
                 public_url => self.public_url,
                 passkeys => passkeys,
             },
         )
+    }
+}
+
+/// The kit writes its errors and remedies as lowercase fragments for a log
+/// line and a JSON body; on a page they open a sentence.
+fn capitalised(text: &str) -> String {
+    let text = text.trim();
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
+/// [`capitalised`] and closed with a full stop; empty stays empty.
+fn sentence(text: &str) -> String {
+    let mut out = capitalised(text);
+    if !out.is_empty() && !out.ends_with(['.', '!', '?']) {
+        out.push('.');
+    }
+    out
+}
+
+/// kit-kp11: the drawing and the plain reason an error page shows for a
+/// status. The reason says what kind of thing happened, never an id or a
+/// raw error; the kit's own remedy follows it on the page.
+fn error_look(status: StatusCode) -> (&'static str, &'static str) {
+    match status.as_u16() {
+        401 => ("locked", "You are not signed in, or the session has ended."),
+        403 => (
+            "locked",
+            "The request came from an address or a page this service does not trust.",
+        ),
+        404 => (
+            "nomatch",
+            "It was moved or removed, or the address is not right.",
+        ),
+        413 => ("error", "The request is larger than this service accepts."),
+        429 => ("offline", "Too many requests came in a short time."),
+        502..=504 => ("offline", "A part this service needs did not answer."),
+        500..=599 => ("error", "Something went wrong on the service’s side."),
+        _ => ("error", "The service could not accept the request as sent."),
     }
 }
 
@@ -662,6 +971,15 @@ struct SectionView {
     #[serde(flatten)]
     section: Section,
     actions: Vec<serde_json::Value>,
+    /// kit-kp11: the body as data, when the section declares one.
+    body: Option<SectionBody>,
+    flash_actions: Vec<serde_json::Value>,
+    /// The bodies the card draws, each as `{kind, data, sorts?}`.
+    parts: Vec<serde_json::Value>,
+    /// A readable id for the card, unique on the page.
+    slug: String,
+    /// Columns of twelve the card takes (see `sections::pack_spans`).
+    span: u8,
 }
 
 /// `GET /` — the status page (K17).
@@ -671,6 +989,7 @@ pub async fn status_page(State(d): State<Dashboard>) -> Result<Html<String>, Err
         "status.html",
         context! {
             logged_in => true,
+            idle_clients => d.idle_clients(),
             active_nav => "/status",
             ..minijinja::Value::from_serialize(&data)
         },
@@ -687,28 +1006,107 @@ pub async fn status_json(State(d): State<Dashboard>) -> Response {
         .into_response()
 }
 
+/// kit-kp11: `POST /api/kit/status/update-check`, one read-only look at the
+/// release host for the status page's "Check for updates" button. Answers
+/// what the card would now say.
+pub async fn update_check(State(d): State<Dashboard>) -> Response {
+    let Some(check) = d.check_update.clone() else {
+        return Error::config(
+            "this service has no release host to check",
+            "set update_url (or AppSpec.repository) and restart to look for new releases",
+        )
+        .into_response();
+    };
+    if let Err(e) = check().await {
+        return e.into_response();
+    }
+    let facts = sections::update_facts(d.version, &(d.update)(), true);
+    (
+        [(axum::http::header::CACHE_CONTROL, "no-store")],
+        axum::Json(serde_json::json!({
+            "running": d.version,
+            "latest": facts.latest,
+            "newer": facts.newer,
+            "last_check_at": facts.last_check_at,
+        })),
+    )
+        .into_response()
+}
+
 async fn status_data(d: &Dashboard) -> serde_json::Value {
-    let health = d.health.report().await;
+    let health = d.sample_health().await;
+    let rendered: Vec<Section> = d.sections.iter().map(|s| s.render()).collect();
+    let bodies: Vec<Option<SectionBody>> = d.sections.iter().map(|s| s.body()).collect();
+    let spans = sections::pack_spans(&bodies.iter().map(Option::as_ref).collect::<Vec<_>>());
     let sections: Vec<SectionView> = d
         .sections
         .iter()
-        .map(|s| SectionView {
-            section: s.render(),
+        .zip(rendered)
+        .zip(bodies)
+        .zip(spans)
+        .enumerate()
+        .map(|(i, (((s, section), body), span))| SectionView {
+            slug: sections::slug(&section.title, i),
+            section,
             actions: s.actions().iter().map(|a| a.view(None)).collect(),
+            parts: body
+                .as_ref()
+                .map(|b| {
+                    b.parts()
+                        .into_iter()
+                        .map(|p| {
+                            let mut v = serde_json::to_value(p).unwrap_or_default();
+                            v["sorts"] = serde_json::json!(p.column_sorts());
+                            v
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            body,
+            flash_actions: s.flash_actions().iter().map(FlashAction::view).collect(),
+            span,
         })
         .collect();
-    let problems = (d.problems)();
+    let declared: Vec<SectionAssets> = d.sections.iter().map(|s| s.assets()).collect();
+    let section_assets = merge_section_assets(&declared);
+    let problems = sections::problem_views((d.problems)());
     let update = (d.update)();
+    let update_facts = sections::update_facts(d.version, &update, d.check_update.is_some());
     let paused = crate::shell::backup::status_view();
+    let snap = d.clients.snapshot();
+    let parts = health.subsystems.as_object().map_or(0, |m| m.len());
+    let failing = health
+        .subsystems
+        .as_object()
+        .map_or(0, |m| m.values().filter(|v| v["ok"] == false).count());
+    let up_secs = chrono::DateTime::parse_from_rfc3339(&d.started_at)
+        .map(|t| {
+            (chrono::Utc::now() - t.with_timezone(&chrono::Utc))
+                .num_seconds()
+                .max(0) as u64
+        })
+        .unwrap_or(0);
     serde_json::json!({
         "version": d.version,
         "listen": d.listen,
         "started_at": d.started_at,
+        "up_for": sections::span_words(up_secs),
         "health": health,
+        "parts": { "total": parts, "failing": failing },
         "sections": sections,
+        "section_assets": section_assets,
         "problems": problems,
         "update": update,
+        "update_facts": update_facts,
         "backup": paused,
+        "uptime": d.uptime.periods(),
+        "repository_url": d.repository_url,
+        "clients": d.clients_href.as_ref().map(|href| serde_json::json!({
+            "href": href,
+            "label": d.vocab.plural_cap,
+            "active": snap.clients.iter().filter(|c| c.revoked_at.is_none()).count(),
+            "total": snap.clients.len(),
+        })),
     })
 }
 
@@ -724,6 +1122,20 @@ struct ClientRow {
     /// Empty on a revoked row — an action on a client that no longer has a
     /// token has nothing to act on.
     actions: Vec<serde_json::Value>,
+    /// kit-kp11: `in use`, `idle`, `new` or `revoked` (client_list).
+    state: client_list::Standing,
+    /// Days without a call; 0 unless `state` is `idle`.
+    idle_days: i64,
+    /// dd/mm/yyyy HH:mm, Europe/Brussels.
+    issued_display: String,
+    /// dd/mm/yyyy.
+    issued_date: String,
+    last_used_display: Option<String>,
+    /// `12 s ago`, `5 days ago`.
+    last_used_ago: Option<String>,
+    revoked_display: Option<String>,
+    /// dd/mm/yyyy.
+    revoked_date: Option<String>,
 }
 
 /// `GET /clients` — the clients page (K12, K13, K14).
@@ -733,6 +1145,7 @@ pub async fn clients_page(State(d): State<Dashboard>) -> Result<Html<String>, Er
         "clients.html",
         context! {
             logged_in => true,
+            idle_clients => d.idle_clients(),
             active_nav => "/clients",
             ..minijinja::Value::from_serialize(&data)
         },
@@ -748,13 +1161,35 @@ pub async fn clients_json(State(d): State<Dashboard>) -> Response {
         .into_response()
 }
 
+/// The distinct, filled-in values of one declared field, in the order given.
+fn usual_values<'a>(values: impl Iterator<Item = &'a str>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for v in values {
+        if !v.is_empty() && v != "—" && !out.iter().any(|o| o == v) {
+            out.push(v.to_string());
+        }
+    }
+    out
+}
+
+/// The path a client calls (`/v1/messages`): the last word of the curl line in
+/// `command_template`, without its scheme and host.
+fn calls_path(template: &str) -> String {
+    let url = template.split_whitespace().last().unwrap_or("");
+    let rest = url.split_once("://").map_or(url, |(_, r)| r);
+    rest.find('/')
+        .map_or_else(|| "/".to_string(), |i| rest[i..].to_string())
+}
+
 fn clients_data(d: &Dashboard) -> serde_json::Value {
     let snap = d.clients.snapshot();
+    let now = chrono::Utc::now();
     let rows: Vec<ClientRow> = snap
         .clients
         .iter()
         .map(|c| {
             let view = ClientView::from(c);
+            let (state, idle_days) = client_list::standing(&view, now);
             // feat-clients-2: one cell per declared field, before the
             // project's own columns. The project declared the field, so the
             // kit shows it back without being asked. The template renders
@@ -780,6 +1215,17 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
                 Vec::new()
             };
             ClientRow {
+                issued_display: client_list::brussels(&view.issued_at),
+                issued_date: client_list::brussels_date(&view.issued_at),
+                last_used_display: view.last_used_at.as_deref().map(client_list::brussels),
+                last_used_ago: view
+                    .last_used_at
+                    .as_deref()
+                    .map(|t| client_list::ago_words(t, now)),
+                revoked_display: view.revoked_at.as_deref().map(client_list::brussels),
+                revoked_date: view.revoked_at.as_deref().map(client_list::brussels_date),
+                state,
+                idle_days,
                 view,
                 declared,
                 extra,
@@ -787,12 +1233,33 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
             }
         })
         .collect();
+    let counts = client_list::counts(rows.iter().map(|r| (r.state, &r.view)));
+    // A project column sorts as a number only when every cell is one.
     let columns: Vec<serde_json::Value> = d
         .columns
         .iter()
-        .map(|c| serde_json::json!({ "title": c.title() }))
+        .enumerate()
+        .map(|(i, c)| {
+            let numeric = !rows.is_empty()
+                && rows.iter().all(|r| {
+                    r.extra
+                        .get(i)
+                        .is_some_and(|cell| cell.trim().parse::<f64>().is_ok())
+                });
+            serde_json::json!({ "title": c.title(), "numeric": numeric })
+        })
+        .collect();
+    // kit-kp11 (clients-issue): the values each declared field already holds,
+    // most recent first, for the "used before" list of its combobox.
+    let form_usual: Vec<Vec<String>> = (0..d.form_fields.len())
+        .map(|i| usual_values(rows.iter().rev().map(|r| r.declared[i].as_str())))
         .collect();
     serde_json::json!({
+        "counts": counts,
+        "idle_after_days": client_list::IDLE_AFTER_DAYS,
+        "command_template": &*d.command_template,
+        "calls_path": calls_path(&d.command_template),
+        "form_usual": form_usual,
         "clients": rows,
         "declared_columns": d
             .form_fields
@@ -805,6 +1272,8 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
         "capture_body_bytes": d.capture_body_bytes,
         "capture_ttl_minutes": d.capture_ttl_minutes,
         "has_test_route": d.has_test_route,
+        "test_body": &*d.test_body,
+        "test_json": d.test_json,
     })
 }
 
@@ -812,13 +1281,169 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
 mod tests {
     use super::*;
 
+    /// kit-kp11: one empty live toast region in the layout, and the ready
+    /// signal in chassis.js (event plus promise).
+    #[test]
+    fn layout_has_one_toast_region_and_chassis_js_signals_ready() {
+        let layout = include_str!("../../templates/layout.html");
+        assert_eq!(layout.matches("id=\"chassis-toasts\"").count(), 1);
+        assert!(layout.contains(
+            "<div id=\"chassis-toasts\" class=\"kp-toasts\" aria-live=\"polite\"></div>"
+        ));
+        let js = include_str!("../../static/chassis.js");
+        assert!(js.contains("'chassis:ready'") && js.contains("window.chassis"));
+    }
+
+    /// kit-kp11: an error page's sentences open with a capital and close with
+    /// a stop, the drawing and the plain reason follow the status.
+    #[test]
+    fn error_pages_read_as_sentences_with_a_drawing_per_kind() {
+        assert_eq!(sentence("log in again"), "Log in again.");
+        assert_eq!(sentence("Try later!"), "Try later!");
+        assert_eq!(sentence(""), "");
+        assert_eq!(capitalised(" no client with id x"), "No client with id x");
+        for (code, art) in [
+            (401, "locked"),
+            (403, "locked"),
+            (404, "nomatch"),
+            (500, "error"),
+            (503, "offline"),
+        ] {
+            let (found, why) = error_look(StatusCode::from_u16(code).unwrap());
+            assert_eq!(found, art, "{code}");
+            assert!(why.ends_with('.'), "{code}: {why}");
+        }
+    }
+
+    /// kit-kp11: the shell's palette and shortcuts find the clients page's
+    /// actions through these hooks, and the figures stay exact filters.
+    #[test]
+    fn the_calls_path_is_the_end_of_the_command_template() {
+        assert_eq!(
+            calls_path("curl -sS -H \"A: B $CLIENT_TOKEN\" -d '{}' http://127.0.0.1:9/v1/messages"),
+            "/v1/messages"
+        );
+        assert_eq!(calls_path(""), "/");
+        assert_eq!(
+            usual_values(["b", "—", "", "a", "b"].into_iter()),
+            vec!["b".to_string(), "a".to_string()]
+        );
+    }
+
+    /// kit-kp11 (clients-issue, approved): one dialog on the 12-column grid
+    /// with the form card, the live client card, the secret and the command
+    /// block; a flash button is never set to grow by hand.
+    #[test]
+    fn the_issue_dialog_keeps_its_approved_parts() {
+        let html = include_str!("../../templates/clients.html");
+        let css = include_str!("../../static/chassis.css");
+        for part in [
+            "id=\"issue-dialog\"",
+            "kp-dialog--wide issue-dialog",
+            "grid-template-rows: subgrid",
+            "data-kp-usual=",
+            "data-kp-secret",
+            "data-issue-command",
+            "Copy with the token filled in",
+            "data-issue-pane=\"result\"",
+            "class=\"kp-formgrid issue-form\"",
+        ] {
+            assert!(
+                html.contains(part) || css.contains(part),
+                "the issue dialog lost {part}"
+            );
+        }
+        assert!(
+            !html.contains("data-kp-width=\"grow\""),
+            "a flash button's width is the package's to grow"
+        );
+    }
+
+    /// kit-kp11 (clients-manage, round 3, approved): one dialog per client on
+    /// the 12-column composition, built from kp-themes parts used as the
+    /// package documents them; nothing hand-built stands in for them.
+    #[test]
+    fn the_manage_dialog_keeps_its_approved_parts() {
+        let html = include_str!("../../templates/clients.html");
+        let css = include_str!("../../static/chassis.css");
+        let js = include_str!("../../static/chassis.js");
+        for part in [
+            "kp-dialog kp-dialog--wide manage-dialog",
+            "data-kp-secret data-kp-secret-ttl=",
+            "data-kp-command=\"bash\"",
+            "data-kp-json=",
+            "data-kp-requests data-kp-requests-open=\"failed\"",
+            "data-kp-confirm-type=\"{{ c.name }}\"",
+            "manage-danger__acts",
+            "class=\"kp-formgrid manage-test__grid\"",
+        ] {
+            assert!(html.contains(part), "the manage dialog lost {part}");
+        }
+        for part in [".manage-grid {", "@container managed (max-width: 39.99rem)"] {
+            assert!(css.contains(part), "chassis.css lost {part}");
+        }
+        for part in [
+            "kp-secret-request",
+            "setRequests(",
+            "bodyBytes: c.body_bytes",
+            "runFlashButton",
+        ] {
+            assert!(js.contains(part), "chassis.js lost {part}");
+        }
+        // The hand-built request log, token line and copy/busy code are gone.
+        for gone in [
+            "renderRequests",
+            "data-copy-token",
+            "data-reveal",
+            "token-line",
+            "client-dialog",
+        ] {
+            assert!(
+                !html.contains(gone) && !css.contains(gone) && !js.contains(gone),
+                "{gone} came back"
+            );
+        }
+    }
+
+    #[test]
+    fn the_clients_page_carries_the_command_hooks() {
+        let html = include_str!("../../templates/clients.html");
+        for hook in [
+            "data-chassis-command=\"filter-idle\"",
+            "data-chassis-command=\"search\"",
+            "data-chassis-command=\"issue\"",
+            "data-manage=\"{{ c.id }}\"",
+        ] {
+            assert!(html.contains(hook), "clients.html lost {hook}");
+        }
+        assert!(html.contains("{{ counts.idle }}") && !html.contains("9+"));
+    }
+
+    #[test]
+    fn section_assets_merge_once_in_order_and_refuse_foreign_paths() {
+        let a = SectionAssets::new()
+            .module_script("/app/a.js")
+            .stylesheet("/app/a.css");
+        let b = SectionAssets::new()
+            .module_script("/app/b.js")
+            .module_script("/app/a.js")
+            .module_script("https://evil.example/x.js")
+            .module_script("//evil.example/x.js")
+            .module_script("/a\"onload=\"x")
+            .module_script("/../etc/passwd")
+            .stylesheet("/app/a.css");
+        let m = merge_section_assets(&[a, b]);
+        assert_eq!(m.module_scripts, ["/app/a.js", "/app/b.js"]);
+        assert_eq!(m.stylesheets, ["/app/a.css"]);
+    }
+
     #[test]
     fn theme_list_comes_from_the_vendored_registry() {
         let t = themes();
         assert_eq!(
             t.len(),
             12,
-            "kp-themes 11.0.0 ships exactly 12 themes (10.0.0 removed lapis, shade-light and shade-dark; 10.1.0 removed high-contrast, sepia and retro; 11.0.0 removed terminal, phantom, light and grotesk); the vendored registry is pinned"
+            "kp-themes 11.1.1 ships exactly 12 themes (10.0.0 removed lapis, shade-light and shade-dark; 10.1.0 removed high-contrast, sepia and retro; 11.0.0 removed terminal, phantom, light and grotesk); the vendored registry is pinned"
         );
         assert_eq!(t[0].name, "formal");
         assert_eq!(t[0].label, "Formal");
@@ -853,8 +1478,14 @@ mod tests {
                 include_str!("../../templates/passkeys.html"),
             ),
         ] {
+            // kp-themes 11 pages say what they do in a `.kp-lede` (kit-kp11).
             assert!(
-                src.contains("class=\"explain\""),
+                src.contains("class=\"explain\"")
+                // The status page opens on kp-themes' own page header and
+                // ledes (kit-kp11), which say the same thing in the
+                // package's words.
+                || src.contains("kp-page-header__description")
+                || src.contains("kp-lede"),
                 "{name} lacks an explain block"
             );
         }

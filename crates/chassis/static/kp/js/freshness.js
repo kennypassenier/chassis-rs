@@ -24,6 +24,16 @@
 //   - `data-kp-stale-after="<seconds>"`: older than that, the element gets
 //     `data-kp-stale`, which the stylesheet draws as a warning plate with a
 //     shadow, so turning stale moves nothing.
+//   - `data-kp-stale-tone="calm"` [audhd-opts-1019]: a stale line is drawn as a quiet plate (the muted ground and the
+//     ordinary ink, no warning colour) instead of the amber one, for data that is old on purpose (a frozen recipe, an
+//     archive) and where "stale" is not a fault. The same size and shadow edge, so the tone changes no size either;
+//     CSS only, so it follows the attribute at runtime. Knobs: `--kp-ago-calm-bg`, `--kp-ago-calm-fg`.
+//   - `data-kp-ago-units="days"` [audhd-opts-1019]: from one day on the line counts whole days and nothing else, "frozen
+//     97 days ago" instead of "frozen 97 days 4 h ago" (the hours of a long age are noise); under a day it reads as
+//     always ("5 h", "3 h 12 min"), so a fresh line is still exact. No value is the two-largest-units reading above. It
+//     follows the attribute at runtime (the line watches it, with its other options).
+//   - `data-kp-ago-bare`: no verb at all, "12 s ago" instead of "updated 12 s ago", for a line that stands in a column of its
+//     own (the activity feed's time, js/feed.js) [gap-activity-feed-1019].
 //   - Its width: the line reserves (`min-inline-size`) the widest text its
 //     current unit can reach ("updated 59 min 59 s ago" under an hour), so
 //     a unit change does not push its neighbours; `data-kp-ago-width="14ch"`
@@ -52,20 +62,26 @@ export const FRESHNESS_TIME_ZONE = 'Europe/Brussels';
 /**
  * A span of seconds in the units a person reads best: seconds under a
  * minute, minutes and seconds under an hour, hours and minutes under a day,
- * days and hours beyond; a zero second part is left out ("2 min").
+ * days and hours beyond; a zero second part is left out ("2 min"). With
+ * `units: 'days'` a span of a day or more is whole days only ("97 days").
  * @param {number} seconds
  * @param {Strings} [strings]
+ * @param {'days' | undefined} [units]
  * @returns {string}
  */
-export function humanDuration(seconds, strings = getStrings()) {
+export function humanDuration(seconds, strings = getStrings(), units = undefined) {
     const d = Math.max(0, Math.round(Number.isFinite(seconds) ? seconds : 0));
     /** @param {string} big @param {number} small @param {(n: number) => string} unit */
     const pair = (big, small, unit) => (small === 0 ? big : `${big} ${unit(small)}`);
     if (d < 60) return strings.agoSeconds(d);
     if (d < 3600) return pair(strings.agoMinutes(Math.floor(d / 60)), d % 60, strings.agoSeconds);
     if (d < 86400) return pair(strings.agoHours(Math.floor(d / 3600)), Math.floor((d % 3600) / 60), strings.agoMinutes);
+    if (units === 'days') return strings.agoDays(Math.floor(d / 86400));
     return pair(strings.agoDays(Math.floor(d / 86400)), Math.floor((d % 86400) / 3600), strings.agoHours);
 }
+
+/** The units option of a line: `days`, or none. @param {Element} el @returns {'days' | undefined} */
+const unitsOf = (el) => (el.getAttribute('data-kp-ago-units') === 'days' ? 'days' : undefined);
 
 /**
  * The line's words: "updated 12 s ago", or "not updated yet" with no moment.
@@ -74,11 +90,12 @@ export function humanDuration(seconds, strings = getStrings()) {
  * @param {number | null | undefined} atMs
  * @param {number} nowMs
  * @param {Strings} [strings]
+ * @param {'days' | undefined} [units] `days`: a day or more reads as whole days
  * @returns {string}
  */
-export function agoText(verb, atMs, nowMs, strings = getStrings()) {
+export function agoText(verb, atMs, nowMs, strings = getStrings(), units = undefined) {
     if (atMs == null || !Number.isFinite(atMs)) return strings.agoNever(verb);
-    return strings.agoText(verb, humanDuration(Math.max(0, Math.floor((nowMs - atMs) / 1000)), strings));
+    return strings.agoText(verb, humanDuration(Math.max(0, Math.floor((nowMs - atMs) / 1000)), strings, units));
 }
 
 /** @type {Map<string, Intl.DateTimeFormat>} */
@@ -161,13 +178,13 @@ const defaultContext = () => ({ timeZone: FRESHNESS_TIME_ZONE, now: () => Date.n
 /**
  * The widest text the line's current unit can reach: under an hour
  * "59 min 59 s", under a day "23 h 59 min", beyond that "99 days 23 h".
- * @param {string} verb @param {number | null} at @param {number} now @param {Strings} strings
+ * @param {string} verb @param {number | null} at @param {number} now @param {Strings} strings @param {'days' | undefined} units
  */
-function widest(verb, at, now, strings) {
-    if (at == null) return strings.agoNever(verb);
+function widest(verb, at, now, strings, units) {
+    if (at == null) return strings.agoNever(verb || strings.agoVerb);
     const age = Math.max(0, (now - at) / 1000);
     const top = age < 3600 ? 3599 : age < 86400 ? 86399 : 99 * 86400 + 23 * 3600;
-    return strings.agoText(verb, humanDuration(top, strings));
+    return strings.agoText(verb, humanDuration(top, strings, units)).trim();
 }
 
 /**
@@ -215,15 +232,17 @@ function paint(el, ctx) {
     const strings = resolveStrings(ctx.overrides);
     const now = ctx.now();
     const at = momentOf(el);
-    const verb = el.getAttribute('data-kp-ago-verb') || strings.agoVerb;
-    const text = agoText(verb, at, now, strings);
+    // A bare line has no verb ("12 s ago"); with no moment yet it falls back to the dictionary's, so "not updated yet" stays a sentence.
+    const verb = el.hasAttribute('data-kp-ago-bare') ? '' : el.getAttribute('data-kp-ago-verb') || strings.agoVerb;
+    const units = unitsOf(el);
+    const text = agoText(verb || (at == null ? strings.agoVerb : ''), at, now, strings, units).trim();
     let state = states.get(el);
     if (!state) {
         state = { at: undefined, sample: '', stale: null };
         states.set(el, state);
     }
     // Width first, while the old text is still there: only when the unit changed.
-    const sample = widest(verb, at, now, strings);
+    const sample = widest(verb, at, now, strings, units);
     if (sample !== state.sample) {
         state.sample = sample;
         reserve(el, sample);
@@ -361,7 +380,7 @@ export function attachAgo(root = document, { timeZone = FRESHNESS_TIME_ZONE, now
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ['datetime', 'data-kp-ago', 'data-kp-ago-verb', 'data-kp-stale-after', 'data-kp-ago-width'],
+        attributeFilter: ['datetime', 'data-kp-ago', 'data-kp-ago-verb', 'data-kp-stale-after', 'data-kp-ago-width', 'data-kp-ago-units', 'data-kp-ago-bare'],
     });
     // A theme's face changes the widths: measure again.
     // A theme's face, or a face that arrives late, changes the widths:

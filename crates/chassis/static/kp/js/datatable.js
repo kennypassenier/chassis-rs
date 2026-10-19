@@ -79,7 +79,16 @@
 //                            ="click": a plain click adds it, Shift + click sorts on it alone
 //   data-kp-column-menu      a menu of columns, the key column locked
 //   data-kp-expandable       a button opens a detail row the consumer supplies
+//                            The toggle is a column of its own, the first: every column number the handle takes or
+//                            gives (sort, scope, filter, hideColumns, view().sorts) counts it, so the first data
+//                            column of an expandable table is 1, not 0 [b3b4-1019].
 //   data-kp-fixed-columns    the key column stays while the box scrolls sideways
+//   data-kp-fixed-end="n"    the last n columns stay at the end while the box scrolls sideways (an action column) [datatable-r5-1019, O22]
+//   data-kp-filter-ui="none" the header filters stay (handle.filter, the view, events) but the table draws no Filters button,
+//                            panel, "+ Add filter" or pills: the page draws its own (chips) [datatable-r5-1019, O22]
+//   data-kp-cards            on a phone the rows become cards: a label track and a value track that every line of a card shares;
+//                            a cell without data-label gets the header's words [datatable-r5-1019, B2, N20]
+//                            ="spread" keeps the older look: label left, value pushed right
 //   data-kp-server           the rows come from the consumer's `load`, stale answers dropped
 //   th data-kp-edit          a value is edited in its cell; the app hears it and may refuse it
 //   td data-kp-sort-value    the value a cell sorts and range/date-filters by in place of the text it shows
@@ -103,7 +112,7 @@
 // And three for the homelab hand-off [J2, scope-143], each off until the
 // markup asks for it:
 //
-//   data-kp-expand-single      opening one row closes the row that was open
+//   data-kp-expand-single      opening one row closes the row that was open (read again when the attribute changes)
 //   tr data-kp-row-group="g"   a heading row that folds the rows marked
 //                              data-kp-group-of="g"; a sort orders the rows
 //                              within their group, the groups keep their place
@@ -118,7 +127,9 @@
 // both.
 
 import { getStrings } from './strings.js';
-import { collator, parseNumber, resolveLocale } from './locale.js';
+import { scrollersAround, seenAcross } from './busy-card.js';
+import { watchOptions } from './live-options.js';
+import { collator, formatDate, parseNumber, resolveLocale } from './locale.js';
 import { attachTableRegions } from './tables.js';
 import { attachDatePickers, datePicker, DATE_EVENT } from './datepicker.js';
 import { attachSelect, drawsSelect } from './combobox.js';
@@ -162,6 +173,12 @@ const ROW_CONTROLS =
     'a[href], button, input, select, textarea, label, summary, details, [contenteditable=""], [contenteditable="true"], [role="button"], [role="link"], [role="checkbox"], [role="switch"], [role="menuitem"], [tabindex]:not([tabindex="-1"])';
 /** A detail row, directly after the row it belongs to. */
 export const DETAIL = '[data-kp-row-detail]';
+/**
+ * A row the page holds out of the table for a while (an Undo window): `<tr data-kp-row-hidden>`. The table does not count
+ * it, page it, search it or show it, and never un-hides it; the page takes the attribute off to give it back
+ * [b3b4-1019; kyu gap 28].
+ */
+export const HELD_ROW = '[data-kp-row-hidden]';
 const EDIT_CELL = '[data-kp-edit-cell]';
 const EDIT_VALUE = '[data-kp-edit-value]';
 const EDITOR_WRAP = '[data-kp-datatable-editor-wrap]';
@@ -178,7 +195,7 @@ const CHECK_CLASS = 'kp-field__check';
 /** @typedef {'comfortable' | 'compact'} Density */
 /** @typedef {'text' | 'number' | 'select' | 'date'} EditKind */
 /**
- * @typedef {{ shown: number, total: number, page: number, pages: number, pageSize: number, query: string, scope: number | null,
+ * @typedef {{ shown: number, total: number, page: number, pageNumber: number, pages: number, pageSize: number, query: string, scope: number | null,
  *   filters: Record<number, FilterValue>, sort: Sort, sorts: SortKey[], hidden: number[], expanded: string[], density: Density, state: State,
  *   keys: string[], pageKeys: string[], folded: string[] }} View
  */
@@ -332,6 +349,22 @@ export function filterActive(kind, value) {
 }
 
 /**
+ * A filter bound as the reader writes it [b3b4-1019; homelab gap 33]. A date bound is held as ISO (`2026-10-03`) so the
+ * filter compares it exactly, but a pill, an error and a screen reader say it the way the two date pickers beside it write
+ * it (their `data-kp-date-format`, `rule52` by default: dd/mm/yyyy whatever the locale; Kenny, 2026-10-19, "Zelfde notatie"). A number bound, or text that is not an ISO day, is returned as it is.
+ *
+ * @param {FilterKind} kind
+ * @param {string} bound
+ * @param {string | undefined} [locale]  none: the page's own
+ */
+export function boundText(kind, bound, locale) {
+    const day = kind === 'date' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(bound) : null;
+    if (day === null) return bound;
+    const date = new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]));
+    return date.getMonth() === Number(day[2]) - 1 ? formatDate(date, locale, 'rule52') : bound;
+}
+
+/**
  * The one pill a filter shows in the add-filter mode [Kenny, 2026-09-14]:
  * the column and every value the filter holds, or null when it holds
  * nothing. Both channels call this, so their pills read the same.
@@ -340,13 +373,14 @@ export function filterActive(kind, value) {
  * @param {string} column the column's name
  * @param {FilterValue | undefined} value
  * @param {import('./strings.js').Strings} s
+ * @param {string} [locale]  how a date bound is written; the page's own when absent
  * @returns {string | null}
  */
-export function filterPillLabel(kind, column, value, s) {
+export function filterPillLabel(kind, column, value, s, locale) {
     if (!filterActive(kind, value)) return null;
     if (kind === 'choice') return s.tableFilterChoicePill(column, /** @type {string[]} */ (value));
     const { from = '', to = '' } = /** @type {{ from?: string, to?: string }} */ (value);
-    return s.tableFilterSpanPill(column, from, to, kind);
+    return s.tableFilterSpanPill(column, boundText(kind, from, locale), boundText(kind, to, locale), kind);
 }
 
 /**
@@ -359,9 +393,10 @@ export function filterPillLabel(kind, column, value, s) {
  * @param {'range' | 'date'} kind
  * @param {Record<'from' | 'to', { text: string, iso?: string, label: string }>} bounds  `text` as the field shows it; `iso` a date picker's value
  * @param {import('./strings.js').Strings} s
+ * @param {string} [locale]  how a date bound is written in the refusal; the page's own when absent
  * @returns {{ value: { from: string, to: string } | null, error?: string, bound?: 'from' | 'to' }}
  */
-export function readFilterBounds(kind, bounds, s) {
+export function readFilterBounds(kind, bounds, s, locale) {
     const value = { from: '', to: '' };
     for (const bound of /** @type {const} */ (['from', 'to'])) {
         const { text, iso, label } = bounds[bound];
@@ -377,7 +412,7 @@ export function readFilterBounds(kind, bounds, s) {
     }
     const { from, to } = value;
     if (from !== '' && to !== '' && (kind === 'range' ? Number(from) > Number(to) : from > to))
-        return { value: null, error: s.tableFilterBackwards(from, to), bound: 'from' };
+        return { value: null, error: s.tableFilterBackwards(boundText(kind, from, locale), boundText(kind, to, locale)), bound: 'from' };
     return { value: from === '' && to === '' ? null : value };
 }
 
@@ -418,16 +453,26 @@ export function matchesFilter(kind, value, text, locale) {
  * @param {string} column the column's name
  * @param {FilterValue | undefined} value
  * @param {import('./strings.js').Strings} s
+ * @param {string} [locale]  how a date bound is written; the page's own when absent
  * @returns {{ label: string, without: FilterValue | undefined }[]}
  */
-export function filterPills(kind, column, value, s) {
+export function filterPills(kind, column, value, s, locale) {
     if (!filterActive(kind, value)) return [];
     if (kind === 'choice') {
         const list = /** @type {string[]} */ (value);
         return list.map((item) => ({ label: s.tableFilterValue(column, item), without: list.filter((other) => other !== item) }));
     }
     const { from = '', to = '' } = /** @type {{ from?: string, to?: string }} */ (value);
-    return [{ label: s.tableFilterRange(column, from || s.tableFilterOpenEnd, to || s.tableFilterOpenEnd), without: undefined }];
+    return [
+        {
+            label: s.tableFilterRange(
+                column,
+                from === '' ? s.tableFilterOpenEnd : boundText(kind, from, locale),
+                to === '' ? s.tableFilterOpenEnd : boundText(kind, to, locale),
+            ),
+            without: undefined,
+        },
+    ];
 }
 
 /**
@@ -449,8 +494,9 @@ const shown = (element) => !(/** @type {HTMLElement} */ (element).hidden) && get
  *
  * @param {HTMLTableElement} table
  * @param {number} count how many leading columns stay; 0 takes the marks away
+ * @param {number} [endCount] how many trailing columns stay at the end edge (`data-kp-fixed-end`); 0 takes the marks away
  */
-export function syncFixedColumns(table, count) {
+export function syncFixedColumns(table, count, endCount = 0) {
     const head = table.tHead?.rows[0];
     /** @type {Map<number, number>} */
     const starts = new Map();
@@ -465,6 +511,23 @@ export function syncFixedColumns(table, count) {
             last = cell.cellIndex;
         }
     }
+    // The end columns count from the last cell of the header, and stick at the end edge [datatable-r5-1019, O22].
+    /** @type {Map<number, number>} */
+    const ends = new Map();
+    let first = -1;
+    if (head !== undefined && endCount > 0) {
+        let offset = 0;
+        let taken = 0;
+        for (let at = head.cells.length - 1; at >= 0 && taken < endCount; at--) {
+            const cell = head.cells[at];
+            if (!shown(cell)) continue;
+            if (starts.has(cell.cellIndex)) break;
+            ends.set(cell.cellIndex, offset);
+            offset += cell.getBoundingClientRect().width;
+            first = cell.cellIndex;
+            taken += 1;
+        }
+    }
     for (const row of table.rows) {
         const whole = row.matches(DETAIL);
         for (const cell of row.cells) {
@@ -474,10 +537,20 @@ export function syncFixedColumns(table, count) {
                     delete cell.dataset.kpFixed;
                     cell.style.removeProperty('--kp-datatable-fixed-start');
                 }
-                continue;
+            } else {
+                cell.dataset.kpFixed = cell.cellIndex === last ? 'last' : '';
+                cell.style.setProperty('--kp-datatable-fixed-start', `${Math.round(start * 100) / 100}px`);
             }
-            cell.dataset.kpFixed = cell.cellIndex === last ? 'last' : '';
-            cell.style.setProperty('--kp-datatable-fixed-start', `${Math.round(start * 100) / 100}px`);
+            const end = whole ? undefined : ends.get(cell.cellIndex);
+            if (end === undefined) {
+                if (cell.dataset.kpFixedEnd !== undefined) {
+                    delete cell.dataset.kpFixedEnd;
+                    cell.style.removeProperty('--kp-datatable-fixed-end');
+                }
+            } else {
+                cell.dataset.kpFixedEnd = cell.cellIndex === first ? 'first' : '';
+                cell.style.setProperty('--kp-datatable-fixed-end', `${Math.round(end * 100) / 100}px`);
+            }
         }
     }
 }
@@ -667,7 +740,7 @@ const defaultFilter = (row, query) => (row.textContent ?? '').toLowerCase().incl
  * @property {() => View} view
  * @property {(sort: Sort) => void} sort  sort on one column, or null for none
  * @property {(keys: readonly SortKey[]) => void} sortBy  sort on several columns, the first key first
- * @property {(page: number) => void} page
+ * @property {(page: number) => void} page  show a page, counted from 0 as `view().page` is (the pager prints it from 1: `view().pageNumber`); past the last page it stops at the last [b3b4-1019]
  * @property {(size: number) => void} pageSize
  * @property {(query: string) => void} query
  * @property {(column: number | null) => void} scope  limit the search to one column, or null for all
@@ -687,7 +760,7 @@ const defaultFilter = (row, query) => (row.textContent ?? '').toLowerCase().incl
  * @property {(which?: 'view' | 'page') => HTMLTableRowElement[]} rows  the rows the table shows, in order: every page of the view, or this page
  * @property {() => string[]} selected
  * @property {(keys: readonly string[]) => void} select
- * @property {() => void} refresh re-read the rows after the consumer added or removed some, and the filter panel's choice lists with them
+ * @property {(options?: { keepPage?: boolean }) => void} refresh re-read the rows after the consumer added or removed some, and the filter panel's choice lists with them; the page goes back to the first unless `keepPage`. The table also notices rows added to or removed from its body by itself (a client-side table), so a removed row leaves the count and the pager at once and the reader stays on the page; a row marked `data-kp-row-hidden` is held out of the table and stays hidden until the attribute goes [b3b4-1019]
  */
 
 /** @type {WeakMap<Element, DataTableHandle>} */
@@ -779,12 +852,24 @@ export function attachDataTables(
     /** @type {DataTableHandle[]} */
     const created = [];
 
-    for (const element of root.querySelectorAll(TABLE)) {
+    /** Does this table sort on several columns? `data-kp-sort-multi` wins over the `multiSort` option. @param {HTMLElement} wrap */
+    const sortsSeveral = (wrap) => (wrap.dataset.kpSortMulti === undefined ? multiSort !== false : wrap.dataset.kpSortMulti !== 'false');
+    /** The detach of each table this attach wired, so one table can be wired again when an option attribute changes. @type {Map<HTMLElement, () => void>} */
+    const unwires = new Map();
+
+    /**
+     * Wire one table. Called once per table, and again for the same table when `data-kp-sort-multi` or `data-kp-filter-mode`
+     * changes [live-options-1019]: the table is put back to its markup, wired with the new option, and given back the view it
+     * had (the same handle object, so a page holding it keeps working).
+     * @param {Element} element
+     * @param {boolean} [again]  wiring a table again after an option changed: its detach is already in `cleanups`
+     */
+    const wireTable = (element, again = false) => {
         const wrap = /** @type {HTMLElement} */ (element);
-        if (wrap.dataset.kpDatatableAttached !== undefined) continue;
+        if (wrap.dataset.kpDatatableAttached !== undefined) return;
         const table = /** @type {HTMLTableElement | null} */ (wrap.querySelector('table'));
         const body = table?.tBodies[0];
-        if (table === undefined || table === null || body === undefined) continue;
+        if (table === undefined || table === null || body === undefined) return;
         // The density, the columns and the sort this reader chose last time,
         // when the table asked to be remembered [Kenny, 2026-09-16]. The
         // painter writes them as the markup a server would have rendered —
@@ -820,7 +905,7 @@ export function attachDataTables(
         const densitySelect = /** @type {HTMLSelectElement | null} */ (wrap.querySelector(DENSITY));
         const status = /** @type {HTMLElement | null} */ (wrap.querySelector(STATUS));
         const pager = /** @type {HTMLElement | null} */ (wrap.querySelector(PAGER));
-        const empty = /** @type {HTMLElement | null} */ (wrap.querySelector(EMPTY));
+        let empty = /** @type {HTMLElement | null} */ (wrap.querySelector(EMPTY));
         const loadingSlot = /** @type {HTMLElement | null} */ (wrap.querySelector(LOADING));
         let failedSlot = /** @type {HTMLElement | null} */ (wrap.querySelector(FAILED));
         const actions = /** @type {HTMLElement | null} */ (wrap.querySelector(ACTIONS));
@@ -833,7 +918,7 @@ export function attachDataTables(
         const debounce = Number.parseInt(wrap.dataset.kpDebounce ?? '', 10) || debounceMs || (serverMode ? SERVER_DEBOUNCE_MS : 0);
         const cycle = wrap.dataset.kpSortCycle ?? sortCycle;
         const cycleName = cycle === 'three' ? 'three' : 'two';
-        const multi = wrap.dataset.kpSortMulti === undefined ? multiSort !== false : wrap.dataset.kpSortMulti !== 'false';
+        const multi = sortsSeveral(wrap);
         // `data-kp-sort-multi="click"` [kpadopt]: every plain press adds the
         // column as a key (ascending, descending, out); Shift flips to the
         // old plain press, "this column alone", the quick way back to one key.
@@ -876,6 +961,7 @@ export function attachDataTables(
                         if (!detailsWereHidden.has(row)) detailsWereHidden.set(row, row.hidden === true);
                     }
                 } else if (row.matches(GROUP_ROW)) owner = null;
+                else if (row.matches(HELD_ROW)) owner = null;
                 else if (!row.matches(SKELETON_ROW)) owner = row;
             }
         };
@@ -985,7 +1071,13 @@ export function attachDataTables(
         const keyOf = (row) => row.dataset.kpRowKey ?? row.id ?? '';
 
         /** Every row as it was rendered. Sorting reorders this array, never the DOM's idea of it. */
-        const isRow = (/** @type {HTMLTableRowElement} */ row) => !row.matches(DETAIL) && !row.matches(SKELETON_ROW) && !row.matches(GROUP_ROW);
+        const isRow = (/** @type {HTMLTableRowElement} */ row) =>
+            !row.matches(DETAIL) && !row.matches(SKELETON_ROW) && !row.matches(GROUP_ROW) && !row.matches(HELD_ROW);
+        /** A held row stays hidden whatever the table does; the page lifts it with the attribute [b3b4-1019]. */
+        const holdRows = () => {
+            for (const row of body.querySelectorAll(`:scope > ${HELD_ROW}`)) /** @type {HTMLElement} */ (row).hidden = true;
+        };
+        holdRows();
         let all = /** @type {HTMLTableRowElement[]} */ ([...body.rows].filter(isRow));
         /** The order the server rendered, so detach can put it back. */
         const rendered = [...all];
@@ -1067,32 +1159,6 @@ export function attachDataTables(
             if (state !== 'loading' || !busyOverlay) return;
             const layer = make('div', 'kp-datatable__busy-overlay');
             layer.setAttribute('aria-hidden', 'true');
-            // Measured, and measured again whenever the table or its header
-            // changes size: a theme switched after it was drawn, or a font
-            // arriving late, moves the header, and the layer must stay under
-            // it rather than where the header first was.
-            const place = () => {
-                const head = table.tHead;
-                const hostBox = host.getBoundingClientRect();
-                const body = (table.tBodies[0] ?? table).getBoundingClientRect();
-                const tableBox = (scrollBox ?? table).getBoundingClientRect();
-                const top = head === null ? body.top : head.getBoundingClientRect().bottom;
-                layer.style.setProperty('--kp-busy-overlay-top', `${Math.max(0, Math.round(top - hostBox.top - host.clientTop))}px`);
-                layer.style.setProperty(
-                    '--kp-busy-overlay-bottom',
-                    `${Math.max(0, Math.round(hostBox.bottom - Math.max(tableBox.bottom, top) - host.clientTop))}px`,
-                );
-                layer.style.setProperty('--kp-busy-overlay-left', `${Math.max(0, Math.round(tableBox.left - hostBox.left - host.clientLeft))}px`);
-                layer.style.setProperty('--kp-busy-overlay-right', `${Math.max(0, Math.round(hostBox.right - tableBox.right - host.clientLeft))}px`);
-            };
-            place();
-            if (typeof ResizeObserver === 'function') {
-                const watcher = new ResizeObserver(() => place());
-                watcher.observe(host);
-                watcher.observe(table);
-                if (table.tHead !== null) watcher.observe(table.tHead);
-                overlayUnwatch = () => watcher.disconnect();
-            }
             const panel = make('div', 'kp-datatable__busy-panel');
             const spinner = make('span', 'kp-spinner');
             const words = make('span', 'kp-datatable__busy-words');
@@ -1103,8 +1169,61 @@ export function attachDataTables(
                 overlayClock.textContent = s.tableBusyElapsed(busySeconds());
                 panel.append(overlayClock);
             }
+            // Measured, and measured again whenever the table or its header
+            // changes size: a theme switched after it was drawn, or a font
+            // arriving late, moves the header, and the layer must stay under
+            // it rather than where the header first was.
+            const place = () => {
+                const head = table.tHead;
+                const hostBox = host.getBoundingClientRect();
+                const body = (table.tBodies[0] ?? table).getBoundingClientRect();
+                const tableBox = (scrollBox ?? table).getBoundingClientRect();
+                const top = head === null ? body.top : head.getBoundingClientRect().bottom;
+                let from = Math.max(0, Math.round(top - hostBox.top - host.clientTop));
+                let to = Math.max(0, Math.round(hostBox.bottom - Math.max(tableBox.bottom, top) - host.clientTop));
+                // A table with no rows has no rows to cover: the card stands in the room the table is held at (its first load's footprint,
+                // js/footprint.js), down to the status line under it, not on the strip the bare header leaves [hlfour-1019].
+                if (all.length === 0) {
+                    const foot = host.querySelector('[data-kp-datatable-status]')?.closest('.kp-datatable__bar') ?? null;
+                    const footTop = foot !== null && foot.getBoundingClientRect().top >= top ? foot.getBoundingClientRect().top : hostBox.bottom;
+                    to = Math.max(0, Math.round(hostBox.bottom - footTop - host.clientTop));
+                }
+                // A table of a row or two is shorter than the panel: the layer lends itself the room the panel needs (and at least half the table, up to 128 px), downwards over
+                // the foot, within the host, so the card is never a strip over two rows [states-two-1019].
+                const need = Math.max(panel.offsetHeight + 8, Math.min(host.clientHeight / 2, 128));
+                if (host.clientHeight - from - to < need) {
+                    to = Math.max(0, host.clientHeight - from - need);
+                    // A table with no rows stands near the bottom of its frame: the card then also takes the room above, over the header.
+                    if (host.clientHeight - from - to < need) from = Math.max(0, host.clientHeight - to - need);
+                }
+                layer.style.setProperty('--kp-busy-overlay-top', `${from}px`);
+                layer.style.setProperty('--kp-busy-overlay-bottom', `${to}px`);
+                // A table frame wider than the box that scrolls it (a table in a phone's page scroller) is covered only where it is seen, so the
+                // panel is centred on what the reader sees and not on a middle off screen [laststates-1019].
+                const innerLeft = hostBox.left + host.clientLeft;
+                const seen = seenAcross(host, innerLeft, innerLeft + host.clientWidth);
+                // A table narrower than what is seen (a bare table of a header and no rows shrinks to its words, or a table drawn at no
+                // width) is not the card's width: the card spans what is seen, 0 px wide it showed no look at all [hlfour-1019].
+                const spans = tableBox.width >= seen.right - seen.left - 1;
+                layer.style.setProperty('--kp-busy-overlay-left', `${Math.max(0, Math.round((spans ? Math.max(tableBox.left, seen.left) : seen.left) - innerLeft))}px`);
+                layer.style.setProperty('--kp-busy-overlay-right', `${Math.max(0, Math.round(innerLeft + host.clientWidth - (spans ? Math.min(tableBox.right, seen.right) : seen.right)))}px`);
+            };
             layer.append(panel);
             host.append(layer);
+            place();
+            if (typeof ResizeObserver === 'function') {
+                const watcher = new ResizeObserver(() => place());
+                watcher.observe(host);
+                watcher.observe(table);
+                if (table.tHead !== null) watcher.observe(table.tHead);
+                // Scrolled sideways inside a scrolling ancestor, the part that is seen moves: the card follows it.
+                const scrollers = scrollersAround(host);
+                for (const scroller of scrollers) scroller.addEventListener('scroll', place, { passive: true });
+                overlayUnwatch = () => {
+                    watcher.disconnect();
+                    for (const scroller of scrollers) scroller.removeEventListener('scroll', place);
+                };
+            }
             overlayLayer = layer;
         };
         /** The server's count, in a server-backed table. */
@@ -1127,7 +1246,7 @@ export function attachDataTables(
                 emptyLeaving = true;
                 void leave(empty, { hide: true }).then(() => {
                     emptyLeaving = false;
-                    empty.hidden = emptyHidden;
+                    if (empty !== null) empty.hidden = emptyHidden;
                 });
                 return;
             }
@@ -1249,6 +1368,8 @@ export function attachDataTables(
         /** @type {HTMLElement | null} */
         let pills = null;
         const addMode = (wrap.dataset.kpFilterMode ?? filterMode) === 'add';
+        /** `data-kp-filter-ui="none"`: the filters work, the page draws them [datatable-r5-1019, O22]. */
+        const bareFilters = wrap.dataset.kpFilterUi === 'none';
         /** The add-filter mode's button, its menu, the list in the menu and the editor [#filter-add]. */
         /** @type {HTMLButtonElement | null} */
         let addButton = null;
@@ -1258,7 +1379,7 @@ export function attachDataTables(
         let addMenu = null;
         /** @type {HTMLFormElement | null} */
         let filterEditor = null;
-        if (filterColumns.length > 0 && addMode) {
+        if (filterColumns.length > 0 && addMode && !bareFilters) {
             const s = s0;
             const popId = `${id}-add-filter`;
             addButton = /** @type {HTMLButtonElement | null} */ (wrap.querySelector(ADD_FILTER));
@@ -1306,7 +1427,7 @@ export function attachDataTables(
             filterEditor.hidden = true;
             wrap.insertBefore(filterEditor, tableBlock);
         }
-        if (filterColumns.length > 0 && !addMode) {
+        if (filterColumns.length > 0 && !addMode && !bareFilters) {
             panel = /** @type {HTMLElement | null} */ (wrap.querySelector(FILTERS));
             if (panel === null) {
                 panel = add(make('div', 'kp-datatable__filters'));
@@ -1368,7 +1489,7 @@ export function attachDataTables(
             toggle.setAttribute('aria-controls', panel.id);
             toggle.setAttribute('aria-expanded', String(!panel.hidden));
         }
-        if (filterColumns.length > 0) {
+        if (filterColumns.length > 0 && !bareFilters) {
             pills = /** @type {HTMLElement | null} */ (wrap.querySelector(PILLS));
             if (pills === null) {
                 pills = add(make('div', 'kp-datatable__pills'));
@@ -1584,20 +1705,114 @@ export function attachDataTables(
         // loads its own rows and calls state('failed') or fail() showed only
         // "Showing 0 of 0" [fix-85]. The reason goes in the words.
         if (failedSlot === null) {
-            failedSlot = add(make('div', 'kp-alert kp-alert--destructive'));
+            // The package's failed plate: the reason at heading size and a normal Retry, filling the table's footprint
+            // while the rows are covered (syncCover) [state-plates-1019].
+            failedSlot = add(make('div', 'kp-alert kp-alert--destructive kp-stateplate kp-stateplate--error'));
             failedSlot.dataset.kpDatatableFailed = '';
             failedSlot.setAttribute('role', 'alert');
             failedSlot.hidden = true;
-            const text = make('p');
+            const text = make('p', 'kp-stateplate__title');
             text.dataset.kpDatatableFailedReason = '';
             text.textContent = s0.tableFailed;
-            const retry = /** @type {HTMLButtonElement} */ (make('button', 'kp-button'));
+            const retry = /** @type {HTMLButtonElement} */ (make('button', 'kp-button kp-stateplate__action'));
             retry.type = 'button';
             retry.dataset.kpDatatableRetry = '';
             retry.textContent = s0.tableRetry;
             failedSlot.append(text, retry);
             wrap.insertBefore(failedSlot, tableBlock);
+        } else if (!failedSlot.classList.contains('kp-stateplate')) {
+            // A slot the page wrote is the same plate [state-plates-1019].
+            const authored = failedSlot;
+            authored.classList.add('kp-stateplate', 'kp-stateplate--error');
+            undo.push(() => authored.classList.remove('kp-stateplate', 'kp-stateplate--error'));
         }
+        if (empty === null) {
+            // The package's empty plate for a table that wrote no slot: with no rows it showed nothing, a 43 px strip under the
+            // header, not the plate [states-check-1019]. Hidden until there is nothing to show (showEmpty).
+            empty = add(make('div', 'kp-empty kp-stateplate kp-stateplate--empty'));
+            empty.dataset.kpDatatableEmpty = '';
+            empty.setAttribute('role', 'status');
+            empty.hidden = true;
+            emptyHidden = true;
+            const none = make('strong', 'kp-empty__title');
+            none.textContent = s0.tableEmpty;
+            empty.append(none);
+            wrap.insertBefore(empty, tableBlock);
+        } else if (!empty.classList.contains('kp-stateplate')) {
+            const authored = empty;
+            authored.classList.add('kp-stateplate', 'kp-stateplate--empty');
+            undo.push(() => authored.classList.remove('kp-stateplate', 'kp-stateplate--empty'));
+        }
+        if (empty !== null && empty.querySelector('.kp-empty__title, .kp-stateplate__title') === null) {
+            // A slot with words but no title gets the plate's heading (the dictionary's "Nothing found."), the words below it.
+            const authored = empty;
+            const heading = make('strong', 'kp-empty__title');
+            heading.textContent = s0.tableEmpty;
+            authored.prepend(heading);
+            undo.push(() => heading.remove());
+        }
+        if (empty !== null) {
+            // Words a page wrote bare in the slot are the plate's body text, so the plate centres them with its title.
+            for (const node of [...empty.childNodes]) {
+                if (node.nodeType !== Node.TEXT_NODE || (node.textContent ?? '').trim() === '') continue;
+                const words = make('span', 'kp-stateplate__text');
+                node.replaceWith(words);
+                words.append(node);
+                undo.push(() => words.replaceWith(node));
+            }
+        }
+        if (failedSlot !== null && failedSlot.querySelector('.kp-stateplate__title') === null) {
+            // A failed slot a page wrote gets the plate's heading: its reason element, else the dictionary's words [states-check-1019].
+            const authoredFailed = failedSlot;
+            const reason = authoredFailed.querySelector('[data-kp-datatable-failed-reason]');
+            if (reason !== null) {
+                reason.classList.add('kp-stateplate__title');
+                undo.push(() => reason.classList.remove('kp-stateplate__title'));
+            } else {
+                const heading = make('strong', 'kp-stateplate__title');
+                heading.dataset.kpDatatableFailedReason = '';
+                heading.textContent = s0.tableFailed;
+                authoredFailed.prepend(heading);
+                undo.push(() => heading.remove());
+            }
+        }
+
+        // ── The plate takes the table's place ───────────────────────────
+        // A failed table, and a table with nothing to show, is not a notice under a table that is still drawn: the rows are
+        // covered and the plate fills the height the table had with its rows (the last height it was measured at while it showed
+        // rows), centred, with its normal-size action. Covered, not removed: the rows and their state stay in the document.
+        // [state-plates-1019, Kenny 2026-10-16 "de hele grootte van de component gebruiken"]
+        let heldHeight = 0;
+        const coverBox = /** @type {HTMLElement} */ (tableBlock);
+        const coverSizes =
+            typeof ResizeObserver === 'function'
+                ? new ResizeObserver(() => {
+                      if (coverBox.hasAttribute('data-kp-state-covered')) return;
+                      const height = coverBox.getBoundingClientRect().height;
+                      if (height > 0 && state === 'ready' && all.length > 0) heldHeight = height;
+                  })
+                : null;
+        coverSizes?.observe(coverBox);
+        undo.push(() => {
+            coverSizes?.disconnect();
+            coverBox.removeAttribute('data-kp-state-covered');
+            wrap.removeAttribute('data-kp-state-covered');
+            for (const slot of [failedSlot, empty]) slot?.style.removeProperty('--kp-datatable-held');
+        });
+        const syncCover = () => {
+            const failedNow = state === 'failed' && failedSlot !== null;
+            const emptyNow = !failedNow && empty !== null && !emptyHidden;
+            coverBox.toggleAttribute('data-kp-state-covered', failedNow || emptyNow);
+            // js/footprint.js holds the whole table's loaded height while a plate stands in the rows' place.
+            if (failedNow || emptyNow) wrap.setAttribute('data-kp-state-covered', failedNow ? 'error' : 'empty');
+            else wrap.removeAttribute('data-kp-state-covered');
+            for (const slot of [failedSlot, empty]) {
+                if (slot === null) continue;
+                const mine = (slot === failedSlot && failedNow) || (slot === empty && emptyNow);
+                if (mine && heldHeight > 0) slot.style.setProperty('--kp-datatable-held', `${Math.round(heldHeight)}px`);
+                else slot.style.removeProperty('--kp-datatable-held');
+            }
+        };
 
         // ── The page-size choice ───────────────────────────────────────
         /** @type {HTMLLabelElement | null} */
@@ -1838,7 +2053,9 @@ export function attachDataTables(
             if (current.length === sequence.length && current.every((row, at) => row === sequence[at])) return;
             const active = document.activeElement;
             const held = active instanceof HTMLElement && body.contains(active) ? active : null;
-            for (const row of sequence) body.append(row);
+            // Only rows still in the body are placed: one the page took out (replaced tbody content, then a sort before refresh())
+            // stays out, and is never put back beside its replacement [states-check-1019].
+            for (const row of sequence) if (row.parentElement === body) body.append(row);
             if (held !== null && held.isConnected && document.activeElement !== held) held.focus({ preventScroll: true });
         };
         /** Name each heading's toggle, count its rows and show it where its rows are. @param {ReturnType<typeof getStrings>} s */
@@ -1924,6 +2141,7 @@ export function attachDataTables(
             shown: serverMode ? total || 0 : shownRows.length,
             total: serverMode ? total || 0 : all.length,
             page,
+            pageNumber: page + 1,
             pages: Math.max(1, Math.ceil((serverMode ? total || 0 : shownRows.length) / size)),
             pageSize: size,
             query,
@@ -1998,6 +2216,7 @@ export function attachDataTables(
             // anything to dim.
             if (loadingSlot !== null) loadingSlot.hidden = !(state === 'loading' && all.length === 0);
             if (failedSlot !== null) failedSlot.hidden = state !== 'failed';
+            syncCover();
             syncSkeleton();
         };
 
@@ -2102,14 +2321,43 @@ export function attachDataTables(
 
         const fixedAttribute = wrap.dataset.kpFixedColumns;
         const fixedCount = fixedAttribute === undefined ? 0 : Number.parseInt(fixedAttribute, 10) || keyColumn + 1;
+        const fixedEndCount = Math.max(0, Number.parseInt(wrap.dataset.kpFixedEnd ?? '', 10) || (wrap.dataset.kpFixedEnd === undefined ? 0 : 1));
         const syncFixed = () => {
-            if (fixedCount > 0) syncFixedColumns(table, fixedCount);
+            if (fixedCount > 0 || fixedEndCount > 0) syncFixedColumns(table, fixedCount, fixedEndCount);
         };
+
+        /**
+         * A table that becomes cards says in each cell which column it is [datatable-r5-1019, B2]: a cell the markup
+         * gave no `data-label` takes its header's words, so a server that renders plain rows still gets cards. A label
+         * the markup wrote stays; a cell under a header with no words (the selection box, the actions) gets none and
+         * spans the card. Read again on every render, for rows that came later; detach takes the derived ones away.
+         * @type {Set<HTMLTableCellElement>}
+         */
+        const derivedLabels = new Set();
+        const cardsWanted = wrap.hasAttribute('data-kp-cards') || table.hasAttribute('data-kp-cards');
+        const labelCells = () => {
+            if (!cardsWanted) return;
+            for (const row of all) {
+                if (row.matches(DETAIL) || row.matches(GROUP_ROW) || row.matches(SKELETON_ROW)) continue;
+                for (const cell of row.cells) {
+                    if (cell.hasAttribute('data-label')) continue;
+                    const words = labelOf(cell.cellIndex);
+                    if (words === '') continue;
+                    cell.setAttribute('data-label', words);
+                    derivedLabels.add(cell);
+                }
+            }
+        };
+        undo.push(() => {
+            for (const cell of derivedLabels) cell.removeAttribute('data-label');
+            derivedLabels.clear();
+        });
 
         /** @type {GridHandle | null} */
         let grid = null;
 
         const render = () => {
+            labelCells();
             const count = serverMode ? total || 0 : shownRows.length;
             const pages = Math.max(1, Math.ceil(count / size));
             page = Math.min(page, pages - 1);
@@ -2124,6 +2372,8 @@ export function attachDataTables(
             if (blockOrder.length > 0) placeGroups();
             else
                 for (const row of shownRows) {
+                    // A row the page replaced is no longer in the body: it is not re-placed beside its replacement [states-check-1019].
+                    if (row.parentElement !== body) continue;
                     body.append(row);
                     const detail = details.get(row);
                     if (detail !== undefined) body.append(detail);
@@ -2255,7 +2505,7 @@ export function attachDataTables(
             let count = 0;
             for (const at of filterColumns) {
                 const kind = /** @type {FilterKind} */ (filterKinds[at]);
-                for (const pill of filterPills(kind, labelOf(at), filters.get(at), s)) {
+                for (const pill of filterPills(kind, labelOf(at), filters.get(at), s, locale)) {
                     count += 1;
                     const item = make('li', 'kp-tag');
                     const remove = /** @type {HTMLButtonElement} */ (make('button', 'kp-tag__remove'));
@@ -2289,7 +2539,7 @@ export function attachDataTables(
             for (const [at, value] of filters) {
                 const kind = filterKinds[at];
                 if (!kind) continue;
-                const label = filterPillLabel(kind, labelOf(at), value, s);
+                const label = filterPillLabel(kind, labelOf(at), value, s, locale);
                 if (label === null) continue;
                 count += 1;
                 const item = make('li', 'kp-tag');
@@ -2471,7 +2721,7 @@ export function attachDataTables(
                         label: bound === 'from' ? s.tableFilterFrom(labelOf(at)) : s.tableFilterTo(labelOf(at)),
                     };
                 };
-                const result = readFilterBounds(kind, { from: read('from'), to: read('to') }, s);
+                const result = readFilterBounds(kind, { from: read('from'), to: read('to') }, s, locale);
                 for (const input of form.querySelectorAll('[data-kp-filter-bound]')) input.removeAttribute('aria-invalid');
                 if (result.error !== undefined) {
                     const error = /** @type {HTMLElement} */ (form.querySelector('[data-kp-filter-error]'));
@@ -3564,7 +3814,7 @@ export function attachDataTables(
 
         let resizeFrame = 0;
         const resize =
-            fixedCount > 0 && typeof ResizeObserver !== 'undefined'
+            (fixedCount > 0 || fixedEndCount > 0) && typeof ResizeObserver !== 'undefined'
                 ? new ResizeObserver(() => {
                       cancelAnimationFrame(resizeFrame);
                       resizeFrame = requestAnimationFrame(syncFixed);
@@ -3638,7 +3888,7 @@ export function attachDataTables(
             rows: (which = 'view') => (which === 'page' ? [...pageRows] : [...shownRows]),
             selected: () => (serverMode ? [...serverSelection] : selectedRows().map(keyOf)),
             select,
-            refresh: () => {
+            refresh: (options) => {
                 // The control that held the focus keeps it [R-LIVE, J2]: the
                 // same element when it stayed, else the same toggle of the row
                 // (or group) with the same key, when the consumer replaced it,
@@ -3652,7 +3902,11 @@ export function attachDataTables(
                 const heldGroup = memo?.group ?? null;
                 const heldToggle = memo?.selector ?? null;
                 collectDetails();
+                holdRows();
                 all = [...body.rows].filter(isRow);
+                // A row the page took out is no longer one of the table's: detach must not put it back.
+                for (let at = rendered.length - 1; at >= 0; at -= 1)
+                    if (!all.includes(rendered[at]) && !rendered[at].isConnected) rendered.splice(at, 1);
                 for (const row of all) {
                     if (!rendered.includes(row)) rendered.push(row);
                     prepareRow(row);
@@ -3667,7 +3921,7 @@ export function attachDataTables(
                 collectGroups();
                 syncColumns();
                 refreshChoices();
-                applyFilter({ keepPage: false });
+                applyFilter({ keepPage: options?.keepPage === true });
                 if (held !== null && document.activeElement !== held) {
                     /** @type {HTMLElement | null} */
                     let back = held.isConnected ? held : null;
@@ -3685,7 +3939,69 @@ export function attachDataTables(
         handles.set(wrap, handle);
         created.push(handle);
 
-        cleanups.push(() => {
+        // Rows the page added, removed or held are the table's rows at once, without a call to refresh(): the count, the pager
+        // and the pages follow the body [b3b4-1019; homelab gap 34, kyu gap 28]. The table's own sort and page moves put the
+        // same rows back in another order, which changes nothing here.
+        if (!serverMode) {
+            let queued = false;
+            const resync = () => {
+                queued = false;
+                holdRows();
+                const now = [...body.rows].filter(isRow);
+                if (now.length === all.length && now.every((row, at) => all.includes(row))) return;
+                handles.get(wrap)?.refresh({ keepPage: true });
+            };
+            const onBody = () => {
+                if (queued) return;
+                queued = true;
+                queueMicrotask(resync);
+            };
+            const rowsWatch = new MutationObserver(onBody);
+            rowsWatch.observe(body, { childList: true });
+            const holdWatch = new MutationObserver(onBody);
+            holdWatch.observe(body, { attributes: true, attributeFilter: ['data-kp-row-hidden'], subtree: true });
+            undo.push(() => {
+                rowsWatch.disconnect();
+                holdWatch.disconnect();
+            });
+        }
+
+        // The options that shape the chrome are read again when their attribute changes: the filter bar and the sort
+        // summary are built from them, and the one-row-open rule is read when the table is wired. The table is wired
+        // again with the view it had [live-options-1019].
+        undo.push(
+            watchOptions(wrap, ['data-kp-sort-multi', 'data-kp-filter-mode', 'data-kp-filter-ui', 'data-kp-expand-single', 'data-kp-fixed-end'], () => {
+                const old = handles.get(wrap);
+                if (old === undefined) return;
+                const was = old.view();
+                const selected = old.selected();
+                unwires.get(wrap)?.();
+                created.splice(created.indexOf(old), 1);
+                wireTable(wrap, true);
+                const fresh = handles.get(wrap);
+                if (fresh === undefined) return;
+                // The page keeps the handle it has: the new table's methods move onto it.
+                Object.assign(old, fresh);
+                handles.set(wrap, old);
+                created.splice(created.indexOf(fresh), 1, old);
+                if (was.query !== '') old.query(was.query);
+                if (was.scope !== null) old.scope(was.scope);
+                for (const [column, value] of Object.entries(was.filters)) old.filter(Number(column), /** @type {FilterValue} */ (value));
+                // Going to one sort key keeps the first.
+                if (was.sorts.length > 0) old.sortBy(sortsSeveral(wrap) ? was.sorts : was.sorts.slice(0, 1));
+                if (was.pageSize !== old.view().pageSize) old.pageSize(was.pageSize);
+                if (was.hidden.length > 0) old.hideColumns(was.hidden);
+                if (was.density !== old.view().density) old.density(was.density);
+                if (was.folded.length > 0) old.fold(was.folded);
+                if (was.expanded.length > 0) old.expand(was.expanded);
+                if (selected.length > 0) old.select(selected);
+                if (was.page > 0) old.page(was.page);
+                if (was.state !== 'ready') old.state(was.state);
+            }),
+        );
+
+        const unwire = () => {
+            unwires.delete(wrap);
             stopBusyClock();
             clearTimeout(pending);
             controller?.abort();
@@ -3788,8 +4104,11 @@ export function attachDataTables(
             delete wrap.dataset.kpState;
             handles.delete(wrap);
             delete wrap.dataset.kpDatatableAttached;
-        });
-    }
+        };
+        unwires.set(wrap, unwire);
+        if (!again) cleanups.push(() => unwires.get(wrap)?.());
+    };
+    for (const element of root.querySelectorAll(TABLE)) wireTable(element);
 
     const detach = () => {
         for (const c of cleanups) c();

@@ -23,6 +23,12 @@
 //   data-kp-remember              a name: the pinned node and the view are kept on this device
 //
 // Node content: `{ label, sub, glyph (a document kind: pdf doc sheet image text unknown), href, tone, ghost, dashed, disabledReason }`.
+// A line carries what `cell(row, column)` returns, the same object the grid view reads [r3r5-1019 line-tone]:
+//   `tone`   ok | warn | bad | muted: the line's colour, and a second carrier so colour is never alone (ok solid, warn dashed,
+//            bad dotted and heavier, muted faint), with the tone's glyph on the label
+//   `label`  a few words that stand on the line ("writes here", "blocked"): a small plate in the gap between the columns, never
+//            over a card, moved along the line to keep clear of its neighbours (a label that finds no room is shown while its line
+//            is lit); the node's words and the phone's list say it too ("Deloitte (writes here)")
 // Keys: one tab stop; Up and Down move within a column, Left and Right jump to the other column and land on the first connected node,
 // Home and End the ends, Space or a press pins, Enter opens the node's link (else pins), Escape drops the pin. The lines are hidden from
 // assistive technology; every node says the relation in words ("CV Developer NL, used by 2: Deloitte, Takto"), so the phone list and
@@ -55,6 +61,17 @@ export const USES_COLLAPSE_BELOW = 640;
  * @property {string} [disabledReason] the node cannot be opened, and why
  * @property {string} [mark] kept from a matrix row: a colour
  */
+
+/**
+ * What a line carries [r3r5-1019 line-tone].
+ * @typedef {object} UsesLine
+ * @property {'ok' | 'warn' | 'bad' | 'muted'} [tone] the line's colour (and its pattern)
+ * @property {string} [label] the words on the line
+ */
+
+/** The tones a line takes, and the mark each puts before its label (never colour alone). */
+const TONES = ['ok', 'warn', 'bad', 'muted'];
+const TONE_GLYPH = Object.freeze({ ok: '✓', warn: '!', bad: '×', muted: '–' });
 
 /** @type {WeakMap<Element, { pin: string | null, lit: string | null, stop: string | null, off: (() => void) | null }>} */
 const MEMORY = new WeakMap();
@@ -101,13 +118,15 @@ export function rememberView(el, view) {
 /**
  * The relation of a spec, as lists. Pure.
  * @param {{ rows?: readonly UsesNode[], columns?: readonly UsesNode[], cell?: (row: string, column: string) => unknown }} spec
- * @returns {{ uses: Map<string, string[]>, usedBy: Map<string, string[]> }}
+ * @returns {{ uses: Map<string, string[]>, usedBy: Map<string, string[]>, lines: Map<string, UsesLine> }} `lines` by `"<row>><column>"`
  */
 export function usesRelation(spec) {
     /** @type {Map<string, string[]>} */
     const uses = new Map();
     /** @type {Map<string, string[]>} */
     const usedBy = new Map();
+    /** @type {Map<string, UsesLine>} */
+    const lines = new Map();
     for (const row of spec.rows ?? []) uses.set(row.key, []);
     for (const column of spec.columns ?? []) usedBy.set(column.key, []);
     for (const row of spec.rows ?? []) {
@@ -116,9 +135,14 @@ export function usesRelation(spec) {
             if (!hit || /** @type {any} */ (hit).tone === 'none' || /** @type {any} */ (hit).tone === 'self') continue;
             uses.get(row.key)?.push(column.key);
             usedBy.get(column.key)?.push(row.key);
+            const line = /** @type {any} */ (hit);
+            lines.set(`${row.key}>${column.key}`, {
+                ...(TONES.includes(line.tone) ? { tone: line.tone } : {}),
+                ...(typeof line.label === 'string' && line.label.trim() ? { label: line.label.trim() } : {}),
+            });
         }
     }
-    return { uses, usedBy };
+    return { uses, usedBy, lines };
 }
 
 /**
@@ -139,6 +163,24 @@ export function usesPath(shape, x1, y1, x2, y2) {
  * @property {(el: HTMLElement, loading: boolean, words: string, area: () => readonly (Element | { top: number, right: number, bottom: number, left: number })[], className: string) => void} syncCard
  * @property {(el: HTMLElement) => void} markDrawn
  */
+
+/**
+ * The words of a line: the tone's mark and the label, in one span [r3r5-1019 line-tone].
+ * @param {Document} doc @param {string} cls @param {UsesLine} line
+ */
+function tagOf(doc, cls, line) {
+    const tag = make(doc, 'span', cls);
+    if (line.tone) {
+        tag.setAttribute('data-kp-tone', line.tone);
+        const mark = make(doc, 'span', 'kp-uses__tag-mark');
+        mark.setAttribute('aria-hidden', 'true');
+        mark.textContent = TONE_GLYPH[line.tone];
+        tag.append(mark);
+    }
+    tag.append(make(doc, 'span', 'kp-uses__tag-text'));
+    /** @type {HTMLElement} */ (tag.lastElementChild).textContent = line.label ?? '';
+    return tag;
+}
 
 /**
  * Draw the lines view of a matrix.
@@ -204,10 +246,17 @@ export function drawUsesMap(el, spec, ctx) {
     let users = [...(spec.columns ?? [])];
     if (loading && sources.length === 0) sources = Array.from({ length: spec.skeleton ?? 4 }, (_, i) => ({ key: `s${i}`, label: '' }));
     if (loading && users.length === 0) users = Array.from({ length: spec.skeleton ?? 4 }, (_, i) => ({ key: `u${i}`, label: '' }));
-    const { uses, usedBy } = loading ? { uses: new Map(), usedBy: new Map() } : usesRelation({ rows: sources, columns: users, cell: spec.cell });
+    const { uses, usedBy, lines: lineInfo } = loading ? { uses: new Map(), usedBy: new Map(), lines: new Map() } : usesRelation({ rows: sources, columns: users, cell: spec.cell });
     if (hideEmpty) sources = sources.filter((s) => (uses.get(s.key)?.length ?? 0) > 0);
     const byKey = new Map([...sources, ...users].map((n) => [n.key, n]));
-    const names = (/** @type {string[]} */ keys) => keys.map((k) => byKey.get(k)?.label ?? k).join(', ');
+    /** The words of the nodes on the far end of a node's lines, each with its line's label: "Deloitte (writes here), Takto". */
+    const names = (/** @type {string[]} */ keys, /** @type {string} */ self, /** @type {'source' | 'user'} */ kind) =>
+        keys
+            .map((k) => {
+                const label = lineInfo.get(kind === 'source' ? `${self}>${k}` : `${k}>${self}`)?.label;
+                return `${byKey.get(k)?.label ?? k}${label ? ` (${label})` : ''}`;
+            })
+            .join(', ');
 
     const root = make(doc, 'div', 'kp-uses');
     root.setAttribute('role', 'group');
@@ -247,8 +296,8 @@ export function drawUsesMap(el, spec, ctx) {
                 ? strings.usesNodeUnused(node.label)
                 : strings.usesNodeNothing(node.label)
             : kind === 'source'
-              ? strings.usesNodeSource(node.label, related.length, names(related))
-              : strings.usesNodeUser(node.label, names(related));
+              ? strings.usesNodeSource(node.label, related.length, names(related, node.key, 'source'))
+              : strings.usesNodeUser(node.label, names(related, node.key, 'user'));
         card.setAttribute('aria-label', what);
         if (node.glyph) {
             const glyph = make(doc, 'span', 'kp-docglyph');
@@ -320,12 +369,16 @@ export function drawUsesMap(el, spec, ctx) {
                 for (const key of related) {
                     const user = byKey.get(key);
                     const chip = make(doc, 'li', 'kp-uses__chip');
+                    const line = lineInfo.get(`${source.key}>${key}`);
+                    if (line?.tone) chip.setAttribute('data-kp-tone', line.tone);
                     if (user?.href) {
                         const a = /** @type {HTMLAnchorElement} */ (make(doc, 'a', 'kp-uses__chip-link'));
                         a.href = user.href;
                         a.textContent = user.label;
                         chip.append(a);
-                    } else chip.textContent = user?.label ?? key;
+                    } else chip.append(user?.label ?? key);
+                    // The line's words follow the name, as on the map.
+                    if (line?.label) chip.append(tagOf(doc, 'kp-uses__chip-tag', line));
                     chips.append(chip);
                 }
                 item.append(chips);
@@ -335,15 +388,17 @@ export function drawUsesMap(el, spec, ctx) {
     }
 
     ctx.replaceKeepingCard(el, [root, list]);
-    ctx.syncCard(el, loading, strings.usesLoading, () => [root], 'kp-uses__busy');
+    // The busy card is centred over the map's whole footprint (the box with its least height), not over the skeleton rows,
+    // which are shorter than a loaded map [state-plates-1019].
+    ctx.syncCard(el, loading, strings.usesLoading, () => [el], 'kp-uses__busy');
     ctx.markDrawn(el);
-    if (!loading) memory.off = wire(el, root, svg, list, { sources, users, uses, usedBy, shape, lightMode, collapseBelow, byKey, memory, spec });
+    if (!loading) memory.off = wire(el, root, svg, list, { sources, users, uses, usedBy, lineInfo, shape, lightMode, collapseBelow, byKey, memory, spec });
 }
 
 /**
  * Lines, light, pin, keys and the collapse.
  * @param {HTMLElement} el @param {HTMLElement} root @param {Element} svg @param {HTMLElement} list
- * @param {{ sources: UsesNode[], users: UsesNode[], uses: Map<string, string[]>, usedBy: Map<string, string[]>, shape: 'curve' | 'elbow' | 'straight', lightMode: string, collapseBelow: number, byKey: Map<string, UsesNode>, memory: { pin: string | null, lit: string | null, stop: string | null, off: (() => void) | null }, spec: any }} c
+ * @param {{ sources: UsesNode[], users: UsesNode[], uses: Map<string, string[]>, usedBy: Map<string, string[]>, lineInfo: Map<string, UsesLine>, shape: 'curve' | 'elbow' | 'straight', lightMode: string, collapseBelow: number, byKey: Map<string, UsesNode>, memory: { pin: string | null, lit: string | null, stop: string | null, off: (() => void) | null }, spec: any }} c
  * @returns {() => void}
  */
 function wire(el, root, svg, list, c) {
@@ -353,6 +408,8 @@ function wire(el, root, svg, list, c) {
     const memory = c.memory;
     /** @type {Map<string, SVGPathElement[]>} */
     const lines = new Map();
+    /** The words on the lines that have some, by `"<source>><user>"` [r3r5-1019 line-tone]. @type {Map<string, HTMLElement>} */
+    const tags = new Map();
 
     /** @param {string} key */
     const nodeEl = (key) => /** @type {HTMLElement | null} */ (root.querySelector(`.kp-uses__node[data-key="${CSS.escape(key)}"]`));
@@ -385,6 +442,53 @@ function wire(el, root, svg, list, c) {
                 path.setAttribute('d', usesPath(c.shape, x1, a.top + a.height / 2 - box.top, x2, b.top + b.height / 2 - box.top));
             }
         }
+        placeTags(box);
+    };
+
+    /**
+     * The words of each line stand on the line, inside the gap between the columns (never over a card): the plate is as wide as the
+     * gap allows and its words wrap, and it moves along its line to a place that no other plate holds. One that finds no place is
+     * shown only while its line is lit [r3r5-1019 line-tone].
+     * @param {DOMRect} box
+     */
+    const placeTags = (box) => {
+        if (tags.size === 0) return;
+        const colA = root.querySelector('.kp-uses__col--sources')?.getBoundingClientRect();
+        const colB = root.querySelector('.kp-uses__col--users')?.getBoundingClientRect();
+        if (!colA || !colB) return;
+        const gap = Math.abs(colA.left < colB.left ? colB.left - colA.right : colA.left - colB.right);
+        root.style.setProperty('--kp-uses-tag-max', `${Math.max(0, gap * 0.72 - 8).toFixed(1)}px`);
+        /** @type {{ l: number, r: number, t: number, b: number }[]} */
+        const held = [];
+        const edge = 3;
+        for (const [pair, tag] of tags) {
+            const path = lines.get(pair)?.[0];
+            const length = path?.getTotalLength?.() ?? 0;
+            if (!path || !(length > 0)) {
+                tag.setAttribute('data-kp-uses-unplaced', '');
+                continue;
+            }
+            const w = tag.offsetWidth;
+            const h = tag.offsetHeight;
+            let found = false;
+            for (const along of [0.5, 0.44, 0.56, 0.38, 0.62]) {
+                const at = path.getPointAtLength(length * along);
+                const rect = { l: at.x - w / 2 - edge, r: at.x + w / 2 + edge, t: at.y - h / 2 - edge, b: at.y + h / 2 + edge };
+                if (held.some((o) => rect.l < o.r && rect.r > o.l && rect.t < o.b && rect.b > o.t)) continue;
+                tag.style.setProperty('left', `${at.x.toFixed(1)}px`);
+                tag.style.setProperty('top', `${at.y.toFixed(1)}px`);
+                held.push(rect);
+                found = true;
+                break;
+            }
+            if (!found) {
+                // No free place: it stands at the middle of its line, shown while the line is lit.
+                const at = path.getPointAtLength(length / 2);
+                tag.style.setProperty('left', `${at.x.toFixed(1)}px`);
+                tag.style.setProperty('top', `${at.y.toFixed(1)}px`);
+            }
+            tag.toggleAttribute('data-kp-uses-unplaced', !found);
+        }
     };
 
     // One path per line, made once.
@@ -395,8 +499,18 @@ function wire(el, root, svg, list, c) {
             path.setAttribute('data-source', source);
             path.setAttribute('data-user', key);
             if (c.byKey.get(source)?.dashed) path.setAttribute('data-kp-dashed', '');
+            const info = c.lineInfo.get(`${source}>${key}`);
+            if (info?.tone) path.setAttribute('data-kp-tone', info.tone);
             svg.append(path);
             lines.set(`${source}>${key}`, [path]);
+            if (info?.label) {
+                const tag = tagOf(doc, 'kp-uses__tag', info);
+                tag.setAttribute('aria-hidden', 'true');
+                tag.setAttribute('data-source', source);
+                tag.setAttribute('data-user', key);
+                root.append(tag);
+                tags.set(`${source}>${key}`, tag);
+            }
         }
     }
 
@@ -415,6 +529,10 @@ function wire(el, root, svg, list, c) {
         }
         for (const node of root.querySelectorAll('.kp-uses__node')) {
             node.toggleAttribute('data-kp-hot', key !== null && hot.has(node.getAttribute('data-key')));
+        }
+        for (const [pair, tag] of tags) {
+            const [s, u] = pair.split('>');
+            tag.toggleAttribute('data-kp-hot', key !== null && (s === key || u === key));
         }
     };
     const lightWhat = () => {
@@ -556,6 +674,7 @@ function wire(el, root, svg, list, c) {
 
     return () => {
         watcher?.disconnect();
+        for (const tag of tags.values()) tag.remove();
         view.cancelAnimationFrame(raf);
         root.removeEventListener('pointerover', onOver);
         root.removeEventListener('pointerout', onOut);

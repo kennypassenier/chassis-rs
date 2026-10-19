@@ -115,6 +115,18 @@ fn id_of(body: &str) -> String {
 
 /// The text a reader sees: tags (attributes included) and comments gone.
 fn visible_text(html: &str) -> String {
+    // Comments are source for developers, never shown to a reader.
+    let mut stripped = String::new();
+    let mut rest = html;
+    while let Some(start) = rest.find("<!--") {
+        stripped.push_str(&rest[..start]);
+        rest = match rest[start..].find("-->") {
+            Some(end) => &rest[start + end + 3..],
+            None => "",
+        };
+    }
+    stripped.push_str(rest);
+    let html = stripped.as_str();
     let mut out = String::new();
     let mut in_tag = false;
     for ch in html.chars() {
@@ -155,7 +167,9 @@ fn iso_timestamp_in(text: &str) -> Option<String> {
 /// (Kenny, 2026-09-10: the name is Clients everywhere, and a project renames
 /// it in one place or not at all).
 fn says_client(text: &str) -> Option<String> {
-    text.split(|c: char| !c.is_alphanumeric())
+    // `_` stays inside a word: `$CLIENT_TOKEN` is the shell variable of the
+    // copy-paste command (one identifier, not the prose word "client").
+    text.split(|c: char| !c.is_alphanumeric() && c != '_')
         .map(|w| w.to_ascii_lowercase())
         .find(|w| matches!(w.as_str(), "client" | "clients" | "caller" | "callers"))
 }
@@ -190,8 +204,7 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
         "{login_page}"
     );
     assert!(
-        login_page
-            .contains("each one is a source with its own token, issued on\n  the Sources page"),
+        login_page.contains("each has its own token on the Sources page"),
         "{login_page}"
     );
 
@@ -201,16 +214,18 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     let (_, _, empty) = http(addr, "GET", "/clients", &admin, "").await;
     let text = visible_text(&empty);
     assert_eq!(says_client(&text), None, "{empty}");
-    assert!(empty.contains("<h1>Sources</h1>"), "{empty}");
-    assert!(empty.contains("No sources yet. Add one above."), "{empty}");
-    assert!(empty.contains("Add a source"), "{empty}");
+    assert!(empty.contains(">Sources</h1>"), "{empty}");
+    assert!(empty.contains("No sources yet"), "{empty}");
+    assert!(empty.contains("Issue a source"), "{empty}");
     assert!(
-        empty.contains("<h2>Registered sources</h2>"),
-        "the second heading speaks the vocabulary too: {empty}"
+        empty.contains("Wire up your first source"),
+        "the first-client walk-through speaks the vocabulary: {empty}"
     );
     assert!(empty.contains("vocabdemo — sources</title>"), "{empty}");
     assert!(
-        empty.contains(">Sources</a>") && !empty.contains("sources\""),
+        empty.contains(">Sources</a>")
+            && !empty.contains("href=\"/sources")
+            && !empty.contains("href=\"&#x2f;sources"),
         "the nav label follows the vocabulary, the URL does not: {empty}"
     );
 
@@ -220,11 +235,15 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     let (_, _, full) = http(addr, "GET", "/clients", &admin, "").await;
     assert_eq!(says_client(&visible_text(&full)), None, "{full}");
     assert!(
-        full.contains(&format!("data-post=\"/api/clients/{id}/revoke\"")),
+        full.contains("Registered sources (1)"),
+        "the list heading speaks the vocabulary and counts exactly: {full}"
+    );
+    assert!(
+        full.contains(&format!("data-kp-post=\"/api/clients/{id}/revoke\"")),
         "API paths are not vocabulary: {full}"
     );
     assert!(
-        full.contains("Delete this source and its history?"),
+        full.contains("Delete job-tracker and its history?"),
         "{full}"
     );
     // ask-1, second half (kp-themes 5.1.0): the wrap override is the
@@ -235,11 +254,11 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     // red by dropping `state-cell` from clients.html, and again by leaving
     // `state-badge` on the badge.
     assert!(
-        full.contains("<td class=\"state-cell\">"),
+        full.contains("<td class=\"state-cell\" data-label=\"State\""),
         "the state column declares the wrap knob: {full}"
     );
     assert!(
-        full.contains("<span class=\"kp-badge kp-badge--success\">active</span>"),
+        full.contains("<span class=\"kp-badge\">not used yet</span>"),
         "the badge itself is plain: {full}"
     );
     assert!(
@@ -284,7 +303,7 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
         "the token column is gone from the table: {full}"
     );
     assert!(
-        full.contains("data-manage=") && full.contains("client-dialog"),
+        full.contains("data-manage=") && full.contains("manage-dialog"),
         "and the row's button opens the dialog that holds the rest: {full}"
     );
 
@@ -293,8 +312,8 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     // putting "caller" back in the Revoke confirmation.
     let confirms = confirm_texts(&full);
     assert!(
-        confirms.iter().any(|c| c.contains("source")),
-        "the confirmations speak the vocabulary: {confirms:?}"
+        confirms.iter().any(|c| c.contains("job-tracker")),
+        "the confirmations name the thing by its own name: {confirms:?}"
     );
     for c in &confirms {
         assert_eq!(
@@ -322,9 +341,9 @@ async fn k28_without_vocabulary_the_pages_still_say_client() {
     let addr = running.addr;
     let cookie = login(addr).await;
     let (_, _, page) = http(addr, "GET", "/clients", &[("Cookie", &cookie)], "").await;
-    assert!(page.contains("<h1>Clients</h1>"), "{page}");
-    assert!(page.contains("Add a client"), "{page}");
-    assert!(page.contains("No clients yet. Add one above."), "{page}");
+    assert!(page.contains(">Clients</h1>"), "{page}");
+    assert!(page.contains("Issue a client"), "{page}");
+    assert!(page.contains("No clients yet"), "{page}");
     assert!(says_client(&visible_text(&page)).is_some(), "{page}");
     running.stop().await;
 }
@@ -342,8 +361,8 @@ async fn k28_clients_label_still_names_the_page_when_set() {
     let addr = running.addr;
     let cookie = login(addr).await;
     let (_, _, page) = http(addr, "GET", "/clients", &[("Cookie", &cookie)], "").await;
-    assert!(page.contains("<h1>Feeds</h1>"), "{page}");
-    assert!(page.contains("Add a source"), "{page}");
+    assert!(page.contains(">Feeds</h1>"), "{page}");
+    assert!(page.contains("Issue a source"), "{page}");
     assert_eq!(says_client(&visible_text(&page)), None, "{page}");
     running.stop().await;
 }
@@ -585,8 +604,8 @@ async fn k29_section_actions_render_under_the_section_and_none_without() {
         "{page}"
     );
     // The block sits under its own section, before the next heading.
-    let profiles = page.find("<h2>Profiles</h2>").unwrap();
-    let quiet = page.find("<h2>Quiet</h2>").unwrap();
+    let profiles = page.find(">Profiles</h2>").unwrap();
+    let quiet = page.find(">Quiet</h2>").unwrap();
     let block = page.find("section-actions").unwrap();
     assert!(profiles < block && block < quiet, "{page}");
     let (status, _, _) = http(
@@ -599,5 +618,202 @@ async fn k29_section_actions_render_under_the_section_and_none_without() {
     .await;
     assert_eq!(status, 204);
     assert_eq!(seen.lock().unwrap().as_slice(), ["reload".to_string()]);
+    running.stop().await;
+}
+
+struct WithAssets(&'static str);
+
+impl StatusSection for WithAssets {
+    fn render(&self) -> Section {
+        Section {
+            title: self.0.into(),
+            explain: "Declares a module script and a stylesheet.".into(),
+            rows: vec![],
+            html: None,
+        }
+    }
+    fn assets(&self) -> chassis::SectionAssets {
+        chassis::SectionAssets::new()
+            .module_script("/app/orders.js")
+            .stylesheet("/app/orders.css")
+    }
+}
+
+// kit-kp11: two sections naming the same files get one tag each, in the
+// page head, under the existing CSP (same-origin paths only).
+#[tokio::test]
+async fn kit_kp11_section_assets_render_once_in_the_head() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app(dir.path(), Router::new());
+    app.status_section(WithAssets("First"));
+    app.status_section(WithAssets("Second"));
+    let running = app.start().await.unwrap();
+    let addr = running.addr;
+    let cookie = login(addr).await;
+    let (_, _, page) = http(addr, "GET", "/", &[("Cookie", &cookie)], "").await;
+    // The template escapes `/` in attribute values (`&#x2f;`); same URL.
+    let page = page.replace("&#x2f;", "/");
+    assert_eq!(
+        page.matches("<script type=\"module\" src=\"/app/orders.js\"></script>")
+            .count(),
+        1,
+        "{page}"
+    );
+    assert_eq!(
+        page.matches("<link rel=\"stylesheet\" href=\"/app/orders.css\">")
+            .count(),
+        1,
+        "{page}"
+    );
+    let head_end = page.find("</head>").unwrap();
+    assert!(page.find("/app/orders.js").unwrap() < head_end, "{page}");
+    running.stop().await;
+}
+
+struct Delivery;
+
+impl StatusSection for Delivery {
+    fn render(&self) -> Section {
+        Section {
+            title: "Delivery".into(),
+            explain: "What is waiting to be sent.".into(),
+            rows: vec![],
+            html: None,
+        }
+    }
+    fn body(&self) -> Option<chassis::SectionBody> {
+        Some(chassis::SectionBody::Many(vec![
+            chassis::SectionBody::Kpis(vec![chassis::Kpi::new("Waiting", 12)]),
+            chassis::SectionBody::Checks(vec![chassis::Check::failed("Webhook", "answered 502")]),
+        ]))
+    }
+    fn flash_actions(&self) -> Vec<chassis::FlashAction> {
+        vec![
+            chassis::FlashAction::post("Retry failed deliveries", "/deliveries/retry")
+                .word("Retried")
+                .toast("Retried {n} entries"),
+        ]
+    }
+}
+
+// kit-kp11: a section body drawn by the kit, and a flash action that keeps
+// the page: it is a flash button (no data-post, so no reload) carrying its
+// toast, and the status data names the card's span and the 48-hour strip.
+#[tokio::test]
+async fn kit_kp11_body_sections_and_flash_actions_render_without_a_reload_hook() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app(dir.path(), Router::new());
+    app.status_section(Delivery);
+    let running = app.start().await.unwrap();
+    let addr = running.addr;
+    let cookie = login(addr).await;
+    let (_, _, page) = http(addr, "GET", "/", &[("Cookie", &cookie)], "").await;
+    assert!(
+        page.contains("class=\"kp-kpis\"") && page.contains("Waiting"),
+        "{page}"
+    );
+    assert!(
+        page.contains("data-state=\"failed\" data-kp-status-id=\"Webhook\""),
+        "{page}"
+    );
+    assert!(
+        page.contains("data-chassis-flash=\"/deliveries/retry\"")
+            && page.contains("data-chassis-toast=\"Retried {n} entries\"")
+            && !page.contains("data-post=\"/deliveries/retry\""),
+        "{page}"
+    );
+    let (_, _, json) = http(
+        addr,
+        "GET",
+        "/api/kit/status",
+        &[("Cookie", &cookie), ("Accept", "application/json")],
+        "",
+    )
+    .await;
+    let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(v["sections"][0]["span"], 12);
+    assert_eq!(v["sections"][0]["parts"].as_array().unwrap().len(), 2);
+    assert_eq!(v["uptime"].as_array().unwrap().len(), 48);
+    running.stop().await;
+}
+
+// kit-kp11 (clients-manage, round 3): the Test it field sends the body the
+// reader edited, and starts from the test route's own; without a body the
+// request is the route's, as before (the palette's "send a test" posts none).
+// A body past the cap is refused with the kit's error. The send goes to the
+// service's own address, so this one listens on a free port, not port 0.
+async fn record_body(State(seen): State<Arc<Mutex<Vec<String>>>>, body: String) -> StatusCode {
+    seen.lock().unwrap().push(body);
+    StatusCode::ACCEPTED
+}
+
+#[tokio::test]
+async fn the_test_it_field_sends_the_edited_body_to_the_test_route() {
+    let port = {
+        let probe = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        probe.local_addr().unwrap().port()
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let mut vars = env(dir.path());
+    vars.insert("VOCABDEMO_LISTEN".into(), format!("127.0.0.1:{port}"));
+    let mut app = App::from_args_with_env(
+        AppSpec {
+            name: "vocabdemo",
+            version: "0.0.0",
+            ..Default::default()
+        },
+        vec!["vocabdemo".into()],
+        vars,
+        Router::new(),
+    )
+    .unwrap();
+    let seen: Arc<Mutex<Vec<String>>> = Default::default();
+    app.test_route(
+        "POST",
+        "/v1/events",
+        "application/json",
+        r#"{"hello":"route"}"#,
+    );
+    app.api_routes(
+        Router::new()
+            .route("/v1/events", post(record_body))
+            .with_state(seen.clone()),
+    );
+    let running = app.start().await.unwrap();
+    let addr = running.addr;
+    let cookie = login(addr).await;
+    let (_, issued) = issue(addr, &cookie, "job-tracker").await;
+    let id = id_of(&issued);
+
+    let (_, _, page) = http(addr, "GET", "/clients", &[("Cookie", &cookie)], "").await;
+    assert!(
+        page.contains("data-manage-body") && page.contains("data-kp-json=\"strict\""),
+        "the field starts from a JSON route and checks JSON: {page}"
+    );
+
+    let path = format!("/api/clients/{id}/test");
+    // No body: the route's own.
+    let (status, _, body) = http(addr, "POST", &path, &[("Cookie", &cookie)], "").await;
+    assert_eq!(status, 200, "{body}");
+    // The edited body.
+    let json = [
+        ("Cookie", cookie.as_str()),
+        ("Content-Type", "application/json"),
+    ];
+    let edited = r#"{"body":"{\"hello\":\"edited\"}"}"#;
+    let (status, _, body) = http(addr, "POST", &path, &json, edited).await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(
+        *seen.lock().unwrap(),
+        vec![
+            r#"{"hello":"route"}"#.to_string(),
+            r#"{"hello":"edited"}"#.to_string()
+        ]
+    );
+    // Past the cap: refused with the kit's error, nothing sent.
+    let huge = serde_json::json!({ "body": "x".repeat(70 * 1024) }).to_string();
+    let (status, _, body) = http(addr, "POST", &path, &json, &huge).await;
+    assert_eq!(status, 400, "{body}");
+    assert_eq!(seen.lock().unwrap().len(), 2);
     running.stop().await;
 }

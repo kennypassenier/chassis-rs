@@ -25,18 +25,92 @@
 // `data-theme` on any element, not only on <html> — so it reads the live
 // colours instead of a copy kept in step by hand [AR11].
 //
+// A preview [anchors-picker-1019; audhd-recepten 14]. `data-kp-theme-preview="hover"` on the picker (or `preview: true` to
+// attachThemePickers) shows a theme while the pointer rests on its button or the keyboard is on it, and goes back when it
+// leaves, without choosing it: nothing is announced or stored (js/theme-core.js `previewTheme`). A press chooses it, as ever.
+// `data-kp-theme-preview-target` names the element that wears the preview (a selector; default the page's root, the element that
+// wears the theme), so a settings page can show a sample instead of the whole page. A touch screen has no hover: a tap chooses.
+// Fires `kp-theme-preview` on the picker, bubbling: `{ theme }`, and `{ theme: null }` when it ends.
+//
 // Pure since 3.0.0 [KT6]: importing this file attaches nothing. Call
 // attachThemePickers() when the markup is in the DOM, or load js/auto.js.
 
-import { applyTheme, currentTheme, initializeTheme, onThemeChange, pendingTheme, storeTheme, THEMES } from './theme-core.js';
+import {
+    applyTheme,
+    currentTheme,
+    endPreview,
+    initializeTheme,
+    onThemeChange,
+    pendingTheme,
+    previewTheme,
+    storeTheme,
+    THEMES,
+} from './theme-core.js';
 import { getStrings } from './strings.js';
 
 const PICKER = '[data-kp-theme-picker]';
 const OPTION = '[data-kp-theme]';
 const STATUS = '[data-kp-theme-status]';
 
+/**
+ * The element a picker's preview is shown on: `data-kp-theme-preview-target` (a selector), else the root.
+ * @param {HTMLElement} picker @returns {Element | undefined} undefined = the theme root
+ */
+function previewRoot(picker) {
+    const selector = picker.getAttribute('data-kp-theme-preview-target');
+    if (!selector) return undefined;
+    try {
+        return picker.ownerDocument.querySelector(selector) ?? undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * A register that is loaded on demand has to be there before its theme is shown, or the preview is the tokens without the
+ * theme's look. Only when the page uses them (a link carrying data-kp-register), and from the same place as the first one.
+ * @param {Document} doc @param {string} theme @returns {Promise<void>}
+ */
+async function registerFirst(doc, theme) {
+    const first = doc.querySelector('link[data-kp-register]');
+    if (!first) return;
+    const wearing = first.getAttribute('data-kp-register') ?? '';
+    const href = /** @type {HTMLLinkElement} */ (first).href;
+    if (!wearing || !href.includes(`${wearing}-register.css`)) return;
+    // The same link js/lazy-register.js writes (data-kp-register carries the theme), made here so this module does not import it:
+    // the vendored modules are a closed set and lazy-register.js is outside it.
+    const url = new URL(href.split(`${wearing}-register.css`).join(`${theme}-register.css`), doc.baseURI).href;
+    const found = [...doc.querySelectorAll('link[rel~="stylesheet"]')].find(
+        (el) => el.getAttribute('data-kp-register') === theme || /** @type {HTMLLinkElement} */ (el).href === url,
+    );
+    if (found && /** @type {HTMLLinkElement} */ (found).sheet) return;
+    await new Promise((resolve, reject) => {
+        const el = /** @type {HTMLLinkElement} */ (found ?? doc.createElement('link'));
+        el.addEventListener('load', () => resolve(undefined), { once: true });
+        el.addEventListener(
+            'error',
+            () => {
+                if (!found) el.remove();
+                // A register that failed to load is the page's own fault to report; the preview is simply not shown.
+                reject(new Error('register'));
+            },
+            { once: true },
+        );
+        if (!found) {
+            el.rel = 'stylesheet';
+            el.href = url;
+            el.setAttribute('data-kp-register', theme);
+            doc.head.append(el);
+        }
+    });
+}
+
 /** Dispatched on the picker, bubbling, when a person chose a theme here: `{ theme, stored }`. */
 export const PICK_EVENT = 'kp-theme-pick';
+/** Dispatched on the picker, bubbling, when a theme is previewed or the preview ends: `{ theme }`, `{ theme: null }` at the end. */
+export const PREVIEW_EVENT = 'kp-theme-preview';
+/** How long a preview waits before it goes back, in ms: crossing the gap between two buttons is not a leave. */
+export const PREVIEW_LEAVE_MS = 90;
 
 /**
  * Storage refused, so the choice will not survive a reload. Said out loud
@@ -90,13 +164,15 @@ function clearMarks(root) {
  * after attach, which the idempotency guard would otherwise skip.
  *
  * @param {ParentNode} [root]
- * @param {{ persist?: boolean, closePopover?: boolean, status?: ParentNode | null }} [options]
+ * @param {{ persist?: boolean, closePopover?: boolean, status?: ParentNode | null, preview?: boolean }} [options]
  *   persist: store the choice (default true); closePopover: close an
  *   enclosing popover after a choice (default true); status: where the
- *   save-failed message lives (default: the picker's parent).
+ *   save-failed message lives (default: the picker's parent); preview:
+ *   show a theme on hover and keyboard focus (default: the picker's
+ *   `data-kp-theme-preview="hover"`, else off).
  * @returns {(() => void) & { refresh: () => void }} detach
  */
-export function attachThemePickers(root = document, { persist = true, closePopover = true, status = null } = {}) {
+export function attachThemePickers(root = document, { persist = true, closePopover = true, status = null, preview = undefined } = {}) {
     /** @type {(() => void)[]} */
     const cleanups = [];
     /** @type {HTMLElement[]} */
@@ -115,6 +191,9 @@ export function attachThemePickers(root = document, { persist = true, closePopov
             if (!option || !picker.contains(option)) return;
             const next = /** @type {HTMLElement} */ (option).dataset.kpTheme;
             if (!next) return;
+            // A choice ends the look: a preview on the root is made real by applyTheme itself (no step back to the old theme in
+            // between), one on a sample element is taken off it.
+            settlePreview();
             // A change held for its register [scope-50] leaves the root on
             // the previous theme for now; the choice is still this one, and
             // storing the theme still worn would undo it on the next load.
@@ -131,6 +210,81 @@ export function attachThemePickers(root = document, { persist = true, closePopov
         };
 
         picker.addEventListener('click', onClick);
+
+        // A preview: a theme shown while the pointer or the keyboard rests on its button, never chosen by it.
+        const wantsPreview = () => preview ?? picker.getAttribute('data-kp-theme-preview') === 'hover';
+        /** The element wearing a preview now (undefined: the theme root), and whether this picker has one on. */
+        /** @type {Element | undefined} */
+        let shownOn;
+        let showing = false;
+        let leaveTimer = 0;
+        let ask = 0;
+        const say = (/** @type {string | null} */ theme) =>
+            picker.dispatchEvent(new CustomEvent(PREVIEW_EVENT, { bubbles: true, detail: { theme } }));
+        const stopPreview = () => {
+            ask += 1;
+            window.clearTimeout(leaveTimer);
+            if (showing && endPreview({ root: shownOn })) say(null);
+            showing = false;
+            shownOn = undefined;
+        };
+        /** @param {string} theme */
+        const startPreview = async (theme) => {
+            window.clearTimeout(leaveTimer);
+            const mine = ++ask;
+            const on = previewRoot(picker);
+            try {
+                await registerFirst(picker.ownerDocument, theme);
+            } catch {
+                return;
+            }
+            if (mine !== ask || !wantsPreview()) return;
+            if (showing && shownOn !== on) endPreview({ root: shownOn });
+            shownOn = on;
+            showing = true;
+            if (previewTheme(theme, { root: on })) say(theme);
+        };
+        const settlePreview = () => {
+            ask += 1;
+            window.clearTimeout(leaveTimer);
+            if (showing && shownOn !== undefined && endPreview({ root: shownOn })) say(null);
+            showing = false;
+            shownOn = undefined;
+        };
+        const leaveSoon = () => {
+            window.clearTimeout(leaveTimer);
+            leaveTimer = window.setTimeout(stopPreview, PREVIEW_LEAVE_MS);
+        };
+        /** @param {Event} event */
+        const optionOf = (event) => {
+            const option = event.target instanceof Element ? event.target.closest(OPTION) : null;
+            return option && picker.contains(option) ? /** @type {HTMLElement} */ (option) : null;
+        };
+        /** @param {PointerEvent} event */
+        const onEnter = (event) => {
+            if (!wantsPreview() || event.pointerType === 'touch') return;
+            const theme = optionOf(event)?.dataset.kpTheme;
+            if (theme) void startPreview(theme);
+        };
+        /** @param {FocusEvent} event */
+        const onFocusIn = (event) => {
+            if (!wantsPreview()) return;
+            const option = optionOf(event);
+            // The keyboard only: a press focuses the button too, and that press is a choice, not a look.
+            if (!option || !option.matches(':focus-visible')) return;
+            if (option.dataset.kpTheme) void startPreview(option.dataset.kpTheme);
+        };
+        picker.addEventListener('pointerover', onEnter);
+        picker.addEventListener('pointerleave', leaveSoon);
+        picker.addEventListener('focusin', onFocusIn);
+        picker.addEventListener('focusout', leaveSoon);
+        // A menu that closes ends the look.
+        const popover = /** @type {HTMLElement | null} */ (picker.closest('[popover]'));
+        /** @param {Event} event */
+        const onToggle = (event) => {
+            if (/** @type {ToggleEvent} */ (event).newState === 'closed') stopPreview();
+        };
+        popover?.addEventListener('toggle', onToggle);
         // The no-flash snippet copies the stored name onto <html> without
         // reading it, because knowing the theme list is not its job
         // [TH23]. This is the first moment anything can check it, so an
@@ -138,6 +292,12 @@ export function attachThemePickers(root = document, { persist = true, closePopov
         // a data-theme no stylesheet answers to.
         markSelection(picker, initializeTheme(currentTheme()));
         cleanups.push(() => {
+            stopPreview();
+            picker.removeEventListener('pointerover', onEnter);
+            picker.removeEventListener('pointerleave', leaveSoon);
+            picker.removeEventListener('focusin', onFocusIn);
+            picker.removeEventListener('focusout', leaveSoon);
+            popover?.removeEventListener('toggle', onToggle);
             picker.removeEventListener('click', onClick);
             delete picker.dataset.kpThemeAttached;
             clearMarks(picker);

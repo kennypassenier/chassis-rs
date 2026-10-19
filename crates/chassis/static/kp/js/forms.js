@@ -371,9 +371,20 @@ export function attachForms(
         const owner = button.closest('form');
         const busyText = button.dataset.kpBusy ?? getStrings().busy;
         const idleText = button.textContent ?? '';
+        // A flash button owns its faces (rest, busy, result) in
+        // `.kp-flash__stack`; replacing its children destroyed that stack
+        // [kyu 45]. It is checked at submit time, since the flash may be
+        // wired after this attach. The stack's own busy face is shown, and
+        // the button's words are never touched.
+        let ownsFaces = false;
         const onValid = () => {
             button.disabled = true;
             button.setAttribute('aria-busy', 'true');
+            ownsFaces = button.querySelector(':scope > .kp-flash__stack') !== null;
+            if (ownsFaces) {
+                button.setAttribute('data-kp-flash-state', 'busy');
+                return;
+            }
             // The busy words in their own `.kp-button__label`, the element
             // the React button already has, so a register can style the
             // words alone [scope-143].
@@ -388,6 +399,12 @@ export function attachForms(
         const onDone = () => {
             button.disabled = false;
             button.removeAttribute('aria-busy');
+            if (ownsFaces) {
+                ownsFaces = false;
+                // A result the page showed meanwhile stays; only our busy face is taken back.
+                if (button.getAttribute('data-kp-flash-state') === 'busy') button.setAttribute('data-kp-flash-state', 'rest');
+                return;
+            }
             button.textContent = idleText;
         };
         owner?.addEventListener(VALID_EVENT, onValid);
@@ -448,5 +465,131 @@ export function attachSwitches(root = document, { strings } = {}) {
     }
     return () => {
         for (const state of filled) state.replaceChildren();
+    };
+}
+
+/** The blocks of a form grid that give their rows to the grid in a row-sharing card (css: display: contents). */
+const FORMGRID_BLOCK = '.kp-formgrid__group, .kp-formrows, .kp-kv, form';
+
+/**
+ * The rows a row-sharing form grid lays on its stage: every shown child is a row, and a block (a key-value list, a
+ * group, a list of form rows) counts its own children, one level of blocks deep, as the stylesheet flattens them.
+ * @param {Element} grid
+ * @param {number} [depth]
+ * @returns {number}
+ */
+function formgridRows(grid, depth = 0) {
+    let rows = 0;
+    for (const child of grid.children) {
+        if (child instanceof HTMLElement && child.hidden) continue;
+        if (child.matches('template, script, style')) continue;
+        rows += depth < 2 && child.matches(FORMGRID_BLOCK) ? formgridRows(child, depth + 1) : 1;
+    }
+    return rows;
+}
+
+/**
+ * Form grids that share rows [gapform-1019; HTTPSwitchboard 31]. In a `[data-kp-formgrid-stage]`, a `.kp-formgrid` with
+ * `data-kp-formgrid-rows="subgrid"` takes its rows from the stage, so "Source" in one card stands beside "Source" in
+ * the next with one height. A subgrid has to say how many rows it spans, and a count kept by hand drifts the day a row
+ * is added: this writes `--kp-formgrid-rows` on each stage, the row count of its longest card, and writes it again when
+ * a card gains or loses a row or one is hidden.
+ *
+ *   <div data-kp-formgrid-stage>
+ *     <section class="kp-card kp-formgrid" data-kp-formgrid-rows="subgrid">…</section>
+ *     <section class="kp-card kp-formgrid" data-kp-formgrid-rows="subgrid">…</section>
+ *   </div>
+ *
+ * @param {ParentNode} [root]
+ * @returns {() => void} detach: stops watching and removes the counts it wrote
+ */
+export function attachFormgridStages(root = document) {
+    /** @type {Array<() => void>} */
+    const undo = [];
+    for (const stage of root.querySelectorAll('[data-kp-formgrid-stage]')) {
+        if (!(stage instanceof HTMLElement)) continue;
+        const count = () => {
+            let rows = 0;
+            for (const grid of stage.querySelectorAll(":scope > .kp-formgrid[data-kp-formgrid-rows='subgrid']")) {
+                rows = Math.max(rows, formgridRows(grid));
+            }
+            const value = String(Math.max(rows, 1));
+            if (stage.style.getPropertyValue('--kp-formgrid-rows') !== value) stage.style.setProperty('--kp-formgrid-rows', value);
+        };
+        count();
+        const watch = new MutationObserver(count);
+        watch.observe(stage, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'data-kp-formgrid-rows'] });
+        undo.push(() => {
+            watch.disconnect();
+            stage.style.removeProperty('--kp-formgrid-rows');
+        });
+    }
+    return () => {
+        for (const fn of undo) fn();
+    };
+}
+
+const WIDE_BLOCKS =
+    '[data-kp-formgrid-span], .kp-jsonfield, .kp-code, textarea, .kp-refresh, .kp-formrow--wide, .kp-attention, .kp-problems, .kp-command, .kp-segmented--block, .kp-formgrid__fill';
+
+/**
+ * Groups side by side [formgrid-columns-1019]. A `.kp-formgrid` whose children are all `.kp-formgrid__group` (facts and
+ * settings, say) stands them in a row when the panel holds all of them: this puts `data-kp-formgrid-wide` on it while each
+ * group, laid on tracks of its own, fits beside the others with `--kp-formgrid-group-gap` between. Without the attribute
+ * the groups stand under each other on the grid's shared tracks (one label edge for all). `data-kp-formgrid-columns="never"`,
+ * a row-sharing card (`data-kp-formgrid-rows="subgrid"`) and a stacked grid (`data-kp-formgrid-stack="always"`) are left alone.
+ * Measured on the grid's own width, so a panel in a dialog or a column answers the same as a page.
+ *
+ * @param {ParentNode} [root]
+ * @returns {() => void} detach: stops watching and removes the attribute it wrote
+ */
+export function attachFormgridColumns(root = document) {
+    /** @type {Array<() => void>} */
+    const undo = [];
+    for (const grid of root.querySelectorAll('.kp-formgrid')) {
+        if (!(grid instanceof HTMLElement)) continue;
+        const kids = () => [...grid.children].filter((c) => !c.matches('template, script, style') && !(c instanceof HTMLElement && c.hidden));
+        const eligible = () => {
+            const groups = kids();
+            return (
+                groups.length > 1 &&
+                groups.every((c) => c.matches('.kp-formgrid__group')) &&
+                grid.getAttribute('data-kp-formgrid-columns') !== 'never' &&
+                grid.getAttribute('data-kp-formgrid-rows') !== 'subgrid' &&
+                grid.getAttribute('data-kp-formgrid-stack') !== 'always' &&
+                // A grid with a wide block (a code block, a JSON field, a text area, a refresh bar, a spanning cell) keeps its stretching tracks.
+                !grid.querySelector(WIDE_BLOCKS)
+            );
+        };
+        const decide = () => {
+            const was = grid.hasAttribute('data-kp-formgrid-wide');
+            if (!eligible()) {
+                grid.removeAttribute('data-kp-formgrid-wide');
+                return;
+            }
+            // Measured with the groups side by side, put back when they do not fit (one task, nothing is painted between).
+            grid.setAttribute('data-kp-formgrid-wide', '');
+            // What each group needs is its own tracks' width, not the equal column it is given.
+            grid.style.gridAutoColumns = 'max-content';
+            const groups = kids();
+            const gap = Number.parseFloat(getComputedStyle(grid).columnGap) || 0;
+            const need = groups.reduce((sum, g) => sum + g.getBoundingClientRect().width, 0) + gap * (groups.length - 1);
+            const have = grid.getBoundingClientRect().width;
+            grid.style.gridAutoColumns = '';
+            if (need > have + 0.5) grid.removeAttribute('data-kp-formgrid-wide');
+            else if (!was) grid.setAttribute('data-kp-formgrid-wide', '');
+        };
+        // Every group is watched too: a time field or a stepper that builds itself after the first look makes a group wider.
+        const watch = new ResizeObserver(decide);
+        decide();
+        watch.observe(grid);
+        for (const group of grid.children) watch.observe(group);
+        undo.push(() => {
+            watch.disconnect();
+            grid.removeAttribute('data-kp-formgrid-wide');
+        });
+    }
+    return () => {
+        for (const fn of undo) fn();
     };
 }

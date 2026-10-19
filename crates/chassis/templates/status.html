@@ -1,89 +1,143 @@
 {% extends "layout.html" %}
 {% block title %}{{ app_name }} — status{% endblock %}
-{% block content %}
-<h1>Status</h1>
-<p class="explain">
-  What this service is, what version is running, and whether each part of
-  it is doing its job right now. The same facts feed <code>/healthz</code>,
-  which monitoring reads; this page is the human view of them.
-</p>
+{% block head %}{% for href in section_assets.stylesheets %}<link rel="stylesheet" href="{{ href }}">
+{% endfor %}{% for src in section_assets.module_scripts %}<script type="module" src="{{ src }}"></script>
+{% endfor %}{% endblock %}
+{#
+  The status page as an operations page (kit-kp11, approved demo
+  research/chassis-kit-status in kp-themes): a header with the freshness
+  line, four key figures, what needs a person, then cards. Every control is
+  a kp-themes part; the server draws the first paint and chassis.js (the
+  "status" block) keeps it fresh from /api/kit/status.
+#}
+{% macro rows_list(rows) %}<dl class="kp-kv kp-kv--lines" data-chassis-rows>{% for row in rows %}<div class="kp-kv__row"><dt>{{ row[0] }}</dt><dd>{% if row[1] %}{{ row[1] }}{% else %}<span class="kp-kv__none">—<span class="kp-sr-only">none</span></span>{% endif %}</dd></div>{% endfor %}</dl>{% endmacro %}
 
-<div class="kp-autogrid cards">
-  <div class="kp-card">
-    <h2 class="kp-card__title kp-mt-0 kp-fs-md">Service</h2>
-    <dl>
-      <dt>Name</dt><dd>{{ app_name }}</dd>
-      <dt>Version</dt><dd><span class="mono">{{ version }}</span></dd>
-      <dt>Built on</dt><dd>chassis {{ chassis_version }}, kp-themes {{ kp_themes_version }}</dd>
-      <dt>Up since</dt><dd><time datetime="{{ started_at }}">{{ started_at|human_time }}</time></dd>
-      <dt>Listening</dt><dd><span class="mono">{{ listen }}</span></dd>
-    </dl>
-  </div>
+{% macro check_list(checks, label) %}<ul class="kp-statuslist kp-statuslist--rows" aria-label="{{ label }}">{% for c in checks %}<li class="kp-statusrow" data-state="{% if c.state == 'failed' %}failed{% elif c.state == 'warn' %}warn{% else %}ok{% endif %}" data-kp-status-id="{{ c.name }}"><span class="kp-statusrow__mark" aria-hidden="true"></span><span class="kp-statusrow__body"><span class="kp-statusrow__label">{{ c.name }}</span><span class="kp-statusrow__detail">{{ c.detail }}</span></span></li>{% endfor %}</ul>{% endmacro %}
 
-  <div class="kp-card">
-    <h2 class="kp-card__title kp-mt-0 kp-fs-md">Health</h2>
-    <p class="explain kp-m-0 kp-mb-sm">
-      Each part reports whether it can do its work. One failing part turns
-      the whole answer to <em>degraded</em> and <code>/healthz</code> to 503.
-    </p>
-    <dl>
-      <dt>Overall</dt>
-      <dd class="state-cell">{% if health.status == "ok" %}<span class="kp-badge kp-badge--success">ok</span>{% else %}<span class="kp-badge kp-badge--destructive">degraded</span>{% endif %}</dd>
-      {% for name, sub in health.subsystems|items %}
-      <dt>{{ name }}</dt>
-      <dd class="state-cell">{% if sub.ok %}<span class="kp-badge kp-badge--success">ok</span>{% else %}<span class="kp-badge kp-badge--destructive">failing</span>{% endif %} <span class="text-secondary">{{ sub.detail }}</span></dd>
-      {% endfor %}
-    </dl>
-    {% if health.subsystems|length == 0 %}<p class="kp-text-muted kp-m-0">This service registers no subsystems; liveness is the only signal.</p>{% endif %}
-  </div>
+{% macro kpi_strip(kpis, label) %}<div class="kp-kpis" role="group" aria-label="{{ label }}">{% for k in kpis %}<div class="kp-kpi"{% if k.tone %} data-kp-tone="{{ k.tone }}"{% endif %}><span class="kp-kpi__label">{{ k.label }}</span><span class="kp-kpi__value">{{ k.value }}</span>{% if k.note %}<span class="kp-kpi__trend">{{ k.note }}</span>{% endif %}</div>{% endfor %}</div>{% endmacro %}
 
-  <div class="kp-card">
-    <h2 class="kp-card__title kp-mt-0 kp-fs-md">Updates</h2>
-    <p class="explain kp-m-0 kp-mb-sm">
-      How this service gets new versions, and where it stands.
-    </p>
-    <dl>
-      <dt>Mode</dt><dd>{{ update.mode }}</dd>
-      <dt>Running</dt><dd><span class="mono">{{ version }}</span></dd>
-      <dt>Latest release</dt><dd>{{ update.latest }}</dd>
-      <dt>Last check</dt><dd>{{ update.last_check }}</dd>
-      {% if update.note %}<dt>Note</dt><dd>{{ update.note }}</dd>{% endif %}
-    </dl>
-  </div>
-</div>
+{% macro table_view(section, part) %}<div class="kp-datatable" data-kp-datatable data-kp-page-size="5" data-kp-remember="status-{{ section.slug }}"><div class="kp-datatable__bar"><input class="kp-datatable__search" type="search" data-kp-datatable-search aria-label="Search {{ section.title }}" placeholder="Search"></div><div class="kp-table-wrap"><table class="kp-table"><caption class="kp-sr-only">{{ section.title }}</caption><thead><tr>{% for c in part.data.columns %}<th scope="col" data-kp-sort="{{ part.sorts[loop.index0] }}">{{ c }}</th>{% endfor %}</tr></thead><tbody>{% for r in part.data.rows %}<tr data-kp-row-key="{{ r[part.data.key] }}">{% for cell in r %}<td{% if part.sorts[loop.index0] == 'number' %} class="kp-numeric"{% endif %}>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div><div class="kp-empty" data-kp-datatable-empty hidden><span data-kp-datatable-empty-none>Nothing to list yet. Rows appear here as the service has them.</span><span data-kp-datatable-empty-nomatch>No row matches that search. <button type="button" class="kp-button kp-button--sm" data-kp-datatable-clear>Clear the search</button></span></div><div class="kp-datatable__bar"><p class="kp-datatable__status" data-kp-datatable-status role="status" aria-live="polite"></p><div class="kp-datatable__pager" data-kp-datatable-pager></div></div></div>{% endmacro %}
 
-{% if problems %}
-<h2>Problems</h2>
-<p class="explain">Configuration this service could see but not use. Each line says why, and what to do.</p>
-<div class="kp-alert kp-alert--warning" role="alert">
-  <ul class="problems-list">
-    {% for p in problems %}<li><strong>{{ p.what }}</strong> — {{ p.why }} <em>What now: {{ p.remedy }}</em></li>{% endfor %}
-  </ul>
-</div>
-{% endif %}
+{# The empty plate of a card in its four data states (card-state.js owns it afterwards). #}
+{% macro empty_note(title, text) %}<div class="kp-card__state" role="status" data-kp-card-built><div class="kp-empty kp-card__empty"><strong class="kp-card__state-title">{{ title }}</strong><span class="kp-card__state-text">{{ text }}</span></div></div>{% endmacro %}
 
-{% for section in sections %}
-<h2>{{ section.title }}</h2>
-<p class="explain">{{ section.explain }}</p>
-{% if section.rows %}
-<div class="kp-table-wrap">
-<table class="kp-table">
-  <tbody>
-  {% for row in section.rows %}
-  <tr><th class="row-label">{{ row[0] }}</th><td>{{ row[1] }}</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div>
-{% endif %}
-{% if section.html %}{{ section.html|safe }}{% endif %}
-{# K29: the project's buttons under its section; no block at all without them. #}
-{% if section.actions %}
+{% macro action_row(section) %}{# K29: the project's buttons under its section; no block at all without them. #}
+{% if section.actions or section.flash_actions %}
 <div class="kp-row section-actions">
   {% for a in section.actions %}
   <button type="button" class="kp-button{% if a.destructive %} kp-button--destructive{% endif %}" data-post="{{ a.route|safe }}" data-method="{{ a.method }}"{% if a.busy_label %} data-busy-label="{{ a.busy_label }}"{% endif %}{% if a.destructive %} data-kp-destructive data-kp-confirm="{{ a.confirm }}"{% endif %}>{{ a.label }}</button>
   {% endfor %}
+  {% for a in section.flash_actions %}
+  <button type="button" class="kp-button{% if a.destructive %} kp-button--destructive{% endif %}" data-kp-flash-button data-kp-flash-words="{{ a.words|safe }}" {% if a.word %}data-kp-flash-word="{{ a.word }}" {% endif %}data-chassis-flash="{{ a.route|safe }}" data-method="{{ a.method }}"{% if a.toast %} data-chassis-toast="{{ a.toast }}"{% endif %}{% if a.toast_one %} data-chassis-toast-one="{{ a.toast_one }}"{% endif %}{% if a.destructive %} data-kp-destructive data-kp-confirm="{{ a.confirm }}"{% endif %}>{{ a.label }}</button>
+  {% endfor %}
 </div>
 {% endif %}
-{% endfor %}
+{% endmacro %}
+
+{% block content %}
+{% set degraded = health.status != "ok" %}
+{% set parts_ok = parts.total - parts.failing %}
+<div class="kp-ops chassis-status" data-chassis-status data-kp-ops-sticky="none" data-kp-ops-failed="plate">
+  <header class="kp-ops__head kp-page-header">
+    <div class="kp-page-header__inner">
+      <div>
+        <h1 class="kp-page-header__title">Status</h1>
+        <p class="kp-page-header__description">What this service is running, and whether each part of it is doing its job right now.</p>
+        <div class="chassis-status__fresh"><div class="kp-refresh" data-kp-refresh="30" data-kp-remember="chassis-status-refresh" data-kp-look="menu" data-kp-refresh-choices="0,15,30,60"></div></div>
+      </div>
+      <div class="kp-page-header__actions">
+        <button type="button" class="kp-button" data-kp-flash-button data-kp-flash-words="Up to date,Update found,Refused" data-chassis-update-check{% if not update_facts.can_check %} disabled data-kp-disabled-reason="This service is not set up to look for new releases"{% endif %}>Check for updates</button>
+        <div class="kp-menu-button" data-kp-menu-button data-kp-key="chassis-status-more"><button type="button" class="kp-button">More ▾</button><div class="kp-menu kp-menu--rich" role="menu" aria-label="More actions" hidden><div class="kp-menu__group" role="group" aria-label="More actions">
+          <button type="button" role="menuitem" class="kp-menu__item" tabindex="-1" data-kp-value="copy-health"><span class="kp-menu__label">Copy the health address</span><span class="kp-menu__hint">The address monitoring reads, /healthz</span></button>
+          <button type="button" role="menuitem" class="kp-menu__item" tabindex="-1" data-kp-value="download-json"><span class="kp-menu__label">Download the status as JSON</span><span class="kp-menu__hint">Everything on this page, for a script</span></button>
+        </div></div></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="kp-ops__kpis">
+    <div class="kp-kpis" role="group" aria-label="This service at a glance" data-kp-kpis-columns="all {% if clients %}4{% else %}3{% endif %} 2 1">
+      <div class="kp-kpi"{% if degraded %} data-kp-tone="destructive"{% endif %} data-chassis-kpi="health"><span class="kp-kpi__label">Health</span><span class="kp-kpi__value">{% if degraded %}Degraded{% else %}Healthy{% endif %}{% if parts.total > 0 %}<small>{{ parts_ok }} of {{ parts.total }} parts</small>{% endif %}</span><span class="kp-kpi__trend">{% if degraded %}{{ parts.failing }} {% if parts.failing == 1 %}part{% else %}parts{% endif %} failing; the health check answers 503{% elif parts.total > 0 %}Every part can do its work{% else %}This service has no parts to check; being alive is the only signal{% endif %}</span>{% if parts.total > 0 %}<span class="kp-kpi__meter" role="meter" aria-label="Parts that can do their work" aria-valuenow="{{ parts_ok }}" aria-valuemin="0" aria-valuemax="{{ parts.total }}" style="--kp-value: {{ parts_ok / parts.total }}"></span>{% endif %}</div>
+      <div class="kp-kpi" data-chassis-kpi="running"><span class="kp-kpi__label">Running</span><span class="kp-kpi__value">{{ version }}</span><span class="kp-kpi__trend">{% if update_facts.newer %}<span class="kp-badge kp-badge--version" data-kp-version-from="{{ version }}" data-kp-version-to="{{ update_facts.latest }}"{% if repository_url %} data-kp-version-href="{{ repository_url }}/releases/tag/v{to}"{% endif %}></span> is out{% elif update_facts.latest %}The latest release{% elif update_facts.mode == "unavailable" %}Updates are not available in this service{% else %}No newer release known{% endif %}</span></div>
+      <div class="kp-kpi" data-chassis-kpi="up"><span class="kp-kpi__label">Up for</span><span class="kp-kpi__value">{{ up_for }}</span><span class="kp-kpi__trend">since <time datetime="{{ started_at }}" data-chassis-when data-localised="true">{{ started_at|kit_when }}</time></span></div>
+      {% if clients %}<a class="kp-kpi" href="{{ clients.href }}" data-chassis-kpi="clients"><span class="kp-kpi__label">{{ clients.label }}</span><span class="kp-kpi__value">{{ clients.active }}<small>of {{ clients.total }}</small></span><span class="kp-kpi__trend">active; open the list</span></a>{% endif %}
+    </div>
+  </div>
+
+  <div class="kp-ops__attention"><div class="kp-problems" id="chassis-status-problems" data-kp-problems data-kp-problems-mode="each" data-kp-problems-fold-from="2" aria-label="Problems" data-chassis-problems='{{ problems|tojson }}'>{% if problems %}<noscript><ul>{% for p in problems %}<li><strong>{{ p.what }}</strong> — {{ p.why }} <em>What now: {{ p.remedy }}</em></li>{% endfor %}</ul></noscript>{% endif %}</div></div>
+
+  <div class="kp-ops__body">
+    <section class="kp-card" data-kp-span="4" data-kp-state="ready" data-chassis-card="service" aria-labelledby="chassis-status-service">
+      <div class="kp-card__header"><h2 class="kp-card__title" id="chassis-status-service">Service</h2></div>
+      <p class="kp-card__body">What is running here, and since when.</p>
+      <div class="kp-card__stage"><div class="kp-card__data">
+      <dl class="kp-kv kp-kv--lines">
+        <div class="kp-kv__row"><dt>Name</dt><dd>{{ app_name }}</dd></div>
+        <div class="kp-kv__row"><dt>Version</dt><dd><span class="mono">{{ version }}</span></dd></div>
+        <div class="kp-kv__row"><dt>Built on</dt><dd>chassis {{ chassis_version }} <span class="kp-badge">kp-themes {{ kp_themes_version }}</span></dd></div>
+        <div class="kp-kv__row"><dt>Up since</dt><dd><time datetime="{{ started_at }}" data-chassis-when data-localised="true">{{ started_at|kit_when }}</time> <time class="kp-ago" data-localised="true" data-kp-ago data-kp-ago-verb="started" datetime="{{ started_at }}"></time></dd></div>
+        <div class="kp-kv__row"><dt>Listening</dt><dd><span class="kp-copyable"><span class="kp-copyable__value" id="chassis-status-listen">{{ listen }}</span><button type="button" class="kp-button kp-button--ghost kp-button--sm kp-copyable__button" data-kp-copy="chassis-status-listen">Copy</button></span></dd></div>
+      </dl>
+      </div></div>
+    </section>
+
+    {# Health: a card in its four data states; no parts is the empty state, not a line of text. #}
+    <section class="kp-card" data-kp-span="4" data-kp-state="{% if parts.total > 0 %}ready{% else %}empty{% endif %}" data-chassis-card="health" data-chassis-empty-title="No parts to check" data-chassis-empty-text="This service registers no parts; being alive is the only signal." aria-labelledby="chassis-status-health">
+      <div class="kp-card__header"><h2 class="kp-card__title" id="chassis-status-health">Health</h2></div>
+      <p class="kp-card__body">Each part says whether it can do its work. One failing part makes the whole service degraded.</p>
+      <div class="kp-card__stage"><div class="kp-card__data">
+        <ul class="kp-statuslist" aria-label="Parts of this service" data-chassis-health>{% for name, sub in health.subsystems|items %}<li class="kp-statusrow" data-state="{% if sub.ok %}ok{% else %}failed{% endif %}" data-kp-status-id="{{ name }}"><span class="kp-statusrow__mark" aria-hidden="true"></span><span class="kp-statusrow__body"><span class="kp-statusrow__label">{{ name }}</span><span class="kp-statusrow__detail">{{ sub.detail }}</span></span></li>{% endfor %}</ul>
+      </div>{% if parts.total == 0 %}{{ empty_note("No parts to check", "This service registers no parts; being alive is the only signal.") }}{% endif %}</div>
+    </section>
+
+    <section class="kp-card" data-kp-span="4" data-kp-state="ready" data-chassis-card="updates" aria-labelledby="chassis-status-updates">
+      <div class="kp-card__header"><h2 class="kp-card__title" id="chassis-status-updates">Updates</h2></div>
+      <p class="kp-card__body">How this service gets new versions, and where it stands.</p>
+      <div class="kp-card__stage"><div class="kp-card__data">
+      <dl class="kp-kv kp-kv--lines" data-chassis-updates>
+        <div class="kp-kv__row"><dt>Mode</dt><dd>{{ update_facts.mode_label }}</dd></div>
+        <div class="kp-kv__row"><dt>Running</dt><dd><span class="mono">{{ version }}</span></dd></div>
+        <div class="kp-kv__row"><dt>Latest release</dt><dd>{% if update_facts.newer %}<span class="kp-badge kp-badge--version" data-kp-version-from="{{ version }}" data-kp-version-to="{{ update_facts.latest }}"{% if repository_url %} data-kp-version-href="{{ repository_url }}/releases/tag/v{to}"{% endif %}></span>{% elif update_facts.latest %}You are on it{% else %}<span class="kp-kv__none">—<span class="kp-sr-only">not checked</span></span>{% endif %}</dd></div>
+        <div class="kp-kv__row"><dt>Last check</dt><dd>{% if update_facts.last_check_at %}<time datetime="{{ update_facts.last_check_at }}" data-chassis-when data-localised="true">{{ update_facts.last_check_at|kit_when }}</time> <time class="kp-ago" data-localised="true" data-kp-ago data-kp-ago-verb="checked" datetime="{{ update_facts.last_check_at }}"></time>{% else %}Never{% endif %}</dd></div>
+      </dl>
+      {% if update_facts.note %}<p class="kp-text-muted chassis-status__note" data-chassis-update-note>{{ update_facts.note }}</p>{% endif %}
+      </div></div>
+    </section>
+
+    <section class="kp-card" data-kp-span="12" aria-labelledby="chassis-status-uptime">
+      <div class="kp-card__header"><h2 class="kp-card__title" id="chassis-status-uptime">Availability, last 48 hours</h2></div>
+      <p class="kp-card__body">One cell per hour. Hover a cell for the hour’s figures; the gap is the restart.</p>
+      <div class="kp-card__stage"><div class="kp-card__data">
+      <div class="kp-uptime" id="chassis-status-strip" data-kp-uptime data-kp-uptime-label="{{ app_name }}" data-kp-uptime-count="48" data-kp-uptime-open="info" data-chassis-uptime='{{ uptime|tojson }}'></div></div></div>
+      <p class="kp-text-muted chassis-status__note">Kept in memory while the service runs: a restart empties it, and the hours before it show no data.</p>
+    </section>
+
+    {% for section in sections %}
+    {# One card per section, in its four data states (kp-themes card-state): the kit draws rows, tables, figures and checks, a JSON-fed card reads its own address. #}
+    {% set kind = "json" if (section.body and section.body.kind == "json") else ("rows" if (not section.body or section.body.kind == "rows") else "parts") %}
+    {% set rows = section.body.data if (section.body and section.body.kind == "rows") else section.rows %}
+    {% set filled = namespace(any=false) %}
+    {% if section.html %}{% set filled.any = true %}{% endif %}
+    {% if kind == "rows" and rows|length > 0 %}{% set filled.any = true %}{% endif %}
+    {% if kind == "parts" %}{% for part in section.parts %}{% if part.kind == "table" or part.data|length > 0 %}{% set filled.any = true %}{% endif %}{% endfor %}{% endif %}
+    <section class="kp-card" data-kp-span="{{ section.span }}" data-kp-state="{% if kind == 'json' %}loading{% elif filled.any %}ready{% else %}empty{% endif %}" data-chassis-section="{{ section.slug }}" data-chassis-kind="{{ kind }}" data-chassis-empty-title="Nothing to show yet" data-chassis-empty-text="It fills when this part of the service has something to report."{% if kind == 'json' %} data-chassis-json="{{ section.body.data.url }}" data-chassis-render="{{ section.body.data.render }}"{% endif %} aria-labelledby="{{ section.slug }}-t">
+      <div class="kp-card__header"><h2 class="kp-card__title" id="{{ section.slug }}-t">{{ section.title }}</h2></div>
+      <p class="kp-card__body">{{ section.explain }}</p>
+      <div class="kp-card__stage"><div class="kp-card__data">
+        {% if kind == "parts" %}{% for part in section.parts %}
+        <div data-chassis-body data-chassis-part="{{ loop.index0 }}">
+        {% if part.kind == "table" %}{{ table_view(section, part) }}
+        {% elif part.kind == "kpis" %}{{ kpi_strip(part.data, section.title) }}
+        {% elif part.kind == "checks" %}{{ check_list(part.data, section.title) }}
+        {% elif part.kind == "rows" %}{{ rows_list(part.data) }}
+        {% endif %}
+        </div>
+        {% endfor %}{% elif kind == "json" %}<div data-chassis-body data-chassis-part="0"></div>{% else %}{{ rows_list(rows) }}{% endif %}
+        {% if section.html %}{{ section.html|safe }}{% endif %}
+      </div>{% if kind != 'json' and not filled.any %}{{ empty_note("Nothing to show yet", "It fills when this part of the service has something to report.") }}{% endif %}</div>
+      {% if section.actions or section.flash_actions %}<div class="kp-card__footer">{{ action_row(section) }}</div>{% endif %}
+    </section>
+    {% endfor %}
+  </div>
+</div>
 {% endblock %}

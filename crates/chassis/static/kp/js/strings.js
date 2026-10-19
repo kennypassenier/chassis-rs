@@ -39,6 +39,8 @@
 /**
  * @typedef {object} Strings
  * @property {string} toggleCounting  The count's name while it is still being counted (js/toggle.js) [kpadopt6-ops]
+ * @property {string} tabCountCounting  The count on a tab, while it is still being counted: its name for a screen reader (js/tabbar.js, setTabCount) [gap-tab-count]
+ * @property {string} tabCountFailed  The count on a tab that could not be counted, in words (the dash on the tab says nothing) [gap-tab-count]
  * @property {(label: string, count: number | null) => string} toggleOn  The line said once a toggle is switched on, "Only errors on, 12 shown" [kpadopt6-ops]
  * @property {(label: string, count: number | null) => string} toggleOff  The line said once it is switched off [kpadopt6-ops]
  * @property {(label: string, n: number) => string} toggleCount  The line said when the count beside a toggle changed (data-kp-announce="all") [kpadopt6-ops]
@@ -132,6 +134,16 @@
  * @property {string} entityGridFailedText  Its sentence when the page gives no reason [kpadopt6-ops]
  * @property {string} entityGridEmpty  The empty plate's title for a grid with no cards [kpadopt6-ops]
  * @property {string} entityNew  The empty plate's action [kpadopt6-ops]
+ * @property {(name: string) => string} entityStar  The favourite button's name, "Favourite jellyfin" [gap-entity-tiles-1019]
+ * @property {string} entityOpensNew  What a screen reader adds to a link that opens a new tab [gap-entity-tiles-1019]
+ * @property {string} entityTrend  The trend row's label when the data gives none [gap-entity-tiles-1019]
+ * @property {string} entityTrendNone  What the trend row says where there are fewer than two readings [gap-entity-tiles-1019]
+ * @property {(label: string, text: string) => string} entityTrendName  The trend line's text alternative, "CPU, last 24 h, now 34%" [gap-entity-tiles-1019]
+ * @property {string} entityTileFailed  What a tile says where its app could not be read [gap-entity-tiles-1019]
+ * @property {string} entityTileLoading  The busy card's words while a board of tiles is read [gap-entity-tiles-1019]
+ * @property {string} entityTileGridFailed  The failed plate's title for a board of tiles [gap-entity-tiles-1019]
+ * @property {string} entityTileGridEmpty  The empty plate's title for a board with no tile [gap-entity-tiles-1019]
+ * @property {string} entityTileNew  The empty board's action [gap-entity-tiles-1019]
  * @property {string} alertSuccess
  * @property {string} alertWarning
  * @property {string} alertInfo
@@ -451,6 +463,7 @@
  * @property {string} refreshNow  The button that refreshes at once [kpadopt5-auto-refresh]
  * @property {string} refreshUpdating  The freshness line's words while the app reads [kpadopt5-auto-refresh]
  * @property {(next: string) => string} refreshFailed  The note after a failed refresh, "Last refresh failed, retrying in 30 s" [kpadopt5-auto-refresh]
+ * @property {string} refreshFailedPaused  The note after a failed refresh while paused, when nothing retries by itself, "Last refresh failed." [live-options-1019]
  * @property {string} refreshRetryNow  The button that retries a failed refresh at once [kpadopt5-auto-refresh]
  * @property {string} refreshCustomLabel  The label of the field for any number of seconds [kpadopt5-auto-refresh]
  * @property {string} refreshApply  The button that sets that number [kpadopt5-auto-refresh]
@@ -515,6 +528,13 @@
  * @property {string} heatLoading           What a heat grid's or matrix's cell says while its value is being read (js/heat.js) [kpadopt2-grids]
  * @property {string} heatEmpty             A heat grid or matrix with no rows [kpadopt2-grids]
  * @property {string} heatFailed            A heat grid or matrix that could not be read [kpadopt2-grids]
+ * @property {string} heatLegendLess        The less end of a heat legend's value ramp (js/heat.js, setHeatLegend) [gap-tab-count]
+ * @property {string} heatLegendMore        The more end of the ramp [gap-tab-count]
+ * @property {string} heatLegendLabel       The name of a heat grid's legend for a screen reader [gap-tab-count]
+ * @property {string} heatKeysMove          The heat legend's key line: the arrow keys [gap-tab-count]
+ * @property {string} heatKeysPick          Enter or Space on a cell: pick the column [gap-tab-count]
+ * @property {string} heatKeysDrop          Escape: drop the picked column [gap-tab-count]
+ * @property {string} heatKeysPage          Page Up and Page Down: show earlier or later columns [gap-tab-count]
  * @property {string} matrixSelf            A matrix cell that pairs a row with itself, for a screen reader [kpadopt2-grids]
  * @property {string} matrixUnknown         A matrix cell with no answer, for a screen reader [kpadopt2-grids]
  * @property {string} tableClearSearch      The way out of the no-match state
@@ -688,6 +708,8 @@
  * @property {string} chartNow  A spark line's value when no time is under the crosshair [scope-143]
  * @property {string} chartEmpty  A time chart with no readings in its window, in the plot at its height [scope-143]
  * @property {string} chartRetry  The Retry under a failed chart's sentence [t56-statefix-1018]
+ * @property {string} chartTrendFailed  The failed plate's heading of a key figure's trend when the page gives no sentence [kyu-plates-1019]
+ * @property {string} progressFailed  The failed plate's heading of a progress bar when the page gives no title [kyu-plates-1019]
  * @property {string} chartOnePoint  Under a chart whose every source has one reading (with `onePointNote`) [scope-143]
  * @property {string} chartLoading  A loading chart (`data-kp-chart-loading`), for a screen reader [scope-143]
  * @property {string} chartPinnedOutside  A pinned tooltip's head once a live update moved the window past the pin [scope-143]
@@ -759,6 +781,7 @@
  * @property {string} ganttZoomTitle  Its title
  * @property {(seconds: number) => string} ganttDuration  A length of time as a person reads it, "14 min", "1 h 5 min", "45 s"
  * @property {string} ganttHint  The one-line hint under the timeline on how to read and use it
+ * @property {string} ganttHintOpen  The same hint of a timeline without its range toolbar (no brush): only opening a bar [gaps-time-1019]
  * @property {string} ganttAll  The range button that fits the window to everything on the timeline (`all` in `data-kp-gantt-ranges`) [kpadopt4]
  * @property {string} ganttAllTitle  Its title
  * @property {(label: string, when: string) => string} ganttPoint  A point event's name, "Applied, 02/10/2026" [kpadopt4]
@@ -770,6 +793,7 @@
  * @property {string} pipelineEmpty  The sentence over a pipeline with no cards, when the page gives none
  * @property {(reason: string) => string} pipelineFailed  The sentence over a pipeline that could not be read
  * @property {string} pipelineRetry  Its Try again button
+ * @property {string} pipelineDanger  The word on a failing lane's name plate (`danger: true`), so the colour is never the only carrier [r1r2-1019]
  * @property {string} pipelineNone  The word in a lane with no cards
  * @property {(more: number) => string} pipelineMore  The button under a lane's first cards, "+4 more"
  * @property {string} pipelineLess  The same button while the lane shows every card
@@ -814,6 +838,7 @@
  * @property {(left: string, total: string) => string} timerDiscLeft  The visual timer's face for a screen reader: "12 min left of 25 min" [kpadopt4-ideas]
  * @property {string} timerUnderMinute  The time left on the face in its last minute [kpadopt4-ideas]
  * @property {(name: string, duration: string) => string} timerDiscCaption  The still line under the disc: "Focus · 25 min" [kpadopt4-ideas]
+ * @property {(when: string) => string} timerUntil  The still line of a timer that counts down to a moment: "until 14:30" [gaps-time-1019]
  * @property {string} rangePresets  The range picker's preset group, for a screen reader (js/range.js) [kpadopt4-ideas]
  * @property {(key: string) => string} rangePresetName  A preset in words: "Last 24 hours" [kpadopt4-ideas]
  * @property {(key: string) => string} rangePresetShort  A preset on its segment: "24h" [kpadopt4-ideas]
@@ -990,6 +1015,10 @@
  * @property {string} usesFailedText  Its sentence [kpadopt6-media]
  * @property {string} usesEmpty  The empty map's heading [kpadopt6-media]
  * @property {string} usesEmptyText  Its sentence [kpadopt6-media]
+ * @property {string} stateRetry  The Retry of every failed data area drawn with the state plate (heat, matrix, timeline, week, graph, table) [state-plates-1019]
+ * @property {string} stateFailedText  The sentence under a failed data area's heading when the page gives none [state-plates-1019]
+ * @property {string} graphEmpty  The empty network's heading when the page gives no words [state-plates-1019]
+ * @property {string} graphFailed  The failed network's heading when the page gives no words [state-plates-1019]
  * @property {string} usesRetry  The failed map's Retry [kpadopt6-media]
  * @property {string} usesLoading  The busy card's words while the map loads [kpadopt6-media]
  * @property {string} usesNotUsed  What a source nothing uses says [kpadopt6-media]
@@ -1129,6 +1158,8 @@
  * @property {(name: string) => string} timerAddMinuteTo  That button's accessible name [kpadopt4]
  * @property {(name: string) => string} timerRemove  The remove button's accessible name and tooltip [kpadopt4]
  * @property {string} timerEmpty  A list with no timer [kpadopt4]
+ * @property {string} timersLoading  The busy card over a timer list that is being read [r6r8-1019]
+ * @property {string} timersFailed  A timer list that could not be read, when the page gives no message [r6r8-1019]
  * @property {(name: string) => string} timerLastMinute  Said once when a timer has a minute left [kpadopt4]
  * @property {(name: string, clock: string) => string} timerStartedNamed  Said when a kitchen timer starts, with its name and its clock [kpadopt4]
  * @property {(name: string) => string} timerAlready  Said when a starter is pressed while its timer runs [kpadopt4]
@@ -1147,6 +1178,9 @@
  * @property {string} focusLoading  The words under its spinner while the steps load [kpadopt4]
  * @property {string} focusFailed  Steps that could not be read, when the page gives no message [kpadopt4]
  * @property {string} wheelSpin  The button in the middle of a wheel that picks (js/wheel.js) [kpadopt4]
+ * @property {string} wheelIdleKiosk  The same line on a kiosk wheel, which has no button [hover-wheel-1019]
+ * @property {string} wheelSpinKiosk  The name of a kiosk wheel for a screen reader: it is the one control [hover-wheel-1019]
+ * @property {string} wheelResting  Added to a resting choice's tooltip [hover-wheel-1019]
  * @property {string} wheelSpinAgain  The same button once the wheel has chosen [kpadopt4]
  * @property {string} wheelIdle  The line under a wheel that has not spun yet [kpadopt4]
  * @property {string} wheelChose  The line over the outcome, "The wheel chose" [kpadopt4]
@@ -1332,6 +1366,42 @@
  * @property {string} consoleKeyFocusReason  Why the focus key does nothing now (js/console.js) [kpadopt6]
  * @property {(n: number) => string} qrShowAllChars  The button that unfolds a long link under the code (js/qr.js) [kpadopt6]
  * @property {string} qrShowLess  The button that folds it again (js/qr.js) [kpadopt6]
+ * @property {string} diffLabel  The diff view's accessible name when it has none (js/diff.js) [gap-diff-view]
+ * @property {(files: number) => string} diffSummary  The bar's count of files: "3 files changed" (js/diff.js) [gap-diff-view]
+ * @property {string} diffExpandAll  The button that opens every file (js/diff.js) [gap-diff-view]
+ * @property {string} diffCollapseAll  The button that closes every file (js/diff.js) [gap-diff-view]
+ * @property {string} diffAllOpen  Why Expand all is off: every file is already open (js/diff.js) [gap-diff-view]
+ * @property {string} diffAllClosed  Why Collapse all is off: every file is already closed (js/diff.js) [gap-diff-view]
+ * @property {string} diffStatusAdded  The badge of a new file (js/diff.js) [gap-diff-view]
+ * @property {string} diffStatusRemoved  The badge of a deleted file (js/diff.js) [gap-diff-view]
+ * @property {string} diffStatusModified  The badge of a changed file (js/diff.js) [gap-diff-view]
+ * @property {string} diffStatusRenamed  The badge of a moved file (js/diff.js) [gap-diff-view]
+ * @property {string} diffStatusBinary  The badge of a file that is not text (js/diff.js) [gap-diff-view]
+ * @property {(from: string) => string} diffRenamedFrom  A renamed file's path for a screen reader: "renamed from old/path" (js/diff.js) [gap-diff-view]
+ * @property {(n: number) => string} diffAddedCount  The +N count for a screen reader: "3 lines added" (js/diff.js) [gap-diff-view]
+ * @property {(n: number) => string} diffRemovedCount  The -M count for a screen reader: "1 line removed" (js/diff.js) [gap-diff-view]
+ * @property {(n: number) => string} diffUnchanged  The folded context row: "12 unchanged lines" (js/diff.js) [gap-diff-view]
+ * @property {(n: number) => string} diffUnchangedName  That row's accessible name: "Show 12 unchanged lines" (js/diff.js) [gap-diff-view]
+ * @property {(n: number) => string} diffUnchangedHide  The same row once opened: "Hide 12 unchanged lines" (js/diff.js) [gap-diff-view]
+ * @property {(n: number) => string} diffUnchangedShown  Said politely after a fold opened: "12 unchanged lines shown" (js/diff.js) [gap-diff-view]
+ * @property {(n: number) => string} diffUnchangedHidden  Said politely after a fold closed: "12 unchanged lines hidden" (js/diff.js) [gap-diff-view]
+ * @property {(n: number) => string} diffShowMore  The row that shows the lines past the file's limit: "Show the other 1240 lines" (js/diff.js) [gap-diff-view]
+ * @property {string} diffBinaryTitle  The heading of a file that is not text (js/diff.js) [gap-diff-view]
+ * @property {string} diffBinaryText  Its sentence (js/diff.js) [gap-diff-view]
+ * @property {string} diffNoLines  A file with no line changes (a rename or a mode change) (js/diff.js) [gap-diff-view]
+ * @property {(path: string) => string} diffChangesIn  A file's body name: "Changes in stacks/media/compose.yml" (js/diff.js) [gap-diff-view]
+ * @property {string} diffCopyPath  The Copy path button (js/diff.js) [gap-diff-view]
+ * @property {string} diffCopied  Its result word (js/diff.js) [gap-diff-view]
+ * @property {string} diffCopyFailed  Its refusal word (js/diff.js) [gap-diff-view]
+ * @property {string} diffLoading  The words under the busy card while the changes are read (js/diff.js) [gap-diff-view]
+ * @property {(files: number, added: number, removed: number) => string} diffReady  Said politely when the changes are drawn (js/diff.js) [gap-diff-view]
+ * @property {string} diffEmptyTitle  The empty plate's heading (js/diff.js) [gap-diff-view]
+ * @property {string} diffEmptyText  Its sentence (js/diff.js) [gap-diff-view]
+ * @property {(name: string) => string} diffEmptySame  Its sentence when one name was compared: "compose.yml is the same on both sides." (js/diff.js) [gap-diff-view]
+ * @property {(from: string, to: string) => string} diffEmptyBetween  Its sentence when two names were compared (js/diff.js) [gap-diff-view]
+ * @property {string} diffFailedTitle  The failed plate's heading (js/diff.js) [gap-diff-view]
+ * @property {string} diffFailedText  Its sentence (js/diff.js) [gap-diff-view]
+ * @property {string} diffRetry  The failed plate's button (js/diff.js) [gap-diff-view]
  * @property {(item: string) => string} ratingGroupName  The star row's name for a screen reader: "Rating for Lasagne" (js/rating.js) [kpadopt6]
  * @property {string} ratingGroupNameBare  The same when the row names no item [kpadopt6]
  * @property {(n: number, max: number) => string} ratingStarName  One star's name: "4 of 5" [kpadopt6]
@@ -1439,6 +1509,44 @@
  * @property {string} focusSaveFailedText  Its sentence: nothing is lost [kpadopt6]
  * @property {string} focusSaveRetry  Its button: "Try again" [kpadopt6]
  * @property {string} focusAnswerLoading  The words under the loading card of the questions [kpadopt6]
+ * @property {string} focusReadEmptyTitle  The plate of a recipe with no steps (js/focus-steps.js, read mode) [focus-tracks-1019]
+ * @property {string} focusReadFailedTitle  The plate of steps that could not be loaded [focus-tracks-1019]
+ * @property {string} focusReadFailedText  Its sentence when the page gave no message [focus-tracks-1019]
+ * @property {string} focusTrackShared  The name of the lane of steps that belong to no track: "Together" [focus-tracks-1019]
+ * @property {string} focusTracksTitle  The heading over the lanes: "Tracks" [focus-tracks-1019]
+ * @property {string} focusTracksHint  The line under the lanes saying how to switch [focus-tracks-1019]
+ * @property {(n: number, total: number) => string} focusTracksDone  The lanes' total: "5 of 9 steps done" [focus-tracks-1019]
+ * @property {(track: string, n: number, total: number) => string} focusTrackCount  The count over a step on a track: "Pasta: step 2 of 4" [focus-tracks-1019]
+ * @property {(track: string, n: number) => string} focusTrackStepName  A step with no title, by place: "Pasta, step 2" [focus-tracks-1019]
+ * @property {(n: number, total: number) => string} focusLaneStep  A lane's place on its track: "Step 2 of 4" [focus-tracks-1019]
+ * @property {string} focusLaneHere  A lane's state word for the track you are on [focus-tracks-1019]
+ * @property {string} focusLaneReady  A lane's state word for a track that can go on [focus-tracks-1019]
+ * @property {(timer: string) => string} focusLaneRunning  A lane's state word while its timer runs: "Water running" [focus-tracks-1019]
+ * @property {(timer: string) => string} focusLanePaused  A lane's state word while its timer is paused [focus-tracks-1019]
+ * @property {(names: string) => string} focusLaneWaiting  A lane's state word while it waits: "Waiting for Sauce" [focus-tracks-1019]
+ * @property {string} focusLaneRinging  A lane's state word when its timer has ended: "Time is up" [focus-tracks-1019]
+ * @property {string} focusLaneFinished  A lane's state word when its track is done [focus-tracks-1019]
+ * @property {string} focusTrackBand  The name of the band over the step that lists the tracks asking for you [focus-tracks-1019]
+ * @property {(timer: string, track: string) => string} focusTrackTimerDone  The band's line when a step timer ended: "Water is done (Pasta)" [focus-tracks-1019]
+ * @property {(track: string) => string} focusTrackReadyTitle  The band's line when a waiting track can go on: "Pasta can go on" [focus-tracks-1019]
+ * @property {(step: string) => string} focusTrackNextUp  Its sentence: "Next: Add the spaghetti" [focus-tracks-1019]
+ * @property {(track: string) => string} focusTrackNothingLeft  Its sentence when the track has no step left [focus-tracks-1019]
+ * @property {(track: string) => string} focusTrackGo  The button that goes to a track: "Go to Pasta" [focus-tracks-1019]
+ * @property {string} focusTrackGotIt  The band's button for the track you are on [focus-tracks-1019]
+ * @property {(what: string) => string} focusTrackWaitTitle  The title of a step that waits: "Waiting for Boil the water" [focus-tracks-1019]
+ * @property {(clock: string) => string} focusTrackWaitLeft  What a step waits for, with the time left: "07:12 left" [focus-tracks-1019]
+ * @property {string} focusTrackWaitOpen  What a step waits for, with no clock: "not done yet" [focus-tracks-1019]
+ * @property {(track: string) => string} focusTrackFinishedTitle  The plate of a track with no step left: "Pasta is done" [focus-tracks-1019]
+ * @property {string} focusTrackFinishedText  Its sentence [focus-tracks-1019]
+ * @property {(next: string) => string} focusTrackFinishedNext  Its sentence when another track can go on: "Sauce is ready for you" [focus-tracks-1019]
+ * @property {(track: string) => string} focusTrackFinish  The next button on the last step of a track: "Finish Pasta" [focus-tracks-1019]
+ * @property {(track: string, place: string, text: string) => string} focusTrackSwitched  What a screen reader hears after a switch of track [focus-tracks-1019]
+ * @property {(step: string) => string} focusTrackUnlocked  What a screen reader hears when the step you are on stops waiting [focus-tracks-1019]
+ * @property {(clock: string) => string} focusTimerRunning  A step's timer button while its timer runs: "Timer running · 07:12" [focus-tracks-1019]
+ * @property {(clock: string) => string} focusTimerPaused  The same while it is paused [focus-tracks-1019]
+ * @property {string} focusTimerDone  The same when it ended [focus-tracks-1019]
+ * @property {string} focusTrackKeyNext  The shortcut sheet's line for T [focus-tracks-1019]
+ * @property {string} focusTrackKeyPrevious  The shortcut sheet's line for Shift T [focus-tracks-1019]
  * @property {string} usualLabel  The label over the usual band of a picker (js/usual-picker.js) [kpadopt6]
  * @property {string} usualAll  The label over the full list under the band [kpadopt6]
  * @property {(usual: number, more: number) => string} usualStatus  The status line of a picker with a band: "5 usual, 33 more" [kpadopt6]
@@ -1480,6 +1588,73 @@
  * @property {string} usualHadItWord  The word a screen reader hears after a chip that is had it [kpadopt6]
  * @property {(label: string) => string} usualUnanswered  What is said when an answer is taken back: "Headache: not answered" [kpadopt6]
  * @property {string} usualUnansweredWord  The word a screen reader hears after a chip with no answer [kpadopt6]
+ * @property {string} logviewerUnit  The pill's word for a log line, singular and plural (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerLabel  The viewer's name for a screen reader when the page gives none (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerLogLabel  The scrolling list's name for a screen reader (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerSearch  The search box's label (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerSearchHint  The search box's placeholder (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerSearchNone  The count when nothing matches (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerSearchIdle  The count while the box is empty (js/logviewer.js) [gap-log-viewer]
+ * @property {(n: number) => string} logviewerMatches  The count when there are matches and none is current (js/logviewer.js) [gap-log-viewer]
+ * @property {(at: number, n: number) => string} logviewerMatchAt  The count with the current match (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerPrevious  The button that goes to the match before (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerNext  The button that goes to the next match (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerOnly  The toggle that hides lines without a match (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerWrap  The toggle that wraps long lines (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerTimeLabel  The time column control's name (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerTimeShort  Its first choice, the time of day (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerTimeFull  Its second choice, date and time (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerTimeOff  Its third choice, no time column (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerLevel  The level select's label (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerLevelAll  Its first entry, every level (js/logviewer.js) [gap-log-viewer]
+ * @property {(level: 'info' | 'warning' | 'error') => string} logviewerLevelFrom  Its other entries: 'info', 'warning' or 'error' and above (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerCopy  The copy button (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerCopied  The copy button's result word (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerNotCopied  The copy button's refusal word (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerDownload  The download button (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerNothing  Why copy and download are off when no line is shown (js/logviewer.js) [gap-log-viewer]
+ * @property {(shown: number, total: number) => string} logviewerCount  The foot's count of lines shown (js/logviewer.js) [gap-log-viewer]
+ * @property {(n: number, max: number) => string} logviewerDropped  The foot's note about lines pushed out by the cap (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerLoading  The words under the busy card while the lines are read (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerEmptyTitle  The empty plate's heading (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerEmptyText  Its sentence (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerNoMatchTitle  The plate's heading when a search or level hides every line (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerNoMatchText  Its sentence (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerClear  Its button that takes the search and the level away (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerFailed  The failed plate's heading (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerFailedText  Its sentence (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerRetry  Its button (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerKeySearch  The shortcut sheet's line for the search key (js/logviewer.js) [gap-log-viewer]
+ * @property {string} logviewerKeyGroup  The sheet's heading (js/logviewer.js) [gap-log-viewer]
+ * @property {string} feedLabel  The accessible name of the feed's list when the host has none (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedUnitOne  The word for one row when the page names none, "event" (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedUnitMany  The word for several rows, "events" (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedToday  The heading of today's rows (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedYesterday  The heading of yesterday's rows (js/feed.js) [gap-activity-feed-1019]
+ * @property {(shown: number, total: number, unit: string) => string} feedShown  The count above the list when only some rows are loaded, "24 of 129 operations" (exact numbers) (js/feed.js) [gap-activity-feed-1019]
+ * @property {(n: number) => string} feedFailed  A day heading's failed count, "2 failed" (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedAllOk  A day heading when nothing failed, "all ok" (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedStateRunning  A running row, as a screen reader hears it (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedStateInfo  A row that is a note, not an outcome, as a screen reader hears it (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedBy  The word before who started a row, for a screen reader, "by Claude" (js/feed.js) [gap-activity-feed-1019]
+ * @property {(title: string) => string} feedMoreLabel  The accessible name of the lines that open under a row (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedOpen  The link inside an opened row that goes where its title would (js/feed.js) [gap-activity-feed-1019]
+ * @property {(reason: string, since: string) => string} feedStale  The head line of a feed whose refresh failed while its rows are still good, "Not refreshed: the host did not answer. Rows from 14:02." (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedStaleAction  The button that reads a stale feed again (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedLoading  What the busy card over the feed says (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedEmptyTitle  The empty plate's title (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedEmptyText  The empty plate's sentence when the page gives no reason (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedErrorTitle  The failed plate's title (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedErrorText  The failed plate's sentence when the page gives no reason (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedRetry  The failed plate's Retry button (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedEarlier  The button that loads earlier rows (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedEarlierLoading  The same button while it works (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedEarlierError  The sentence when earlier rows could not be loaded (js/feed.js) [gap-activity-feed-1019]
+ * @property {string} feedEarlierRetry  The button that tries again (js/feed.js) [gap-activity-feed-1019]
+ * @property {(shown: number, total: number, date: string) => string} feedBackTo  The note under Load earlier, "Showing 24 of 129, back to 14/10/2026" (js/feed.js) [gap-activity-feed-1019]
+ * @property {(shown: number, date: string) => string} feedEnd  The foot when there is nothing earlier, "Nothing earlier: all 24 are shown, back to 14/10/2026" (js/feed.js) [gap-activity-feed-1019]
+ * @property {(title: string) => string} feedNew  Announced when one new row arrived (js/feed.js) [gap-activity-feed-1019]
+ * @property {(n: number, title: string) => string} feedNewMany  Announced when several arrived, naming the newest (js/feed.js) [gap-activity-feed-1019]
  */
 
 /**
@@ -1492,6 +1667,8 @@
 export const DEFAULT_STRINGS = Object.freeze({
     // The toggle button (js/toggle.js) [kpadopt6-ops].
     toggleCounting: 'counting',
+    tabCountCounting: 'counting',
+    tabCountFailed: 'could not be counted',
     toggleOn: (label, count) => (count === null ? `${label} on` : `${label} on, ${count} shown`),
     toggleOff: (label, count) => (count === null ? `${label} off` : `${label} off, ${count} shown`),
     toggleCount: (label, n) => `${label}: ${n}`,
@@ -1592,6 +1769,16 @@ export const DEFAULT_STRINGS = Object.freeze({
     entityGridFailedText: 'Try again in a moment.',
     entityGridEmpty: 'No stacks yet',
     entityNew: 'New stack',
+    entityStar: (name) => `Favourite ${name}`,
+    entityOpensNew: 'opens in a new tab',
+    entityTrend: 'Trend',
+    entityTrendNone: 'no line yet',
+    entityTrendName: (label, text) => (text ? `${label}, now ${text}` : label),
+    entityTileFailed: 'reading failed',
+    entityTileLoading: 'Reading the apps…',
+    entityTileGridFailed: 'The apps could not be read',
+    entityTileGridEmpty: 'No apps yet',
+    entityTileNew: 'New app',
     alertSuccess: 'Success',
     alertWarning: 'Warning',
     alertInfo: 'Info',
@@ -1936,6 +2123,7 @@ export const DEFAULT_STRINGS = Object.freeze({
     refreshNow: 'Refresh now',
     refreshUpdating: 'updating…',
     refreshFailed: (next) => `Last refresh failed, retrying in ${next}.`,
+    refreshFailedPaused: 'Last refresh failed.',
     refreshRetryNow: 'Retry now',
     refreshCustomLabel: 'Seconds between refreshes',
     refreshApply: 'Apply',
@@ -2035,6 +2223,13 @@ export const DEFAULT_STRINGS = Object.freeze({
     heatLoading: 'Reading…',
     heatEmpty: 'Nothing to show.',
     heatFailed: 'Could not be read.',
+    heatLegendLess: 'Less',
+    heatLegendMore: 'More',
+    heatLegendLabel: 'Legend',
+    heatKeysMove: 'move',
+    heatKeysPick: 'pick a column',
+    heatKeysDrop: 'drop the pick',
+    heatKeysPage: 'earlier or later',
     matrixSelf: 'itself',
     matrixUnknown: 'unknown',
     tableClearSearch: 'Clear the search and filters',
@@ -2263,6 +2458,8 @@ export const DEFAULT_STRINGS = Object.freeze({
     chartNow: 'now',
     chartEmpty: 'No readings in this window yet.',
     chartRetry: 'Retry',
+    chartTrendFailed: 'The trend could not be read.',
+    progressFailed: 'This could not be finished.',
     chartOnePoint: 'Only one reading so far: the line grows as more readings arrive.',
     chartLoading: 'Loading the readings…',
     chartPinnedOutside: '(pinned, outside the window)',
@@ -2344,6 +2541,7 @@ export const DEFAULT_STRINGS = Object.freeze({
         return rest ? `${hours} h ${rest} min` : `${hours} h`;
     },
     ganttHint: 'Click a bar to open it · drag across the time to select a range',
+    ganttHintOpen: 'Click a bar to open it',
     ganttAll: 'All',
     ganttAllTitle: 'Show everything on the timeline',
     ganttPoint: (label, when) => `${label}, ${when}`,
@@ -2355,6 +2553,7 @@ export const DEFAULT_STRINGS = Object.freeze({
     pipelineEmpty: 'Nothing on the board yet.',
     pipelineFailed: (reason) => (reason ? `Could not read the board: ${reason}` : 'Could not read the board.'),
     pipelineRetry: 'Try again',
+    pipelineDanger: 'Needs attention',
     pipelineNone: 'none',
     pipelineMore: (more) => `+${more} more`,
     pipelineLess: 'Show fewer',
@@ -2420,6 +2619,7 @@ export const DEFAULT_STRINGS = Object.freeze({
     timerDiscLeft: (left, total) => `${left} left of ${total}`,
     timerUnderMinute: 'under a minute',
     timerDiscCaption: (name, duration) => `${name} · ${duration}`,
+    timerUntil: (when) => `until ${when}`,
     // The range picker [kpadopt4-ideas].
     rangePresets: 'Ranges',
     rangePresetName: (key) => {
@@ -2624,6 +2824,10 @@ export const DEFAULT_STRINGS = Object.freeze({
     usesEmpty: 'Nothing to show yet',
     usesEmptyText: 'When there is something that others use, it shows here with a line to each user.',
     usesRetry: 'Retry',
+    stateRetry: 'Retry',
+    stateFailedText: 'Nothing was changed. Try again in a moment.',
+    graphEmpty: 'No network to show yet.',
+    graphFailed: 'The network could not be read.',
     usesLoading: 'Reading…',
     usesNotUsed: 'Not used',
     usesCount: (n) => `Used by ${n}`,
@@ -2797,6 +3001,8 @@ export const DEFAULT_STRINGS = Object.freeze({
     timerAddMinuteTo: (name) => `One more minute for ${name}`,
     timerRemove: (name) => `Remove ${name}`,
     timerEmpty: 'No timers running.',
+    timersLoading: 'Reading the timers…',
+    timersFailed: 'The timers could not be read.',
     timerLastMinute: (name) => `${name}: one minute left`,
     timerStartedNamed: (name, clock) => `${name} started, ${clock}`,
     timerAlready: (name) => `${name} is already running`,
@@ -2818,6 +3024,9 @@ export const DEFAULT_STRINGS = Object.freeze({
     // A wheel that picks (js/wheel.js) [kpadopt4].
     wheelSpin: 'Spin',
     wheelSpinAgain: 'Again',
+    wheelIdleKiosk: 'Tap the wheel to let it choose.',
+    wheelSpinKiosk: 'Spin the wheel',
+    wheelResting: 'Resting',
     wheelIdle: 'Press Spin to let the wheel choose.',
     wheelChose: 'The wheel chose',
     wheelSpinning: 'Turning…',
@@ -3008,6 +3217,43 @@ export const DEFAULT_STRINGS = Object.freeze({
     // Qr (js/qr.js) [kpadopt6].
     qrShowAllChars: (n) => `Show all ${n} characters`,
     qrShowLess: 'Show less',
+    // The diff view (js/diff.js) [gap-diff-view].
+    diffLabel: 'Changes',
+    diffSummary: (files) => `${files} ${files === 1 ? 'file' : 'files'} changed`,
+    diffExpandAll: 'Expand all',
+    diffCollapseAll: 'Collapse all',
+    diffAllOpen: 'Every file is already open.',
+    diffAllClosed: 'Every file is already closed.',
+    diffStatusAdded: 'Added',
+    diffStatusRemoved: 'Removed',
+    diffStatusModified: 'Modified',
+    diffStatusRenamed: 'Renamed',
+    diffStatusBinary: 'Binary',
+    diffRenamedFrom: (from) => `renamed from ${from}`,
+    diffAddedCount: (n) => `${n} ${n === 1 ? 'line' : 'lines'} added`,
+    diffRemovedCount: (n) => `${n} ${n === 1 ? 'line' : 'lines'} removed`,
+    diffUnchanged: (n) => `${n} unchanged ${n === 1 ? 'line' : 'lines'}`,
+    diffUnchangedName: (n) => `Show ${n} unchanged ${n === 1 ? 'line' : 'lines'}`,
+    diffUnchangedHide: (n) => `Hide ${n} unchanged ${n === 1 ? 'line' : 'lines'}`,
+    diffUnchangedShown: (n) => `${n} unchanged ${n === 1 ? 'line' : 'lines'} shown`,
+    diffUnchangedHidden: (n) => `${n} unchanged ${n === 1 ? 'line' : 'lines'} hidden`,
+    diffShowMore: (n) => `Show the other ${n} ${n === 1 ? 'line' : 'lines'}`,
+    diffBinaryTitle: 'Binary file, not shown',
+    diffBinaryText: 'Its contents cannot be shown as text.',
+    diffNoLines: 'No line changes in this file.',
+    diffChangesIn: (path) => `Changes in ${path}`,
+    diffCopyPath: 'Copy path',
+    diffCopied: 'Copied',
+    diffCopyFailed: 'Not copied',
+    diffLoading: 'Reading the changes…',
+    diffReady: (files, added, removed) => `${files} ${files === 1 ? 'file' : 'files'} changed, ${added} added, ${removed} removed`,
+    diffEmptyTitle: 'No changes',
+    diffEmptyText: 'Both sides are the same.',
+    diffEmptySame: (name) => `${name} is the same on both sides.`,
+    diffEmptyBetween: (from, to) => `${from} and ${to} are the same.`,
+    diffFailedTitle: 'Could not read the changes',
+    diffFailedText: 'The comparison did not finish. Nothing was changed.',
+    diffRetry: 'Try again',
     // The star rating (js/rating.js) [kpadopt6].
     ratingGroupName: (item) => `Rating for ${item}`,
     ratingGroupNameBare: 'Rating',
@@ -3138,6 +3384,46 @@ export const DEFAULT_STRINGS = Object.freeze({
     focusSaveFailedText: 'Your answers are kept here, nothing is lost.',
     focusSaveRetry: 'Try again',
     focusAnswerLoading: 'Reading the questions',
+
+    // Parallel tracks and the read-mode plates (js/focus-steps.js) [focus-tracks-1019].
+    focusReadEmptyTitle: 'No steps yet',
+    focusReadFailedTitle: 'The steps could not be loaded',
+    focusReadFailedText: 'Check the connection and try again.',
+    focusTrackShared: 'Together',
+    focusTracksTitle: 'Tracks',
+    focusTracksHint: 'Tap a track, or press T, to switch. Back and Next move the track you are on.',
+    focusTracksDone: (n, total) => `${n} of ${total} steps done`,
+    focusTrackCount: (track, n, total) => `${track}: step ${n} of ${total}`,
+    focusTrackStepName: (track, n) => `${track}, step ${n}`,
+    focusLaneStep: (n, total) => `Step ${n} of ${total}`,
+    focusLaneHere: 'You are here',
+    focusLaneReady: 'Ready for you',
+    focusLaneRunning: (timer) => `${timer} running`,
+    focusLanePaused: (timer) => `${timer} paused`,
+    focusLaneWaiting: (names) => `Waiting for ${names}`,
+    focusLaneRinging: 'Time is up',
+    focusLaneFinished: 'Done',
+    focusTrackBand: 'Needs you now',
+    focusTrackTimerDone: (timer, track) => `${timer} is done (${track})`,
+    focusTrackReadyTitle: (track) => `${track} can go on`,
+    focusTrackNextUp: (step) => `Next: ${step}`,
+    focusTrackNothingLeft: (track) => `Nothing is left on ${track}.`,
+    focusTrackGo: (track) => `Go to ${track}`,
+    focusTrackGotIt: 'Got it',
+    focusTrackWaitTitle: (what) => `Waiting for ${what}`,
+    focusTrackWaitLeft: (clock) => `${clock} left`,
+    focusTrackWaitOpen: 'not done yet',
+    focusTrackFinishedTitle: (track) => `${track} is done`,
+    focusTrackFinishedText: 'Nothing is left on this track.',
+    focusTrackFinishedNext: (next) => `${next} is ready for you.`,
+    focusTrackFinish: (track) => `Finish ${track}`,
+    focusTrackSwitched: (track, place, text) => `${track}. ${place}. ${text}`,
+    focusTrackUnlocked: (step) => `${step} is done. You can go on.`,
+    focusTimerRunning: (clock) => `Timer running · ${clock}`,
+    focusTimerPaused: (clock) => `Timer paused · ${clock}`,
+    focusTimerDone: 'Timer done',
+    focusTrackKeyNext: 'Next track',
+    focusTrackKeyPrevious: 'Previous track',
     // A picker with the usual on top (js/usual-picker.js) [kpadopt6].
     usualLabel: 'Usual',
     usualAll: 'All',
@@ -3180,6 +3466,77 @@ export const DEFAULT_STRINGS = Object.freeze({
     usualHadItWord: 'had it',
     usualUnanswered: (label) => `${label}: not answered`,
     usualUnansweredWord: 'not answered',
+    // Log viewer (js/logviewer.js) [gap-log-viewer].
+    logviewerUnit: 'line,lines',
+    logviewerLabel: 'Log',
+    logviewerLogLabel: 'Log lines',
+    logviewerSearch: 'Find in the log',
+    logviewerSearchHint: 'Find in the log',
+    logviewerSearchNone: 'No matches',
+    logviewerSearchIdle: 'Type to find',
+    logviewerMatches: (n) => `${n} ${n === 1 ? 'match' : 'matches'}`,
+    logviewerMatchAt: (at, n) => `${at} of ${n}`,
+    logviewerPrevious: 'Previous match',
+    logviewerNext: 'Next match',
+    logviewerOnly: 'Only matching lines',
+    logviewerWrap: 'Wrap lines',
+    logviewerTimeLabel: 'Time column',
+    logviewerTimeShort: 'Time',
+    logviewerTimeFull: 'Date and time',
+    logviewerTimeOff: 'Off',
+    logviewerLevel: 'Level',
+    logviewerLevelAll: 'All levels',
+    logviewerLevelFrom: (level) => (level === 'info' ? 'Info and above' : level === 'warning' ? 'Warning and above' : 'Error and above'),
+    logviewerCopy: 'Copy',
+    logviewerCopied: 'Copied',
+    logviewerNotCopied: 'Not copied',
+    logviewerDownload: 'Download',
+    logviewerNothing: 'There are no lines shown to copy.',
+    logviewerCount: (shown, total) => (shown === total ? `${total} ${total === 1 ? 'line' : 'lines'}` : `${shown} of ${total} lines shown`),
+    logviewerDropped: (n, max) => `${n} earlier ${n === 1 ? 'line' : 'lines'} dropped, the newest ${max} are kept`,
+    logviewerLoading: 'Reading the log…',
+    logviewerEmptyTitle: 'No log lines yet',
+    logviewerEmptyText: 'New lines show up here as they arrive.',
+    logviewerNoMatchTitle: 'No line matches',
+    logviewerNoMatchText: 'The search or the level hides every line in the log.',
+    logviewerClear: 'Clear search and level',
+    logviewerFailed: 'Could not read the log',
+    logviewerFailedText: 'The lines already read are kept and show again when the log answers.',
+    logviewerRetry: 'Retry',
+    logviewerKeySearch: 'Go to the log search',
+    logviewerKeyGroup: 'Log viewer',
+    // gap-activity-feed:feed:start
+    // The activity feed (js/feed.js) [gap-activity-feed-1019].
+    feedLabel: 'Activity',
+    feedUnitOne: 'event',
+    feedUnitMany: 'events',
+    feedToday: 'Today',
+    feedYesterday: 'Yesterday',
+    feedShown: (shown, total, unit) => `${shown} of ${total} ${unit}`,
+    feedFailed: (n) => `${n} failed`,
+    feedAllOk: 'all ok',
+    feedStateRunning: 'running',
+    feedStateInfo: 'note',
+    feedBy: 'by',
+    feedMoreLabel: (title) => `Details of ${title}`,
+    feedOpen: 'Open',
+    feedStale: (reason, since) => `Not refreshed: ${reason}.${since ? ` Rows from ${since}.` : ''}`,
+    feedStaleAction: 'Read it again',
+    feedLoading: 'Reading the activity…',
+    feedEmptyTitle: 'Nothing happened yet',
+    feedEmptyText: 'New activity shows up here as it happens.',
+    feedErrorTitle: 'The activity could not be read',
+    feedErrorText: 'The host did not answer. Nothing was lost.',
+    feedRetry: 'Retry',
+    feedEarlier: 'Load earlier',
+    feedEarlierLoading: 'Loading earlier…',
+    feedEarlierError: 'Earlier activity could not be loaded.',
+    feedEarlierRetry: 'Try again',
+    feedBackTo: (shown, total, date) => (shown === total ? `Showing ${shown}, back to ${date}` : `Showing ${shown} of ${total}, back to ${date}`),
+    feedEnd: (shown, date) => `Nothing earlier: all ${shown} are shown, back to ${date}.`,
+    feedNew: (title) => `New: ${title}`,
+    feedNewMany: (n, title) => `${n} new, the newest: ${title}`,
+    // gap-activity-feed:feed:end
 });
 
 // STRINGS_NL was removed in 4.0.0 [D3]. Kenny decided that on

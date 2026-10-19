@@ -24,10 +24,12 @@
 //            the stage, the data under it dimmed and inert (stale data stays
 //            readable while it is read again); the stage keeps at least
 //            `--kp-card-stage-min` so a first load has room for the card;
-//   empty    the package's empty state (`.kp-empty`) filling the stage: a
-//            title, a sentence and an optional action;
-//   error    the destructive alert: what could not be read, why, and Try
-//            again, which fires `kp-card-retry` on the card;
+//   empty    the package's empty state (`.kp-empty`) as the state plate
+//            (`.kp-stateplate`) filling the stage: an optional picture (`art`),
+//            the title at heading size, a sentence and an optional action;
+//   error    the destructive alert as the same plate: what could not be read,
+//            why, and a normal-size Try again, which fires `kp-card-retry`
+//            on the card;
 //   ready    the data.
 //
 // In empty and error the data keeps its room (hidden, not removed), so a
@@ -61,8 +63,9 @@ export const CARD_RETRY_EVENT = 'kp-card-retry';
  * @property {string} [words] what the loading card says under its spinner (default `cardLoading`, or the card's `data-kp-loading-words`)
  * @property {string} [title] the empty or error note's first line, in bold: "No appointments yet", "Could not list the files"
  * @property {string} [text] its sentence: why, or what fills it
- * @property {Node | null} [action] a button or link under an empty note ("Add an appointment"); an error note always has Try again
+ * @property {Node | readonly Node[] | null} [action] a button or link under an empty note ("Add an appointment"), or several (an array, or a fragment): they lie on the plate's own action row; an error note always has Try again
  * @property {boolean} [retry] false leaves Try again out of an error note (a read the page cannot repeat)
+ * @property {Node | string | null} [art] a picture over the note's title, empty or error: a node (an inline SVG, an icon) or a glyph; aria-hidden either way
  */
 
 /** The state each card was last synced to. @type {WeakMap<Element, CardState>} */
@@ -121,33 +124,42 @@ function buildNote(note, state, options) {
     if (!note.hasAttribute('data-kp-card-built')) return;
     const doc = note.ownerDocument;
     const s = getStrings();
-    const title = el(doc, 'kp-card__state-title', 'strong');
+    // The note is the package's state plate (js/state-plate.js): its title at heading size, its sentence at body size, the optional
+    // picture over them, Try again a normal button [state-plates-1019].
+    const title = el(doc, 'kp-card__state-title kp-stateplate__title', 'strong');
     title.textContent = options.title ?? (state === 'error' ? s.cardFailed : s.cardEmpty);
     /** @type {HTMLElement[]} */
     const lines = [title];
+    if (options.art) {
+        const art = el(doc, 'kp-card__state-art kp-stateplate__art', 'span');
+        art.setAttribute('aria-hidden', 'true');
+        if (typeof options.art === 'string') art.textContent = options.art;
+        else art.append(options.art);
+        lines.unshift(art);
+    }
     if (options.text) {
-        const text = el(doc, 'kp-card__state-text', 'span');
+        const text = el(doc, 'kp-card__state-text kp-stateplate__text', 'span');
         text.textContent = options.text;
         lines.push(text);
     }
     if (state === 'empty') {
-        const box = el(doc, 'kp-empty kp-card__empty');
+        const box = el(doc, 'kp-empty kp-card__empty kp-stateplate kp-stateplate--empty');
         box.append(...lines);
         if (options.action) {
             const actions = el(doc, 'kp-card__state-actions');
-            actions.append(options.action);
+            actions.append(...(Array.isArray(options.action) ? options.action : [options.action]));
             box.append(actions);
         }
         note.setAttribute('role', 'status');
         note.replaceChildren(box);
         return;
     }
-    const alert = el(doc, 'kp-alert kp-alert--destructive kp-card__failure');
+    const alert = el(doc, 'kp-alert kp-alert--destructive kp-card__failure kp-stateplate kp-stateplate--error');
     const body = el(doc, 'kp-alert__body');
     body.append(...lines);
     alert.append(body);
     if (options.retry !== false) {
-        const button = el(doc, 'kp-button kp-button--sm kp-card__retry', 'button');
+        const button = el(doc, 'kp-button kp-card__retry kp-stateplate__action', 'button');
         /** @type {HTMLButtonElement} */ (button).type = 'button';
         button.setAttribute('data-kp-card-retry', '');
         button.textContent = s.cardRetry;

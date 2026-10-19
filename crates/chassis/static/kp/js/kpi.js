@@ -189,7 +189,7 @@ export function meterText(value, mark = null, { unit = '%', label, markLabel = '
  * @typedef {object} Meter
  * @property {number | null} [value] the share, 0 up (1 is full; above 1 the bar is full and says so); null is not measured
  * @property {number | null} [mark] a tick at this share (a target, a limit, what is booked), 0 up; null is none
- * @property {'warning' | 'destructive' | null} [tone] the fill's colour; a tone on the tile around it does the same
+ * @property {'success' | 'neutral' | 'warning' | 'destructive' | null} [tone] the fill's colour (`success` good, `neutral` quiet); a tone on the tile around it does the same
  * @property {string} [label] what the share is, in the words a screen reader hears ("full"); `meterUsed` unless given
  * @property {string} [markLabel] what the mark is ("the target level")
  * @property {boolean} [loading] the track pulses at its height, with no fill and no mark
@@ -284,9 +284,27 @@ function lengthPx(el, text, fallback) {
 /** A tile's label in a strip with columns: one line, never wrapped and never cut [fix-99, fix-101]. */
 const TILE_LABEL = ':scope > .kp-kpi:not([hidden]) > .kp-kpi__label';
 
-/** Every label in the strip fits its tile. @param {HTMLElement} strip */
+/**
+ * Every label in the strip fits its tile: the label's text (and a toggle's hint beside it) ends inside the tile's own padding box
+ * edge. The label's own box is no measure: in a tile whose grid track is `min-content` (a toggle with a hint) the track grows to the
+ * label, so the label always "fits" its own box and runs under the next tile [hlcomp-1019 kpi-fit; homelab 78].
+ * @param {HTMLElement} strip
+ */
 function labelsFit(strip) {
-    return [...strip.querySelectorAll(TILE_LABEL)].every((label) => label.scrollWidth <= label.clientWidth + 0.5);
+    return [...strip.querySelectorAll(TILE_LABEL)].every((label) => {
+        const tile = /** @type {HTMLElement} */ (label.parentElement);
+        const style = getComputedStyle(tile);
+        const box = tile.getBoundingClientRect();
+        const rtl = style.direction === 'rtl';
+        const edge = rtl ? box.left + tile.clientLeft + (Number.parseFloat(style.paddingLeft) || 0) : box.right - tile.clientLeft - (Number.parseFloat(style.paddingRight) || 0);
+        const ends = (/** @type {HTMLElement} */ el) => {
+            const r = el.getBoundingClientRect();
+            const extent = Math.max(el.scrollWidth, r.width);
+            return rtl ? r.right - extent : r.left + extent;
+        };
+        const reaches = /** @type {HTMLElement[]} */ ([label, ...tile.querySelectorAll(':scope > .kp-kpi__hint')]).map((el) => ends(el));
+        return reaches.every((at) => (rtl ? at >= edge - 0.5 : at <= edge + 0.5));
+    });
 }
 
 /**

@@ -2,33 +2,40 @@
 {% block title %}{{ app_name }} — log in{% endblock %}
 {% block head %}{% if passkeys %}<script type="module" src="/static/passkeys.js?v={{ assets }}"></script>{% endif %}{% endblock %}
 {% block content %}
-<h1>Log in</h1>
-<p class="explain">
-  This dashboard is protected by the service's login token — the value of
-  <code>{{ prefix }}_TOKEN</code> in its environment file. Paste it here once;
-  the browser then keeps a session cookie. A program that calls the API does
-  not log in: each one is a {{ vocab.singular }} with its own token, issued on
-  the {{ clients_label }} page.
-</p>
-{% if error %}
-<div class="kp-alert kp-alert--destructive" role="alert">{{ error }}</div>
-{% endif %}
-<div class="kp-card kp-max-w-center">
-  <form method="post" action="/login">
-    <div class="kp-field">
-      <label class="kp-field__label" for="token">Login token</label>
-      <input class="kp-field__input" type="password" id="token" name="token" required autocomplete="current-password" autofocus>
-    </div>
-    <label class="kp-checkbox kp-row kp-mt-md kp-mb-md">
-      <input type="checkbox" name="remember" value="1"> Keep me logged in on this browser for {{ remember_me_days }} days
-    </label>
-    <button type="submit" class="kp-button kp-button--primary" data-busy-label="Logging in…">Log in</button>
-  </form>
-  {% if passkeys %}
-  <hr class="divider">
-  <p class="explain kp-m-0 kp-mb-sm">Or use a passkey from your password manager:</p>
-  <button type="button" class="kp-button" data-passkey-login data-status="passkey-status">Log in with a passkey</button>
-  <p id="passkey-status" class="kp-field__help" hidden></p>
-  {% endif %}
+{#- kit-kp11 (approved demo "login", kp-themes research/chassis-kit-pages):
+    the intro on the left and the sign-in card on the right (one column on a
+    phone). The passkey is the one primary button, the token the way that
+    always works. Every control is a kp-themes part. -#}
+<div class="kit-frame">
+<div class="kit-login" data-kit-login>
+  <section class="kit-login__intro" aria-labelledby="login-title">
+    <h1 id="login-title" class="kp-page-header__title">Log in to {{ app_name }}</h1>
+    <p class="kp-lede" data-kp-lede-measure="normal">Paste the login token once; this browser then keeps you signed in. Programs that call the service do not log in: each has its own token on the {{ clients_label }} page.</p>
+    <p class="kit-login__state" data-kit-health>
+      <span class="kp-health" data-kit-health-badge><span class="kp-health__dot" aria-hidden="true"></span> <span data-kit-health-words role="status">The service is running</span></span>
+      <span class="kp-text-muted">· version {{ version }} · up <time class="kp-ago" data-kp-ago data-localised="true" data-kp-ago-verb="since" datetime="{{ started_at }}">since {{ started_at|human_time }}</time></span>
+    </p>
+  </section>
+  <section class="kp-card kit-login__card" aria-labelledby="login-card-title">
+    <h2 class="kp-card__title" id="login-card-title">Sign in</h2>
+    <form method="post" action="/login" id="login-form" data-kp-form novalidate><div class="kp-form__summary" data-kp-form-summary tabindex="-1" hidden></div><div class="kp-formgrid kit-login__grid" data-kp-formgrid-stack="never">
+      {% if error %}
+      <div class="kp-formgrid__row"><div class="kp-alert kp-alert--destructive" role="alert" id="login-error" data-kp-formgrid-span="all"><div class="kp-alert__body"><span class="kp-alert__what">That token is not right</span><span class="kp-alert__why">It does not match the service’s login token.</span><span class="kp-alert__remedy"><span class="kp-alert__remedy-label">What now</span> Copy it again from the service’s environment file, without spaces around it.</span></div></div></div>
+      {% endif %}
+      {% if passkeys %}
+      <div class="kp-formgrid__row"><div class="kp-formgrid__control" data-kp-formgrid-span="all"><button type="button" class="kp-button kp-button--primary" data-kit-fill data-kp-flash-button data-kp-flash-words="Signed in,Refused" data-passkey-login>Log in with a passkey</button><p class="kp-field__help">Uses your password manager, your phone or a security key.</p></div></div>
+      <div class="kp-formgrid__row"><p class="kit-login__or" aria-hidden="true" data-kp-formgrid-span="all"><span>or with the token</span></p></div>
+      {% endif %}
+      <div class="kp-formgrid__row">
+        <label class="kp-formgrid__label" for="token">Login token</label>
+        <div class="kp-formgrid__control"><input class="kp-field__input" type="password" id="token" name="token" required autocomplete="current-password" placeholder="Paste the token"{% if error %} aria-invalid="true" aria-describedby="login-error"{% endif %}{% if not error %} autofocus{% endif %}><span class="kp-field__error" data-kp-field-error hidden></span></div>
+        <div class="kp-formgrid__actions"><button type="button" class="kp-button kp-button--ghost" data-kit-peek aria-pressed="false" aria-controls="token">Show</button></div>
+        <div class="kp-formgrid__value"><p class="kp-field__help" id="login-caps" data-kit-caps hidden>Caps Lock is on.</p></div>
+      </div>
+      <div class="kp-formgrid__row"><label class="kp-switch" data-kp-formgrid-span="all"><input class="kp-switch__input" type="checkbox" role="switch" name="remember" value="1"><span class="kp-switch__state" aria-hidden="true"></span><span>Keep me signed in on this browser for {{ remember_me_days }} days</span></label></div>
+      <div class="kp-formgrid__row kp-formgrid__row--buttons"><div class="kp-formgrid__control" data-kp-formgrid-span="all"><div class="kp-formgrid__buttons"><button type="submit" class="kp-button{% if not passkeys %} kp-button--primary{% endif %}" data-kp-submit data-kp-busy="Logging in…">Log in</button></div></div></div>
+    </div></form>
+  </section>
+</div>
 </div>
 {% endblock %}

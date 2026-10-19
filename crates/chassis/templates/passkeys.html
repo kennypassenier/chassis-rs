@@ -2,54 +2,50 @@
 {% block title %}{{ app_name }} — passkeys{% endblock %}
 {% block head %}{% if https %}<script type="module" src="/static/passkeys.js?v={{ assets }}"></script>{% endif %}{% endblock %}
 {% block content %}
-<h1>Passkeys</h1>
-<p class="explain">
-  A passkey lets you open this dashboard from your password manager
-  (Bitwarden, the browser's own store) without typing the login token.
-  Register one here while logged in; from then on the login page shows a
-  passkey button. The token keeps working as the fallback. Browsers only
-  allow passkeys over HTTPS, so this page is live only when you reach the
-  dashboard through the TLS proxy named in <code>{{ prefix }}_PUBLIC_URL</code>.
-</p>
-
-{% if not https %}
-<div class="kp-alert kp-alert--warning" role="alert">
-  <div><strong>Not over HTTPS.</strong> You opened the dashboard on plain HTTP,
-  so the browser will not create or use a passkey here. Open it through the
-  proxy at <code>{{ public_url }}</code>, and make sure that proxy's address is in
-  <code>{{ prefix }}_TRUSTED_PROXIES</code>.</div>
-</div>
-{% else %}
-<div class="kp-card kp-mb-lg kp-max-w-center">
-  <h2 class="kp-card__title kp-mt-0 kp-fs-md">Register a passkey</h2>
-  <div class="kp-field">
-    <label class="kp-field__label" for="passkey-label">Label</label>
-    <input class="kp-field__input" type="text" id="passkey-label" placeholder="Kenny's Bitwarden" maxlength="64">
+{#- kit-kp11 (approved demo "passkeys-list" and "passkeys-qr", kp-themes
+    research/chassis-kit-pages): the operations frame with one card for every
+    way in, and under it the code and the steps to register another device.
+    Every control is a kp-themes part; the list is filled by chassis.js. -#}
+<div class="kp-ops kit-ops" data-kp-ops-sticky="none" data-kit-passkeys-page>
+  <header class="kp-ops__head kp-page-header"><div class="kp-page-header__inner">
+    <div>
+      <h1 class="kp-page-header__title">Passkeys</h1>
+      <p class="kp-page-header__description">Sign in from your password manager or your phone instead of typing the login token.</p>
+    </div>
+    <div class="kp-page-header__actions">
+      <button type="button" class="kp-button kp-button--primary" data-kp-dialog="passkey-register"{% if not https %} disabled data-kp-disabled-reason="Passkeys only work on HTTPS"{% endif %}>Register this device</button>
+      <div class="kp-menu-button" data-kp-menu-button data-kp-key="passkeys-more"><button type="button" class="kp-button">More ▾</button><div class="kp-menu kp-menu--rich" role="menu" aria-label="More actions" hidden><div class="kp-menu__group" role="group" aria-label="More actions"><button type="button" role="menuitem" class="kp-menu__item" tabindex="-1" data-kp-value="other-device"><span class="kp-menu__label">Register on another device</span><span class="kp-menu__hint">Scan a code with your phone</span></button></div></div></div>
+    </div>
+  </div></header>
+  {% if not https %}
+  <div class="kp-ops__attention"><div class="kp-alert kp-alert--warning" role="alert"><div class="kp-alert__body"><span class="kp-alert__what">This page is not on HTTPS</span><span class="kp-alert__why">The browser will not create or use a passkey on plain HTTP.</span><span class="kp-alert__remedy"><span class="kp-alert__remedy-label">What now</span> Open the dashboard at {{ public_url }}, the address the service was told to expect. If you are already there, the service does not yet trust the proxy in front of it: add that proxy’s address to the service’s trusted proxies.</span></div><span class="kp-alert__actions"><a class="kp-button" href="{{ public_url|trim('/') }}/passkeys">Open the HTTPS address</a></span></div></div>
+  {% endif %}
+  <div class="kp-ops__body">
+    <section class="kp-card" data-kp-span="12" aria-labelledby="passkeys-ways">
+      <h2 class="kp-card__title" id="passkeys-ways">Ways to sign in</h2>
+      <p class="kp-lede" data-kp-lede-measure="full">Every way into this dashboard. The login token always works, so you cannot lock yourself out.</p>
+      <div class="kp-passkeys" id="passkeys-list" data-kp-state="loading" aria-busy="true" data-kp-passkeys data-kp-confirm="dialog" data-kp-protect-last="off" data-kp-never-used-after="90" data-kit-passkeys='{{ passkeys|tojson }}'></div>
+      <p class="kp-lede" data-kp-lede-measure="full">The login token always works. It is set in the service’s settings, not here, so it is not a row you can remove.</p>
+    </section>
+    <section class="kp-card" data-kp-span="6" id="other-device" tabindex="-1" aria-labelledby="passkeys-q">
+      <h2 class="kp-card__title" id="passkeys-q">Register on another device</h2>
+      <p class="kp-lede" data-kp-lede-measure="full">A passkey belongs to the device that made it, so register from that device.</p>
+      <div class="kp-qr" data-kp-qr data-kp-qr-value="{{ public_url|trim('/') }}/passkeys" data-kp-qr-label="Address of this dashboard" data-kp-qr-caption="link" data-kp-qr-size="lg" data-kp-state="loading" data-kit-qr></div>
+    </section>
+    <section class="kp-card" data-kp-span="6" aria-labelledby="passkeys-s">
+      <h2 class="kp-card__title" id="passkeys-s">What happens next</h2>
+      <p class="kp-lede" data-kp-lede-measure="full">Three steps on the other device.</p>
+      <ol class="kp-steplist" aria-label="Register on a phone">
+        <li class="kp-steplist__item" data-state="current"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Scan the code</span><span class="kp-steplist__note">It opens this dashboard on your phone.</span></span></li>
+        <li class="kp-steplist__item" data-state="pending"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Log in once with the token</span><span class="kp-steplist__note">The phone is not signed in yet.</span></span></li>
+        <li class="kp-steplist__item" data-state="pending"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Press Register this device</span><span class="kp-steplist__note">From then on it signs in with its fingerprint or face.</span></span></li>
+      </ol>
+    </section>
   </div>
-  <button type="button" class="kp-button kp-button--primary kp-mt-md" data-passkey-register data-status="passkey-status">Register with this browser</button>
-  <p id="passkey-status" class="kp-field__help" hidden></p>
+  <dialog class="kp-dialog kit-register" id="passkey-register" aria-labelledby="passkey-register-title">
+    <div class="kp-dialog__head"><h2 class="kp-dialog__title" id="passkey-register-title">Register this device</h2><p class="kp-dialog__description">Your browser will ask for a fingerprint, a face or a security key.</p></div>
+    <div class="kp-dialog__body"><div class="kp-field"><label class="kp-field__label" for="passkey-label">Name</label><input class="kp-field__input" id="passkey-label" type="text" maxlength="64" data-kit-device-name><p class="kp-field__help">So you can tell your devices apart in the list.</p></div></div>
+    <div class="kp-dialog__actions"><button type="button" class="kp-button" data-kp-dialog-close data-kit-register-cancel>Cancel</button><button type="button" class="kp-button kp-button--primary" data-kp-flash-button data-kp-flash-words="Registered,Refused" data-passkey-register>Register</button></div>
+  </dialog>
 </div>
-{% endif %}
-
-<h2>Registered</h2>
-<p class="explain">Each row is one authenticator. Delete a passkey you no longer own; the login token is unaffected.</p>
-{% if passkeys %}
-<div class="kp-table-wrap">
-<table class="kp-table">
-  <thead><tr><th>Label</th><th>Registered</th><th>Last used</th><th class="text-end"></th></tr></thead>
-  <tbody>
-  {% for p in passkeys %}
-  <tr>
-    <td class="kp-fw-medium">{{ p.label }}</td>
-    <td><time datetime="{{ p.created_at }}">{{ p.created_at|human_time }}</time></td>
-    <td>{% if p.last_used_at %}<time datetime="{{ p.last_used_at }}">{{ p.last_used_at|human_time }}</time>{% else %}<span class="text-secondary">never</span>{% endif %}</td>
-    <td class="text-end"><button type="button" class="kp-button kp-button--destructive" data-post="/api/passkeys/{{ p.id }}" data-method="DELETE" data-kp-destructive data-kp-confirm="Delete this passkey?">Delete</button></td>
-  </tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div>
-{% else %}
-<p class="text-secondary">No passkeys yet.</p>
-{% endif %}
 {% endblock %}

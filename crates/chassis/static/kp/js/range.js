@@ -23,6 +23,11 @@
 // it was. The control is one tab stop with arrow keys for the presets, then
 // Custom…; the panel takes the focus and gives it back.
 //
+// `data-kp-range-custom="off"` makes it a presets-only picker [combo-range-1019, N17]: the Custom… button and its panel
+// (the two date pickers, the times, Apply) are not built at all, so they are not in the DOM or in the tab order, the
+// window's name fills the line under the presets, and a custom window from the markup (`data-kp-range-start`, `-end`) or
+// from `setRange(el, { start, end })` is ignored.
+//
 // `data-kp-range-disabled` turns everything off. setRange(el, …) sets the
 // window from a script (without the event); rangeOf(el) reads it.
 //
@@ -149,6 +154,7 @@ export function attachRanges(root = document, { now = () => Date.now() } = {}) {
         const id = `kp-range-${++seq}`;
         const zone = el.dataset.kpTimeZone || CHART_TIME_ZONE;
         const presets = (el.dataset.kpRangePresets ?? RANGE_PRESETS.join(' ')).split(/\s+/).filter((k) => presetMs(k) > 0);
+        const withCustom = el.dataset.kpRangeCustom !== 'off';
         const disabled = el.hasAttribute('data-kp-range-disabled');
         const future = el.hasAttribute('data-kp-range-future');
         const maxDays = Number(el.dataset.kpRangeMaxDays) || 0;
@@ -178,102 +184,17 @@ export function attachRanges(root = document, { now = () => Date.now() } = {}) {
             item.append(label);
             group.append(item);
         }
-        const custom = doc.createElement('button');
-        custom.type = 'button';
-        custom.className = 'kp-button kp-button--sm kp-range__custom';
-        custom.setAttribute('aria-haspopup', 'dialog');
-        custom.setAttribute('aria-expanded', 'false');
-        custom.setAttribute('aria-pressed', 'false');
-        custom.setAttribute('aria-controls', `${id}-panel`);
-        custom.disabled = disabled;
-        const customText = doc.createElement('span');
-        customText.className = 'kp-button__text';
-        customText.textContent = s.rangeCustom;
-        custom.append(customText);
-        bar.append(group, custom);
+        /** @type {HTMLButtonElement | null} */
+        let custom = null;
+        /** Takes the Custom… button and its panel down again; nothing when there are none. */
+        let teardownCustom = () => {};
+        bar.append(group);
 
         const line = doc.createElement('p');
         line.className = 'kp-range__label';
         line.id = `${id}-label`;
         line.setAttribute('aria-live', 'polite');
         el.setAttribute('aria-describedby', line.id);
-
-        // The custom panel: two bounds, each a date picker and a time, an error line, Cancel and Apply.
-        const panel = doc.createElement('div');
-        panel.className = 'kp-popover kp-range__panel';
-        panel.id = `${id}-panel`;
-        panel.setAttribute('role', 'dialog');
-        panel.setAttribute('aria-label', s.rangeCustomTitle);
-        panel.hidden = true;
-        const title = doc.createElement('p');
-        title.className = 'kp-range__title';
-        title.textContent = s.rangeCustomTitle;
-        /** @param {'from' | 'to'} which */
-        const bound = (which) => {
-            const set = doc.createElement('fieldset');
-            set.className = 'kp-range__bound';
-            const legend = doc.createElement('legend');
-            legend.className = 'kp-field__label';
-            legend.textContent = which === 'from' ? s.rangeFrom : s.rangeTo;
-            const row = doc.createElement('div');
-            row.className = 'kp-range__inputs';
-            const picker = doc.createElement('div');
-            picker.className = 'kp-datepicker kp-range__date';
-            picker.dataset.kpDatepicker = '';
-            const date = doc.createElement('input');
-            date.className = 'kp-field__input';
-            date.type = 'text';
-            date.inputMode = 'numeric';
-            date.autocomplete = 'off';
-            date.dataset.kpDateInput = '';
-            date.setAttribute('aria-label', s.rangeDateLabel(legend.textContent ?? ''));
-            const open = doc.createElement('button');
-            open.type = 'button';
-            open.className = 'kp-button';
-            open.dataset.kpDateOpen = '';
-            open.setAttribute('aria-label', s.calendarOpen);
-            open.title = s.calendarOpen;
-            const glyph = doc.createElement('span');
-            glyph.setAttribute('aria-hidden', 'true');
-            glyph.textContent = s.calendarButton;
-            open.append(glyph);
-            const datePanel = doc.createElement('div');
-            datePanel.className = 'kp-datepicker__panel';
-            datePanel.dataset.kpDatePanel = '';
-            datePanel.hidden = true;
-            picker.append(date, open, datePanel);
-            const time = doc.createElement('input');
-            time.className = 'kp-field__input kp-range__time';
-            time.type = 'text';
-            time.inputMode = 'numeric';
-            time.autocomplete = 'off';
-            time.placeholder = s.rangeTimeHint;
-            time.setAttribute('aria-label', s.rangeTimeLabel(legend.textContent ?? ''));
-            row.append(picker, time);
-            set.append(legend, row);
-            return { set, picker, date, time };
-        };
-        const from = bound('from');
-        const to = bound('to');
-        const error = doc.createElement('p');
-        error.className = 'kp-field__error kp-range__error';
-        error.id = `${id}-error`;
-        error.setAttribute('role', 'alert');
-        const actions = doc.createElement('div');
-        actions.className = 'kp-range__actions';
-        const cancel = doc.createElement('button');
-        cancel.type = 'button';
-        cancel.className = 'kp-button';
-        cancel.textContent = s.rangeCancel;
-        const apply = doc.createElement('button');
-        apply.type = 'button';
-        apply.className = 'kp-button kp-button--primary';
-        apply.textContent = s.rangeApply;
-        actions.append(cancel, apply);
-        panel.append(title, from.set, to.set, error, actions);
-        el.replaceChildren(bar, line, panel);
-        const detachPickers = attachDatePickers(panel);
-        const detachSegmented = attachSegmented(el);
 
         /** @type {RangeValue} */
         let value = {
@@ -288,12 +209,14 @@ export function attachRanges(root = document, { now = () => Date.now() } = {}) {
         };
         /** @param {RangeValue} next @param {boolean} fire */
         const set = (next, fire) => {
+            // Presets only: a window with no key cannot be named, so a script cannot set one either.
+            if (!next.preset && !withCustom) return;
             if (next.preset) {
                 const end = now();
                 value = { preset: next.preset, start: end - presetMs(next.preset), end };
             } else value = next;
             setSegmentedValues(group, value.preset ? [value.preset] : []);
-            custom.setAttribute('aria-pressed', String(value.preset === null));
+            custom?.setAttribute('aria-pressed', String(value.preset === null));
             el.dataset.kpRangeValue = value.preset ?? 'custom';
             line.textContent = describe();
             if (fire)
@@ -324,140 +247,239 @@ export function attachRanges(root = document, { now = () => Date.now() } = {}) {
         };
         group.addEventListener(SEGMENTED_EVENT, onPreset);
 
-        // ── the panel ──
-        /** @type {(() => void) | null} */
-        let lower = null;
-        /** @param {{ date: HTMLInputElement, time: HTMLInputElement, picker: HTMLElement }} b @param {number} ms */
-        const fill = (b, ms) => {
-            const w = wallTime(ms, zone);
-            datePicker(b.picker)?.set(`${w.year}-${two(w.month)}-${two(w.day)}`);
-            b.time.value = `${two(w.hour)}:${two(w.minute)}`;
-        };
-        /** @param {{ date: HTMLInputElement, time: HTMLInputElement, picker: HTMLElement }} b @returns {number | null | 'date' | 'time'} */
-        const read = (b) => {
-            const day = datePicker(b.picker)?.get() ?? null;
-            if (!day) return 'date';
-            const t = parseTime(b.time.value);
-            if (!t) return 'time';
-            return zonedTime(day.getFullYear(), day.getMonth() + 1, day.getDate(), t.hour, t.minute, zone);
-        };
-        const mark = (/** @type {HTMLInputElement[]} */ bad) => {
-            for (const input of [from.date, from.time, to.date, to.time]) {
-                const wrong = bad.includes(input);
-                if (wrong) {
-                    input.setAttribute('aria-invalid', 'true');
-                    input.setAttribute('aria-describedby', error.id);
-                } else {
-                    input.removeAttribute('aria-invalid');
-                    input.removeAttribute('aria-describedby');
-                }
-            }
-        };
-        const place = (/** @type {HTMLElement} */ p) => {
-            const box = el.getBoundingClientRect();
-            const width = p.offsetWidth;
-            const left = Math.max(8, Math.min(box.left, doc.documentElement.clientWidth - width - 8));
-            p.style.setProperty('left', `${left}px`);
-            p.style.setProperty('top', `${box.bottom + 6}px`);
-            placeBlockSide(p, box);
-        };
-        const openPanel = () => {
-            if (!panel.hidden || disabled) return;
-            stopClose(panel);
-            fill(from, value.start);
-            fill(to, value.end);
-            error.textContent = '';
-            mark([]);
-            panel.hidden = false;
-            lower = raiseOverlay(panel, place);
-            custom.setAttribute('aria-expanded', 'true');
-            arriveShown(panel);
-            from.date.focus();
-        };
-        /** @param {boolean} [refocus] */
-        const closePanel = async (refocus = true) => {
-            if (panel.hidden) return;
-            custom.setAttribute('aria-expanded', 'false');
-            for (const b of [from, to]) datePicker(b.picker)?.close();
-            const done = await playClose(panel);
-            if (!done) return;
+        el.replaceChildren(bar, line);
+        const detachSegmented = attachSegmented(el);
+
+        if (withCustom) {
+            const customButton = doc.createElement('button');
+            custom = customButton;
+            customButton.type = 'button';
+            customButton.className = 'kp-button kp-button--sm kp-range__custom';
+            customButton.setAttribute('aria-haspopup', 'dialog');
+            customButton.setAttribute('aria-expanded', 'false');
+            customButton.setAttribute('aria-pressed', 'false');
+            customButton.setAttribute('aria-controls', `${id}-panel`);
+            customButton.disabled = disabled;
+            const customText = doc.createElement('span');
+            customText.className = 'kp-button__text';
+            customText.textContent = s.rangeCustom;
+            customButton.append(customText);
+            bar.append(customButton);
+
+            // The custom panel: two bounds, each a date picker and a time, an error line, Cancel and Apply.
+            const panel = doc.createElement('div');
+            panel.className = 'kp-popover kp-range__panel';
+            panel.id = `${id}-panel`;
+            panel.setAttribute('role', 'dialog');
+            panel.setAttribute('aria-label', s.rangeCustomTitle);
             panel.hidden = true;
-            lower?.();
-            lower = null;
-            stopClose(panel);
-            if (refocus) custom.focus();
-        };
-        const onApply = () => {
-            const a = read(from);
-            const b = read(to);
-            /** @type {HTMLInputElement[]} */
-            const bad = [];
-            /** @type {string[]} */
-            const words = [];
-            /** @param {string} word @param {...HTMLInputElement} inputs */
-            const wrong = (word, ...inputs) => {
-                bad.push(...inputs);
-                words.push(word);
+            const title = doc.createElement('p');
+            title.className = 'kp-range__title';
+            title.textContent = s.rangeCustomTitle;
+            /** @param {'from' | 'to'} which */
+            const bound = (which) => {
+                const set = doc.createElement('fieldset');
+                set.className = 'kp-range__bound';
+                const legend = doc.createElement('legend');
+                legend.className = 'kp-field__label';
+                legend.textContent = which === 'from' ? s.rangeFrom : s.rangeTo;
+                const row = doc.createElement('div');
+                row.className = 'kp-range__inputs';
+                const picker = doc.createElement('div');
+                picker.className = 'kp-datepicker kp-range__date';
+                picker.dataset.kpDatepicker = '';
+                const date = doc.createElement('input');
+                date.className = 'kp-field__input';
+                date.type = 'text';
+                date.inputMode = 'numeric';
+                date.autocomplete = 'off';
+                date.dataset.kpDateInput = '';
+                date.setAttribute('aria-label', s.rangeDateLabel(legend.textContent ?? ''));
+                const open = doc.createElement('button');
+                open.type = 'button';
+                open.className = 'kp-button';
+                open.dataset.kpDateOpen = '';
+                open.setAttribute('aria-label', s.calendarOpen);
+                open.title = s.calendarOpen;
+                const glyph = doc.createElement('span');
+                glyph.setAttribute('aria-hidden', 'true');
+                glyph.textContent = s.calendarButton;
+                open.append(glyph);
+                const datePanel = doc.createElement('div');
+                datePanel.className = 'kp-datepicker__panel';
+                datePanel.dataset.kpDatePanel = '';
+                datePanel.hidden = true;
+                picker.append(date, open, datePanel);
+                const time = doc.createElement('input');
+                time.className = 'kp-field__input kp-range__time';
+                time.type = 'text';
+                time.inputMode = 'numeric';
+                time.autocomplete = 'off';
+                time.placeholder = s.rangeTimeHint;
+                time.setAttribute('aria-label', s.rangeTimeLabel(legend.textContent ?? ''));
+                row.append(picker, time);
+                set.append(legend, row);
+                return { set, picker, date, time };
             };
-            // A time the clock skips (the hour lost when summer time starts) reads as a wrong time.
-            if (a === 'date') wrong(s.rangeErrorDate(s.rangeFrom), from.date);
-            if (a === 'time' || a === null) wrong(s.rangeErrorTime(s.rangeFrom), from.time);
-            if (b === 'date') wrong(s.rangeErrorDate(s.rangeTo), to.date);
-            if (b === 'time' || b === null) wrong(s.rangeErrorTime(s.rangeTo), to.time);
-            if (typeof a === 'number' && typeof b === 'number') {
-                for (const fault of rangeFaults(a, b, { now: now(), future, maxDays })) {
-                    if (fault === 'order') wrong(s.rangeErrorOrder, from.date, from.time, to.date, to.time);
-                    if (fault === 'future') wrong(s.rangeErrorFuture, to.date, to.time);
-                    if (fault === 'span') wrong(s.rangeErrorSpan(maxDays), from.date, to.date);
+            const from = bound('from');
+            const to = bound('to');
+            const error = doc.createElement('p');
+            error.className = 'kp-field__error kp-range__error';
+            error.id = `${id}-error`;
+            error.setAttribute('role', 'alert');
+            const actions = doc.createElement('div');
+            actions.className = 'kp-range__actions';
+            const cancel = doc.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'kp-button';
+            cancel.textContent = s.rangeCancel;
+            const apply = doc.createElement('button');
+            apply.type = 'button';
+            apply.className = 'kp-button kp-button--primary';
+            apply.textContent = s.rangeApply;
+            actions.append(cancel, apply);
+            panel.append(title, from.set, to.set, error, actions);
+            el.append(panel);
+            const detachPickers = attachDatePickers(panel);
+
+            // ── the panel ──
+            /** @type {(() => void) | null} */
+            let lower = null;
+            /** @param {{ date: HTMLInputElement, time: HTMLInputElement, picker: HTMLElement }} b @param {number} ms */
+            const fill = (b, ms) => {
+                const w = wallTime(ms, zone);
+                datePicker(b.picker)?.set(`${w.year}-${two(w.month)}-${two(w.day)}`);
+                b.time.value = `${two(w.hour)}:${two(w.minute)}`;
+            };
+            /** @param {{ date: HTMLInputElement, time: HTMLInputElement, picker: HTMLElement }} b @returns {number | null | 'date' | 'time'} */
+            const read = (b) => {
+                const day = datePicker(b.picker)?.get() ?? null;
+                if (!day) return 'date';
+                const t = parseTime(b.time.value);
+                if (!t) return 'time';
+                return zonedTime(day.getFullYear(), day.getMonth() + 1, day.getDate(), t.hour, t.minute, zone);
+            };
+            const mark = (/** @type {HTMLInputElement[]} */ bad) => {
+                for (const input of [from.date, from.time, to.date, to.time]) {
+                    const wrong = bad.includes(input);
+                    if (wrong) {
+                        input.setAttribute('aria-invalid', 'true');
+                        input.setAttribute('aria-describedby', error.id);
+                    } else {
+                        input.removeAttribute('aria-invalid');
+                        input.removeAttribute('aria-describedby');
+                    }
                 }
-            }
-            if (words.length > 0) {
-                error.textContent = words.join(' ');
-                mark(bad);
-                bad[0]?.focus();
-                return;
-            }
-            set({ preset: null, start: /** @type {number} */ (a), end: /** @type {number} */ (b) }, true);
-            void closePanel();
-        };
-        /** @param {KeyboardEvent} event */
-        const onKey = (event) => {
-            if (event.key === 'Escape' && !panel.hidden) {
-                // A calendar that is open closes first, by its own Escape.
-                if (panel.querySelector('[data-kp-date-panel]:not([hidden])')) return;
-                event.preventDefault();
+            };
+            const place = (/** @type {HTMLElement} */ p) => {
+                const box = el.getBoundingClientRect();
+                const width = p.offsetWidth;
+                const left = Math.max(8, Math.min(box.left, doc.documentElement.clientWidth - width - 8));
+                p.style.setProperty('left', `${left}px`);
+                p.style.setProperty('top', `${box.bottom + 6}px`);
+                placeBlockSide(p, box);
+            };
+            const openPanel = () => {
+                if (!panel.hidden || disabled) return;
+                stopClose(panel);
+                fill(from, value.start);
+                fill(to, value.end);
+                error.textContent = '';
+                mark([]);
+                panel.hidden = false;
+                lower = raiseOverlay(panel, place);
+                customButton.setAttribute('aria-expanded', 'true');
+                arriveShown(panel);
+                from.date.focus();
+            };
+            /** @param {boolean} [refocus] */
+            const closePanel = async (refocus = true) => {
+                if (panel.hidden) return;
+                customButton.setAttribute('aria-expanded', 'false');
+                for (const b of [from, to]) datePicker(b.picker)?.close();
+                const done = await playClose(panel);
+                if (!done) return;
+                panel.hidden = true;
+                lower?.();
+                lower = null;
+                stopClose(panel);
+                if (refocus) customButton.focus();
+            };
+            const onApply = () => {
+                const a = read(from);
+                const b = read(to);
+                /** @type {HTMLInputElement[]} */
+                const bad = [];
+                /** @type {string[]} */
+                const words = [];
+                /** @param {string} word @param {...HTMLInputElement} inputs */
+                const wrong = (word, ...inputs) => {
+                    bad.push(...inputs);
+                    words.push(word);
+                };
+                // A time the clock skips (the hour lost when summer time starts) reads as a wrong time.
+                if (a === 'date') wrong(s.rangeErrorDate(s.rangeFrom), from.date);
+                if (a === 'time' || a === null) wrong(s.rangeErrorTime(s.rangeFrom), from.time);
+                if (b === 'date') wrong(s.rangeErrorDate(s.rangeTo), to.date);
+                if (b === 'time' || b === null) wrong(s.rangeErrorTime(s.rangeTo), to.time);
+                if (typeof a === 'number' && typeof b === 'number') {
+                    for (const fault of rangeFaults(a, b, { now: now(), future, maxDays })) {
+                        if (fault === 'order') wrong(s.rangeErrorOrder, from.date, from.time, to.date, to.time);
+                        if (fault === 'future') wrong(s.rangeErrorFuture, to.date, to.time);
+                        if (fault === 'span') wrong(s.rangeErrorSpan(maxDays), from.date, to.date);
+                    }
+                }
+                if (words.length > 0) {
+                    error.textContent = words.join(' ');
+                    mark(bad);
+                    bad[0]?.focus();
+                    return;
+                }
+                set({ preset: null, start: /** @type {number} */ (a), end: /** @type {number} */ (b) }, true);
                 void closePanel();
-            } else if (event.key === 'Enter' && event.target instanceof HTMLInputElement && event.target.classList.contains('kp-range__time')) {
-                event.preventDefault();
-                onApply();
-            }
-        };
-        /** @param {PointerEvent} event */
-        const onOutside = (event) => {
-            if (panel.hidden) return;
-            const target = /** @type {Node} */ (event.target);
-            if (panel.contains(target) || custom.contains(target)) return;
-            void closePanel(false);
-        };
-        const onCustom = () => (panel.hidden ? openPanel() : void closePanel());
-        custom.addEventListener('click', onCustom);
-        cancel.addEventListener('click', () => void closePanel());
-        apply.addEventListener('click', onApply);
-        panel.addEventListener('keydown', onKey);
-        doc.addEventListener('pointerdown', onOutside, true);
+            };
+            /** @param {KeyboardEvent} event */
+            const onKey = (event) => {
+                if (event.key === 'Escape' && !panel.hidden) {
+                    // A calendar that is open closes first, by its own Escape.
+                    if (panel.querySelector('[data-kp-date-panel]:not([hidden])')) return;
+                    event.preventDefault();
+                    void closePanel();
+                } else if (event.key === 'Enter' && event.target instanceof HTMLInputElement && event.target.classList.contains('kp-range__time')) {
+                    event.preventDefault();
+                    onApply();
+                }
+            };
+            /** @param {PointerEvent} event */
+            const onOutside = (event) => {
+                if (panel.hidden) return;
+                const target = /** @type {Node} */ (event.target);
+                if (panel.contains(target) || customButton.contains(target)) return;
+                void closePanel(false);
+            };
+            const onCustom = () => (panel.hidden ? openPanel() : void closePanel());
+            customButton.addEventListener('click', onCustom);
+            cancel.addEventListener('click', () => void closePanel());
+            apply.addEventListener('click', onApply);
+            panel.addEventListener('keydown', onKey);
+            doc.addEventListener('pointerdown', onOutside, true);
+            teardownCustom = () => {
+                lower?.();
+                detachPickers();
+                doc.removeEventListener('pointerdown', onOutside, true);
+            };
+        }
 
         // The first window, as the markup asks; a custom start in the markup (`data-kp-range-start`, `-end`) wins.
         const start0 = Date.parse(el.dataset.kpRangeStart ?? '');
         const end0 = Date.parse(el.dataset.kpRangeEnd ?? '');
-        if (Number.isFinite(start0) && Number.isFinite(end0)) set({ preset: null, start: start0, end: end0 }, false);
+        if (withCustom && Number.isFinite(start0) && Number.isFinite(end0)) set({ preset: null, start: start0, end: end0 }, false);
         else if (value.preset) set({ preset: value.preset, start: 0, end: 0 }, false);
 
         cleanups.push(() => {
-            lower?.();
-            detachPickers();
+            teardownCustom();
             detachSegmented();
             group.removeEventListener(SEGMENTED_EVENT, onPreset);
-            doc.removeEventListener('pointerdown', onOutside, true);
             STATE.delete(el);
             el.replaceChildren();
             el.removeAttribute('aria-describedby');

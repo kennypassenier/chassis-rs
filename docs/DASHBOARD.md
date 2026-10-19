@@ -60,7 +60,8 @@ behind a nav entry.
 | `vocabulary(singular, plural)` | What this service calls a client, lower case (`"source", "sources"`). Every kit sentence and every clients-API refusal uses it; URLs, JSON, cookies, metrics and logs do not (K28, 1.8.0). | Every page, the API's error messages. |
 | `client_action(ClientAction)` | A button on every active client row that POSTs (or DELETEs) to a project route; `{id}` in the route becomes the client's id (K29, 1.8.0). | The actions cell of the Clients page. |
 | `StatusSection::actions()` | Buttons under a status section, same shape (`SectionAction`), a default method so existing sections need nothing (K29, 1.8.0). | Under the section's rows on `/`. |
-| `test_route(method, path, content_type, body)` | Where **Send test** posts, with what body. Without it the button is absent. | Clients page rows; the `command` string of Reveal. |
+| `StatusSection::assets()` | `SectionAssets` — the module scripts and stylesheets the section needs, a default method (kit-kp11). | The status page's `<head>`, once per file. |
+| `test_route(method, path, content_type, body)` | Where **Send test** posts, and the body the Test it field starts with. Without it the field and the button are off. | The manage dialog's Test it card; the `command_template` of Use it. |
 
 `Dashboard::render_project(active_nav, source, ctx)` renders a project
 template: it registers `source` as `__project.html` next to the kit's
@@ -393,6 +394,109 @@ cookie) and `k29_section_actions_render_under_the_section_and_none_without`
 and the next); and inbox's "Clear messages" section action in
 `dashboard_pages_render_with_layout_and_assets`.
 
+## Section assets: a script and a stylesheet for a status section (kit-kp11)
+
+A status section that needs JavaScript (a datatable, a live card) or its own
+CSS declares the files instead of writing `<script type=module>` / `<link>`
+into `Section.html`:
+
+```rust
+impl StatusSection for Orders {
+    fn render(&self) -> Section { /* as before; html holds only markup */ }
+    fn assets(&self) -> SectionAssets {
+        SectionAssets::new()
+            .module_script("/app/orders.js")   // <script type="module">
+            .stylesheet("/app/orders.css")     // <link rel="stylesheet">
+    }
+}
+```
+
+- The kit renders the tags once, in the status page's `<head>`, in the order
+  the sections were registered. Two sections naming the same path produce one
+  tag; scripts and stylesheets are deduplicated separately.
+- Paths must be absolute and same-origin (`/app/orders.js`): the CSP is
+  `script-src 'self'`, so a `https://…` or `//host/…` URL could not run
+  anyway. Such a path, one with `..`, a quote, `<`, `>`, a backslash, a
+  backtick or whitespace is dropped and a warning is logged; nothing is
+  rendered for it.
+- The project serves the files itself: a route from `dashboard_routes`
+  (behind the admin session) or a `webapp` mount. The kit adds no `?v=`
+  cache-buster; put a version in the path or query yourself.
+- `/api/kit/status` carries the merged list as `section_assets`
+  (`{ module_scripts, stylesheets }`) for a web app that draws the page.
+
+## What the kit attaches itself, and the page-ready signal (kit-kp11)
+
+The layout loads `/static/chassis.js` as a module on every kit page. It
+attaches these kp-themes modules itself; an app's own code must not attach
+them a second time (a second theme picker binds every click twice):
+
+- `attachThemePickers()` (the theme menu in the nav; `theme-boot.js` applies
+  the stored theme before first paint);
+- `enforceContracts()` and `attachConfirmations()` (`data-kp-confirm` /
+  `data-kp-destructive` controls, `[data-post]` buttons);
+- `attachEffects(document)` and `attachSkipLinks()`;
+- the shell (see "The shell" below): `attachNavFolds`, `attachPalettes`,
+  `attachShortcuts`, `attachTabbars`, `attachConnection`, `attachArt`,
+  `attachPatterns` and the More drawer's dialog wiring. They are added to
+  `window.chassis.attached` too.
+
+Everything else under `/static/kp/js/` (datatable, undo-toast, …) is the
+app's to attach.
+
+**Page ready.** Once those are attached, chassis.js fires `chassis:ready` on
+`document` (detail `{ attached }`, the names above) and resolves
+`window.chassis.ready`:
+
+```js
+await window.chassis.ready;            // also resolves when awaited late
+// or: document.addEventListener('chassis:ready', attachMine, { once: true });
+```
+
+`chassis.ready` is a promise, so awaiting it after the event has fired still
+resolves. `window.chassis` exists once chassis.js has run; a script that may
+run earlier listens for the event and checks `window.chassis?.ready` first.
+
+**Toast region.** `layout.html` carries one empty
+`<div id="chassis-toasts" class="kp-toast-region" aria-live="polite"></div>`
+after `<main>`, on every page (class `kp-toasts`). The kit puts nothing in it; an app
+mounts its kp toasts there so a screen reader announces them.
+
+## The shell (kit-kp11)
+
+Every kit page and every project page in `layout.html` stands in one shell,
+drawn from the page registry (`nav` and `pages` in the template context),
+never from a list in the layout:
+
+- **The bar:** brand, the visible pages, Search (a palette on Ctrl or Cmd K),
+  the theme menu and Log out; links that do not fit fold behind More. On a
+  phone (below 40rem) the bar keeps the brand, a Search icon and the theme
+  menu.
+- **The palette:** *Go to* (one link per page, with the chord `g` plus the
+  page's first letter, where the letter is free), *This service* (refresh
+  and updates, when the status page is on), *Account*. On the clients page it
+  adds one *Manage* and one *Send a test* entry per active client, read from
+  `/api/kit/clients`.
+- **A page offers commands** by marking the control that does it
+  `data-chassis-command="issue"` (focused, or clicked if it is not a field),
+  `"filter-idle"` or `"search"`; the palette and the `n`, `/` keys only list
+  what the page carries. `r` is answered by the page's own refresh control
+  (`[data-kp-refresh]`); the sheet dims it where there is none.
+- **The sheet** (`?`) is filled from the registered shortcuts, so it cannot
+  promise a key that does nothing.
+- **The connection line** takes no room while all is well. The kit wraps
+  `window.fetch` of its own pages: a network failure reports `offline`; a
+  401, 502, 503 or 504 reports `refused` with the service's own remedy; the
+  next good answer clears it. Retry asks `/healthz`. The kit has no queue of
+  waiting changes, so it never claims a count.
+- **The phone's tab bar:** the first three pages are tabs, More opens a
+  drawer with the rest, Choose a theme and Log out. The Clients tab carries
+  the exact number of idle clients (active, no call for 30 days; one never
+  called counts from its issue); no count is capped or abbreviated.
+- **The error page** shows the status, one plate (what, why in plain words,
+  what to do) with a drawing per kind, Go back, the status page, and the
+  request id to copy. It draws the navigation when the browser is signed in.
+
 ## What the kit guarantees around a project page
 
 - **Admin login.** The whole `dashboard_routes` router sits behind
@@ -443,37 +547,45 @@ and the next); and inbox's "Clear messages" section action in
 
 ## The Clients page controls
 
-Since feat-clients-4 (2026-09-10) the table itself carries Name, Issued,
-Last used, State, the project's declared and extra columns, and one
-unlabelled column with a single **Manage** button. Everything below lives in
-the dialog that button opens — a `<dialog class="kp-dialog client-dialog">`
-per row, server-rendered, so every control keeps the `data-*` attribute its
-handler already listened for. The dialog has a fixed head and foot with a
-scrolling middle, so the name and **Close** stay in view however many requests
-are expanded.
+Since feat-clients-4 (2026-09-10) the table itself carries the client, its
+state, last use, request count, the project's declared and extra columns, and
+one unlabelled column with a single **Manage** button. Everything below lives
+in the dialog that button opens: a `<dialog class="kp-dialog manage-dialog">`
+per row, server-rendered (kit-kp11, the approved clients-manage review, round
+3). Every part is a kp-themes component used as the package documents it;
+`chassis.js` attaches them when a dialog first opens and feeds them. The
+dialog is one composition on a 12-column grid: the client's identity (mark,
+name, state, issue date) against three figure tiles (requests, last call, the
+first declared field or the issue date); the control rail (token, command,
+the project's own actions); the **Test it** card and the request inspector,
+the inspector as tall as the rail in every state; and the danger band, its
+words under the rail and its three actions, each with its consequence, in
+three equal cells. A revoked client keeps every area.
 
-Kenny's case: the row used to carry up to eight controls across two wrapping
-columns, and its height grew with whatever a project had registered. The
-token in particular sat in the row, where revealing it swapped twelve bullets
-for forty-eight characters and moved every button beside it; in the dialog it
-has a line of its own.
+Kenny's case (2026-09-10): the row used to carry up to eight controls across
+two wrapping columns, and its height grew with whatever a project had
+registered. The token in particular sat in the row, where revealing it swapped
+twelve bullets for forty-eight characters and moved every button beside it.
 
-The requests load when the dialog opens rather than behind a second click —
-the panel is already on screen there, so a toggle would only hide what the
-reader just asked for.
+The requests load when the dialog opens rather than behind a second click.
 
 Per client (`templates/clients.html`, driven by `chassis.js`):
 
-| Button | Calls | Effect |
+| Part | Calls | Effect |
 |---|---|---|
-| **Reveal** | `GET /api/clients/{id}/token` | Shows the token in the row for `reveal_seconds` (default 10) and turns into **Hide**. The window is a browser timer only (S9): an admin can reveal any active token at any time. |
-| **Copy token** | same | Puts only the token on the clipboard; flashes `Copied` or `Copy failed — use Reveal` (clipboard API needs https or localhost; the `execCommand` fallback works inside a real click). |
-| **Copy command** | same | Copies `curl -sS -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' -d '{}' <own address><test route path>`. |
-| **Requests** (loaded when the dialog opens) | `GET /api/clients/{id}/requests` | Lists the last `capture_keep` requests: time, method, path, status, headers with `authorization`/`cookie`/`set-cookie`/`x-api-key` (and `capture_redact`) shown as `***`, the body cut at `capture_body_bytes` with a `truncated` badge, a `test` badge for Send test. In memory; empty after a restart. |
-| **Send test** | `POST /api/clients/{id}/test` | One request with this client's token to the project's test route, against the service's own address; flashes `Sent → <status>`. Only when a test route is declared. |
-| **Re-issue** | `POST /api/clients/{id}/reissue` | Confirm text `Re-issue? The current token stops working at once.`; a new token, the old one refused the same second. |
-| **Revoke** | `POST /api/clients/{id}/revoke` | Confirm text `Revoke this token? The caller is locked out immediately.`; the row stays with `revoked <time>`, the name is free again. |
-| **Delete** | `DELETE /api/clients/{id}` | Confirm text `Delete this client and its history?`; row and captures gone. Available on revoked rows too. |
+| **Token**, a `.kp-secret` | `GET /api/clients/{id}/token` | Reveal shows the token for `reveal_seconds` (default 10) with a countdown and hides it again; Copy puts only the token on the clipboard without showing it. The field answers the component's `kp-secret-request` event, so the token is in the page only while it is shown (S9: an admin can reveal any active token at any time). |
+| **Use it**, a `.kp-command` | same | The service's `command_template` with `$CLIENT_TOKEN` where the token goes, under `export CLIENT_TOKEN='…'`: safe to paste into a chat. **Copy with the token filled in** is a flash button that copies the line with the real token (clipboard API needs https or localhost; the `execCommand` fallback works inside a real click). |
+| **Test it**, one `.kp-formgrid` row | `POST /api/clients/{id}/test` | A JSON field (`data-kp-json`, with Format, Minify, Wrap and Copy) starting from the test route's body, and a small **Send test** flash button on the line of its tools. One request with this client's token to the project's test route, against the service's own address, carrying the edited body (`{"body": "…"}`; without one the route's own, at most 64 KiB). A body that is not JSON is refused before it is sent; an answer of 400 or more is shown as a refusal that points at the request below. A route that is not JSON gets a plain text field. Without a declared test route the field and the button are off, with the reason. |
+| **Requests**, a `.kp-inspector` | `GET /api/clients/{id}/requests` | The last `capture_keep` requests, newest first: method, path, status in words, time, headers with `authorization`/`cookie`/`set-cookie`/`x-api-key` (and `capture_redact`) masked, the body cut at `capture_body_bytes` (`body_bytes` is the inspector's `bodyBytes`), Copy as curl, JSON or body, a `test` badge for Send test. Loading, empty and failed are the card's own states (Try again reads again). In memory; empty after a restart. |
+| **Re-issue** | `POST /api/clients/{id}/reissue` | A confirmation; a new token, the old one refused the same second; the dialog opens again on the new one after the page reloads. |
+| **Revoke** | `POST /api/clients/{id}/revoke` | A confirmation; the row stays with `revoked <date>`, the name is free again. |
+| **Delete** | `DELETE /api/clients/{id}` | A typed confirmation: the dialog lists what is lost (the token, N requests of history) and Delete for good stays off until the client's exact name is typed. Available on revoked rows too. |
+
+The three danger buttons and Send test are kp flash buttons: the theme's own
+spinner while they work, one width throughout, a refusal as a toast with the
+kit's sentence and remedy. A project's own row actions (K29) keep their
+`data-post` markup and stand under **Actions** in the rail; chassis.js runs
+them as flash buttons too.
 
 Above the table, **Issue token** posts `{"name": …}` to `POST
 /api/clients`; names are 1–64 of letters, digits, `.`, `_`, `-`, and a

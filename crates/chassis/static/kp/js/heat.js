@@ -28,6 +28,11 @@
 // cell also takes `level` (a value, `--kp-heat-level` 0 to 1) and a matrix
 // cell `self` (a pair with itself: dashed, inert).
 //
+// The legend [gap-tab-count]: `setHeatLegend(el, entries, { keys })` writes the `ul.kp-heat__legend` under the grid (made when the
+// grid has none), a swatch and its words per entry, a value ramp ("Less" to "More") where an entry asks for one, and at its end the
+// line of keys; the grid names it in `aria-describedby`. A calm grid (`data-kp-tones="calm"`) draws Logged, Nothing logged and
+// Paused by itself (only the tones its cells have; `data-kp-legend="all"` lists all three), `data-kp-legend="hide"` leaves it out (setHeat also takes `legend` and `legendKeys`).
+//
 // Calm tones [kpadopt6]: `data-kp-tones="calm"` on a heat grid swaps ok, warn and bad for `logged`, `quiet` and `paused`
 // (js/calm-tones.js): a cell with nothing logged is quiet, never failed, and its words never say "missed".
 //
@@ -79,8 +84,10 @@
 import { getStrings } from './strings.js';
 import { attachHoverCards } from './hovercard.js';
 import { openBusyCard } from './busy-card.js';
+import { hostStatePlate } from './state-plate.js';
 import { drawUsesMap, leaveUsesMap, rememberView, rememberedView } from './uses-map.js';
-import { calmTone, calmWord, isCalmTones } from './calm-tones.js';
+import { calmLegendEntries, calmTone, calmWord, isCalmTones } from './calm-tones.js';
+import { setKeys } from './keys.js';
 
 /** A heat grid. */
 export const HEAT = '[data-kp-heat]';
@@ -94,6 +101,10 @@ export const HEAT_ROW_EVENT = 'kp-heat-row';
 export const HEAT_PAGE_EVENT = 'kp-heat-page';
 /** Fired on a matrix when a cell is pinned. */
 export const MATRIX_PICK_EVENT = 'kp-matrix-pick';
+/** Fired on a heat grid, bubbling, when the Retry of its failed state is pressed [state-plates-1019]. */
+export const HEAT_RETRY_EVENT = 'kp-heat-retry';
+/** Fired on a matrix (either view), bubbling, when the Retry of its failed state is pressed [state-plates-1019]. */
+export const MATRIX_RETRY_EVENT = 'kp-matrix-retry';
 /** Fired on a matrix when the lit headers change. */
 export const MATRIX_LIGHT_EVENT = 'kp-matrix-light';
 
@@ -127,17 +138,38 @@ const TONES = ['ok', 'warn', 'bad', 'muted', 'future', 'before', 'none', 'level'
 
 /**
  * @typedef {object} HeatSpec
- * @property {readonly { key: string, label: string, minor?: boolean }[]} [columns]
+ * @property {readonly { key: string, label: string, minor?: boolean }[]} [columns]  `minor: true` draws no name, `minor: false` always does
  * @property {HeatRow} [summary]
  * @property {readonly HeatRow[]} [rows]
  * @property {'ready' | 'loading' | 'empty' | 'error'} [state]  default ready
- * @property {string} [message]  the words of the empty and error states
+ * @property {string} [message]  the words of the empty and error states (the plate's heading)
+ * @property {string} [text]  the plate's sentence under the heading (an error says the package's own when none is given)
+ * @property {Node | string | null} [art]  a picture over the heading of the empty and error plates
  * @property {{ rows: number, columns: number }} [skeleton]  the shape of the loading state when there is no data yet
- * @property {number} [every]    every how many columns the axis names one (default 3; the last always)
+ * @property {number} [every]    every how many columns the axis names one (default 3; the last always); columns with `minor` set do not count
  * @property {'start' | 'end'} [axis]  where the column axis stands (default start)
  * @property {boolean} [toggle]  row labels are buttons that toggle (else `data-kp-heat-toggle` on the grid)
  * @property {string | null} [picked]  the key of the picked column
  * @property {string} [label]  the grid's accessible name, when the element has none
+ * @property {readonly HeatLegendEntry[] | false} [legend]  the legend under the grid (setHeatLegend); `false` takes it away
+ * @property {HeatLegendOptions['keys']} [legendKeys]  the key line at the end of the legend
+ */
+
+/**
+ * One entry of a legend: a tone and its words, or a value ramp.
+ * @typedef {object} HeatLegendEntry
+ * @property {GridTone} [tone]  a swatch of this tone (with `label`)
+ * @property {string} [label]  its words
+ * @property {boolean} [ramp]  instead of a tone: the value scale, `less` then `steps` swatches of rising level then `more`
+ * @property {number} [steps]  how many swatches the ramp has (default 5, 2 to 9)
+ * @property {string} [less]  the ramp's low end (default "Less")
+ * @property {string} [more]  the ramp's high end (default "More")
+ */
+
+/**
+ * @typedef {object} HeatLegendOptions
+ * @property {boolean | readonly import('./keys.js').KeyPair[]} [keys]  `true`: the keys of a heat grid (move, pick a column, drop the pick, earlier or later); or the pairs to show; at the end of the legend
+ * @property {string} [label]  the legend's name for a screen reader (default "Legend")
  */
 
 /**
@@ -159,7 +191,9 @@ const TONES = ['ok', 'warn', 'bad', 'muted', 'future', 'before', 'none', 'level'
  * @property {readonly (import('./uses-map.js').UsesNode)[]} [columns]  the things that use them
  * @property {(row: string, column: string) => MatrixCell | null | undefined} [cell]  null: unknown; the same key on both axes with nothing given: itself
  * @property {'ready' | 'loading' | 'empty' | 'error'} [state]
- * @property {string} [message]
+ * @property {string} [message]  the plate's heading in the empty and error states
+ * @property {string} [text]  the plate's sentence under the heading
+ * @property {Node | string | null} [art]  a picture over the heading of the empty and error plates
  * @property {number} [skeleton]  the size of the loading state when there are no names yet
  * @property {{ row: string, column: string } | null} [picked]
  * @property {readonly string[]} [lit]  the header keys that are lit
@@ -259,6 +293,9 @@ function syncCard(el, loading, words, area, className) {
     CARDS.set(el, openBusyCard(el, { words, area, className, arrive: !first }));
 }
 
+/** The plate a heat grid shows for an empty or failed state, and what it was drawn from. @type {WeakMap<Element, { note: HTMLElement, state: string, title: string, text: string | undefined, art: unknown }>} */
+const PLATES = new WeakMap();
+
 /** A grid is drawn once its first render has been painted. @param {Element} el */
 function markDrawn(el) {
     if (DRAWN.has(el)) return;
@@ -322,6 +359,11 @@ export function setHeat(el, spec) {
     const s = getStrings();
     const state = spec.state ?? 'ready';
     const loading = state === 'loading';
+    // The legend does not wait for the busy card: it keeps its place while the grid loads.
+    if (spec.legend !== undefined) {
+        if (spec.legend === false) removeLegend(el);
+        else setHeatLegend(el, spec.legend, { keys: spec.legendKeys });
+    } else syncCalmLegend(el);
     if (waitForCard(el, spec, loading, setHeat)) return;
     const every = Math.max(1, spec.every ?? 3);
     const toggle = spec.toggle ?? el.hasAttribute('data-kp-heat-toggle');
@@ -351,8 +393,25 @@ export function setHeat(el, spec) {
     else el.setAttribute('data-kp-heat-picked', picked);
 
     if (state === 'empty' || state === 'error') {
-        const note = make(doc, 'div', 'kp-heat__state', { role: state === 'error' ? 'alert' : 'status', 'data-kp-state': state });
-        note.textContent = spec.message ?? (state === 'error' ? s.heatFailed : s.heatEmpty);
+        // The package's state plate over the grid's whole footprint, with a Retry on a failure [state-plates-1019].
+        // A grid told the same state again (a page repainting from its live stream) keeps its plate: a new node would play the
+        // plate's entrance again and drop the focus on its Retry, which reads as a flicker [hlcomp-1019 heat-failed].
+        const title = spec.message ?? (state === 'error' ? s.heatFailed : s.heatEmpty);
+        const kept = PLATES.get(el);
+        if (kept && kept.note.isConnected && el.firstElementChild === kept.note && el.childElementCount === 1) {
+            if (kept.state === state && kept.title === title && kept.text === spec.text && kept.art === spec.art) return;
+        }
+        const note = make(doc, 'div', 'kp-heat__state', { 'data-kp-state': state });
+        note.append(
+            hostStatePlate(el, {
+                kind: state,
+                title,
+                ...(spec.text ? { text: spec.text } : {}),
+                art: spec.art,
+                retryEvent: HEAT_RETRY_EVENT,
+            }),
+        );
+        PLATES.set(el, { note, state, title, text: spec.text, art: spec.art });
         markDrawn(el);
         el.replaceChildren(note);
         return;
@@ -361,17 +420,25 @@ export function setHeat(el, spec) {
     /** @param {string} key @param {string} text @param {boolean} minor */
     const column = (key, text, minor) => {
         const head = make(doc, 'span', 'kp-heat__col', { role: 'columnheader', 'data-col-key': key });
+        const isPicked = picked != null && key === picked;
         if (minor) head.setAttribute('data-kp-minor', '');
-        if (picked != null && key === picked) head.setAttribute('data-kp-picked', '');
-        head.textContent = text;
+        if (isPicked) head.setAttribute('data-kp-picked', '');
+        // A minor name is not drawn: its header keeps the name for a screen reader, with no text to find under a neighbour [heat-deplist-1019].
+        if (minor && !isPicked && text) head.setAttribute('aria-label', text);
+        else head.textContent = text;
         return head;
     };
     const axis = make(doc, 'div', 'kp-heat__row kp-heat__axis', { role: 'row' });
     axis.append(make(doc, 'span', 'kp-heat__label', { role: 'columnheader', 'aria-hidden': 'true' }));
     const heads = make(doc, 'div', 'kp-heat__cells', { role: 'none' });
-    columns.forEach((c, i) =>
-        heads.append(column(c.key, loading && !c.label ? '' : c.label, c.minor ?? !(i % every === 0 || i === columns.length - 1))),
-    );
+    // `every` counts the columns that are not marked: `minor: true` is never named and does not count, `minor: false` is always
+    // named, and the rest are named every `every`th, the last of them always (the name before it gives way when the two would
+    // stand side by side) [heat-deplist-1019].
+    const open = columns.map((c, i) => (c.minor === undefined ? i : -1)).filter((i) => i >= 0);
+    const named = new Set(open.filter((_, at) => at % every === 0 || at === open.length - 1));
+    const before = open[open.length - 2];
+    if (every > 1 && before !== undefined && before === open[open.length - 1] - 1) named.delete(before);
+    columns.forEach((c, i) => heads.append(column(c.key, loading && !c.label ? '' : c.label, c.minor ?? !named.has(i))));
     axis.append(heads);
 
     let r = -1;
@@ -461,12 +528,14 @@ export function setHeat(el, spec) {
     for (const row of rows) body.push(rowNode(row, false));
     if (spec.axis === 'end') body.push(axis);
     replaceKeepingCard(el, body);
+    // The calm legend names the tones of the cells just drawn.
+    if (spec.legend === undefined) syncCalmLegend(el);
     // Loading: the busy card over the rows' cells, the axis and the row names beside it.
     syncCard(
         el,
         loading,
         s.heatLoading,
-        () => [...el.querySelectorAll(':scope > .kp-heat__row:not(.kp-heat__axis) > .kp-heat__cells')],
+        () => heatArea(el),
         'kp-heat__busy',
     );
 
@@ -476,6 +545,29 @@ export function setHeat(el, spec) {
         const again = /** @type {HTMLElement | null} */ (el.querySelector(`${HEAT_CELL}[tabindex="0"]`));
         again?.focus({ preventScroll: true });
     }
+}
+
+/**
+ * What a loading heat grid's busy card covers: the rows' cells and, below them, whatever the held footprint (js/footprint.js) adds,
+ * down to the host's content edge, so the card fills the footprint the grid held and not only the few skeleton rows
+ * [hlcomp-1019 heat-busy]. The axis and the names stay beside it.
+ * @param {HTMLElement} el
+ */
+function heatArea(el) {
+    const cells = [...el.querySelectorAll(':scope > .kp-heat__row:not(.kp-heat__axis) > .kp-heat__cells')].map((c) => c.getBoundingClientRect());
+    if (!cells.length) return [];
+    const box = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    const floor = box.bottom - el.clientTop - (Number.parseFloat(style.paddingBottom) || 0);
+    const top = Math.min(...cells.map((r) => r.top));
+    return [
+        {
+            top,
+            left: Math.min(...cells.map((r) => r.left)),
+            bottom: Math.max(floor, ...cells.map((r) => r.bottom)),
+            right: Math.max(...cells.map((r) => r.right)),
+        },
+    ];
 }
 
 /**
@@ -508,6 +600,134 @@ export function setHeatRows(el, keys) {
     for (const button of /** @type {NodeListOf<HTMLElement>} */ (el.querySelectorAll('.kp-heat__label-button'))) {
         button.setAttribute('aria-pressed', String(set.has(button.dataset.key ?? '')));
     }
+}
+
+/* ---------------------------------------------------------------- the legend */
+
+/** Legends made so far, for an id that is never twice on a page. */
+let legendCount = 0;
+
+/**
+ * The legend a heat grid has: the list right after it, when that is a `.kp-heat__legend` (the markup a page wrote by hand is
+ * taken over, not doubled).
+ * @param {HTMLElement} el
+ * @returns {HTMLElement | null}
+ */
+function legendOf(el) {
+    const next = el.nextElementSibling;
+    return next instanceof HTMLElement && next.matches('.kp-heat__legend') ? next : null;
+}
+
+/** @param {HTMLElement} el the grid @param {HTMLElement | null} legend @param {boolean} on whether the grid names the legend */
+function describedBy(el, legend, on) {
+    if (!legend) return;
+    const ids = (el.getAttribute('aria-describedby') ?? '').split(/\s+/).filter((id) => id && id !== legend.id);
+    if (on) ids.push(legend.id);
+    if (ids.length) el.setAttribute('aria-describedby', ids.join(' '));
+    else el.removeAttribute('aria-describedby');
+}
+
+/**
+ * Take the legend away (hidden, and out of the grid's description), keeping the element where it stands so it can come back.
+ * @param {HTMLElement} el
+ */
+function removeLegend(el) {
+    const legend = legendOf(el);
+    if (!legend) return;
+    legend.hidden = true;
+    legend.replaceChildren();
+    legend.removeAttribute('data-kp-legend-source');
+    describedBy(el, legend, false);
+}
+
+/**
+ * The legend of a calm grid, drawn by the grid itself: Logged, Nothing logged, Paused. A legend the page wrote (setHeatLegend, or
+ * markup) is left alone; `data-kp-legend="hide"`, or a grid that is no longer calm, takes the grid's own away.
+ * @param {HTMLElement} el
+ */
+function syncCalmLegend(el) {
+    const legend = legendOf(el);
+    const own = legend?.getAttribute('data-kp-legend-source') === 'auto';
+    if (legend && !own && legend.childElementCount > 0) return;
+    if (isCalmTones(el) && el.getAttribute('data-kp-legend') !== 'hide') {
+        // Only the tones the data has [gap audhd 41]: a grid with no paused cell does not name "Paused"; `data-kp-legend="all"`
+        // keeps the three, and a grid with no cell yet (loading) lists all three so the legend keeps its footprint.
+        const present = new Set([...el.querySelectorAll('.kp-heat__cell[data-kp-tone]')].map((c) => c.getAttribute('data-kp-tone')));
+        const all = el.getAttribute('data-kp-legend') === 'all' || !['logged', 'quiet', 'paused'].some((t) => present.has(t));
+        const entries = calmLegendEntries().filter((e) => all || present.has(e.tone));
+        const signature = entries.map((e) => e.tone).join(' ');
+        // Unchanged: nothing is rewritten (a grid that is redrawn many times a minute keeps its legend's nodes).
+        if (own && !legend?.hidden && legend?.getAttribute('data-kp-legend-tones') === signature) return;
+        const made = setHeatLegend(el, entries, { source: 'auto' });
+        made?.setAttribute('data-kp-legend-tones', signature);
+    } else if (own) removeLegend(el);
+}
+
+/**
+ * The legend under a heat grid: a swatch and its words per entry, in the order given, a value ramp where an entry asks for one,
+ * and at the end the line of keys. The list is the one right after the grid (made when there is none), named in the grid's
+ * `aria-describedby`; no entries and no keys hides it. Called again, it rewrites in place, so the legend keeps its place while the
+ * grid loads.
+ *
+ * @param {HTMLElement} el the heat grid
+ * @param {readonly HeatLegendEntry[]} entries
+ * @param {HeatLegendOptions & { source?: 'auto' }} [options]
+ * @returns {HTMLElement | null} the legend, null for a grid that is not in a page
+ */
+export function setHeatLegend(el, entries, options = {}) {
+    const doc = el.ownerDocument;
+    const s = getStrings();
+    let legend = legendOf(el);
+    if (!legend) {
+        if (!el.parentNode) return null;
+        legend = make(doc, 'ul', 'kp-heat__legend');
+        el.after(legend);
+    }
+    if (!legend.id) legend.id = `${el.id || 'kp-heat'}-legend${el.id ? '' : `-${(legendCount += 1)}`}`;
+    const keys = options.keys === true ? defaultHeatKeys(s) : options.keys || null;
+    legend.setAttribute('aria-label', options.label ?? s.heatLegendLabel);
+    if (options.source) legend.setAttribute('data-kp-legend-source', options.source);
+    else legend.removeAttribute('data-kp-legend-source');
+    /** @type {HTMLElement[]} */
+    const items = [];
+    for (const entry of entries) {
+        const li = make(doc, 'li');
+        if (entry.ramp) {
+            const steps = Math.min(9, Math.max(2, Math.trunc(entry.steps ?? 5)));
+            const ramp = make(doc, 'span', 'kp-heat__ramp', { 'aria-hidden': 'true' });
+            for (let i = 0; i < steps; i += 1) {
+                const swatch = make(doc, 'span', 'kp-heat__swatch', { 'data-kp-tone': 'level' });
+                swatch.style.setProperty('--kp-heat-level', String(Math.round((i / (steps - 1)) * 100) / 100));
+                ramp.append(swatch);
+            }
+            li.append(entry.less ?? s.heatLegendLess, ramp, entry.more ?? s.heatLegendMore);
+        } else {
+            const swatch = make(doc, 'span', 'kp-heat__swatch', { 'data-kp-tone': entry.tone ?? 'muted', 'aria-hidden': 'true' });
+            li.append(swatch, ` ${entry.label ?? ''}`);
+        }
+        items.push(li);
+    }
+    if (keys && keys.length) {
+        const end = make(doc, 'li', 'kp-heat__legend-end');
+        const line = make(doc, 'div', 'kp-keys');
+        setKeys(line, keys);
+        end.append(line);
+        items.push(end);
+    }
+    legend.replaceChildren(...items);
+    legend.hidden = items.length === 0;
+    describedBy(el, legend, items.length > 0);
+    return legend;
+}
+
+/** @param {ReturnType<typeof getStrings>} s @returns {import('./keys.js').KeyPair[]} */
+function defaultHeatKeys(s) {
+    return [
+        [['←', '↑', '↓', '→'], s.heatKeysMove],
+        ['Enter', s.heatKeysPick],
+        ['Esc', s.heatKeysDrop],
+        [['PgUp', 'PgDn'], s.heatKeysPage],
+    ];
 }
 
 /**
@@ -595,6 +815,10 @@ function wireHeat(el) {
     el.addEventListener('click', onClick);
     el.addEventListener('keydown', onKey);
     el.addEventListener('focusin', onFocus);
+    // A calm grid draws its legend, and follows the options that decide it, also when the page only flips an attribute.
+    syncCalmLegend(el);
+    const legendWatch = new MutationObserver(() => syncCalmLegend(el));
+    legendWatch.observe(el, { attributes: true, attributeFilter: ['data-kp-tones', 'data-kp-legend'] });
     // Markup written by hand gets its tab stop and its pressed labels.
     if (el.querySelector(HEAT_CELL)) {
         const pressed = /** @type {NodeListOf<HTMLElement>} */ (el.querySelectorAll('.kp-heat__label-button[aria-pressed="true"]'));
@@ -605,6 +829,7 @@ function wireHeat(el) {
         el.removeEventListener('click', onClick);
         el.removeEventListener('keydown', onKey);
         el.removeEventListener('focusin', onFocus);
+        legendWatch.disconnect();
     };
 }
 
@@ -690,8 +915,16 @@ export function setMatrix(el, spec) {
     grid.style.setProperty('--kp-matrix-cols', String(Math.max(1, columns.length)));
 
     if (state === 'empty' || state === 'error') {
-        const note = make(doc, 'div', 'kp-matrix__state', { role: state === 'error' ? 'alert' : 'status' });
-        note.textContent = spec.message ?? (state === 'error' ? s.heatFailed : s.heatEmpty);
+        const note = make(doc, 'div', 'kp-matrix__state', { 'data-kp-state': state });
+        note.append(
+            hostStatePlate(el, {
+                kind: state,
+                title: spec.message ?? (state === 'error' ? s.heatFailed : s.heatEmpty),
+                ...(spec.text ? { text: spec.text } : {}),
+                art: spec.art,
+                retryEvent: MATRIX_RETRY_EVENT,
+            }),
+        );
         markDrawn(el);
         el.replaceChildren(note);
         return;

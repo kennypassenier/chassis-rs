@@ -26,6 +26,17 @@
 // and a status region says it. A screen reader hears the time left in whole
 // minutes on the face (role="img"), and the start, the pause and the end.
 //
+// Options, read again when the attribute changes (js/live-options.js) [gaps-time-1019]:
+//   data-kp-timer-disc-until   "14:30" (the next 14:30 on this device's clock), a date and time or epoch ms: the disc counts
+//                              down to that moment, starts at once and has no controls (a moment does not wait); the line
+//                              under it reads "until 14:30"
+//   data-kp-timer-disc-timezone "Europe/Brussels" (on the disc or an ancestor): the zone "14:30" and the caption are in; a date and
+//                              time with its own offset ("+02:00", "Z") is read and written in that offset. Without either,
+//                              this device's clock
+//   data-kp-timer-disc-controls="none"  display only: no Start, Pause or Reset is built (left out of the tab order too); the
+//                              page drives the clock with timerDiscOf(el).start() / .pause() / .reset(seconds). The caption
+//                              follows the clock, so a reset(seconds) from the page changes "Focus · 25 min" too
+//
 // Events: the countdown's, `kp-countdown-change` and `kp-countdown-end` (the
 // clock is js/countdown.js's countdownClock).
 //
@@ -34,10 +45,11 @@
 import { getStrings } from './strings.js';
 import { motionAllowed } from './calm.js';
 import { setStateWord } from './components.js';
-import { COUNTDOWN_END_EVENT, COUNTDOWN_EVENT, countdownClock, parseDuration, timerButton } from './countdown.js';
+import { COUNTDOWN_END_EVENT, COUNTDOWN_EVENT, countdownClock, parseDuration, parseUntil, timerButton, timerZone, untilLabel, untilZone } from './countdown.js';
+import { watchOptions } from './live-options.js';
 
 /** A visual timer. */
-export const TIMER_DISC = '[data-kp-timer-disc]';
+export const TIMER_DISC = '[data-kp-timer-disc], [data-kp-timer-disc-until]';
 /** The custom property the disc is drawn by: 1 full, 0 gone. */
 export const TIMER_DISC_LEFT = '--kp-timer-disc-left';
 
@@ -70,10 +82,11 @@ export const timerDiscOf = (el) => CLOCKS.get(/** @type {HTMLElement} */ (el)) ?
 /**
  * Wire every visual timer under `root`.
  * @param {ParentNode} [root]
- * @param {{ now?: () => number }} [options]
+ * @param {{ now?: () => number, wall?: () => number }} [options] `now` is the clock's (performance.now), `wall` the device's
+ *   date and time (Date.now), which an `until` option is counted against
  * @returns {() => void} detach
  */
-export function attachTimerDiscs(root = document, { now } = {}) {
+export function attachTimerDiscs(root = document, { now, wall } = {}) {
     register();
     /** @type {(() => void)[]} */
     const cleanups = [];
@@ -86,10 +99,26 @@ export function attachTimerDiscs(root = document, { now } = {}) {
         const s = getStrings();
         const doc = el.ownerDocument;
         const view = doc.defaultView ?? window;
-        const seconds = parseDuration(el.dataset.kpTimerDisc);
-        const scaleSeconds = parseDuration(el.dataset.kpTimerDiscScale ? `${el.dataset.kpTimerDiscScale}m` : '') || 0;
-        const name = el.dataset.kpTimerDiscName ?? '';
-        const disabled = el.hasAttribute('data-kp-timer-disc-disabled');
+        const wallNow = wall ?? (() => Date.now());
+        // The options, read again when an attribute changes.
+        let seconds = 0;
+        let scaleSeconds = 0;
+        let name = '';
+        let disabled = false;
+        let bare = false;
+        /** The moment the disc counts down to, epoch ms, when the `until` option names one. @type {number | null} */
+        let until = null;
+        const read = () => {
+            const at = wallNow();
+            until = parseUntil(el.dataset.kpTimerDiscUntil, at, timerZone(el, 'data-kp-timer-disc-timezone'));
+            seconds = until !== null ? Math.max(0, Math.ceil((until - at) / 1000)) : parseDuration(el.dataset.kpTimerDisc);
+            scaleSeconds = parseDuration(el.dataset.kpTimerDiscScale ? `${el.dataset.kpTimerDiscScale}m` : '') || 0;
+            name = el.dataset.kpTimerDiscName ?? '';
+            disabled = el.hasAttribute('data-kp-timer-disc-disabled');
+            // A moment does not wait: counting down to one has no Start, Pause or Reset.
+            bare = until !== null || el.dataset.kpTimerDiscControls === 'none';
+        };
+        read();
         const still = () => !motionAllowed(doc);
         el.classList.add('kp-timer-disc');
 
@@ -113,14 +142,13 @@ export function attachTimerDiscs(root = document, { now } = {}) {
         said.className = 'kp-sr-only';
         said.setAttribute('role', 'status');
 
-        const controls = doc.createElement('div');
-        controls.className = 'kp-timer-disc__controls';
-        const go = timerButton(doc, 'kp-button--primary kp-timer-disc__go', [s.timerStart, s.timerPause, s.timerResume]);
-        const reset = timerButton(doc, 'kp-button--ghost kp-timer-disc__reset', [s.timerReset]);
-        controls.append(go.button, reset.button);
-        go.button.disabled = disabled;
-        reset.button.disabled = disabled;
-        el.replaceChildren(face, caption, line, controls, said);
+        el.replaceChildren(face, caption, line, said);
+        /** @type {ReturnType<typeof timerButton> | null} */
+        let go = null;
+        /** @type {ReturnType<typeof timerButton> | null} */
+        let reset = null;
+        /** @type {HTMLElement | null} */
+        let controls = null;
 
         let drawn = -1;
         let frame = 0;
@@ -147,12 +175,20 @@ export function attachTimerDiscs(root = document, { now } = {}) {
             const left = ms <= 0 ? '' : minutes > 1 ? s.timerDuration(minutes * 60) : s.timerUnderMinute;
             face.setAttribute('aria-label', ms <= 0 ? s.timerEnded : s.timerDiscLeft(left, s.timerDuration(Math.round(clock.total() / 1000))));
         };
+        const captionText = () => {
+            const length = until !== null ? s.timerUntil(untilLabel(until, wallNow(), untilZone(el.dataset.kpTimerDiscUntil, timerZone(el, 'data-kp-timer-disc-timezone')))) : s.timerDuration(Math.round(clock.total() / 1000));
+            return name ? s.timerDiscCaption(name, length) : length;
+        };
         const show = () => {
             const state = clock.state();
             el.dataset.kpTimerDiscState = state;
-            setStateWord(go.label, state === 'running' ? s.timerPause : state === 'paused' ? s.timerResume : s.timerStart);
-            go.button.disabled = disabled || state === 'ended';
-            reset.button.disabled = disabled || (state === 'idle' && clock.total() === seconds * 1000);
+            if (go) {
+                setStateWord(go.label, state === 'running' ? s.timerPause : state === 'paused' ? s.timerResume : s.timerStart);
+                go.button.disabled = disabled || state === 'ended';
+            }
+            if (reset) reset.button.disabled = disabled || (state === 'idle' && clock.total() === seconds * 1000);
+            // The caption follows the clock: a reset(seconds) from the page changes the length it names.
+            caption.textContent = captionText();
             line.textContent = state === 'paused' ? s.timerPaused : state === 'ended' ? s.timerEnded : '';
             name_();
         };
@@ -188,8 +224,6 @@ export function attachTimerDiscs(root = document, { now } = {}) {
             },
         });
         CLOCKS.set(el, clock);
-        caption.textContent = name ? s.timerDiscCaption(name, s.timerDuration(seconds)) : s.timerDuration(seconds);
-
         const onGo = () => {
             const state = clock.state();
             filling?.finish();
@@ -224,18 +258,78 @@ export function attachTimerDiscs(root = document, { now } = {}) {
             }
             show();
         };
-        go.button.addEventListener('click', onGo);
-        reset.button.addEventListener('click', onReset);
+        /** The controls are built when the disc has them and left out of the document (and the tab order) when it has none. */
+        const mountControls = () => {
+            if (bare) {
+                controls?.remove();
+                controls = go = reset = null;
+                el.toggleAttribute('data-kp-timer-disc-bare', true);
+                return;
+            }
+            el.removeAttribute('data-kp-timer-disc-bare');
+            if (controls) return;
+            controls = doc.createElement('div');
+            controls.className = 'kp-timer-disc__controls';
+            go = timerButton(doc, 'kp-button--primary kp-timer-disc__go', [s.timerStart, s.timerPause, s.timerResume]);
+            reset = timerButton(doc, 'kp-button--ghost kp-timer-disc__reset', [s.timerReset]);
+            controls.append(go.button, reset.button);
+            go.button.addEventListener('click', onGo);
+            reset.button.addEventListener('click', onReset);
+            el.insertBefore(controls, said);
+        };
+        mountControls();
+        // Counting down to a moment starts at once; the clock then runs to it whatever the page does.
+        const startUntil = () => {
+            if (until !== null && seconds > 0) clock.start();
+        };
         draw(true);
         show();
+        startUntil();
+
+        // A tab that slept keeps the device's clock, not the timer's: when it is visible again the moment is counted anew.
+        const onVisible = () => {
+            if (until === null || doc.visibilityState !== 'visible') return;
+            read();
+            filling?.cancel();
+            clock.reset(seconds);
+            startUntil();
+        };
+        doc.addEventListener('visibilitychange', onVisible);
+
+        const stopWatching = watchOptions(
+            el,
+            [
+                'data-kp-timer-disc',
+                'data-kp-timer-disc-until',
+                'data-kp-timer-disc-timezone',
+                'data-kp-timer-disc-name',
+                'data-kp-timer-disc-scale',
+                'data-kp-timer-disc-controls',
+                'data-kp-timer-disc-disabled',
+            ],
+            (names) => {
+                read();
+                mountControls();
+                if (names.includes('data-kp-timer-disc') || names.includes('data-kp-timer-disc-until') || names.includes('data-kp-timer-disc-timezone')) {
+                    filling?.cancel();
+                    said.textContent = '';
+                    clock.reset(seconds);
+                    startUntil();
+                } else {
+                    draw(true);
+                    show();
+                }
+            },
+        );
         cleanups.push(() => {
+            stopWatching();
+            doc.removeEventListener('visibilitychange', onVisible);
             cancelAnimationFrame(frame);
             filling?.cancel();
             clock.stop();
             CLOCKS.delete(el);
-            go.button.removeEventListener('click', onGo);
-            reset.button.removeEventListener('click', onReset);
             el.replaceChildren();
+            el.removeAttribute('data-kp-timer-disc-bare');
             el.style.removeProperty(TIMER_DISC_LEFT);
             delete el.dataset.kpTimerDiscState;
         });

@@ -70,6 +70,16 @@ export const UNKNOWN_THEME_EVENT = 'kp-theme-unknown';
  */
 export const PENDING_THEME_ATTRIBUTE = 'data-theme-pending';
 
+/**
+ * The theme a root is really wearing while it shows a PREVIEW of another, on the root [anchors-picker-1019].
+ *
+ * `previewTheme()` puts a theme on the root to look at it, without a change: nothing is announced, nothing is stored, no
+ * listener is asked. While it is set, `data-theme` is the previewed theme and this attribute names the real one;
+ * `currentTheme()` still answers the real one, so a picker's mark, a stored choice and every `kp-theme-change` listener keep
+ * seeing the theme the person chose. `endPreview()` removes it, and so does `applyTheme()` whenever it puts a theme on the root.
+ */
+export const PREVIEW_THEME_ATTRIBUTE = 'data-theme-preview-from';
+
 /** @typedef {{ root?: Element, darkClass?: string | null, storageKey?: string }} ThemeConfig */
 
 /** The document-wide defaults, settable once by a consumer. */
@@ -207,7 +217,8 @@ const isDropped = (raw) => raw !== null && raw !== '' && !isTheme(raw);
 export function currentTheme({ root } = {}) {
     if (typeof document === 'undefined') return DEFAULT_THEME;
     const element = rootOf(root);
-    const raw = element.getAttribute('data-theme');
+    // A preview is not the theme: the real one is what the root went back to when it ends.
+    const raw = element.getAttribute(PREVIEW_THEME_ATTRIBUTE) ?? element.getAttribute('data-theme');
     // Site 2 of 4 [AR25]. The name was already gone by the time
     // applyTheme could have seen it: `?? DEFAULT_THEME` below is the
     // silence this exists to break.
@@ -253,11 +264,16 @@ export function applyTheme(theme, { root, darkClass, strict = false, announce = 
     // this package gets. `undefined` is the caller passing nothing, not a
     // name that failed.
     if (known === null && theme !== null && theme !== undefined && theme !== '') reportUnknown(theme, next, 'apply', element);
-    const previous = asTheme(element.getAttribute('data-theme'));
+    const previous = asTheme(element.getAttribute(PREVIEW_THEME_ATTRIBUTE) ?? element.getAttribute('data-theme'));
     if (announce && previous !== next) {
         const ask = new CustomEvent(BEFORE_THEME_EVENT, { bubbles: true, cancelable: true, detail: { theme: next, previous } });
-        if (!element.dispatchEvent(ask)) return previous ?? DEFAULT_THEME;
+        if (!element.dispatchEvent(ask)) {
+            // Refused or held: the root goes back to the theme it really wears, not the one it was showing for a look.
+            endPreview({ root: element, darkClass });
+            return previous ?? DEFAULT_THEME;
+        }
     }
+    element.removeAttribute(PREVIEW_THEME_ATTRIBUTE);
     element.setAttribute('data-theme', next);
     // Whatever was held is superseded by what was just put on the root —
     // including a choice of the theme already worn, which announces
@@ -273,6 +289,68 @@ export function applyTheme(theme, { root, darkClass, strict = false, announce = 
         element.dispatchEvent(new CustomEvent(THEME_EVENT, { bubbles: true, detail: { theme: next, previous, root: element } }));
     }
     return next;
+}
+
+/**
+ * Show a theme on the root for a look, without choosing it [anchors-picker-1019].
+ *
+ * Nothing is announced (no `kp-theme-before-change`, no `kp-theme-change`), nothing is stored, and `currentTheme()` goes on
+ * answering the theme the root really wears; only `data-theme` and the dark class change, so the page, its charts that read the
+ * theme from the root and the tokens all show the previewed theme. A theme that does not exist is ignored (no fallback to the
+ * default: a preview of nothing is no preview). Previewing the theme already worn ends a preview. `endPreview()` goes back;
+ * `applyTheme()` makes a choice and ends it. A theme whose register is loaded on demand needs it loaded first:
+ * js/theme-picker.js does that before it calls this.
+ *
+ * @param {unknown} theme
+ * @param {{ root?: Element, darkClass?: string | null }} [options]
+ * @returns {ThemeName | null} the theme now shown, or null when the name is not a theme
+ */
+export function previewTheme(theme, { root, darkClass } = {}) {
+    const known = asTheme(theme);
+    if (known === null || typeof document === 'undefined') return null;
+    const element = rootOf(root);
+    const real = asTheme(element.getAttribute(PREVIEW_THEME_ATTRIBUTE)) ?? asTheme(element.getAttribute('data-theme')) ?? DEFAULT_THEME;
+    if (known === real) {
+        endPreview({ root: element, darkClass });
+        return known;
+    }
+    element.setAttribute(PREVIEW_THEME_ATTRIBUTE, real);
+    element.setAttribute('data-theme', known);
+    const cls = darkClass === undefined ? config.darkClass : darkClass;
+    if (cls) element.classList.toggle(cls, DARK.has(known));
+    return known;
+}
+
+/**
+ * Go back from a preview to the theme the root really wears.
+ *
+ * @param {{ root?: Element, darkClass?: string | null }} [options]
+ * @returns {boolean} whether there was a preview to end
+ */
+export function endPreview({ root, darkClass } = {}) {
+    if (typeof document === 'undefined') return false;
+    const element = rootOf(root);
+    const real = asTheme(element.getAttribute(PREVIEW_THEME_ATTRIBUTE));
+    if (!element.hasAttribute(PREVIEW_THEME_ATTRIBUTE)) return false;
+    element.removeAttribute(PREVIEW_THEME_ATTRIBUTE);
+    if (real) {
+        element.setAttribute('data-theme', real);
+        const cls = darkClass === undefined ? config.darkClass : darkClass;
+        if (cls) element.classList.toggle(cls, DARK.has(real));
+    }
+    return true;
+}
+
+/**
+ * The theme being previewed on the root, or null when none is.
+ *
+ * @param {{ root?: Element }} [options]
+ * @returns {ThemeName | null}
+ */
+export function previewedTheme({ root } = {}) {
+    if (typeof document === 'undefined') return null;
+    const element = rootOf(root);
+    return element.hasAttribute(PREVIEW_THEME_ATTRIBUTE) ? asTheme(element.getAttribute('data-theme')) : null;
 }
 
 /**

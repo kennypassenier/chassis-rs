@@ -28,17 +28,19 @@ async function post(url, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.remedy ? `${data.error}. ${data.remedy}` : `HTTP ${res.status}`);
+  if (!res.ok) throw refusal(data, res.status);
   return data;
 }
 
-function say(el, message) {
-  if (!el) return;
-  el.textContent = message;
-  el.hidden = false;
+// The kit's refusal shape ({ error, remedy }) kept apart, so a flash button
+// can show the short word on the button and the whole sentence under it.
+function refusal(data, status) {
+  const err = new Error(data.error ? data.error : `HTTP ${status}`);
+  err.remedy = data.remedy || '';
+  return err;
 }
 
-export async function registerPasskey(label, status) {
+export async function registerPasskey(label) {
   const { ceremony, options } = await post('/passkeys/register/start');
   const pk = options.publicKey;
   pk.challenge = b64urlToBuf(pk.challenge);
@@ -56,10 +58,9 @@ export async function registerPasskey(label, status) {
     extensions: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
   };
   await post('/passkeys/register/finish', { ceremony, label, credential });
-  say(status, 'Passkey registered.');
 }
 
-export async function loginWithPasskey(status) {
+export async function loginWithPasskey() {
   const { ceremony, options } = await post('/passkeys/login/start');
   const pk = options.publicKey;
   pk.challenge = b64urlToBuf(pk.challenge);
@@ -86,30 +87,91 @@ export async function loginWithPasskey(status) {
   if (res.ok || res.redirected) {
     window.location.href = '/';
   } else {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.remedy ? `${data.error}. ${data.remedy}` : `HTTP ${res.status}`);
+    throw refusal(await res.json().catch(() => ({})), res.status);
   }
 }
 
+// The kit's messages are written to run into one another ("no passkeys are
+// registered yet" + "log in with the token first"); on a button they stand
+// as two sentences.
+function sentence(text) {
+  const t = String(text || '').trim();
+  if (!t) return t;
+  const s = t.charAt(0).toUpperCase() + t.slice(1);
+  return /[.!?]$/.test(s) ? s : `${s}.`;
+}
+
+// A browser that was closed, cancelled or has nothing to offer says so with
+// one of these; the page words it, the browser's message is not for readers.
+function ceremonyRefusal(e, remedy) {
+  if (e && (e.name === 'NotAllowedError' || e.name === 'AbortError')) {
+    return { error: 'No passkey was offered', remedy };
+  }
+  if (e && e.name === 'InvalidStateError') {
+    return { error: 'This device already has a passkey here', remedy: 'Pick another device, or remove the old passkey first.' };
+  }
+  return { error: sentence(e && e.message ? e.message : 'The passkey could not be used'), remedy: sentence((e && e.remedy) || remedy) };
+}
+
+// The two buttons are kp flash buttons: the spinner while the browser asks
+// for a fingerprint, a short word after, a refusal as one sentence under it,
+// and one width throughout.
 document.addEventListener('click', async (event) => {
   const login = event.target.closest('[data-passkey-login]');
   const register = event.target.closest('[data-passkey-register]');
   const button = login || register;
-  if (!button) return;
-  const status = document.getElementById(button.dataset.status || '');
-  button.disabled = true;
-  button.setAttribute('aria-busy', 'true');
-  try {
-    if (login) await loginWithPasskey(status);
-    else {
-      const label = (document.getElementById('passkey-label') || {}).value || '';
-      await registerPasskey(label, status);
-      window.setTimeout(() => window.location.reload(), 600);
+  if (!button || button.getAttribute('aria-busy') === 'true') return;
+  const { runFlashButton } = await import('./kp/js/flash.js');
+  const lock = register ? holdDialog(button.closest('dialog')) : () => {};
+  await runFlashButton(button, async () => {
+    if (login) {
+      try {
+        await loginWithPasskey();
+      } catch (e) {
+        return ceremonyRefusal(e, 'Use the login token below.');
+      }
+      return 'Signed in';
     }
-  } catch (e) {
-    say(status, e.message);
-  } finally {
-    button.disabled = false;
-    button.removeAttribute('aria-busy');
+    const input = document.getElementById('passkey-label');
+    try {
+      await registerPasskey(((input || {}).value || '').trim());
+    } catch (e) {
+      return ceremonyRefusal(e, 'Try again, or register from another device.');
+    }
+    document.dispatchEvent(new CustomEvent('kit-passkey-registered'));
+    window.setTimeout(() => button.closest('dialog')?.close(), 900);
+    return 'Registered';
+  });
+  lock();
+});
+
+// While the browser asks for a fingerprint the dialog holds still: the name
+// is read-only, Cancel is off (with its reason) and Escape does not close it
+// under the ceremony. The flash button carries the busy face itself.
+function holdDialog(dialog) {
+  if (!dialog) return () => {};
+  const input = dialog.querySelector('[data-kit-device-name]');
+  const cancel = dialog.querySelector('[data-kit-register-cancel]');
+  const keep = (event) => event.preventDefault();
+  if (input) input.readOnly = true;
+  if (cancel) {
+    cancel.disabled = true;
+    cancel.setAttribute('data-kp-disabled-reason', 'Waiting for your browser');
   }
+  dialog.addEventListener('cancel', keep);
+  return () => {
+    if (input) input.readOnly = false;
+    if (cancel) {
+      cancel.disabled = false;
+      cancel.removeAttribute('data-kp-disabled-reason');
+    }
+    dialog.removeEventListener('cancel', keep);
+  };
+}
+
+// Enter in the name field registers, as the button does.
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' || !event.target.matches?.('[data-kit-device-name]')) return;
+  event.preventDefault();
+  event.target.closest('dialog')?.querySelector('[data-passkey-register]')?.click();
 });
