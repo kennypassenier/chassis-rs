@@ -34,8 +34,13 @@ fn chassis_css_caps_only_prose_and_dialogs_never_the_page() {
             );
         }
     }
+    // Whole selectors only: `.issue-main {` is a grid area, not the page.
+    let styles_the_page = css.lines().any(|l| {
+        let sel = l.trim().trim_end_matches('{').trim();
+        l.trim().ends_with('{') && (sel == ".kp-page" || sel == "main")
+    });
     assert!(
-        !css.contains(".kp-page {") && !css.contains("main {"),
+        !styles_the_page,
         "chassis.css must leave the page width to kp-themes"
     );
 }
