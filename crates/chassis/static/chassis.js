@@ -826,17 +826,22 @@ function initLogin(root) {
     input.addEventListener('blur', () => { caps.hidden = true; });
   }
 
-  // Logging in keeps the button's width: the submit button is a kp flash
-  // button, so its busy face (the theme's spinner) shares the rest face's
-  // box and nothing around it moves. The form still submits as a plain POST;
-  // a service that does not answer within 20 s ends the spin with a reason.
-  const submit = root.querySelector('form button[type="submit"]');
-  root.querySelector('form')?.addEventListener('submit', async () => {
-    if (!submit) return;
-    const { runFlashButton } = await import('./kp/js/flash.js');
-    runFlashButton(submit, () => new Promise((resolve) => {
-      window.setTimeout(() => resolve({ error: 'The service did not answer', remedy: 'Try again in a moment.' }), 20000);
-    }));
+  // The form is the package's own (data-kp-form, data-kp-submit,
+  // data-kp-form-summary): it names a missing token in its summary and on the
+  // field, and the submit button says it is working. A valid form still goes
+  // out as a plain POST (the package does not stop it), so the page changes
+  // on the answer; a service that does not answer within 20 s ends the busy
+  // state with a reason on the token field.
+  import('./kp/js/forms.js').then(({ attachForms, form }) => {
+    attachForms(root, { wrapper: '.kp-formgrid__control' });
+    const el = root.querySelector('form[data-kp-form]');
+    el?.addEventListener('kp-form-valid', (event) => {
+      window.setTimeout(() => {
+        if (!document.contains(el)) return;
+        event.detail.done();
+        form(el)?.errors({ token: 'The service did not answer. Try again in a moment.' });
+      }, 20000);
+    });
   });
 
   readServiceHealth(root);
@@ -1063,6 +1068,7 @@ import { attachArt } from './kp/js/art.js';
 import { attachPatterns } from './kp/js/patterns.js';
 import { attachDialogs, toast as shellToast } from './kp/js/overlays.js';
 import { setStrings } from './kp/js/strings.js';
+import { attachForms } from './kp/js/forms.js';
 
 {
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -1305,6 +1311,14 @@ import { setStrings } from './kp/js/strings.js';
         run[t.dataset.chassisRun]?.();
       });
     }
+  }
+
+  // ---- Log out is the package's form too (data-kp-form + data-kp-submit +
+  // data-kp-form-summary); it still goes out as a plain POST.
+  const logoutForm = $('#chassis-logout');
+  if (logoutForm) {
+    attachForms(logoutForm.parentElement);
+    joined.push('logout-form');
   }
 
   // ---- the connection line: the page's own requests report what they see.

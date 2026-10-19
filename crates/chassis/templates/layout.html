@@ -75,8 +75,9 @@
   </span>
   <p class="kp-m-0" data-kp-theme-status hidden></p>
   {% if logged_in and not open_dashboard %}
-  <form method="post" action="/logout" class="kp-m-0 chassis-logout" id="chassis-logout">
-    <button type="submit" class="kp-button">Log out</button>
+  <form method="post" action="/logout" class="kp-m-0 chassis-logout" id="chassis-logout" data-kp-form novalidate>
+    <div class="kp-form__summary" data-kp-form-summary tabindex="-1" hidden></div>
+    <button type="submit" class="kp-button" data-kp-submit data-kp-busy="Log out…">Log out</button>
   </form>
   {% endif %}
 </nav>
