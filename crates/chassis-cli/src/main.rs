@@ -178,7 +178,7 @@ fn scaffold_features() -> Vec<String> {
         .collect()
 }
 const TOOLCHAIN: &str = "1.97";
-const KP_THEMES: &str = "11.1.0";
+const KP_THEMES: &str = "11.1.1";
 const CHASSIS_REPO: &str = "https://github.com/kennypassenier/chassis-rs";
 
 #[derive(Parser)]

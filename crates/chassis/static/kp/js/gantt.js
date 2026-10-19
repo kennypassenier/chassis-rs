@@ -247,12 +247,14 @@ export function axisStep(span, room, gap = 72) {
  * @param {{ id: string, s: number, e: number | null }[]} runs in any order, seconds
  * @param {Map<string, number>} [before] the rows the runs had
  * @param {number} [pad] the seconds two runs keep between them
+ * @param {{ s: number, e: number }[]} [fixed] stretches of the first row that are taken (the marks of a lane's points, as
+ *   wide as they are drawn): a run keeps the same gap from them as from another run [hlthree-1019 gantt-points]
  * @returns {{ rows: Map<string, number>, count: number }}
  */
-export function packRows(runs, before = new Map(), pad = 0) {
+export function packRows(runs, before = new Map(), pad = 0, fixed = []) {
     const sorted = [...runs].sort((a, b) => a.s - b.s);
     /** @type {{ s: number, e: number }[][]} */
-    const rows = [];
+    const rows = fixed.length > 0 ? [fixed.map((f) => ({ s: f.s, e: f.e }))] : [];
     /** @type {Map<string, number>} */
     const given = new Map();
     const free = (/** @type {number} */ row, /** @type {{ s: number, e: number | null }} */ run) =>
@@ -650,7 +652,33 @@ function paint(c) {
             byLane.set(point.lane, []);
         }
     // Lanes: build in the given order, then any a run named on its own.
-    const pad = c.span * 0.006;
+    // Two runs of a row keep a gap in PIXELS, not in time: a run is never drawn narrower than `--kp-gantt-bar-min`, so a short run
+    // reaches past its end by the rest of that width, and on a phone one second is a fraction of a pixel [hlcomp-1019 gantt-gap].
+    // Packing counts that reach and the gap in the seconds one pixel stands for; positions stay laid by time.
+    const room = c.plot.clientWidth;
+    const perPx = room > 0 ? c.span / room : 0;
+    const sample = c.bars.values().next().value;
+    const minBar = (sample && Number.parseFloat(getComputedStyle(sample).minWidth)) || 8;
+    const pad = Math.max(c.span * 0.006, RUN_GAP_PX * perPx);
+    const reach = minBar * perPx;
+    // The marks of a lane's points stand on its first row, as wide as they are drawn: a run never lies on one, it takes the next
+    // row, so the mark and the run both stay at their moment [hlthree-1019 gantt-points].
+    const markPx = (() => {
+        const el = c.pointEls.values().next().value;
+        const w = el ? Number.parseFloat(getComputedStyle(el, '::before').width) : Number.NaN;
+        return Number.isFinite(w) && w > 0 ? w : 12;
+    })();
+    const markHalf = (markPx / 2 + MARK_GAP_PX) * perPx;
+    /** @type {Map<string, { s: number, e: number }[]>} */
+    const marksOf = new Map();
+    for (const point of c.points) {
+        const ms = toMs(point.at);
+        if (!Number.isFinite(ms) || perPx === 0) continue;
+        const at = rel(c, ms);
+        const list = marksOf.get(point.lane) ?? [];
+        list.push({ s: at - markHalf, e: at + markHalf });
+        marksOf.set(point.lane, list);
+    }
     const before = new Map(c.lanes.flatMap((l) => l.bars.map((b) => [b.run.id, b.row])));
     const old = new Map(c.lanes.map((l) => [l.lane.id, l]));
     /** @type {GanttLaneModel[]} */
@@ -658,9 +686,10 @@ function paint(c) {
     for (const [id, lane] of laneById) {
         const bars = (byLane.get(id) ?? []).sort((a, b) => a.s - b.s);
         const packed = packRows(
-            bars.map((b) => ({ id: b.run.id, s: b.s, e: b.e })),
+            bars.map((b) => ({ id: b.run.id, s: b.s, e: b.e == null ? null : Math.max(b.e, b.s + reach) })),
             before,
             pad,
+            marksOf.get(id) ?? [],
         );
         let model = old.get(id);
         if (!model) {
@@ -826,11 +855,16 @@ function drawBusy(c) {
         });
         return;
     }
-    for (const old of frameBox.querySelectorAll(':scope > .kp-gantt__busy')) old.remove();
+    // A timeline's card is laid on the whole component and covers what the held footprint holds under the toolbar: the frame, and the
+    // legend and hint beneath it, which a frame as short as its ghost lanes would leave the card (100 px over a 260 px area at 390)
+    // [hlcomp-1019 gantt-busy]. A dated line keeps the card in its frame.
+    const laid = c.line ? frameBox : c.el;
+    for (const old of laid.querySelectorAll(':scope > .kp-gantt__busy')) old.remove();
     c.leaving = null;
-    c.busy = openBusyCard(frameBox, {
+    c.busy = openBusyCard(laid, {
         words: c.strings.ganttLoading,
         area: () => {
+            const hostFloor = () => c.el.getBoundingClientRect().bottom - c.el.clientTop - (Number.parseFloat(getComputedStyle(c.el).paddingBottom) || 0);
             // A dated line is short: its card covers the whole frame, the line and its dates [kpadopt4].
             if (c.line) return [c.scroll];
             const tracks = /** @type {HTMLElement[]} */ ([...c.body.querySelectorAll(':scope > .kp-gantt__track')]);
@@ -847,7 +881,7 @@ function drawBusy(c) {
                     left: c.line ? Math.min(...boxes.map((b) => b.left)) : frameBox.getBoundingClientRect().left,
                     right: c.line ? Math.max(...boxes.map((b) => b.right)) : frameBox.getBoundingClientRect().right,
                     // The whole data area: down to the frame's foot, which a held footprint has grown past the ghost lanes [gaps-time-1019].
-                    bottom: c.line ? Math.min(axis.top, Math.max(...boxes.map((b) => b.bottom))) : Math.max(scroll.bottom, frameBox.getBoundingClientRect().bottom - 1),
+                    bottom: c.line ? Math.min(axis.top, Math.max(...boxes.map((b) => b.bottom))) : Math.max(scroll.bottom, frameBox.getBoundingClientRect().bottom - 1, hostFloor()),
                 },
             ];
         },
@@ -1178,6 +1212,8 @@ function labelWidth(c, bar) {
 const OUTSIDE_GAP_PX = 6;
 /** The air, in px, between a mark's button and the bar it stands beside, or the label beside a mark. */
 const MARK_GAP_PX = 2;
+/** The least gap, in px, between two runs of one row of a lane. */
+const RUN_GAP_PX = 3;
 /** The air, in px, kept between the line for now and the words of a label inside a bar. */
 const NOW_GAP_PX = 4;
 
@@ -1766,6 +1802,8 @@ export function attachGantts(root = document, options = {}) {
                 if (width === last) return;
                 last = width;
                 c.tickKey = '';
+                // Rows are packed with a gap in pixels: another width packs them again.
+                if (c.runs.length) paint(c);
                 // Lane names wrap differently at another width: the viewport is measured again for whole lanes.
                 if (c.held !== null) {
                     c.held = null;

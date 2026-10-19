@@ -105,7 +105,7 @@ export const CONSOLE_MAX_BYTES = 262144;
  * @property {number} [total]
  */
 
-/** @typedef {{ run: ConsoleRun | null, complete: ((prefix: string) => string[] | Promise<string[]>) | null, blocks: ConsoleBlock[], jobs: Map<string, ConsoleJob>, history: string[], at: number, draft: string, spec: { state?: string, message?: string }, context: { options: { value: string, label: string }[], value: string, state: string, label: string }, card: import('./busy-card.js').BusyCard | null, tick: number, pending: string | null, pendingTimer: number, off: (() => void)[], showAll: boolean, said: string }} ConsoleState */
+/** @typedef {{ run: ConsoleRun | null, complete: ((prefix: string) => string[] | Promise<string[]>) | null, blocks: ConsoleBlock[], jobs: Map<string, ConsoleJob>, history: string[], at: number, draft: string, spec: { state?: string, message?: string }, context: { options: { value: string, label: string }[], value: string, state: string, label: string }, card: import('./busy-card.js').BusyCard | null, tick: number, pending: string | null, pendingTimer: number, off: (() => void)[], showAll: boolean, said: string, barState: string, hintHeight: number }} ConsoleState */
 /** @type {WeakMap<Element, ConsoleState>} */
 const STATE = new WeakMap();
 let serial = 0;
@@ -141,6 +141,8 @@ function stateOf(root) {
             off: [],
             showAll: false,
             said: '',
+            barState: '',
+            hintHeight: 0,
         };
         STATE.set(root, st);
     }
@@ -314,8 +316,13 @@ function drawBar(root) {
     if (st.pending === null) run.textContent = s.consoleRun;
     else run.textContent = s.consoleRunAnyway;
     // The hint keeps its line: the app's sentence, or the reason while blocked.
+    // And it keeps the height it had when ready: the app's sentence may wrap to two lines on a phone where the reason is one, and
+    // a failed or loading console is as high as the loaded one [laststates-1019].
+    if (st.barState === 'ready') st.hintHeight = hint.offsetHeight;
     hint.textContent = blocked && why ? why : (attr(root, 'hint', '') || s.consoleHint);
     hint.toggleAttribute('data-kp-console-why', blocked && Boolean(why));
+    hint.style.minBlockSize = state !== 'ready' && st.hintHeight > 0 ? `${st.hintHeight}px` : '';
+    st.barState = state;
     // The context select.
     const wantsContext = attr(root, 'context', 'none') === 'select';
     contextWrap.hidden = !wantsContext;

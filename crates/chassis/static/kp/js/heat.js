@@ -293,6 +293,9 @@ function syncCard(el, loading, words, area, className) {
     CARDS.set(el, openBusyCard(el, { words, area, className, arrive: !first }));
 }
 
+/** The plate a heat grid shows for an empty or failed state, and what it was drawn from. @type {WeakMap<Element, { note: HTMLElement, state: string, title: string, text: string | undefined, art: unknown }>} */
+const PLATES = new WeakMap();
+
 /** A grid is drawn once its first render has been painted. @param {Element} el */
 function markDrawn(el) {
     if (DRAWN.has(el)) return;
@@ -391,16 +394,24 @@ export function setHeat(el, spec) {
 
     if (state === 'empty' || state === 'error') {
         // The package's state plate over the grid's whole footprint, with a Retry on a failure [state-plates-1019].
+        // A grid told the same state again (a page repainting from its live stream) keeps its plate: a new node would play the
+        // plate's entrance again and drop the focus on its Retry, which reads as a flicker [hlcomp-1019 heat-failed].
+        const title = spec.message ?? (state === 'error' ? s.heatFailed : s.heatEmpty);
+        const kept = PLATES.get(el);
+        if (kept && kept.note.isConnected && el.firstElementChild === kept.note && el.childElementCount === 1) {
+            if (kept.state === state && kept.title === title && kept.text === spec.text && kept.art === spec.art) return;
+        }
         const note = make(doc, 'div', 'kp-heat__state', { 'data-kp-state': state });
         note.append(
             hostStatePlate(el, {
                 kind: state,
-                title: spec.message ?? (state === 'error' ? s.heatFailed : s.heatEmpty),
+                title,
                 ...(spec.text ? { text: spec.text } : {}),
                 art: spec.art,
                 retryEvent: HEAT_RETRY_EVENT,
             }),
         );
+        PLATES.set(el, { note, state, title, text: spec.text, art: spec.art });
         markDrawn(el);
         el.replaceChildren(note);
         return;
@@ -524,7 +535,7 @@ export function setHeat(el, spec) {
         el,
         loading,
         s.heatLoading,
-        () => [...el.querySelectorAll(':scope > .kp-heat__row:not(.kp-heat__axis) > .kp-heat__cells')],
+        () => heatArea(el),
         'kp-heat__busy',
     );
 
@@ -534,6 +545,29 @@ export function setHeat(el, spec) {
         const again = /** @type {HTMLElement | null} */ (el.querySelector(`${HEAT_CELL}[tabindex="0"]`));
         again?.focus({ preventScroll: true });
     }
+}
+
+/**
+ * What a loading heat grid's busy card covers: the rows' cells and, below them, whatever the held footprint (js/footprint.js) adds,
+ * down to the host's content edge, so the card fills the footprint the grid held and not only the few skeleton rows
+ * [hlcomp-1019 heat-busy]. The axis and the names stay beside it.
+ * @param {HTMLElement} el
+ */
+function heatArea(el) {
+    const cells = [...el.querySelectorAll(':scope > .kp-heat__row:not(.kp-heat__axis) > .kp-heat__cells')].map((c) => c.getBoundingClientRect());
+    if (!cells.length) return [];
+    const box = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    const floor = box.bottom - el.clientTop - (Number.parseFloat(style.paddingBottom) || 0);
+    const top = Math.min(...cells.map((r) => r.top));
+    return [
+        {
+            top,
+            left: Math.min(...cells.map((r) => r.left)),
+            bottom: Math.max(floor, ...cells.map((r) => r.bottom)),
+            right: Math.max(...cells.map((r) => r.right)),
+        },
+    ];
 }
 
 /**

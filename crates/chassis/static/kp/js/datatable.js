@@ -127,6 +127,7 @@
 // both.
 
 import { getStrings } from './strings.js';
+import { scrollersAround, seenAcross } from './busy-card.js';
 import { watchOptions } from './live-options.js';
 import { collator, formatDate, parseNumber, resolveLocale } from './locale.js';
 import { attachTableRegions } from './tables.js';
@@ -1180,6 +1181,13 @@ export function attachDataTables(
                 const top = head === null ? body.top : head.getBoundingClientRect().bottom;
                 let from = Math.max(0, Math.round(top - hostBox.top - host.clientTop));
                 let to = Math.max(0, Math.round(hostBox.bottom - Math.max(tableBox.bottom, top) - host.clientTop));
+                // A table with no rows has no rows to cover: the card stands in the room the table is held at (its first load's footprint,
+                // js/footprint.js), down to the status line under it, not on the strip the bare header leaves [hlfour-1019].
+                if (all.length === 0) {
+                    const foot = host.querySelector('[data-kp-datatable-status]')?.closest('.kp-datatable__bar') ?? null;
+                    const footTop = foot !== null && foot.getBoundingClientRect().top >= top ? foot.getBoundingClientRect().top : hostBox.bottom;
+                    to = Math.max(0, Math.round(hostBox.bottom - footTop - host.clientTop));
+                }
                 // A table of a row or two is shorter than the panel: the layer lends itself the room the panel needs (and at least half the table, up to 128 px), downwards over
                 // the foot, within the host, so the card is never a strip over two rows [states-two-1019].
                 const need = Math.max(panel.offsetHeight + 8, Math.min(host.clientHeight / 2, 128));
@@ -1190,8 +1198,15 @@ export function attachDataTables(
                 }
                 layer.style.setProperty('--kp-busy-overlay-top', `${from}px`);
                 layer.style.setProperty('--kp-busy-overlay-bottom', `${to}px`);
-                layer.style.setProperty('--kp-busy-overlay-left', `${Math.max(0, Math.round(tableBox.left - hostBox.left - host.clientLeft))}px`);
-                layer.style.setProperty('--kp-busy-overlay-right', `${Math.max(0, Math.round(hostBox.right - tableBox.right - host.clientLeft))}px`);
+                // A table frame wider than the box that scrolls it (a table in a phone's page scroller) is covered only where it is seen, so the
+                // panel is centred on what the reader sees and not on a middle off screen [laststates-1019].
+                const innerLeft = hostBox.left + host.clientLeft;
+                const seen = seenAcross(host, innerLeft, innerLeft + host.clientWidth);
+                // A table narrower than what is seen (a bare table of a header and no rows shrinks to its words, or a table drawn at no
+                // width) is not the card's width: the card spans what is seen, 0 px wide it showed no look at all [hlfour-1019].
+                const spans = tableBox.width >= seen.right - seen.left - 1;
+                layer.style.setProperty('--kp-busy-overlay-left', `${Math.max(0, Math.round((spans ? Math.max(tableBox.left, seen.left) : seen.left) - innerLeft))}px`);
+                layer.style.setProperty('--kp-busy-overlay-right', `${Math.max(0, Math.round(innerLeft + host.clientWidth - (spans ? Math.min(tableBox.right, seen.right) : seen.right)))}px`);
             };
             layer.append(panel);
             host.append(layer);
@@ -1201,7 +1216,13 @@ export function attachDataTables(
                 watcher.observe(host);
                 watcher.observe(table);
                 if (table.tHead !== null) watcher.observe(table.tHead);
-                overlayUnwatch = () => watcher.disconnect();
+                // Scrolled sideways inside a scrolling ancestor, the part that is seen moves: the card follows it.
+                const scrollers = scrollersAround(host);
+                for (const scroller of scrollers) scroller.addEventListener('scroll', place, { passive: true });
+                overlayUnwatch = () => {
+                    watcher.disconnect();
+                    for (const scroller of scrollers) scroller.removeEventListener('scroll', place);
+                };
             }
             overlayLayer = layer;
         };

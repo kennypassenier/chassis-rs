@@ -284,9 +284,27 @@ function lengthPx(el, text, fallback) {
 /** A tile's label in a strip with columns: one line, never wrapped and never cut [fix-99, fix-101]. */
 const TILE_LABEL = ':scope > .kp-kpi:not([hidden]) > .kp-kpi__label';
 
-/** Every label in the strip fits its tile. @param {HTMLElement} strip */
+/**
+ * Every label in the strip fits its tile: the label's text (and a toggle's hint beside it) ends inside the tile's own padding box
+ * edge. The label's own box is no measure: in a tile whose grid track is `min-content` (a toggle with a hint) the track grows to the
+ * label, so the label always "fits" its own box and runs under the next tile [hlcomp-1019 kpi-fit; homelab 78].
+ * @param {HTMLElement} strip
+ */
 function labelsFit(strip) {
-    return [...strip.querySelectorAll(TILE_LABEL)].every((label) => label.scrollWidth <= label.clientWidth + 0.5);
+    return [...strip.querySelectorAll(TILE_LABEL)].every((label) => {
+        const tile = /** @type {HTMLElement} */ (label.parentElement);
+        const style = getComputedStyle(tile);
+        const box = tile.getBoundingClientRect();
+        const rtl = style.direction === 'rtl';
+        const edge = rtl ? box.left + tile.clientLeft + (Number.parseFloat(style.paddingLeft) || 0) : box.right - tile.clientLeft - (Number.parseFloat(style.paddingRight) || 0);
+        const ends = (/** @type {HTMLElement} */ el) => {
+            const r = el.getBoundingClientRect();
+            const extent = Math.max(el.scrollWidth, r.width);
+            return rtl ? r.right - extent : r.left + extent;
+        };
+        const reaches = /** @type {HTMLElement[]} */ ([label, ...tile.querySelectorAll(':scope > .kp-kpi__hint')]).map((el) => ends(el));
+        return reaches.every((at) => (rtl ? at >= edge - 0.5 : at <= edge + 0.5));
+    });
 }
 
 /**
