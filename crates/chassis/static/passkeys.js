@@ -122,6 +122,7 @@ document.addEventListener('click', async (event) => {
   const button = login || register;
   if (!button || button.getAttribute('aria-busy') === 'true') return;
   const { runFlashButton } = await import('./kp/js/flash.js');
+  const lock = register ? holdDialog(button.closest('dialog')) : () => {};
   await runFlashButton(button, async () => {
     if (login) {
       try {
@@ -141,4 +142,36 @@ document.addEventListener('click', async (event) => {
     window.setTimeout(() => button.closest('dialog')?.close(), 900);
     return 'Registered';
   });
+  lock();
+});
+
+// While the browser asks for a fingerprint the dialog holds still: the name
+// is read-only, Cancel is off (with its reason) and Escape does not close it
+// under the ceremony. The flash button carries the busy face itself.
+function holdDialog(dialog) {
+  if (!dialog) return () => {};
+  const input = dialog.querySelector('[data-kit-device-name]');
+  const cancel = dialog.querySelector('[data-kit-register-cancel]');
+  const keep = (event) => event.preventDefault();
+  if (input) input.readOnly = true;
+  if (cancel) {
+    cancel.disabled = true;
+    cancel.setAttribute('data-kp-disabled-reason', 'Waiting for your browser');
+  }
+  dialog.addEventListener('cancel', keep);
+  return () => {
+    if (input) input.readOnly = false;
+    if (cancel) {
+      cancel.disabled = false;
+      cancel.removeAttribute('data-kp-disabled-reason');
+    }
+    dialog.removeEventListener('cancel', keep);
+  };
+}
+
+// Enter in the name field registers, as the button does.
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' || !event.target.matches?.('[data-kit-device-name]')) return;
+  event.preventDefault();
+  event.target.closest('dialog')?.querySelector('[data-passkey-register]')?.click();
 });

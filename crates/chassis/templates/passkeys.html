@@ -49,7 +49,7 @@
   <dialog class="kp-dialog kit-register" id="passkey-register" aria-labelledby="passkey-register-title">
     <div class="kp-dialog__head"><h2 class="kp-dialog__title" id="passkey-register-title">Register this device</h2><p class="kp-dialog__description">Your browser will ask for a fingerprint, a face or a security key.</p></div>
     <div class="kp-dialog__body"><div class="kp-field"><label class="kp-field__label" for="passkey-label">Name</label><input class="kp-field__input" id="passkey-label" type="text" maxlength="64" data-kit-device-name><p class="kp-field__help">So you can tell your devices apart in the list.</p></div></div>
-    <div class="kp-dialog__actions"><button type="button" class="kp-button" data-kp-dialog-close>Cancel</button><button type="button" class="kp-button kp-button--primary" data-kp-flash-button data-kp-flash-words="Registered,Refused" data-passkey-register>Register</button></div>
+    <div class="kp-dialog__actions"><button type="button" class="kp-button" data-kp-dialog-close data-kit-register-cancel>Cancel</button><button type="button" class="kp-button kp-button--primary" data-kp-flash-button data-kp-flash-words="Registered,Refused" data-passkey-register>Register</button></div>
   </dialog>
 </div>
 {% endblock %}
