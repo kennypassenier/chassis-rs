@@ -115,6 +115,13 @@ pre.snippet {
 
 /* Search: the word and the key on a screen with a keyboard, the icon alone on
    a phone (kp-themes draws the search button as a word and a key). */
+/* Same row, same top and bottom: the trigger is as tall as the theme menu and
+   Log out beside it (36 px), not the 38.5 px of a nav link. */
+.kp-nav__search-trigger {
+    block-size: var(--kit-bar-button, 2.25rem);
+    min-block-size: 0;
+    box-sizing: border-box;
+}
 .kp-nav__search-trigger svg {
     display: none;
     flex: none;
