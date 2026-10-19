@@ -176,6 +176,12 @@ pre.snippet {
     inset-inline-start: calc(50% + var(--kp-tabbar-icon, 1.5rem) / 2 + var(--kp-space-xs, 0.25rem));
 }
 
+/* The connection line stands on the phone's tab bar, not behind it
+   (js/tabbar.js writes the bar's measured height). */
+.kp-connection:not([data-kp-placement='top']) {
+    inset-block-end: var(--kp-tabbar-height, 0px);
+}
+
 /* A chord such as "g c" stays on one line. */
 .kp-palette__keys {
     white-space: nowrap;
@@ -220,6 +226,8 @@ pre.snippet {
    column, the two ways out stand on one grid row. */
 .chassis-error__actions {
     align-items: center;
+    /* The plate's words are centred, so the ways out stand on the same axis. */
+    justify-content: center;
     margin-block-start: var(--kp-space-md, 1rem);
 }
 @media (max-width: 39.99rem) {
@@ -550,6 +558,10 @@ pre.snippet {
   align-items: center;
   gap: var(--kp-space-xs, 0.25rem) var(--kp-space-md, 1rem);
   margin: var(--kp-space-md, 1rem) 0 0;
+  /* Room for the failed state's Try again, which may wrap to a second row,
+     so the line never changes height. */
+  min-block-size: 3.5rem;
+  align-content: start;
 }
 
 .kit-login__card > .kp-card__title { margin-block: 0 var(--kp-space-md, 1rem); }
@@ -596,6 +608,9 @@ pre.snippet {
 /* The passkey button, the switch and Log in stand on the grid's start edge. */
 .kit-login__grid .kp-switch,
 .kit-login__grid .kp-formgrid__buttons { justify-self: start; }
+
+/* The service's health line: the words keep their height while they load. */
+.kit-login__state .kp-skeleton { inline-size: 11rem; block-size: 1lh; }
 
 /* ==========================================================================
    passkeys (kit-kp11, approved demo "passkeys-list" and "passkeys-qr")

@@ -374,3 +374,30 @@ fn login_card_is_one_form_grid_and_phone_search_is_a_square() {
         "the form grid rules are carried until the vendored kp-themes has them"
     );
 }
+
+/// 2026-10-19 (Kenny): every loading, empty and failed state is the
+/// component's own, never a stand-in. The login health line is the theme's
+/// skeleton while it reads and a kp-health with a normal Try again when it
+/// fails; the palette retries through its own plate; the connection line
+/// stands on the phone's tab bar.
+#[test]
+fn shell_and_login_states_use_the_components_own() {
+    let js = kit_file("static/chassis.js");
+    assert!(
+        js.contains("bone.className = 'kp-skeleton'") && js.contains("'aria-busy'"),
+        "the health line loads as the theme's skeleton"
+    );
+    assert!(
+        js.contains("kp-palette-retry"),
+        "the palette's failed plate retries"
+    );
+    assert!(
+        !js.contains("Loading…") && !js.contains("Loading..."),
+        "no plain-text loading stand-in"
+    );
+    let css = kit_file("static/chassis.css");
+    assert!(
+        css.contains("inset-block-end: var(--kp-tabbar-height, 0px);"),
+        "the connection line stands above the tab bar"
+    );
+}

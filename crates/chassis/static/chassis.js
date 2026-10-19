@@ -886,22 +886,55 @@ function initLogin(root) {
 }
 
 // What the service says about itself before anyone is in: the open /healthz.
+// Three states in the line's own footprint (kit-kp11 states sweep): loading
+// is the theme's own skeleton where the words go, ready and failed are the
+// kp-health dot with its words; a failure also offers a normal-size Retry.
+// Without script the server's own words stay, which are true: it answered.
 async function readServiceHealth(root) {
   const badge = root.querySelector('[data-kit-health-badge]');
   const words = root.querySelector('[data-kit-health-words]');
   if (!badge || !words) return;
-  const say = (state, text) => {
+  const line = badge.closest('[data-kit-health]');
+  let retry = null;
+  const loading = () => {
+    retry?.remove();
+    retry = null;
+    badge.removeAttribute('data-state');
+    badge.setAttribute('aria-busy', 'true');
+    const bone = document.createElement('span');
+    bone.className = 'kp-skeleton';
+    bone.setAttribute('aria-hidden', 'true');
+    const say = document.createElement('span');
+    say.className = 'kp-sr-only';
+    say.textContent = 'Reading the service’s health';
+    words.replaceChildren(bone, say);
+  };
+  const done = (state, text) => {
+    badge.removeAttribute('aria-busy');
     badge.dataset.state = state;
     words.textContent = text;
+    if (state === 'failed') {
+      badge.dataset.state = 'down';
+      retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'kp-button kp-button--sm';
+      retry.textContent = 'Try again';
+      retry.addEventListener('click', read);
+      line.append(retry);
+    }
   };
-  try {
-    const res = await fetch('/healthz', { headers: { accept: 'application/json' }, cache: 'no-store' });
-    const body = await res.json();
-    if (body.status === 'ok') say('ok', 'The service is healthy');
-    else say('down', 'The service is degraded');
-  } catch (_) {
-    say('down', 'The service did not answer');
+  async function read() {
+    loading();
+    try {
+      const res = await fetch('/healthz', { headers: { accept: 'application/json' }, cache: 'no-store' });
+      const body = await res.json();
+      if (body.status === 'ok') done('ok', 'The service is healthy');
+      else done('down', 'The service is degraded');
+    } catch (_) {
+      done('failed', 'The service did not answer');
+    }
   }
+  await read();
 }
 
 {
@@ -1243,6 +1276,8 @@ import { setStrings } from './kp/js/strings.js';
       const tab = $('#chassis-tabbar [data-kp-tab="clients"]');
       if (tab) setTabbarBadge(tab, data.counts.idle);
       if (!onClients || !handle) return;
+      // A retry draws the groups again; the old ones go first.
+      paletteEl.querySelectorAll('[data-chassis-group="manage"], [data-chassis-group="test"]').forEach((g) => g.remove());
       const manage = group('Manage a client', 'manage');
       manage.ul.append(...active.slice(0, 5).map((c) => wrap(option(`manage-${c.id}`, `Manage ${c.name}`, `Last used ${ago(c.last_used_at)}`))));
       const groups = [manage];
@@ -1255,12 +1290,19 @@ import { setStrings } from './kp/js/strings.js';
       anchor.after(...groups.filter((g) => g.ul.children.length).map((g) => g.li));
       handle.refresh();
     };
-    if (clientsPath) {
+    // The clients the palette and the tab badge need: loading is the palette's
+    // own busy card over its list, a failure its failed plate with Try again
+    // (kp-palette-retry) above the static pages, which stay usable.
+    const loadClients = () => {
       if (onClients && handle) handle.setState('loading');
-      fetch('/api/kit/clients', { headers: { accept: 'application/json' } })
+      return fetch('/api/kit/clients', { headers: { accept: 'application/json' } })
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
         .then((data) => { fromClients(data); handle?.setState('ready'); })
         .catch(() => handle?.setState(onClients ? 'error' : 'ready', { message: 'The clients could not be read.' }));
+    };
+    if (clientsPath) {
+      loadClients();
+      paletteEl.addEventListener('kp-palette-retry', () => loadClients());
     }
 
     // ---- the phone: the tab bar and its More drawer
