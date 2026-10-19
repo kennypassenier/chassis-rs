@@ -147,3 +147,75 @@ pre.snippet {
   min-height: 2.4rem;
   box-sizing: border-box;
 }
+
+/* ==========================================================================
+   login (kit-kp11, approved demo "login")
+   The intro on the left and the sign-in card on the right on a wide page,
+   one column on a phone. Tokens only; every control is a kp-themes part.
+   The frame is the container the arrangement answers to, so the page is
+   right at any window width. Uses logical properties and no `max-width:`
+   (tests/kenny_rules.rs keeps chassis.css from narrowing a page).
+   ========================================================================== */
+
+.kit-frame {
+  container: kit / inline-size;
+  min-inline-size: 0;
+}
+
+.kit-login {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 28rem);
+  gap: var(--kp-space-xl, 2rem);
+  align-items: start;
+  max-inline-size: 64rem;
+  margin-inline: auto;
+}
+
+@container kit (max-width: 44rem) {
+  .kit-login { grid-template-columns: minmax(0, 1fr); }
+}
+
+.kit-login__intro > * { margin-block: 0; }
+.kit-login__intro > .kp-lede { margin-block-start: var(--kp-space-sm, 0.5rem); }
+
+.kit-login__state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-xs, 0.25rem) var(--kp-space-md, 1rem);
+  margin: var(--kp-space-md, 1rem) 0 0;
+}
+
+.kit-login__card > .kp-card__title { margin-block: 0 var(--kp-space-md, 1rem); }
+.kit-login__card > .kp-alert { margin-block-end: var(--kp-space-md, 1rem); }
+
+.kit-login__passkey {
+  display: grid;
+  gap: var(--kp-space-xs, 0.25rem);
+}
+.kit-login__passkey .kp-button { inline-size: 100%; }
+
+.kit-login__or {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--kp-space-sm, 0.5rem);
+  margin-block: var(--kp-space-md, 1rem);
+  color: var(--muted-foreground);
+}
+.kit-login__or::before,
+.kit-login__or::after {
+  content: '';
+  border-block-start: 1px solid var(--border);
+}
+
+/* The token field and its Show button share one row and one height. */
+.kit-login__token {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--kp-space-sm, 0.5rem);
+  align-items: stretch;
+}
+
+.kit-login__remember { margin-block: var(--kp-space-md, 1rem); }
+.kit-login__actions { margin-block-start: var(--kp-space-sm, 0.5rem); align-items: center; }

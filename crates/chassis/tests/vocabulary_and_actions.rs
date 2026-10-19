@@ -190,8 +190,7 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
         "{login_page}"
     );
     assert!(
-        login_page
-            .contains("each one is a source with its own token, issued on\n  the Sources page"),
+        login_page.contains("each has its own token on the Sources page"),
         "{login_page}"
     );
 
