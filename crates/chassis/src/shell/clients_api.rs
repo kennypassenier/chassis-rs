@@ -291,8 +291,8 @@ pub async fn requests(
 /// What the Test it field sends (kit-kp11, clients-manage): the body the
 /// reader edited. Without one the request carries the route's own body.
 #[derive(Debug, Default, Deserialize)]
-pub struct TestRequest {
-    pub body: Option<String>,
+pub(crate) struct TestRequest {
+    pub(crate) body: Option<String>,
 }
 
 /// The longest body the dashboard will send as a test, so a pasted file
@@ -308,6 +308,16 @@ pub struct TestResult {
 /// Send one request with this client's token to the project's declared
 /// test route (K14). Never leaves the process: it targets our own address.
 pub async fn send_test(
+    State(api): State<ClientsApi>,
+    Extension(vocab): Extension<Vocabulary>,
+    Path(id): Path<String>,
+) -> Result<Json<TestResult>, Error> {
+    send_test_body(State(api), Extension(vocab), Path(id), None).await
+}
+
+/// The route behind "Send test" (kit-kp11, clients-manage): like
+/// [`send_test`], with the body the reader edited in the Test it field.
+pub(crate) async fn send_test_body(
     State(api): State<ClientsApi>,
     Extension(vocab): Extension<Vocabulary>,
     Path(id): Path<String>,

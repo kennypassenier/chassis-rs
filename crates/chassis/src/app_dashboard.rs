@@ -362,7 +362,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
             .route("/api/clients/{id}/revoke", post(clients_api::revoke))
             .route("/api/clients/{id}/token", get(clients_api::reveal))
             .route("/api/clients/{id}/requests", get(clients_api::requests))
-            .route("/api/clients/{id}/test", post(clients_api::send_test))
+            .route("/api/clients/{id}/test", post(clients_api::send_test_body))
             .with_state(api)
             // K28: the handlers word their refusals in the project's vocabulary.
             .layer(axum::Extension(vocab))
