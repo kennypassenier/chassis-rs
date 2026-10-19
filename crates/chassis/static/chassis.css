@@ -147,3 +147,14 @@ pre.snippet {
   min-height: 2.4rem;
   box-sizing: border-box;
 }
+
+/* ===================================================================== shell ==
+   kit-kp11: the bar, the palette's keys, the phone's tab bar and the error
+   page. What the demo's page.css called its shell rules, moved here with
+   media queries where the demo answered to its frame. Stands alone at the end
+   of the file; tokens only. */
+
+/* A chord such as "g c" stays on one line. */
+.kp-palette__keys {
+    white-space: nowrap;
+}

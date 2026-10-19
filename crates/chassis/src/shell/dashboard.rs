@@ -533,6 +533,23 @@ impl Dashboard {
         env.add_global("assets", asset_version());
         env.add_global("themes", minijinja::Value::from_serialize(themes()));
         env.add_global("nav", minijinja::Value::from_serialize(&kit_nav));
+        // kit-kp11: the shell reads each navigation entry's page id from
+        // `pages`, entry for entry (with_pages replaces both from the registry).
+        env.add_global(
+            "pages",
+            minijinja::Value::from_serialize(
+                kit_nav
+                    .iter()
+                    .map(|n| {
+                        let id = match n.href.as_str() {
+                            "/" => "status",
+                            other => other.trim_matches('/'),
+                        };
+                        serde_json::json!({ "id": id, "title": n.label, "path": n.href })
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+        );
         env.add_global("chassis_version", crate::VERSION);
         env.add_global("kp_themes_version", KP_THEMES_VERSION);
         env.add_global("clients_label", clients_label.clone());
@@ -592,6 +609,20 @@ impl Dashboard {
             .collect();
         let env = Arc::make_mut(&mut self.env);
         env.add_global("nav", minijinja::Value::from_serialize(&self.nav));
+        env.add_global(
+            "pages",
+            minijinja::Value::from_serialize(
+                set.pages
+                    .iter()
+                    .filter(|p| p.nav)
+                    .map(|p| {
+                        serde_json::json!({
+                            "id": p.id, "title": p.title, "path": p.path, "group": p.group,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+        );
         env.add_global("brand_href", set.brand.href.clone());
         env.add_global("brand_title", set.brand.title.clone());
         self
