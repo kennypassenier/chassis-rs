@@ -684,7 +684,7 @@ pre.snippet {
     row-gap: var(--kp-space-xs, 0.25rem);
   }
   .manage-danger__head { grid-template-columns: minmax(0, 1fr); }
-  .manage-danger__head > h3 { align-self: start; }
+  .manage-danger__head > h3 { align-self: start; display: flex; align-items: center; min-block-size: var(--kit-bar-button, 2.25rem); }
   .manage-act > .kp-button { align-self: start; }
   /* A subgrid's own row gap leaves half of the difference to the dialog
      grid's gap on each side of the line; the consequences take it back so the
@@ -831,6 +831,8 @@ pre.snippet {
 }
 /* Show and Hide are one width, so the token field does not move. */
 .kit-login__grid .kp-formgrid__actions > .kp-button { min-inline-size: 4.5rem; }
+/* Log in keeps its width while it says it is logging in. */
+.kit-login__grid .kp-formgrid__buttons > [data-kp-submit] { min-inline-size: 8.5rem; }
 /* The grid's rows set the rhythm; a hint carries no margin of its own. */
 .kit-login__grid .kp-field__help { margin: 0; }
 /* The passkey button, the switch and Log in stand on the grid's start edge. */
