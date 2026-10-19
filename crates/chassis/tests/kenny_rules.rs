@@ -116,6 +116,23 @@ fn the_shell_renders_from_the_registry_and_counts_exactly() {
         js.contains("setTabbarBadge") && !js.contains("99+"),
         "a count on a tab is the exact number"
     );
+    // One idle rule (Kenny, kit-kp11): the badge shows the server's
+    // `counts.idle`, the same number as the Clients page; the shell block
+    // never computes idleness (no 30-day arithmetic, no own filter).
+    let shell = js
+        .split("// ====================================================================== shell ==")
+        .nth(1)
+        .expect("the shell block");
+    assert!(
+        shell.contains("data.counts.idle"),
+        "the tab badge reads counts.idle"
+    );
+    for own in ["86400000", "* 30", "30 *", "issued_at", "filter(idle"] {
+        assert!(
+            !shell.contains(own),
+            "the shell block computes idleness itself ({own}); read counts.idle instead"
+        );
+    }
     let css = kit_file("static/chassis.css");
     let phone = css
         .split("@media (max-width: 39.99rem)")

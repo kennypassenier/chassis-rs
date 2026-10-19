@@ -1175,7 +1175,7 @@ import { setStrings } from './kp/js/strings.js';
     const goGroup = $('[data-chassis-group="go"]', paletteEl);
     const hereCommands = [];
     if (onClients && issueTarget()) hereCommands.push(option('issue', `Issue a ${singular}`, 'Give a new program its own token', 'n'));
-    if (onClients && control('filter-idle')) hereCommands.push(option('filter-idle', `Show idle ${plural}`, 'Not used for 30 days or more', '', 'unused stale old'));
+    if (onClients && control('filter-idle')) hereCommands.push(option('filter-idle', `Show idle ${plural}`, 'Active, but not called for a while', '', 'unused stale old'));
     if (hereCommands.length) {
       const g = group('This page', 'page');
       g.ul.append(...hereCommands.map((o) => { const li = document.createElement('li'); li.setAttribute('role', 'presentation'); li.append(o); return li; }));
@@ -1233,15 +1233,15 @@ import { setStrings } from './kp/js/strings.js';
       const d = Math.floor(s / 86400);
       return `${d} ${d === 1 ? 'day' : 'days'} ago`;
     };
-    // Idle: an active client with no call for 30 days (one never called counts from its issue).
-    const idle = (c) => c.active && Date.now() - new Date(c.last_used_at ?? c.issued_at).getTime() >= 30 * 86400000;
     const wrap = (el) => { const li = document.createElement('li'); li.setAttribute('role', 'presentation'); li.append(el); return li; };
     const fromClients = (data) => {
       clientList = data;
       const active = data.clients.filter((c) => c.active);
-      // The count on the Clients tab: how many need a look, exactly.
+      // The count on the Clients tab: how many need a look, exactly. The
+      // server decides who is idle (one rule, in client_list.rs) and the
+      // page's tile shows the same `counts.idle`; nothing is counted here.
       const tab = $('#chassis-tabbar [data-kp-tab="clients"]');
-      if (tab) setTabbarBadge(tab, data.clients.filter(idle).length);
+      if (tab) setTabbarBadge(tab, data.counts.idle);
       if (!onClients || !handle) return;
       const manage = group('Manage a client', 'manage');
       manage.ul.append(...active.slice(0, 5).map((c) => wrap(option(`manage-${c.id}`, `Manage ${c.name}`, `Last used ${ago(c.last_used_at)}`))));
