@@ -585,3 +585,13 @@ pre.snippet {
    input and the buttons under it end on the same edge (kp-themes caps a
    field at 28rem, which left the input 22 px short of the Register button). */
 .kit-register .kp-field { max-inline-size: none; }
+
+/* Before the modules attach, the list and the code hold the room their
+   loading state takes (the list's three waiting rows from the package's own
+   knobs; the code's plate, link and Copy), so nothing under them moves when
+   the busy card arrives and the data replaces it. */
+.kit-ops .kp-passkeys:empty {
+  min-block-size: calc(var(--kp-passkeys-row-min, 5rem) * 3 + var(--kp-passkeys-gap, var(--kp-space-sm, 0.5rem)) * 2);
+}
+.kit-ops .kp-qr:empty { min-block-size: 21.7rem; }
+@media (max-width: 40rem) { .kit-ops .kp-qr:empty { min-block-size: 22.15rem; } }
