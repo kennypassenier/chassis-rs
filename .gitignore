@@ -9,6 +9,7 @@
 .env.*
 !.env.example
 /dist/
+/.chassis/
 /scratch/
 
 # Editor noise

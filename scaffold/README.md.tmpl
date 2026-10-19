@@ -71,6 +71,15 @@ gate and builds every asset, then stops before any commit, tag or upload.
 It needs docker logged in to `ghcr.io` with a token that has
 `write:packages`, `gh`, `cargo-deny` and `minisign`.
 
+When the test step fails, `chassis release` records the failed tests, the tree
+they ran on and the time in `.chassis/release-failed.json` (git-ignored). The
+next `chassis release` then reruns only those tests, and says so in one line,
+provided the change since stays inside the crates that had a failure and
+touches no `Cargo.toml`, `Cargo.lock`, build script or toolchain file;
+otherwise it runs the whole suite and says why. A release that completes
+deletes the record, and `--full-tests` forces the whole suite. Every test
+step prints its measured duration.
+
 ## Development
 
 Gates are git-native. After a fresh clone:

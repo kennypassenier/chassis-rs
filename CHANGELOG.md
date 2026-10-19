@@ -18,6 +18,17 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **`chassis release` reruns only the tests that failed last time** (kit-kp11;
+  Almanac's wish, backing the rule "never rerun green tests"). A red nextest
+  step writes the failed tests, the tree they ran on and the time to
+  `.chassis/release-failed.json` (the scaffold's `.gitignore` now lists
+  `/.chassis/`). The next release reruns just those tests when the change
+  since that tree touches no `Cargo.toml`, `Cargo.lock`, build script,
+  toolchain or cargo config and stays inside crates that had a failing test;
+  it prints one line saying what was skipped and why, runs the doctests as
+  before, and deletes the record once the release is published. Any other
+  change runs the whole suite and says why. `--full-tests` forces the whole
+  suite. The measured duration of the test step is printed either way.
 - **A kit toast region and a page-ready signal** (kit-kp11). `layout.html`
   carries one empty `<div id="chassis-toasts" class="kp-toasts"
   aria-live="polite">` on every page. After chassis.js has attached its kp
