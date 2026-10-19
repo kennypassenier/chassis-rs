@@ -532,6 +532,17 @@ pre.snippet {
   column-gap: var(--kp-space-md, 1rem);
   row-gap: var(--kp-space-2xs, 0.125rem);
 }
+/* Beside the figure tiles the head's first line starts where the tiles'
+   first line does (their padding), not on the middle of the row. */
+@container managed (min-width: 40rem) {
+  .manage-dialog .manage-head {
+    align-content: start;
+    /* the tile's padding plus its 1 px border */
+    padding-block-start: calc(var(--kp-space-md, 1rem) + 1px);
+    align-items: start;
+  }
+  .manage-dialog .manage-head > .kp-idmark { align-self: center; }
+}
 .manage-head > .kp-idmark { grid-area: mark; }
 .manage-head > .kp-dialog__title { grid-area: title; }
 .manage-head > .kp-badge { grid-area: badge; }
@@ -717,23 +728,25 @@ pre.snippet {
   .manage-facts > :nth-child(2) { grid-area: last; }
   .manage-facts > :nth-child(3) { grid-area: third; }
 
-  /* The test row reads top to bottom on a phone, as the form grid does
-     under 36rem (data-kp-formgrid-stack="always"). */
-  .manage-test__grid,
-  .manage-test__grid > .kp-formgrid__row { grid-template-columns: minmax(0, 1fr); }
+  /* The test row on a phone: the label and Send test share the first line
+     (the action has its own track at the end of the label's line), the field
+     is the whole width under them, the note under the field. */
+  .manage-test__grid { grid-template-columns: minmax(0, 1fr); }
   .manage-test__grid > .kp-formgrid__row {
     grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'label send'
+      'field field'
+      'note note';
+    align-items: center;
     row-gap: var(--kp-space-xs, 0.25rem);
   }
-  .manage-test__grid > .kp-formgrid__row > * {
-    grid-column: 1;
-    grid-row: auto;
-  }
-  .manage-test__send {
-    justify-content: flex-start;
-    justify-items: start;
-  }
-  .manage-test__send > .kp-dialog__note { contain: none; }
+  .manage-test__grid > .kp-formgrid__row > .kp-formgrid__label { grid-area: label; }
+  .manage-test__grid > .kp-formgrid__row > .kp-formgrid__control { grid-area: field; }
+  .manage-test__grid > .kp-formgrid__row > .manage-test__send { display: contents; }
+  .manage-test__send > .kp-button { grid-area: send; justify-self: end; }
+  .manage-test__send > .kp-dialog__note { grid-area: note; contain: none; }
 }
 
 /* ==========================================================================
