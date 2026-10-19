@@ -1956,10 +1956,17 @@ async function startStatus(root) {
   });
 
   // The refresh control: the app fetches, the control keeps the line.
+  // The first read after the page is drawn shows that it reads, in every
+  // part's own loading state (and its failed plate when the service does not
+  // answer); the reads after it are quiet.
+  let firstRead = true;
   refreshEl?.addEventListener('kp-refresh', async (event) => {
     const { done } = event.detail;
     try {
-      await refreshAll();
+      if (firstRead) {
+        firstRead = false;
+        await reread('page');
+      } else await refreshAll();
       failures = 0;
       showFailure(false);
       done(true);
