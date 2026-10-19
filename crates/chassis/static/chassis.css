@@ -207,6 +207,12 @@ pre.snippet {
     margin-block: var(--kp-space-sm, 0.5rem) 0;
 }
 
+/* A section's buttons live in the card's footer: they stay put, whatever
+   state the data above them is in. */
+.chassis-status .kp-card__footer > .section-actions {
+    margin: 0;
+}
+
 /* The card that reads its own JSON: the body and its buttons keep the
    card's footprint whatever the answer says. */
 .chassis-status [data-chassis-json] .kp-card__data {
@@ -236,6 +242,19 @@ pre.snippet {
 .chassis-status .kp-refresh__bar > :not(.kp-button):not(.kp-menu-button) {
     display: flex;
     align-items: center;
+}
+/* On a phone the freshness line (which keeps room for its longest wording)
+   takes a row of its own under the chooser and the button: three columns
+   would push "updating…" past the edge. */
+@media (max-width: 39.99rem) {
+    .chassis-status .kp-refresh__bar {
+        grid-template-columns: minmax(0, 1fr) auto;
+        row-gap: var(--kp-space-sm, 0.5rem);
+    }
+    .chassis-status .kp-refresh__bar > .kp-refresh__line {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
 }
 .chassis-status .kp-copyable {
     align-items: stretch;
