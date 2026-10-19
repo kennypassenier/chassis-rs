@@ -1,26 +1,137 @@
 {% extends "layout.html" %}
 {% block title %}{{ app_name }} — {{ clients_label|lower }}{% endblock %}
 {% block content %}
-<h1>{{ clients_label }}</h1>
-<p class="explain">
-  Every {{ vocab.singular }} listed here is one program that calls this
-  service, with its own token. Give each {{ vocab.singular }} its own so you can switch
-  a single one off without touching the others, see which one sent what,
-  and debug a new connection from its row — without ever handing out the
-  service's own login token.
-</p>
+{# kit-kp11 (the approved clients-list and clients-first reviews): one .kp-ops
+   page. Everything on it is server-rendered; chassis.js (the "clients" block)
+   only adds the filters, the idle callout, the auto-refresh and the live
+   first-call detection. The issue form and the manage dialogs below are the
+   ones from before the redesign, in their second review round. #}
+{% set onboarding = counts.called == 0 %}
+<div class="kp-ops" data-kp-ops-sticky="none" data-clients-page data-clients-one="{{ vocab.singular }}" data-clients-many="{{ vocab.plural }}" data-clients-days="{{ idle_after_days }}"{% if onboarding %} data-clients-onboarding{% endif %}>
+  <header class="kp-ops__head kp-page-header">
+    <div class="kp-page-header__inner">
+      <div>
+        <h1 class="kp-page-header__title">{{ clients_label }}</h1>
+        <p class="kp-page-header__description">Every program that calls this service is one {{ vocab.singular }} with its own token, so you can switch one off without touching the rest.</p>
+        {% if not onboarding %}
+        <div class="clients-fresh"><div class="kp-refresh" data-kp-refresh="30" data-kp-remember="clients-refresh" data-kp-look="menu" data-kp-refresh-choices="0,15,30,60"></div></div>
+        {% endif %}
+      </div>
+      <div class="kp-page-header__actions">
+        {% if not open_dashboard %}<button type="button" class="kp-button kp-button--primary" data-chassis-command="issue" data-kp-dialog="issue-dialog">Issue a {{ vocab.singular }}</button>{% endif %}
+      </div>
+    </div>
+  </header>
 
-<div class="kp-card kp-mb-lg">
-  <h2 class="kp-card__title kp-mt-0 kp-fs-md">Add a {{ vocab.singular }}</h2>
   {% if open_dashboard %}
+  <div class="kp-ops__body">
+    <section class="kp-card" data-kp-span="12" aria-labelledby="clients-open-title">
+      <h2 class="kp-card__title" id="clients-open-title">No tokens while the dashboard is open</h2>
+      <p class="explain kp-m-0">
+        No tokens can be issued while the dashboard is open: there is no secret
+        key to seal them with, and nothing needs one — every route already answers
+        everyone. Set the login token and the secret key to close the dashboard and
+        issue tokens here.
+      </p>
+    </section>
+  </div>
+  {% elif onboarding %}
+  {# clients-first: three steps; the last finishes by itself when the first
+     request arrives (chassis.js asks /api/kit/clients every 5 seconds). #}
+  {% set step = 1 if counts.active == 0 else 3 %}
+  <div class="kp-ops__body">
+    <section class="kp-card" data-kp-span="6" aria-labelledby="clients-first-title">
+      <h2 class="kp-card__title" id="clients-first-title">Wire up your first {{ vocab.singular }}</h2>
+      <p class="kp-lede" data-kp-lede-measure="full">Three steps. The last one finishes by itself when the program calls.</p>
+      <ol class="kp-steplist" aria-label="Wiring up the first {{ vocab.singular }}" data-clients-steps>
+        <li class="kp-steplist__item" data-state="{{ 'running' if step == 1 else 'done' }}" data-kp-step-id="s1"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Issue a {{ vocab.singular }}</span><span class="kp-steplist__note">A name for the program you want to connect{% for f in form_fields %}, and its {{ f.label|lower }}{% endfor %}.</span></span></li>
+        <li class="kp-steplist__item" data-state="{{ 'pending' if step == 1 else 'done' }}" data-kp-step-id="s2"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Give it the token</span><span class="kp-steplist__note">Copy the command or the token and run it where the program lives.</span></span></li>
+        <li class="kp-steplist__item" data-state="{{ 'pending' if step == 1 else 'running' }}" data-kp-step-id="s3"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Wait for its first request</span><span class="kp-steplist__note" data-clients-wait-note>{% if step == 1 %}This page looks for the first call by itself.{% else %}Listening… this page looks every 5 seconds.{% endif %}</span></span></li>
+      </ol>
+      <div class="kp-row clients-actions" data-clients-done hidden>
+        <a class="kp-button kp-button--primary" href="/clients" data-clients-open-list>Open the list</a>
+      </div>
+    </section>
+    <section class="kp-card" data-kp-span="6" aria-labelledby="clients-what-title">
+      <h2 class="kp-card__title" id="clients-what-title">What a {{ vocab.singular }} is</h2>
+      <p class="kp-lede" data-kp-lede-measure="full">The same token never goes to two programs.</p>
+      <div class="kp-empty" data-kp-art="nomatch" data-clients-what>
+        {% if step == 1 %}
+        <p class="kp-empty__title">No {{ vocab.plural }} yet</p>
+        <p class="kp-empty__body">A {{ vocab.singular }} is one program with its own token. Switch one off without touching the others.</p>
+        {% else %}
+        <p class="kp-empty__title">Waiting for a call</p>
+        <p class="kp-empty__body">The {{ vocab.singular }} exists. The list opens here as soon as its first request arrives.</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+  {% endif %}
+
+  {% if not onboarding %}
+  {# clients-list: the four figures are filters, idle ones are called out with their fix. #}
+  <div class="kp-ops__kpis" data-clients-live="kpis">
+    <div class="kp-kpis" role="group" aria-label="{{ vocab.plural_cap }} by state" data-kp-kpis-columns="all 4 2">
+      <button type="button" class="kp-kpi kp-kpi--toggle" data-kp-kpi-owned data-clients-filter="in use" aria-pressed="false"><span class="kp-kpi__label">In use</span><span class="kp-kpi__value">{{ counts.in_use }}</span><span class="kp-kpi__trend">called in the last {{ idle_after_days }} days</span></button>
+      <button type="button" class="kp-kpi kp-kpi--toggle" data-kp-kpi-owned data-clients-filter="idle" data-chassis-command="filter-idle" aria-pressed="false"{% if counts.idle %} data-kp-tone="warning"{% endif %}><span class="kp-kpi__label">Idle</span><span class="kp-kpi__value">{{ counts.idle }}</span><span class="kp-kpi__trend">{{ idle_after_days }} days or more without a call</span></button>
+      <button type="button" class="kp-kpi kp-kpi--toggle" data-kp-kpi-owned data-clients-filter="new" aria-pressed="false"><span class="kp-kpi__label">Not used yet</span><span class="kp-kpi__value">{{ counts.new }}</span><span class="kp-kpi__trend">issued in the last {{ idle_after_days }} days</span></button>
+      <button type="button" class="kp-kpi kp-kpi--toggle" data-kp-kpi-owned data-clients-filter="revoked" aria-pressed="false"><span class="kp-kpi__label">Revoked</span><span class="kp-kpi__value">{{ counts.revoked }}</span><span class="kp-kpi__trend">their token no longer works</span></button>
+    </div>
+  </div>
+  <div class="kp-ops__attention"><div class="kp-problems" id="clients-problems" data-kp-problems data-kp-problems-mode="each" aria-label="{{ vocab.plural_cap }} that need a look"></div></div>
+  {% endif %}
+
+  {% if clients %}
+  <div class="kp-ops__body">
+    <section class="kp-card" data-kp-span="12" aria-labelledby="clients-list-title">
+      <h2 class="kp-card__title" id="clients-list-title">Registered {{ vocab.plural }} ({{ counts.all }})</h2>
+      <p class="kp-lede" data-kp-lede-measure="full">Open a {{ vocab.singular }} to see its token, copy a ready-made command, send a test and read what it sent.</p>
+      <div data-kp-idmark-set>
+        <div class="kp-datatable" data-kp-datatable data-kp-remember="clients-table" data-kp-page-size="10" data-kp-cards>
+          <div class="kp-datatable__bar"><input class="kp-datatable__search" type="search" data-chassis-command="search" data-kp-datatable-search aria-label="Search the {{ vocab.plural }}" placeholder="Search by name{% for col in declared_columns %}{{ ' or ' if loop.last else ', ' }}{{ col.title|lower }}{% endfor %}"></div>
+          <div class="kp-table-wrap">
+            <table class="kp-table">
+              <caption class="kp-sr-only">Registered {{ vocab.plural }}</caption>
+              <thead>
+                <tr>
+                  <th scope="col" data-kp-sort="text" data-kp-filter="choice">{{ vocab.singular_cap }}</th>
+                  <th scope="col" data-kp-sort="text">State</th>
+                  <th scope="col" data-kp-sort="date">Last used</th>
+                  <th scope="col" data-kp-sort="number">Requests</th>
+                  {% for col in declared_columns %}<th scope="col" data-kp-sort="text" data-kp-filter="choice">{{ col.title }}</th>{% endfor %}
+                  {% for col in extra_columns %}<th scope="col" data-kp-sort="{{ 'number' if col.numeric else 'text' }}">{{ col.title }}</th>{% endfor %}
+                  <th scope="col" class="text-end clients-fit"><span class="kp-sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for c in clients %}
+              <tr id="client-{{ c.id }}" data-kp-row-key="{{ c.id }}" data-clients-state="{{ c.state }}">
+                <td data-label="{{ vocab.singular_cap }}"><span class="kp-idmark-name"><span class="kp-idmark kp-idmark--sm" data-kp-idmark="{{ c.name }}" aria-hidden="true"></span><a class="kp-fw-medium" href="#manage-{{ c.id }}" data-manage="{{ c.id }}" data-kp-hovercard="Issued {{ c.issued_display }}{% for cell in c.declared %} · {{ declared_columns[loop.index0].title|lower }} {{ cell }}{% endfor %} · {{ c.uses }} {{ 'request' if c.uses == 1 else 'requests' }}">{{ c.name }}</a></span></td>
+                <td class="state-cell" data-label="State" data-kp-sort-value="{{ c.state }}">{% if c.state == "revoked" %}<span class="kp-badge">revoked {{ c.revoked_date }}</span>{% elif c.state == "new" %}<span class="kp-badge">not used yet</span>{% elif c.state == "idle" %}<span class="kp-badge kp-badge--warning">idle {{ c.idle_days }} days</span>{% else %}<span class="kp-badge kp-badge--success">active</span>{% endif %}</td>
+                <td class="kp-timestamp" data-label="Last used" data-kp-sort-value="{{ c.last_used_at or '' }}">{% if c.last_used_at %}<time datetime="{{ c.last_used_at }}" data-localised="server">{{ c.last_used_display }}</time> <span class="kp-text-muted">{{ c.last_used_ago }}</span>{% else %}<span class="kp-text-muted">never</span>{% endif %}</td>
+                <td class="kp-numeric" data-label="Requests">{{ c.uses }}</td>
+                {% for cell in c.declared %}<td data-label="{{ declared_columns[loop.index0].title }}">{{ cell }}</td>{% endfor %}
+                {% for cell in c.extra %}<td{% if extra_columns[loop.index0].numeric %} class="kp-numeric"{% endif %} data-label="{{ extra_columns[loop.index0].title }}">{{ cell|safe }}</td>{% endfor %}
+                <td class="text-end clients-fit"><button type="button" class="kp-button" data-manage="{{ c.id }}" aria-label="Manage {{ c.name }}">Manage</button></td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+  {% endif %}
+</div>
+
+{% if not open_dashboard %}
+{# The issue form as it was before the redesign (second review round); it
+   only lives in a dialog now, opened by the header button. chassis.js wires
+   form#issue, so no inline script (CSP script-src 'self', S8). #}
+<dialog class="kp-dialog" id="issue-dialog" aria-labelledby="issue-dialog-title">
+  <h2 class="kp-dialog__title" id="issue-dialog-title">Add a {{ vocab.singular }}</h2>
   <p class="explain kp-m-0 kp-mb-md">
-    No tokens can be issued while the dashboard is open: there is no secret
-    key to seal them with, and nothing needs one — every route already answers
-    everyone. Set the login token and the secret key to close the dashboard and
-    issue tokens here.
-  </p>
-{% else %}
-<p class="explain kp-m-0 kp-mb-md">
     Pick a name you will recognise in the logs (<code>home-assistant</code>,
     <code>kyu-runner</code>). The token appears on the row; reveal or copy
     it there, paste it into that program, done.
@@ -46,48 +157,11 @@
     <button type="submit" class="kp-button kp-button--primary" data-busy-label="Issuing…">Issue token</button>
     <p class="kp-field__help kp-w-full kp-m-0">Letters, digits, dots, underscores and hyphens; 1–64 characters.</p>
   </form>
+  <div class="kp-dialog__actions"><button type="button" class="kp-button" data-kp-dialog-close>Cancel</button></div>
+</dialog>
 {% endif %}
-  <!-- The issue form is wired by chassis.js (form#issue): no inline script,
-       so the CSP can say script-src 'self' (S8). -->
-</div>
 
-<h2>Registered {{ vocab.plural }}</h2>
-<p class="explain">
-  <strong>Reveal</strong> shows the token for {{ reveal_seconds }} seconds.
-  <strong>Copy token</strong> puts only the token on the clipboard;
-  <strong>Copy command</strong> a complete <code>curl</code> line.
-  <strong>Last requests</strong> shows what this {{ vocab.singular }} actually sent (secrets
-  masked, bodies cut at {{ capture_body_bytes }} bytes, kept {{ capture_ttl_minutes }} minutes).
-  {% if has_test_route %}<strong>Send test</strong> sends one request with this {{ vocab.singular }}'s token to
-  this service's own test route, so you can see the round trip before the real {{ vocab.singular }} is wired.{% endif %}
-</p>
 {% if clients %}
-<div class="kp-table-wrap">
-<table class="kp-table">
-  <thead>
-    <tr>
-      <th>Name</th><th>Issued</th><th>Last used</th><th>State</th>
-      {% for col in declared_columns %}<th>{{ col.title }}</th>{% endfor %}
-      {% for col in extra_columns %}<th>{{ col.title }}</th>{% endfor %}
-      <th class="text-end"></th>
-    </tr>
-  </thead>
-  <tbody>
-  {% for c in clients %}
-  <tr id="client-{{ c.id }}">
-    <td class="kp-fw-medium">{{ c.name }}</td>
-    <td><time datetime="{{ c.issued_at }}">{{ c.issued_at|human_time }}</time></td>
-    <td>{% if c.last_used_at %}<time datetime="{{ c.last_used_at }}">{{ c.last_used_at|human_time }}</time> <span class="text-secondary">({{ c.uses }}×)</span>{% else %}<span class="text-secondary">never</span>{% endif %}</td>
-    <td class="state-cell">{% if c.active %}<span class="kp-badge kp-badge--success">active</span>{% else %}<span class="kp-badge">revoked <time datetime="{{ c.revoked_at }}">{{ c.revoked_at|human_time }}</time></span>{% endif %}</td>
-    {% for cell in c.declared %}<td>{{ cell }}</td>{% endfor %}
-    {% for cell in c.extra %}<td>{{ cell|safe }}</td>{% endfor %}
-    <td class="text-end"><button type="button" class="kp-button" data-manage="{{ c.id }}">Manage</button></td>
-  </tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div>
-
 {# feat-clients-4: everything that used to widen the row lives here instead.
    One dialog per row, server-rendered, so every control keeps the data-*
    attribute its handler already listens for — the modal is a place, not a new
@@ -96,8 +170,8 @@
 <dialog class="kp-dialog client-dialog" id="manage-{{ c.id }}" aria-labelledby="manage-{{ c.id }}-title">
   <div class="client-dialog__head">
     <h2 class="kp-dialog__title" id="manage-{{ c.id }}-title">{{ c.name }}</h2>
-    {% if c.active %}<span class="kp-badge kp-badge--success">active</span>{% else %}<span class="kp-badge">revoked <time datetime="{{ c.revoked_at }}">{{ c.revoked_at|human_time }}</time></span>{% endif %}
-    <p class="kp-dialog__description">Issued <time datetime="{{ c.issued_at }}">{{ c.issued_at|human_time }}</time>{% if c.last_used_at %} · last used <time datetime="{{ c.last_used_at }}">{{ c.last_used_at|human_time }}</time> ({{ c.uses }}×){% else %} · never used{% endif %}</p>
+    {% if c.active %}<span class="kp-badge kp-badge--success">active</span>{% else %}<span class="kp-badge">revoked <time datetime="{{ c.revoked_at }}" data-localised="server">{{ c.revoked_display }}</time></span>{% endif %}
+    <p class="kp-dialog__description">Issued <time datetime="{{ c.issued_at }}" data-localised="server">{{ c.issued_display }}</time>{% if c.last_used_at %} · last used <time datetime="{{ c.last_used_at }}" data-localised="server">{{ c.last_used_display }}</time> ({{ c.uses }}×){% else %} · never used{% endif %}</p>
   </div>
 
   <div class="client-dialog__body">
@@ -152,7 +226,5 @@
   </div>
 </dialog>
 {% endfor %}
-{% else %}
-<p class="text-secondary">No {{ vocab.plural }} yet. Add one above.</p>
 {% endif %}
 {% endblock %}
