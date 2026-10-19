@@ -28,6 +28,10 @@ use crate::shell::clients_api::ClientView;
 use crate::shell::health::Health;
 use crate::shell::store::Clients;
 
+mod sections;
+pub use sections::{Check, CheckState, FlashAction, JsonRender, Kpi, KpiTone, SectionBody};
+use sections::{Sample, UptimeHistory};
+
 /// One link in the top navigation.
 #[derive(Debug, Clone, Serialize)]
 pub struct NavEntry {
@@ -138,6 +142,23 @@ pub trait StatusSection: Send + Sync {
     /// existing section keeps compiling; Almanac's "Reload profiles from
     /// disk" form becomes one `SectionAction`.
     fn actions(&self) -> Vec<SectionAction> {
+        Vec::new()
+    }
+
+    /// The section's body as data (kit-kp11): a table, key figures, check
+    /// rows or a card that reads its own JSON. When this returns `Some`, it
+    /// replaces [`Section::rows`]; [`Section::html`] is still rendered
+    /// after it, as the escape hatch. A default so every existing section
+    /// compiles and looks as before.
+    fn body(&self) -> Option<SectionBody> {
+        None
+    }
+
+    /// Buttons under the section that do their work without leaving the
+    /// page (kit-kp11): a spinner, a short word and a toast that can carry
+    /// a count. See [`FlashAction`]; [`StatusSection::actions`] keeps its
+    /// reload.
+    fn flash_actions(&self) -> Vec<FlashAction> {
         Vec::new()
     }
 }
@@ -462,7 +483,21 @@ pub struct Dashboard {
     /// The service opted in and runs without secrets: no door, a banner.
     pub open: bool,
     env: Arc<Environment<'static>>,
+    /// The last 48 hours of health, one sample per check (kit-kp11); in
+    /// memory only.
+    uptime: UptimeHistory,
+    /// Where the Clients page lives, when the kit serves one.
+    clients_href: Option<String>,
+    /// One read-only look at the release host, when a checker exists.
+    check_update: Option<UpdateCheck>,
 }
+
+/// The "Check for updates" button's work.
+pub(crate) type UpdateCheck = Arc<
+    dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), Error>> + Send>>
+        + Send
+        + Sync,
+>;
 
 impl Dashboard {
     #[allow(clippy::too_many_arguments)]
@@ -527,6 +562,9 @@ impl Dashboard {
         // feat-ui-1: every template renders a timestamp through this, so
         // there is one place that decides what a reader sees.
         env.add_filter("human_time", |v: String| crate::shell::time::human_time(&v));
+        // kit-kp11: dd/mm/yyyy HH:mm, 24 hours (UI principles, rule 52); the
+        // page shows it in the reader's zone once the script has run.
+        env.add_filter("kit_when", |v: String| sections::when_words(&v));
         env.add_global("app_name", app_name);
         env.add_global("open_dashboard", open);
         env.add_global("prefix", prefix.clone());
@@ -565,7 +603,45 @@ impl Dashboard {
             auth,
             open,
             env: Arc::new(env),
+            uptime: UptimeHistory::default(),
+            clients_href: Some("/clients".to_string()),
+            check_update: None,
         })
+    }
+
+    /// kit-kp11: the checker behind "Check for updates".
+    pub(crate) fn with_update_check(mut self, check: Option<UpdateCheck>) -> Self {
+        self.check_update = check;
+        self
+    }
+
+    /// kit-kp11: keep the availability strip: one sample now, then one every
+    /// five minutes for as long as the service runs.
+    pub(crate) fn spawn_uptime_sampler(&self) {
+        let d = self.clone();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(300));
+            loop {
+                tick.tick().await;
+                d.sample_health().await;
+            }
+        });
+    }
+
+    /// Read the health once and note it in the history.
+    async fn sample_health(&self) -> crate::shell::health::Report {
+        let report = self.health.report().await;
+        self.note_report(&report);
+        report
+    }
+
+    fn note_report(&self, report: &crate::shell::health::Report) {
+        let (parts, failing) = match report.subsystems.as_object() {
+            Some(map) => (map.len(), map.values().filter(|v| v["ok"] == false).count()),
+            None => (0, 0),
+        };
+        self.uptime
+            .record(Sample::from_report(report.status == "ok", parts, failing));
     }
 
     /// K28: what this service calls a client, for every template
@@ -590,6 +666,11 @@ impl Dashboard {
                 href: p.path.clone(),
             })
             .collect();
+        self.clients_href = set
+            .pages
+            .iter()
+            .find(|p| p.id == "clients")
+            .map(|p| p.path.clone());
         let env = Arc::make_mut(&mut self.env);
         env.add_global("nav", minijinja::Value::from_serialize(&self.nav));
         env.add_global("brand_href", set.brand.href.clone());
@@ -744,6 +825,13 @@ struct SectionView {
     #[serde(flatten)]
     section: Section,
     actions: Vec<serde_json::Value>,
+    /// kit-kp11: the body as data, when the section declares one.
+    body: Option<SectionBody>,
+    flash_actions: Vec<serde_json::Value>,
+    /// A readable id for the card, unique on the page.
+    slug: String,
+    /// Columns of twelve the card takes (see `sections::pack_spans`).
+    span: u8,
 }
 
 /// `GET /` — the status page (K17).
@@ -769,31 +857,93 @@ pub async fn status_json(State(d): State<Dashboard>) -> Response {
         .into_response()
 }
 
+/// kit-kp11: `POST /api/kit/status/update-check`, one read-only look at the
+/// release host for the status page's "Check for updates" button. Answers
+/// what the card would now say.
+pub async fn update_check(State(d): State<Dashboard>) -> Response {
+    let Some(check) = d.check_update.clone() else {
+        return Error::config(
+            "this service has no release host to check",
+            "set update_url (or AppSpec.repository) and restart to look for new releases",
+        )
+        .into_response();
+    };
+    if let Err(e) = check().await {
+        return e.into_response();
+    }
+    let facts = sections::update_facts(d.version, &(d.update)(), true);
+    (
+        [(axum::http::header::CACHE_CONTROL, "no-store")],
+        axum::Json(serde_json::json!({
+            "running": d.version,
+            "latest": facts.latest,
+            "newer": facts.newer,
+            "last_check_at": facts.last_check_at,
+        })),
+    )
+        .into_response()
+}
+
 async fn status_data(d: &Dashboard) -> serde_json::Value {
-    let health = d.health.report().await;
+    let health = d.sample_health().await;
+    let rendered: Vec<Section> = d.sections.iter().map(|s| s.render()).collect();
+    let bodies: Vec<Option<SectionBody>> = d.sections.iter().map(|s| s.body()).collect();
+    let spans = sections::pack_spans(&bodies.iter().map(Option::as_ref).collect::<Vec<_>>());
     let sections: Vec<SectionView> = d
         .sections
         .iter()
-        .map(|s| SectionView {
-            section: s.render(),
+        .zip(rendered)
+        .zip(bodies)
+        .zip(spans)
+        .enumerate()
+        .map(|(i, (((s, section), body), span))| SectionView {
+            slug: sections::slug(&section.title, i),
+            section,
             actions: s.actions().iter().map(|a| a.view(None)).collect(),
+            body,
+            flash_actions: s.flash_actions().iter().map(FlashAction::view).collect(),
+            span,
         })
         .collect();
     let declared: Vec<SectionAssets> = d.sections.iter().map(|s| s.assets()).collect();
     let section_assets = merge_section_assets(&declared);
-    let problems = (d.problems)();
+    let problems = sections::problem_views((d.problems)());
     let update = (d.update)();
+    let update_facts = sections::update_facts(d.version, &update, d.check_update.is_some());
     let paused = crate::shell::backup::status_view();
+    let snap = d.clients.snapshot();
+    let parts = health.subsystems.as_object().map_or(0, |m| m.len());
+    let failing = health
+        .subsystems
+        .as_object()
+        .map_or(0, |m| m.values().filter(|v| v["ok"] == false).count());
+    let up_secs = chrono::DateTime::parse_from_rfc3339(&d.started_at)
+        .map(|t| {
+            (chrono::Utc::now() - t.with_timezone(&chrono::Utc))
+                .num_seconds()
+                .max(0) as u64
+        })
+        .unwrap_or(0);
     serde_json::json!({
         "version": d.version,
         "listen": d.listen,
         "started_at": d.started_at,
+        "up_for": sections::span_words(up_secs),
         "health": health,
+        "parts": { "total": parts, "failing": failing },
         "sections": sections,
         "section_assets": section_assets,
         "problems": problems,
         "update": update,
+        "update_facts": update_facts,
         "backup": paused,
+        "uptime": d.uptime.periods(),
+        "clients": d.clients_href.as_ref().map(|href| serde_json::json!({
+            "href": href,
+            "label": d.vocab.plural_cap,
+            "active": snap.clients.iter().filter(|c| c.revoked_at.is_none()).count(),
+            "total": snap.clients.len(),
+        })),
     })
 }
 

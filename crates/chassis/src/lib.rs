@@ -33,8 +33,9 @@ pub use core::error::{Error, IntoKitError, Kind};
 pub use shell::auth::Caller;
 #[cfg(feature = "dashboard")]
 pub use shell::dashboard::{
-    Action, ClientAction, ClientColumn, Dashboard, NavEntry, Problem, Section, SectionAction,
-    SectionAssets, StatusSection, Vocabulary,
+    Action, Check, CheckState, ClientAction, ClientColumn, Dashboard, FlashAction, JsonRender, Kpi,
+    KpiTone, NavEntry, Problem, Section, SectionAction, SectionAssets, SectionBody, StatusSection,
+    Vocabulary,
 };
 pub use shell::health::{Subsystem, SubsystemStatus};
 pub use shell::metrics::{Counter, Gauge, ScrapeSource};
