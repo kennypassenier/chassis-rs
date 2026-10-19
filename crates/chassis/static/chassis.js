@@ -1379,8 +1379,9 @@ async function startStatus(root) {
   const { attachAgo } = await kp('freshness');
   const { attachVersionDeltas } = await kp('version-delta');
   const { attachStatusLists } = await kp('statusrow');
-  const { attachDataTables } = await kp('datatable');
-  const { attachKpiStrips } = await kp('kpi');
+  const { attachDataTables, dataTable } = await kp('datatable');
+  const { attachKpiStrips, setMeter } = await kp('kpi');
+  const { setAttention } = await kp('attention');
 
   const say = (text) => toast(text, { ms: 3200 });
   const BRUSSELS = new Intl.DateTimeFormat('en-GB', {
@@ -1405,9 +1406,11 @@ async function startStatus(root) {
   const plural = (word, n) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
   /* ---------------------------------------------------------- bodies -- */
+  // The key-value list's own mark for a value that is not there.
+  const NONE = '<span class="kp-kv__none">—<span class="kp-sr-only">none</span></span>';
   const kvHtml = (pairs) =>
     `<dl class="kp-kv kp-kv--lines" data-chassis-rows>${pairs
-      .map(([l, v]) => `<div class="kp-kv__row"><dt>${esc(l)}</dt><dd>${v.html ?? esc(v)}</dd></div>`)
+      .map(([l, v]) => `<div class="kp-kv__row"><dt>${esc(l)}</dt><dd>${v.html ?? (v === '' ? NONE : esc(v))}</dd></div>`)
       .join('')}</dl>`;
   const kpisHtml = (list, label) =>
     `<div class="kp-kpis" role="group" aria-label="${esc(label)}">${list
@@ -1429,16 +1432,20 @@ async function startStatus(root) {
       const cells = rows.map((r) => String(r[c] ?? '').trim()).filter(Boolean);
       return cells.length && cells.every((s) => Number.isFinite(Number(s))) ? 'number' : 'text';
     });
-  const tableHtml = (slug, title, { columns, rows, key = 0 }) => {
-    const sorts = sortsOf(columns, rows);
-    return `<div class="kp-datatable" data-kp-datatable data-kp-page-size="5" data-kp-remember="status-${esc(slug)}"><div class="kp-table-wrap"><table class="kp-table"><caption class="kp-sr-only">${esc(title)}</caption><thead><tr>${columns
-      .map((c, i) => `<th scope="col" data-kp-sort="${sorts[i]}">${esc(c)}</th>`)
-      .join('')}</tr></thead><tbody>${rows
+  const rowsHtml = (rows, sorts, key) =>
+    rows
       .map(
         (r) =>
           `<tr data-kp-row-key="${esc(r[key] ?? '')}">${r.map((cell, i) => `<td${sorts[i] === 'number' ? ' class="kp-numeric"' : ''}>${esc(cell)}</td>`).join('')}</tr>`,
       )
-      .join('')}</tbody></table></div></div>`;
+      .join('');
+  // The data table with its standard parts: search, sort, the status line,
+  // the pager, and its own empty slot (nothing yet / nothing matches).
+  const tableHtml = (slug, title, { columns, rows, key = 0 }) => {
+    const sorts = sortsOf(columns, rows);
+    return `<div class="kp-datatable" data-kp-datatable data-kp-page-size="5" data-kp-remember="status-${esc(slug)}"><div class="kp-datatable__bar"><input class="kp-datatable__search" type="search" data-kp-datatable-search aria-label="Search ${esc(title)}" placeholder="Search"></div><div class="kp-table-wrap"><table class="kp-table"><caption class="kp-sr-only">${esc(title)}</caption><thead><tr>${columns
+      .map((c, i) => `<th scope="col" data-kp-sort="${sorts[i]}">${esc(c)}</th>`)
+      .join('')}</tr></thead><tbody>${rowsHtml(rows, sorts, key)}</tbody></table></div><div class="kp-empty" data-kp-datatable-empty hidden><span data-kp-datatable-empty-none>Nothing to list yet. Rows appear here as the service has them.</span><span data-kp-datatable-empty-nomatch>No row matches that search. <button type="button" class="kp-button kp-button--sm" data-kp-datatable-clear>Clear the search</button></span></div><div class="kp-datatable__bar"><p class="kp-datatable__status" data-kp-datatable-status role="status" aria-live="polite"></p><div class="kp-datatable__pager" data-kp-datatable-pager></div></div></div>`;
   };
 
   // What a JSON answer becomes, by the render a section named (JsonRender).
@@ -1560,6 +1567,34 @@ async function startStatus(root) {
     if (part.kind === 'table') return tableHtml(s.slug, s.title, part.data);
     return null;
   }
+  // A table keeps its search, sort and page when its rows change: the rows
+  // go into the data table that is there and it is told to look again; only
+  // new columns draw it from scratch.
+  function updateTable(wrapper, s, part) {
+    const host = wrapper.querySelector('[data-kp-datatable]');
+    const handle = host && dataTable(host);
+    const columns = part.data.columns.join('\u0001');
+    if (!handle || host.dataset.chassisColumns !== columns) {
+      wrapper.innerHTML = tableHtml(s.slug, s.title, part.data);
+      const fresh = wrapper.querySelector('[data-kp-datatable]');
+      if (fresh) fresh.dataset.chassisColumns = columns;
+      attachDataTables(wrapper);
+      return;
+    }
+    const sorts = [...host.querySelectorAll('thead th')].map((th) => th.getAttribute('data-kp-sort') || 'text');
+    host.querySelector('tbody').innerHTML = rowsHtml(part.data.rows, sorts, part.data.key ?? 0);
+    handle.refresh();
+  }
+  // What a section holds, as the card's data state: nothing to report is the
+  // card's own empty state (a table has its own empty slot, so it counts as
+  // content).
+  const partEmpty = (part) => part.kind !== 'table' && Array.isArray(part.data) && part.data.length === 0;
+  function sectionEmpty(s) {
+    if (s.html) return false;
+    const parts = s.parts || [];
+    if (!parts.length) return !(s.body && s.body.kind === 'rows' ? s.body.data : s.rows)?.length;
+    return parts.every(partEmpty);
+  }
   function updateSection(card, s, force) {
     const redraw = (key, sig, draw) => {
       const known = signatures.get(key);
@@ -1567,7 +1602,7 @@ async function startStatus(root) {
       if ((known === undefined || known === sig) && !force) return;
       draw();
     };
-    if (!card.dataset.chassisKind) {
+    if (card.dataset.chassisKind === 'rows') {
       // A section as it always was: label/value rows.
       const rows = s.body && s.body.kind === 'rows' ? s.body.data : s.rows;
       const dl = card.querySelector('dl[data-chassis-rows]');
@@ -1580,12 +1615,36 @@ async function startStatus(root) {
       const html = partHtml(s, part);
       if (!wrapper || html === null) return;
       redraw(`${s.slug}#${i}`, JSON.stringify(part.data), () => {
+        if (part.kind === 'table') return updateTable(wrapper, s, part);
         wrapper.innerHTML = html;
-        if (part.kind === 'table') attachDataTables(wrapper);
-        else if (part.kind === 'checks') attachStatusLists(wrapper);
+        if (part.kind === 'checks') attachStatusLists(wrapper);
         else if (part.kind === 'kpis') attachKpiStrips(wrapper);
       });
     });
+  }
+
+  /* ------------------------------------------- the cards' data states -- */
+  // A card the page fills from /api/kit/status is in one of the card's four
+  // states (kp-themes card-state): loading shows the theme's own loading
+  // card over the data, empty and failed its plates. Cards that read their
+  // own JSON (data-chassis-json) keep their own loop below.
+  const POLLED = '.kp-card[data-kp-state]:not([data-chassis-json])';
+  const reading = new Set();
+  const emptyNote = (card) => ({ title: card.dataset.chassisEmptyTitle, text: card.dataset.chassisEmptyText });
+  function settle(card, empty) {
+    if (reading.has(card)) return;
+    const want = empty ? 'empty' : 'ready';
+    if (card.getAttribute('data-kp-state') === want) return;
+    setCardState(card, want, empty ? emptyNote(card) : undefined);
+  }
+  function settleCards(d) {
+    for (const card of root.querySelectorAll(POLLED)) {
+      if (card.matches('[data-chassis-card="health"]')) settle(card, d.parts.total === 0);
+      else if (card.dataset.chassisSection) {
+        const s = d.sections.find((x) => x.slug === card.dataset.chassisSection);
+        if (s) settle(card, sectionEmpty(s));
+      } else settle(card, false);
+    }
   }
 
   async function apply(d, { force = false } = {}) {
@@ -1643,16 +1702,27 @@ async function startStatus(root) {
       }
     }
 
-    // The last 48 hours.
+    // The last 48 hours: the strip's own states (a strip with no hour that
+    // has data says "No data yet" itself).
     const up = only('[data-kp-uptime]');
-    if (up) setUptime(up, { label: up.getAttribute('data-kp-uptime-label') || '', periods: d.uptime.map((p) => ({ ...p, label: HOURS.format(new Date(p.at)) })) });
+    if (up) drawUptime(up, d.uptime);
 
     for (const s of d.sections) {
       const card = root.querySelector(`[data-chassis-section="${CSS.escape(s.slug)}"]`);
       if (card) updateSection(card, s, force);
     }
+    settleCards(d);
   }
 
+  function drawUptime(up, periods) {
+    const label = up.getAttribute('data-kp-uptime-label') || '';
+    const shown = periods.map((p) => ({ ...p, label: HOURS.format(new Date(p.at)) }));
+    const state = shown.some((p) => p.state !== 'none') ? 'ready' : 'empty';
+    setUptime(up, { label, periods: state === 'empty' ? [] : shown, state, count: 48 });
+  }
+
+  // A quiet read: what is on the page is replaced when it changed, nothing
+  // is dimmed (the refresh control keeps the line).
   async function refreshAll({ force = false } = {}) {
     const data = await poll();
     await apply(data, { force });
@@ -1660,31 +1730,119 @@ async function startStatus(root) {
     return data;
   }
 
+  // A read somebody asked for shows that it is reading, in each part's own
+  // loading state: the cards' loading card, the figures' skeletons, the
+  // availability strip's loading cells. `scope` is 'page' or the cards a
+  // button or a Try again belongs to. A read that fails leaves the cards in
+  // their failed state with their own Try again (the page's, for 'page').
+  function kpisLoading() {
+    for (const tile of root.querySelectorAll('.kp-ops__kpis .kp-kpi')) {
+      tile.setAttribute('aria-busy', 'true');
+      for (const [slot, width, height] of [['.kp-kpi__value', '6ch', '1.75rem'], ['.kp-kpi__trend', '80%', null]]) {
+        const el = tile.querySelector(slot);
+        if (!el) continue;
+        const bar = document.createElement('span');
+        bar.className = 'kp-skeleton';
+        bar.style.inlineSize = width;
+        if (height) bar.style.setProperty('--kp-skeleton-height', height);
+        el.replaceChildren(bar);
+      }
+      const meter = tile.querySelector('.kp-kpi__meter');
+      if (meter) setMeter(meter, { loading: true, label: 'Parts that can do their work' });
+    }
+  }
+  // What a failed read says: the service's own sentence, or that it did not answer.
+  const why = (error) => (error instanceof TypeError || !error?.message ? 'The service did not answer.' : `${String(error.message).replace(/\.+$/, '')}.`);
+  async function reread(scope) {
+    const page = scope === 'page';
+    const cards = page ? [...root.querySelectorAll('.kp-card[data-kp-state]')] : scope.filter((c) => c.matches(POLLED));
+    const was = new Map(cards.map((c) => [c, c.getAttribute('data-kp-state')]));
+    const strip = only('.kp-ops__kpis .kp-kpis');
+    const tiles = strip ? strip.innerHTML : '';
+    if (page) {
+      showFailure(false);
+      root.setAttribute('data-kp-state', 'loading');
+      kpisLoading();
+      const up = only('[data-kp-uptime]');
+      if (up) setUptime(up, { state: 'loading', label: up.getAttribute('data-kp-uptime-label') || '', count: 48 });
+    }
+    for (const card of cards) {
+      reading.add(card);
+      setCardState(card, 'loading', { words: 'Reading…' });
+    }
+    try {
+      const data = await poll();
+      for (const card of cards) reading.delete(card);
+      await apply(data, { force: true });
+      if (page) {
+        root.removeAttribute('data-kp-state');
+        for (const card of cards.filter((c) => c.matches('[data-chassis-json]'))) reading.delete(card);
+        await Promise.all([...root.querySelectorAll('[data-chassis-json]')].map((card) => loadJson(card)));
+      }
+      failures = 0;
+      showFailure(false);
+      return data;
+    } catch (error) {
+      for (const card of cards) reading.delete(card);
+      if (page) {
+        // What was there is put back (the last good read), then the plate.
+        if (strip) {
+          strip.innerHTML = tiles;
+          attachVersionDeltas(strip);
+          attachKpiStrips(strip);
+          stampTimes(strip);
+        }
+        const up = only('[data-kp-uptime]');
+        if (up) drawUptime(up, lastData ? lastData.uptime : JSON.parse(up.getAttribute('data-chassis-uptime') || '[]'));
+        for (const card of cards) setCardState(card, was.get(card), was.get(card) === 'empty' ? emptyNote(card) : undefined);
+        showFailure(true);
+      } else {
+        for (const card of cards)
+          setCardState(card, 'error', { title: 'This section could not be read', text: `${why(error)} Nothing was changed.`, action: 'Try again' });
+      }
+      throw error;
+    }
+  }
+
   /* ------------------------------------------------ the failed plate -- */
-  const plateHtml = `<div class="kp-attention__item kp-alert kp-alert--destructive" role="alert" data-kp-severity="critical"><span class="kp-attention__icon" aria-hidden="true">!</span><div class="kp-attention__text"><strong><span class="kp-sr-only">Critical: </span>The status could not be read</strong><span>The service did not answer. What now: check that it is running, then try again.</span></div><div class="kp-attention__actions"><button type="button" class="kp-button kp-button--sm" data-chassis-retry>Try again</button></div></div>`;
+  // The operations page's own failed state: the attention band with one
+  // critical item and its Try again, the page's body hidden under it.
   function showFailure(on) {
     const ops = root;
     let plate = ops.querySelector(':scope > [data-chassis-plate]');
-    if (on && !plate) {
-      plate = document.createElement('div');
-      plate.className = 'kp-ops__attention kp-attention';
-      plate.setAttribute('data-chassis-plate', '');
-      plate.innerHTML = plateHtml;
-      ops.querySelector('.kp-ops__attention')?.after(plate);
+    if (on) {
+      if (!plate) {
+        plate = document.createElement('div');
+        plate.className = 'kp-ops__attention kp-attention';
+        plate.setAttribute('data-chassis-plate', '');
+        ops.querySelector('.kp-ops__attention')?.after(plate);
+      }
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'kp-button kp-button--sm';
+      retry.setAttribute('data-chassis-retry', '');
+      retry.textContent = 'Try again';
+      setAttention(plate, [
+        {
+          key: 'status-unreadable',
+          severity: 'critical',
+          title: 'The status could not be read',
+          text: 'The service did not answer. What now: check that it is running, then try again.',
+          action: retry,
+        },
+      ]);
       ops.setAttribute('data-kp-state', 'error');
-    } else if (!on && plate) {
+    } else if (plate) {
       plate.remove();
-      ops.removeAttribute('data-kp-state');
+      if (ops.getAttribute('data-kp-state') === 'error') ops.removeAttribute('data-kp-state');
     }
   }
   root.addEventListener('click', async (event) => {
     if (!event.target.closest('[data-chassis-retry]')) return;
     try {
-      await refreshAll({ force: true });
-      failures = 0;
-      showFailure(false);
+      await reread('page');
     } catch (_) {
-      /* the plate stays */
+      /* the plate is back */
     }
   });
 
@@ -1749,12 +1907,14 @@ async function startStatus(root) {
       setCardState(card, 'ready');
     } catch (error) {
       if (quiet && card.getAttribute('data-kp-state') === 'ready') return; // stale data stays readable
-      setCardState(card, 'error', { title: 'This section could not be read', text: `${error.message || error}. Nothing was changed.`, action: 'Try again' });
+      setCardState(card, 'error', { title: 'This section could not be read', text: `${why(error)} Nothing was changed.`, action: 'Try again' });
     }
   }
   root.addEventListener('kp-card-retry', (event) => {
-    const card = event.target.closest('[data-chassis-json]');
-    if (card) loadJson(card);
+    const card = event.target.closest('.kp-card[data-kp-state]');
+    if (!card) return;
+    if (card.matches('[data-chassis-json]')) loadJson(card);
+    else reread([card]).catch(() => {});
   });
 
   /* ------------------------------------------------------ the buttons -- */
@@ -1776,7 +1936,7 @@ async function startStatus(root) {
         const res = await fetch('/api/kit/status/update-check', { method: 'POST', headers: { accept: 'application/json' } });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) return { error: body.error || `HTTP ${res.status}`, remedy: body.remedy };
-        refreshAll({ force: true }).catch(() => {});
+        reread([root.querySelector('[data-chassis-card="updates"]')].filter(Boolean)).catch(() => {});
         return body.newer ? 'Update found' : 'Up to date';
       });
       return;
@@ -1792,8 +1952,10 @@ async function startStatus(root) {
       const template = n === 1 && button.dataset.chassisToastOne ? button.dataset.chassisToastOne : button.dataset.chassisToast;
       if (template && (n !== null || !template.includes('{n}'))) say(template.replaceAll('{n}', String(n)));
       else if (typeof body.message === 'string' && body.message) say(body.message);
-      // What the button changed shows in its section.
-      refreshAll({ force: true }).catch(() => {});
+      // What the button changed shows in its section, which reads again in
+      // its own loading state.
+      const own = button.closest('.kp-card[data-chassis-section]');
+      reread(own ? [own] : []).catch(() => {});
       return button.dataset.kpFlashWord || undefined;
     });
   });
@@ -1819,10 +1981,7 @@ async function startStatus(root) {
   const box = only('[data-kp-problems]');
   if (box) setProblems(box, JSON.parse(box.getAttribute('data-chassis-problems') || '[]'));
   const strip = only('[data-kp-uptime]');
-  if (strip) {
-    const periods = JSON.parse(strip.getAttribute('data-chassis-uptime') || '[]');
-    setUptime(strip, { label: strip.getAttribute('data-kp-uptime-label') || '', periods: periods.map((p) => ({ ...p, label: HOURS.format(new Date(p.at)) })) });
-  }
+  if (strip) drawUptime(strip, JSON.parse(strip.getAttribute('data-chassis-uptime') || '[]'));
   for (const card of root.querySelectorAll('[data-chassis-json]')) loadJson(card);
   // The page is as fresh as the moment it was drawn.
   refreshOf(refreshEl)?.now?.('now');
