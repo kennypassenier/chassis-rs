@@ -376,31 +376,20 @@ function hide(target, toggle) {
 }
 
 
-// The Issue-token form (clients page): posts JSON, reloads on success, shows
-// the kit's remedy on failure. Lives here rather than inline so the page
-// carries no inline script (CSP script-src 'self', S8).
-document.addEventListener('submit', async (event) => {
+// Forms with a plain POST (login): a plain POST navigates away; the button
+// still shows its busy label until the page changes (rule 31). The Issue
+// form on the Clients page is the dialog in the "clients" block below: it
+// never navigates, so its submit is only kept from doing so here. Lives in
+// this file rather than inline so the page carries no inline script (CSP
+// script-src 'self', S8).
+document.addEventListener('submit', (event) => {
   const form = event.target;
   if (!(form instanceof HTMLFormElement)) return;
   const button = form.querySelector('button[type="submit"]');
   if (form.id === 'issue') {
     event.preventDefault();
-    if (!button) return;
-    await busy(button, async () => {
-      const res = await fetch('/api/clients', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        // Every named control, so a project's extra fields (K16) ride along.
-        body: JSON.stringify(Object.fromEntries(new FormData(form))),
-      });
-      if (res.ok) { window.location.reload(); return; }
-      const body = await res.json().catch(() => ({}));
-      alert(body.remedy ? `${body.error}. ${body.remedy}` : `HTTP ${res.status}`);
-    });
     return;
   }
-  // Any other form (login): a plain POST navigates away; the button still
-  // shows its busy label until the page changes (rule 31).
   if (button && button.dataset.busyLabel) {
     button.disabled = true;
     button.textContent = button.dataset.busyLabel;
@@ -416,7 +405,10 @@ document.addEventListener('submit', async (event) => {
 //   - the idle callout with "Show them",
 //   - the auto-refresh (swaps the figures, the rows and the dialogs in place),
 //   - the first-client walk-through: with no call yet, the page asks
-//     /api/kit/clients every 5 seconds and finishes step 3 by itself.
+//     /api/kit/clients every 5 seconds and finishes step 3 by itself,
+//   - the issue dialog (clients-issue): the live client card that follows
+//     the form, and the swap to the token, the first command and the receipt
+//     after Issue, without a reload.
 //
 // Dates are written by the server in dd/mm/yyyy HH:mm (Europe/Brussels);
 // `formatBrussels` is the same format for the few times the browser writes.
@@ -478,6 +470,8 @@ async function startClientsPage(root) {
   // top layer, a card on <body>), and both modules attach each trigger once.
   modules.overlays.attachDialogs(document);
   modules.hovercard.attachHoverCards(document);
+  const issueDialog = document.getElementById('issue-dialog');
+  if (issueDialog) await startIssueDialog(issueDialog, load, root.dataset.clientsOne);
   for (const [, name, attach] of wanted) modules[name][attach](root);
 
   const one = root.dataset.clientsOne;
@@ -597,6 +591,184 @@ async function startClientsPage(root) {
 
   // ---- the first client: the page notices the first call -----------------
   if (root.hasAttribute('data-clients-onboarding')) watchForFirstCall(root, modules, one);
+}
+
+// ---- the issue dialog (clients-issue) -----------------------------------
+// One dialog, three states in the same boxes: the form (and the form with
+// its refusal), then the result. The rows of the grid have minimum heights
+// and the card contents swap inside them, so the dialog is as tall in every
+// state. The token lives in this closure only, never in the page: the secret
+// field asks for it when it is shown or copied.
+
+const ISSUE_OPEN_KEY = 'chassis-open-manage';
+
+async function startIssueDialog(dialog, load, one) {
+  const [forms, combobox, usual, patterns, command, flash, idmark, lede] = await Promise.all(
+    ['forms', 'combobox', 'usual-picker', 'patterns', 'command', 'flash', 'idmark', 'lede'].map(load),
+  );
+  const form = dialog.querySelector('form#issue');
+  const $ = (selector) => dialog.querySelector(selector);
+  let token = '';
+  let issued = null;
+  let opening = false;
+  let pollTimer = 0;
+
+  forms.attachForms(dialog);
+  combobox.attachComboboxes(dialog);
+  combobox.attachSelects(dialog);
+  usual.attachUsualPickers(dialog);
+  flash.attachFlashButtons(dialog);
+  idmark.attachIdmarks(dialog);
+  lede.attachLedes(dialog);
+  patterns.attachPatterns(dialog, { secretLoad: () => token });
+
+  // ---- the client card follows what is typed ----
+  const nameInput = $('[data-issue-in="name"]');
+  const topicInput = $('[data-issue-in="topic"]');
+  const card = $('[data-issue-card]');
+  const state = $('[data-issue-state]');
+  const textOf = (input) => {
+    if (!input) return '';
+    if (input instanceof HTMLSelectElement) return input.value ? input.selectedOptions[0].textContent.trim() : '';
+    return input.value.trim();
+  };
+  function sync() {
+    if (issued) return;
+    const name = textOf(nameInput);
+    for (const [key, input] of [['name', nameInput], ['topic', topicInput]]) {
+      const target = $(`[data-issue-${key}]`);
+      if (target) target.textContent = textOf(input) || target.dataset.issueEmpty;
+    }
+    idmark.setIdmark($('[data-issue-mark]'), name || `new ${one}`);
+    card.classList.toggle('issue-prev--empty', !name);
+    if (state.dataset.issueRefused !== undefined) {
+      // Typing a new name takes the refusal back.
+      delete state.dataset.issueRefused;
+      state.className = 'kp-badge kp-badge--info';
+      state.textContent = 'will be active';
+    }
+  }
+  const later = () => window.setTimeout(sync, 0);
+  for (const type of ['input', 'change', 'kp-usual-pick', 'kp-usual-add']) dialog.addEventListener(type, later);
+  sync();
+
+  // ---- Issue ----
+  const submit = $('[data-issue-submit]');
+  form.addEventListener('kp-form-valid', () => {
+    flash.runFlashButton(submit, async () => {
+      const name = textOf(nameInput);
+      const res = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        // Every named control, so a project's extra fields (K16) ride along.
+        body: JSON.stringify(Object.fromEntries(new FormData(form))),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const sentence = body.remedy ? `${body.error}. ${body.remedy}` : body.error || `HTTP ${res.status}`;
+        // A refusal about the name stands under the name; any other speaks as a toast.
+        if (name && sentence.includes(name)) {
+          forms.showError(nameInput, sentence);
+          state.dataset.issueRefused = '';
+          state.className = 'kp-badge kp-badge--destructive';
+          state.textContent = 'not issued';
+          return { error: '' };
+        }
+        return { error: body.error || `HTTP ${res.status}`, remedy: body.remedy };
+      }
+      issued = await res.json();
+      const [reveal, kit] = await Promise.all([
+        fetchToken(issued.id),
+        fetch('/api/kit/clients', { headers: { accept: 'application/json' }, credentials: 'same-origin' })
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null),
+      ]);
+      token = reveal.token;
+      const template = kit?.command_template || reveal.command.replaceAll(token, '$CLIENT_TOKEN');
+      showIssued(issued, template, reveal.command);
+      return 'Issued';
+    });
+  });
+
+  function setText(selector, text) {
+    const el = $(selector);
+    if (el) el.textContent = text;
+  }
+
+  function showIssued(client, template, full) {
+    setText('[data-issue-title]', `${client.name} is ready`);
+    $('[data-issue-title-badge]').hidden = false;
+    setText('[data-issue-description]', 'Copy the token now and give it to the program.');
+    setText('[data-issue-main-title]', 'Token and first call');
+    setText('[data-issue-main-about]', 'The token, and the command that uses it, in one place.');
+    setText('[data-issue-main-foot]', `The ${one}’s row shows its first request as soon as it calls.`);
+    setText('[data-issue-side-title]', `The ${one}`);
+    setText('[data-issue-side-about]', 'What was made, and where it appears.');
+    setText('[data-issue-side-foot]', `It stays on the ${one}’s page, with its token.`);
+    state.className = 'kp-badge kp-badge--success';
+    state.textContent = 'active';
+    delete state.dataset.issueRefused;
+    setText('[data-issue-fact-token]', `Made ${formatBrussels(new Date())}`);
+    setText('[data-issue-fact-call]', 'Not yet: this page notices it');
+    // The command block is made from the template the API gave, with $CLIENT_TOKEN where the token goes.
+    const host = $('[data-issue-command]');
+    host.innerHTML = '<div class="kp-command" data-kp-command="bash" data-kp-command-where="the machine that will call this service"><pre class="kp-command__code"><code></code></pre></div>';
+    host.querySelector('code').textContent = template;
+    command.attachCommands(host);
+    const copyFull = $('[data-issue-copy-full]');
+    copyFull.onclick = () => flash.runFlashButton(copyFull, async () => {
+      if (!(await copyText(full))) throw new Error('The browser refused to copy');
+      return 'Copied';
+    });
+    $('[data-issue-pane="form"]').hidden = true;
+    $('[data-issue-pane="result"]').hidden = false;
+    $('[data-issue-actions="form"]').hidden = true;
+    $('[data-issue-actions="done"]').hidden = false;
+    $('[data-issue-pane="result"] [data-kp-secret-reveal]')?.focus();
+    pollTimer = window.setInterval(watchFirstCall, CLIENTS_POLL_MS);
+  }
+
+  // The first call, noticed while the receipt is open.
+  async function watchFirstCall() {
+    if (document.visibilityState === 'hidden' || !issued) return;
+    try {
+      const res = await fetch('/api/kit/clients', { headers: { accept: 'application/json' }, credentials: 'same-origin' });
+      if (!res.ok) return;
+      const mine = (await res.json()).clients.find((c) => c.id === issued.id);
+      if (!mine || !mine.uses) return;
+      setText('[data-issue-fact-call]', `Called ${mine.last_used_ago}`);
+      window.clearInterval(pollTimer);
+    } catch (_) {
+      // The next look tries again.
+    }
+  }
+
+  // "Open the client": the page reloads (the list is stale) and opens its manage dialog.
+  $('[data-issue-open]').addEventListener('click', () => {
+    opening = true;
+    try {
+      sessionStorage.setItem(ISSUE_OPEN_KEY, issued.id);
+    } catch (_) {
+      // Without storage the page just reloads.
+    }
+    window.location.reload();
+  });
+  // Whatever closes it, an issued client means the list on the page is out of date.
+  dialog.addEventListener('close', () => {
+    window.clearInterval(pollTimer);
+    if (issued && !opening) window.location.reload();
+  });
+
+  // Back from "Open the client".
+  try {
+    const wanted = sessionStorage.getItem(ISSUE_OPEN_KEY);
+    if (wanted) {
+      sessionStorage.removeItem(ISSUE_OPEN_KEY);
+      document.querySelector(`[data-manage="${CSS.escape(wanted)}"]`)?.click();
+    }
+  } catch (_) {
+    // No storage, nothing to open.
+  }
 }
 
 function watchForFirstCall(root, modules, one) {

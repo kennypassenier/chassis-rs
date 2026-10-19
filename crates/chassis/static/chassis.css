@@ -184,3 +184,169 @@ pre.snippet {
    are for plain pages; inside the page frame the package's headers carry
    their own spacing. */
 [data-clients-page] :is(.kp-page-header__title, .kp-card__title) { margin-block: 0; }
+
+/* ======================================================================
+   clients-issue (kit-kp11, the approved review): the issue dialog is one
+   composition on the 12-column grid. The title spans all twelve; the form
+   card stands in 1-7 against the client card in 8-12, and both cards share
+   their three inner rows (head, content, foot note) through subgrid, so the
+   edges meet across the columns. The geometry is the same in every state
+   (form, name taken, issued): the rows have minimum heights and the card
+   contents swap inside them. The dialog is the container the phone
+   arrangement answers to. Only tokens; every [hidden] stays hidden.
+   ====================================================================== */
+
+.issue-dialog {
+  --kp-dialog-wide: 60rem;
+  container: issued / inline-size;
+}
+.issue-dialog [hidden] { display: none !important; }
+.issue-dialog .kp-form { display: block; }
+.issue-dialog .kp-dialog__head { margin: 0; }
+/* The plain-page h2/h3 margins at the top of this file are not for dialogs. */
+.issue-dialog :is(.kp-dialog__title, .kp-dialog__heading) { margin: 0; }
+
+.issue-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows:
+    auto
+    minmax(var(--issue-head, 6.5rem), auto)
+    minmax(var(--issue-main, 27rem), 1fr)
+    minmax(var(--issue-foot, 3rem), auto);
+  column-gap: var(--kp-space-lg, 1.5rem);
+  row-gap: 0;
+  min-inline-size: 0;
+  grid-template-areas:
+    'title title title title title title title title title title title title'
+    'main main main main main main main side side side side side'
+    'main main main main main main main side side side side side'
+    'main main main main main main main side side side side side';
+}
+.issue-grid > * { min-inline-size: 0; }
+
+.issue-title {
+  grid-area: title;
+  min-block-size: 4.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  margin-block-end: var(--kp-space-md, 1rem);
+}
+.issue-main { grid-area: main; }
+.issue-side { grid-area: side; }
+
+.issue-card {
+  display: grid;
+  grid-template-rows: subgrid;
+  align-content: stretch;
+  row-gap: 0;
+  min-inline-size: 0;
+}
+.issue-card__head {
+  display: grid;
+  align-content: start;
+  gap: var(--kp-space-xs, 0.25rem);
+  margin-block-end: var(--kp-space-md, 1rem);
+}
+.issue-card__head :is(h3, p) { margin: 0; }
+.issue-card__foot {
+  align-self: end;
+  margin-block: var(--kp-space-md, 1rem) 0;
+}
+
+.issue-fields {
+  display: grid;
+  align-content: start;
+  gap: var(--kp-space-md, 1rem);
+}
+.issue-fields > * { margin: 0; }
+
+/* The client as it will be, drawn from what is typed. */
+.issue-prev {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'mark name state'
+    'mark topic state';
+  align-items: center;
+  column-gap: var(--kp-space-md, 1rem);
+  row-gap: var(--kp-space-2xs, 0.125rem);
+  margin-block-end: var(--kp-space-md, 1rem);
+}
+.issue-prev__mark { grid-area: mark; }
+.issue-prev__name {
+  grid-area: name;
+  font-size: var(--kp-text-lg, 1.125rem);
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.issue-prev__topic {
+  grid-area: topic;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+.issue-prev__state { grid-area: state; }
+.issue-prev--empty .issue-prev__name { color: var(--muted-foreground); }
+.issue-prev--empty .issue-prev__mark { opacity: 0.45; }
+
+/* The token and the first command as one composed block. */
+.issue-result {
+  display: grid;
+  align-content: start;
+  gap: var(--kp-space-md, 1rem);
+}
+.issue-result__part {
+  display: grid;
+  gap: var(--kp-space-xs, 0.25rem);
+  min-inline-size: 0;
+  justify-items: start;
+}
+.issue-result__part > :is(.kp-secret, .issue-result__command) { justify-self: stretch; }
+.issue-result__label {
+  font-size: var(--kp-text-sm, 0.875rem);
+  font-weight: 600;
+}
+.issue-dialog .kp-secret { --kp-secret-min: 12rem; }
+
+/* The phone: its own arrangement. */
+@container issued (max-width: 39.99rem) {
+  .issue-dialog .kp-dialog__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .issue-dialog .kp-dialog__actions > :only-child { grid-column: 1 / -1; }
+
+  .issue-grid {
+    grid-template-rows: auto;
+    row-gap: var(--kp-space-md, 1rem);
+    grid-template-areas:
+      'title title title title title title title title title title title title'
+      'side side side side side side side side side side side side'
+      'main main main main main main main main main main main main';
+  }
+  .issue-card { grid-template-rows: none; }
+  .issue-title { min-block-size: 6.5rem; }
+  .issue-main { min-block-size: 34rem; }
+
+  /* The name's error has its room before it appears, so the dialog is as tall with and without it. */
+  .issue-fields .kp-field:has(> .kp-field__error[hidden])::after {
+    content: '';
+    display: block;
+    block-size: 3lh;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+
+  /* The client card is a strip of mark, name, topic and state above the form. */
+  .issue-side .issue-card__head,
+  .issue-side .issue-prev__facts,
+  .issue-side .issue-card__foot { display: none; }
+  .issue-side .issue-prev {
+    margin-block-end: 0;
+    grid-template-areas:
+      'mark name name'
+      'mark topic state';
+  }
+}

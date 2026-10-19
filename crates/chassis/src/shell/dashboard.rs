@@ -857,6 +857,26 @@ pub async fn clients_json(State(d): State<Dashboard>) -> Response {
         .into_response()
 }
 
+/// The distinct, filled-in values of one declared field, in the order given.
+fn usual_values<'a>(values: impl Iterator<Item = &'a str>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for v in values {
+        if !v.is_empty() && v != "—" && !out.iter().any(|o| o == v) {
+            out.push(v.to_string());
+        }
+    }
+    out
+}
+
+/// The path a client calls (`/v1/messages`): the last word of the curl line in
+/// `command_template`, without its scheme and host.
+fn calls_path(template: &str) -> String {
+    let url = template.split_whitespace().last().unwrap_or("");
+    let rest = url.split_once("://").map_or(url, |(_, r)| r);
+    rest.find('/')
+        .map_or_else(|| "/".to_string(), |i| rest[i..].to_string())
+}
+
 fn clients_data(d: &Dashboard) -> serde_json::Value {
     let snap = d.clients.snapshot();
     let now = chrono::Utc::now();
@@ -924,10 +944,17 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
             serde_json::json!({ "title": c.title(), "numeric": numeric })
         })
         .collect();
+    // kit-kp11 (clients-issue): the values each declared field already holds,
+    // most recent first, for the "used before" list of its combobox.
+    let form_usual: Vec<Vec<String>> = (0..d.form_fields.len())
+        .map(|i| usual_values(rows.iter().rev().map(|r| r.declared[i].as_str())))
+        .collect();
     serde_json::json!({
         "counts": counts,
         "idle_after_days": client_list::IDLE_AFTER_DAYS,
         "command_template": &*d.command_template,
+        "calls_path": calls_path(&d.command_template),
+        "form_usual": form_usual,
         "clients": rows,
         "declared_columns": d
             .form_fields
@@ -962,6 +989,49 @@ mod tests {
 
     /// kit-kp11: the shell's palette and shortcuts find the clients page's
     /// actions through these hooks, and the figures stay exact filters.
+    #[test]
+    fn the_calls_path_is_the_end_of_the_command_template() {
+        assert_eq!(
+            calls_path(
+                "curl -sS -H \"A: B $CLIENT_TOKEN\" -d '{}' http://127.0.0.1:8080/v1/messages"
+            ),
+            "/v1/messages"
+        );
+        assert_eq!(calls_path(""), "/");
+        assert_eq!(
+            usual_values(["b", "—", "", "a", "b"].into_iter()),
+            vec!["b".to_string(), "a".to_string()]
+        );
+    }
+
+    /// kit-kp11 (clients-issue, approved): one dialog on the 12-column grid
+    /// with the form card, the live client card, the secret and the command
+    /// block; a flash button is never set to grow by hand.
+    #[test]
+    fn the_issue_dialog_keeps_its_approved_parts() {
+        let html = include_str!("../../templates/clients.html");
+        let css = include_str!("../../static/chassis.css");
+        for part in [
+            "id=\"issue-dialog\"",
+            "kp-dialog--wide issue-dialog",
+            "grid-template-rows: subgrid",
+            "data-kp-usual=",
+            "data-kp-secret",
+            "data-issue-command",
+            "Copy with the token filled in",
+            "data-issue-pane=\"result\"",
+        ] {
+            assert!(
+                html.contains(part) || css.contains(part),
+                "the issue dialog lost {part}"
+            );
+        }
+        assert!(
+            !html.contains("data-kp-width=\"grow\""),
+            "a flash button's width is the package's to grow"
+        );
+    }
+
     #[test]
     fn the_clients_page_carries_the_command_hooks() {
         let html = include_str!("../../templates/clients.html");

@@ -4,8 +4,9 @@
 {# kit-kp11 (the approved clients-list and clients-first reviews): one .kp-ops
    page. Everything on it is server-rendered; chassis.js (the "clients" block)
    only adds the filters, the idle callout, the auto-refresh and the live
-   first-call detection. The issue form and the manage dialogs below are the
-   ones from before the redesign, in their second review round. #}
+   first-call detection. The manage dialogs below are the
+   ones from before the redesign, in their second review round; the issue
+   dialog is the approved clients-issue review. #}
 {% set onboarding = counts.called == 0 %}
 <div class="kp-ops" data-kp-ops-sticky="none" data-clients-page data-clients-one="{{ vocab.singular }}" data-clients-many="{{ vocab.plural }}" data-clients-days="{{ idle_after_days }}"{% if onboarding %} data-clients-onboarding{% endif %}>
   <header class="kp-ops__head kp-page-header">
@@ -126,38 +127,109 @@
 </div>
 
 {% if not open_dashboard %}
-{# The issue form as it was before the redesign (second review round); it
-   only lives in a dialog now, opened by the header button. chassis.js wires
-   form#issue, so no inline script (CSP script-src 'self', S8). #}
-<dialog class="kp-dialog" id="issue-dialog" aria-labelledby="issue-dialog-title">
-  <h2 class="kp-dialog__title" id="issue-dialog-title">Add a {{ vocab.singular }}</h2>
-  <p class="explain kp-m-0 kp-mb-md">
-    Pick a name you will recognise in the logs (<code>home-assistant</code>,
-    <code>kyu-runner</code>). The token appears on the row; reveal or copy
-    it there, paste it into that program, done.
-  </p>
-  <form id="issue" class="kp-autogrid issue-form">
-    <div class="kp-field">
-      <label class="kp-field__label" for="name">Name</label>
-      <input class="kp-field__input" type="text" id="name" name="name" placeholder="home-assistant" required pattern="[A-Za-z0-9._\-]{1,64}">
+{# clients-issue (approved review, kit-kp11): one dialog on the 12-column grid.
+   The title spans all twelve; the form card ("Who is calling") stands in 1-7
+   against the live client card in 8-12, and both cards share three rows
+   (head, content, foot note) through subgrid. After Issue the token and the
+   first command take the form card's place and the right card becomes the
+   receipt, in the same boxes: the dialog never changes size and the page does
+   not reload. chassis.js ("clients" block) does the swapping; every string
+   that changes after Issue lives there. #}
+{% set first = form_fields[0] if form_fields else none %}
+<dialog class="kp-dialog kp-dialog--wide issue-dialog" id="issue-dialog" aria-labelledby="issue-dialog-title" data-issue-calls="{{ calls_path }}" data-issue-listed="{{ clients_label }}">
+  <form id="issue" class="kp-form issue-frame" data-kp-form novalidate>
+    <div class="issue-grid">
+      <div class="kp-dialog__head issue-title">
+        <h2 class="kp-dialog__title" id="issue-dialog-title" data-issue-title data-issue-title-form="Issue a {{ vocab.singular }}">Issue a {{ vocab.singular }}</h2>
+        <span class="kp-badge kp-badge--success" data-issue-title-badge hidden>active</span>
+        <p class="kp-dialog__description" data-issue-description>One {{ vocab.singular }} is one program with its own token, so you can switch it off without touching the rest.</p>
+      </div>
+
+      <section class="kp-card issue-card issue-main" aria-labelledby="issue-main-title">
+        <div class="issue-card__head">
+          <h3 class="kp-dialog__heading" id="issue-main-title" data-issue-main-title>Who is calling</h3>
+          <p class="kp-lede" data-kp-lede-measure="full" data-issue-main-about>Give the program a name you will recognise in the logs, such as home-assistant.</p>
+        </div>
+        <div class="issue-card__main">
+          <div class="issue-fields" data-issue-pane="form">
+            <div class="kp-form__summary" data-kp-form-summary tabindex="-1" hidden></div>
+            <div class="kp-field">
+              <label class="kp-field__label" for="name">Name <span class="kp-field__required">required</span></label>
+              <input class="kp-field__input" type="text" id="name" name="name" placeholder="home-assistant" required pattern="[A-Za-z0-9._\-]{1,64}" autocomplete="off" data-issue-in="name">
+              <p class="kp-field__help">Letters, digits, dots, underscores and hyphens; 1 to 64 characters.</p>
+              <span class="kp-field__error" data-kp-field-error hidden></span>
+            </div>
+            {% for f in form_fields %}
+            <div class="kp-field">
+              <label class="kp-field__label" for="field-{{ f.name }}">{{ f.label }} <span class="kp-field__required">required</span></label>
+              {% if f.kind == "select" %}
+              <select class="kp-field__input" id="field-{{ f.name }}" name="{{ f.name }}" required{% if loop.first %} data-issue-in="topic"{% endif %}>
+                <option value="" disabled selected>— choose —</option>
+                {% for o in f.options %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
+              </select>
+              {% elif not form_usual[loop.index0] %}
+              {# Nothing used before: the usual picker would draw an empty plate in the middle of the form, so a plain field until the first value exists. #}
+              <input class="kp-field__input" type="text" id="field-{{ f.name }}" name="{{ f.name }}" autocomplete="off" placeholder="{{ f.placeholder }}" required{% if loop.first %} data-issue-in="topic"{% endif %}>
+              <p class="kp-field__help">None used before yet; what you type is offered next time.</p>
+              {% else %}
+              <div class="kp-combobox kp-usual" data-kp-combobox data-kp-usual='{{ form_usual[loop.index0]|tojson }}' data-kp-add="inline" data-kp-usual-label="Used before" data-kp-all="open">
+                <input class="kp-combobox__input kp-field__input" id="field-{{ f.name }}" name="{{ f.name }}" type="text" role="combobox" aria-expanded="false" aria-controls="field-{{ f.name }}-list" autocomplete="off" placeholder="{{ f.placeholder }}" required{% if loop.first %} data-issue-in="topic"{% endif %}>
+                <ul class="kp-combobox__list" id="field-{{ f.name }}-list" role="listbox" hidden>{% for v in form_usual[loop.index0] %}<li class="kp-combobox__option" role="option" data-kp-option data-value="{{ v }}">{{ v }}</li>{% endfor %}</ul>
+                <p class="kp-combobox__status" data-kp-combobox-status role="status" aria-live="polite"></p>
+              </div>
+              <p class="kp-field__help">Pick one used before, or type a new one.</p>
+              {% endif %}
+              <span class="kp-field__error" data-kp-field-error hidden></span>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="issue-result" data-issue-pane="result" hidden>
+            <div class="issue-result__part">
+              <span class="issue-result__label" id="issue-token-label">Token</span>
+              <div class="kp-secret" data-kp-secret data-kp-secret-ttl="0" data-kp-secret-label="Token of the new {{ vocab.singular }}" aria-labelledby="issue-token-label"></div>
+            </div>
+            <div class="issue-result__part">
+              <span class="issue-result__label">First call</span>
+              <div class="issue-result__command" data-issue-command></div>
+              <button type="button" class="kp-button" data-kp-flash-button data-kp-flash-words="Copied,Copy failed" data-kp-failed-word="Copy failed" data-issue-copy-full>Copy with the token filled in</button>
+            </div>
+          </div>
+        </div>
+        <p class="kp-dialog__note issue-card__foot" data-issue-main-foot>The token is made by the service when you press Issue token, and shown once, here.</p>
+      </section>
+
+      <section class="kp-card issue-card issue-side" aria-labelledby="issue-side-title">
+        <div class="issue-card__head">
+          <h3 class="kp-dialog__heading" id="issue-side-title" data-issue-side-title>What you will get</h3>
+          <p class="kp-lede" data-kp-lede-measure="full" data-issue-side-about>Fills in as you type: this is the {{ vocab.singular }} that will be made.</p>
+        </div>
+        <div class="issue-card__main">
+          <div class="issue-prev issue-prev--empty" data-issue-card>
+            <span class="kp-idmark kp-idmark--lg issue-prev__mark" data-kp-idmark="new {{ vocab.singular }}" aria-hidden="true" data-issue-mark></span>
+            <span class="issue-prev__name" data-issue-name data-issue-empty="No name yet">No name yet</span>
+            {% if first %}<span class="issue-prev__topic" data-issue-topic data-issue-empty="No {{ first.label|lower }} yet">No {{ first.label|lower }} yet</span>{% endif %}
+            <span class="issue-prev__state"><span class="kp-badge kp-badge--info" data-issue-state>will be active</span></span>
+          </div>
+          <dl class="kp-kv kp-kv--lines issue-prev__facts">
+            <div class="kp-kv__row"><dt>Token</dt><dd data-issue-fact-token>Made when you press Issue token</dd></div>
+            <div class="kp-kv__row"><dt>Calls</dt><dd><span class="mono">POST {{ calls_path }}</span></dd></div>
+            <div class="kp-kv__row"><dt>Listed in</dt><dd>{{ clients_label }}, with its request history</dd></div>
+            <div class="kp-kv__row"><dt>First call</dt><dd data-issue-fact-call>Not yet</dd></div>
+          </dl>
+        </div>
+        <p class="kp-dialog__note issue-card__foot" data-issue-side-foot>Nothing is made until you press Issue token.</p>
+      </section>
     </div>
-    {% for f in form_fields %}
-    <div class="kp-field">
-      <label class="kp-field__label" for="field-{{ f.name }}">{{ f.label }}</label>
-      {% if f.kind == "select" %}
-      <select class="kp-field__input" id="field-{{ f.name }}" name="{{ f.name }}" required>
-        <option value="" disabled selected>— choose —</option>
-        {% for o in f.options %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
-      </select>
-      {% else %}
-      <input class="kp-field__input" type="text" id="field-{{ f.name }}" name="{{ f.name }}" placeholder="{{ f.placeholder }}" required>
-      {% endif %}
+
+    <div class="kp-dialog__actions" data-issue-actions="form">
+      <button type="button" class="kp-button" data-kp-dialog-close>Cancel</button>
+      <button type="submit" class="kp-button kp-button--primary" data-kp-flash-button data-kp-flash-words="Issued,Refused" data-kp-refusal="toast" data-issue-submit>Issue token</button>
     </div>
-    {% endfor %}
-    <button type="submit" class="kp-button kp-button--primary" data-busy-label="Issuing…">Issue token</button>
-    <p class="kp-field__help kp-w-full kp-m-0">Letters, digits, dots, underscores and hyphens; 1–64 characters.</p>
+    <div class="kp-dialog__actions" data-issue-actions="done" hidden>
+      <button type="button" class="kp-button" data-kp-dialog-close>Done</button>
+      <button type="button" class="kp-button kp-button--primary" data-issue-open>Open the {{ vocab.singular }}</button>
+    </div>
   </form>
-  <div class="kp-dialog__actions"><button type="button" class="kp-button" data-kp-dialog-close>Cancel</button></div>
 </dialog>
 {% endif %}
 
