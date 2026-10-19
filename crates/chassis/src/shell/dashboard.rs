@@ -47,9 +47,91 @@ pub struct Section {
     pub html: Option<String>,
 }
 
+/// The module scripts and stylesheets a status section needs (kit-kp11).
+///
+/// Declared instead of writing `<script type=module>` / `<link>` into
+/// [`Section::html`]: the kit renders them once in the status page's
+/// `<head>`, in the order sections were registered, even when several
+/// sections name the same file. Every path must be same-origin and absolute
+/// (`/static/…`, `/app/orders.js`), because the kit's CSP is
+/// `script-src 'self'`; the project serves the file itself (a route from
+/// `dashboard_routes`, or a [`crate::shell::webapp`] mount). A path that is
+/// not a plain same-origin path is dropped and logged, never rendered.
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SectionAssets {
+    pub module_scripts: Vec<String>,
+    pub stylesheets: Vec<String>,
+}
+
+impl SectionAssets {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A JavaScript module to load with `<script type="module">`.
+    pub fn module_script(mut self, path: &str) -> Self {
+        self.module_scripts.push(path.to_string());
+        self
+    }
+
+    /// A stylesheet to load with `<link rel="stylesheet">`.
+    pub fn stylesheet(mut self, path: &str) -> Self {
+        self.stylesheets.push(path.to_string());
+        self
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.module_scripts.is_empty() && self.stylesheets.is_empty()
+    }
+}
+
+/// Is `path` a plain same-origin absolute path the CSP allows (`/…`, not
+/// `//host`, no scheme, no characters that could leave an attribute)?
+pub fn is_same_origin_asset_path(path: &str) -> bool {
+    path.starts_with('/')
+        && !path.starts_with("//")
+        && !path.contains("..")
+        && path
+            .chars()
+            .all(|c| c.is_ascii_graphic() && !matches!(c, '"' | '\'' | '<' | '>' | '\\' | '`'))
+}
+
+/// Merge what every section declared: valid paths only, each file once,
+/// first-registered order.
+pub(crate) fn merge_section_assets(all: &[SectionAssets]) -> SectionAssets {
+    fn push_unique(out: &mut Vec<String>, kind: &str, path: &str) {
+        if !is_same_origin_asset_path(path) {
+            tracing::warn!(
+                path,
+                kind,
+                "status section asset dropped: not a same-origin absolute path"
+            );
+        } else if !out.iter().any(|p| p == path) {
+            out.push(path.to_string());
+        }
+    }
+    let mut merged = SectionAssets::default();
+    for a in all {
+        for p in &a.module_scripts {
+            push_unique(&mut merged.module_scripts, "module script", p);
+        }
+        for p in &a.stylesheets {
+            push_unique(&mut merged.stylesheets, "stylesheet", p);
+        }
+    }
+    merged
+}
+
 /// What a project implements to put a section on the status page.
 pub trait StatusSection: Send + Sync {
     fn render(&self) -> Section;
+
+    /// Module scripts and stylesheets this section needs (kit-kp11); see
+    /// [`SectionAssets`]. A default so every existing section compiles.
+    fn assets(&self) -> SectionAssets {
+        SectionAssets::default()
+    }
 
     /// Buttons under the section's rows (K29): each one POSTs to a route
     /// the project registered with `dashboard_routes`. A default so every
@@ -697,6 +779,8 @@ async fn status_data(d: &Dashboard) -> serde_json::Value {
             actions: s.actions().iter().map(|a| a.view(None)).collect(),
         })
         .collect();
+    let declared: Vec<SectionAssets> = d.sections.iter().map(|s| s.assets()).collect();
+    let section_assets = merge_section_assets(&declared);
     let problems = (d.problems)();
     let update = (d.update)();
     let paused = crate::shell::backup::status_view();
@@ -706,6 +790,7 @@ async fn status_data(d: &Dashboard) -> serde_json::Value {
         "started_at": d.started_at,
         "health": health,
         "sections": sections,
+        "section_assets": section_assets,
         "problems": problems,
         "update": update,
         "backup": paused,
@@ -811,6 +896,24 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn section_assets_merge_once_in_order_and_refuse_foreign_paths() {
+        let a = SectionAssets::new()
+            .module_script("/app/a.js")
+            .stylesheet("/app/a.css");
+        let b = SectionAssets::new()
+            .module_script("/app/b.js")
+            .module_script("/app/a.js")
+            .module_script("https://evil.example/x.js")
+            .module_script("//evil.example/x.js")
+            .module_script("/a\"onload=\"x")
+            .module_script("/../etc/passwd")
+            .stylesheet("/app/a.css");
+        let m = merge_section_assets(&[a, b]);
+        assert_eq!(m.module_scripts, ["/app/a.js", "/app/b.js"]);
+        assert_eq!(m.stylesheets, ["/app/a.css"]);
+    }
 
     #[test]
     fn theme_list_comes_from_the_vendored_registry() {

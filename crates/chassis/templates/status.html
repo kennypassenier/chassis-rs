@@ -1,5 +1,8 @@
 {% extends "layout.html" %}
 {% block title %}{{ app_name }} — status{% endblock %}
+{% block head %}{% for href in section_assets.stylesheets %}<link rel="stylesheet" href="{{ href }}">
+{% endfor %}{% for src in section_assets.module_scripts %}<script type="module" src="{{ src }}"></script>
+{% endfor %}{% endblock %}
 {% block content %}
 <h1>Status</h1>
 <p class="explain">

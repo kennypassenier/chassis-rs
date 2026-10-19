@@ -9,6 +9,14 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **Status sections declare their module script and stylesheet** (kit-kp11).
+  `StatusSection::assets()` (a default method) returns a `SectionAssets`
+  (`module_script(path)`, `stylesheet(path)`); the kit renders the tags once
+  in the status page's `<head>`, even when several sections name the same
+  file, and `/api/kit/status` carries them as `section_assets`. Paths must be
+  same-origin and absolute (the CSP is `script-src 'self'`); anything else
+  is dropped and logged. Documented in docs/DASHBOARD.md. Public surface:
+  `SectionAssets`, `StatusSection::assets`.
 - **Passkeys: `current` flag and rename** (kit-kp11). `/api/kit/passkeys` and
   `GET /api/passkeys` carry `current: true` on the passkey this session logged
   in with (the dashboard remembers, in memory, which stored passkey opened

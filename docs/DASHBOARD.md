@@ -60,6 +60,7 @@ behind a nav entry.
 | `vocabulary(singular, plural)` | What this service calls a client, lower case (`"source", "sources"`). Every kit sentence and every clients-API refusal uses it; URLs, JSON, cookies, metrics and logs do not (K28, 1.8.0). | Every page, the API's error messages. |
 | `client_action(ClientAction)` | A button on every active client row that POSTs (or DELETEs) to a project route; `{id}` in the route becomes the client's id (K29, 1.8.0). | The actions cell of the Clients page. |
 | `StatusSection::actions()` | Buttons under a status section, same shape (`SectionAction`), a default method so existing sections need nothing (K29, 1.8.0). | Under the section's rows on `/`. |
+| `StatusSection::assets()` | `SectionAssets` — the module scripts and stylesheets the section needs, a default method (kit-kp11). | The status page's `<head>`, once per file. |
 | `test_route(method, path, content_type, body)` | Where **Send test** posts, with what body. Without it the button is absent. | Clients page rows; the `command` string of Reveal. |
 
 `Dashboard::render_project(active_nav, source, ctx)` renders a project
@@ -392,6 +393,37 @@ cookie) and `k29_section_actions_render_under_the_section_and_none_without`
 (one block for the one section with actions, placed between its heading
 and the next); and inbox's "Clear messages" section action in
 `dashboard_pages_render_with_layout_and_assets`.
+
+## Section assets: a script and a stylesheet for a status section (kit-kp11)
+
+A status section that needs JavaScript (a datatable, a live card) or its own
+CSS declares the files instead of writing `<script type=module>` / `<link>`
+into `Section.html`:
+
+```rust
+impl StatusSection for Orders {
+    fn render(&self) -> Section { /* as before; html holds only markup */ }
+    fn assets(&self) -> SectionAssets {
+        SectionAssets::new()
+            .module_script("/app/orders.js")   // <script type="module">
+            .stylesheet("/app/orders.css")     // <link rel="stylesheet">
+    }
+}
+```
+
+- The kit renders the tags once, in the status page's `<head>`, in the order
+  the sections were registered. Two sections naming the same path produce one
+  tag; scripts and stylesheets are deduplicated separately.
+- Paths must be absolute and same-origin (`/app/orders.js`): the CSP is
+  `script-src 'self'`, so a `https://…` or `//host/…` URL could not run
+  anyway. Such a path, one with `..`, a quote, `<`, `>`, a backslash, a
+  backtick or whitespace is dropped and a warning is logged; nothing is
+  rendered for it.
+- The project serves the files itself: a route from `dashboard_routes`
+  (behind the admin session) or a `webapp` mount. The kit adds no `?v=`
+  cache-buster; put a version in the path or query yourself.
+- `/api/kit/status` carries the merged list as `section_assets`
+  (`{ module_scripts, stylesheets }`) for a web app that draws the page.
 
 ## What the kit guarantees around a project page
 

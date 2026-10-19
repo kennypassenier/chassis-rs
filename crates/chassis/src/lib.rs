@@ -34,7 +34,7 @@ pub use shell::auth::Caller;
 #[cfg(feature = "dashboard")]
 pub use shell::dashboard::{
     Action, ClientAction, ClientColumn, Dashboard, NavEntry, Problem, Section, SectionAction,
-    StatusSection, Vocabulary,
+    SectionAssets, StatusSection, Vocabulary,
 };
 pub use shell::health::{Subsystem, SubsystemStatus};
 pub use shell::metrics::{Counter, Gauge, ScrapeSource};

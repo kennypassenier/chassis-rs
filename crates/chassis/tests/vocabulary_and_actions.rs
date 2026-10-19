@@ -601,3 +601,50 @@ async fn k29_section_actions_render_under_the_section_and_none_without() {
     assert_eq!(seen.lock().unwrap().as_slice(), ["reload".to_string()]);
     running.stop().await;
 }
+
+struct WithAssets(&'static str);
+
+impl StatusSection for WithAssets {
+    fn render(&self) -> Section {
+        Section {
+            title: self.0.into(),
+            explain: "Declares a module script and a stylesheet.".into(),
+            rows: vec![],
+            html: None,
+        }
+    }
+    fn assets(&self) -> chassis::SectionAssets {
+        chassis::SectionAssets::new()
+            .module_script("/app/orders.js")
+            .stylesheet("/app/orders.css")
+    }
+}
+
+// kit-kp11: two sections naming the same files get one tag each, in the
+// page head, under the existing CSP (same-origin paths only).
+#[tokio::test]
+async fn kit_kp11_section_assets_render_once_in_the_head() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app(dir.path(), Router::new());
+    app.status_section(WithAssets("First"));
+    app.status_section(WithAssets("Second"));
+    let running = app.start().await.unwrap();
+    let addr = running.addr;
+    let cookie = login(addr).await;
+    let (_, _, page) = http(addr, "GET", "/", &[("Cookie", &cookie)], "").await;
+    assert_eq!(
+        page.matches("<script type=\"module\" src=\"/app/orders.js\"></script>")
+            .count(),
+        1,
+        "{page}"
+    );
+    assert_eq!(
+        page.matches("<link rel=\"stylesheet\" href=\"/app/orders.css\">")
+            .count(),
+        1,
+        "{page}"
+    );
+    let head_end = page.find("</head>").unwrap();
+    assert!(page.find("/app/orders.js").unwrap() < head_end, "{page}");
+    running.stop().await;
+}
