@@ -24,6 +24,7 @@ use serde::Serialize;
 use crate::core::error::Error;
 use crate::shell::assets::{KP_THEMES_VERSION, asset_version};
 use crate::shell::auth::{AuthState, LoginForm, LoginOutcome, login};
+use crate::shell::client_list;
 use crate::shell::clients_api::ClientView;
 use crate::shell::health::Health;
 use crate::shell::store::Clients;
@@ -461,6 +462,9 @@ pub struct Dashboard {
     pub auth: AuthState,
     /// The service opted in and runs without secrets: no door, a banner.
     pub open: bool,
+    /// kit-kp11: the curl line with `$CLIENT_TOKEN` where the token goes,
+    /// for `/api/kit/clients`. Private so the public surface stays as it was.
+    command_template: Arc<str>,
     env: Arc<Environment<'static>>,
 }
 
@@ -564,8 +568,16 @@ impl Dashboard {
             clients,
             auth,
             open,
+            command_template: Arc::from(""),
             env: Arc::new(env),
         })
+    }
+
+    /// kit-kp11: the command a program is wired up with, token as
+    /// `$CLIENT_TOKEN` (see `clients_api::command_template`).
+    pub(crate) fn with_command_template(mut self, template: String) -> Self {
+        self.command_template = Arc::from(template);
+        self
     }
 
     /// K28: what this service calls a client, for every template
@@ -809,6 +821,18 @@ struct ClientRow {
     /// Empty on a revoked row — an action on a client that no longer has a
     /// token has nothing to act on.
     actions: Vec<serde_json::Value>,
+    /// kit-kp11: `in use`, `idle`, `new` or `revoked` (client_list).
+    state: client_list::Standing,
+    /// Days without a call; 0 unless `state` is `idle`.
+    idle_days: i64,
+    /// dd/mm/yyyy HH:mm, Europe/Brussels.
+    issued_display: String,
+    last_used_display: Option<String>,
+    /// `12 s ago`, `5 days ago`.
+    last_used_ago: Option<String>,
+    revoked_display: Option<String>,
+    /// dd/mm/yyyy.
+    revoked_date: Option<String>,
 }
 
 /// `GET /clients` — the clients page (K12, K13, K14).
@@ -835,11 +859,13 @@ pub async fn clients_json(State(d): State<Dashboard>) -> Response {
 
 fn clients_data(d: &Dashboard) -> serde_json::Value {
     let snap = d.clients.snapshot();
+    let now = chrono::Utc::now();
     let rows: Vec<ClientRow> = snap
         .clients
         .iter()
         .map(|c| {
             let view = ClientView::from(c);
+            let (state, idle_days) = client_list::standing(&view, now);
             // feat-clients-2: one cell per declared field, before the
             // project's own columns. The project declared the field, so the
             // kit shows it back without being asked. The template renders
@@ -865,6 +891,16 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
                 Vec::new()
             };
             ClientRow {
+                issued_display: client_list::brussels(&view.issued_at),
+                last_used_display: view.last_used_at.as_deref().map(client_list::brussels),
+                last_used_ago: view
+                    .last_used_at
+                    .as_deref()
+                    .map(|t| client_list::ago_words(t, now)),
+                revoked_display: view.revoked_at.as_deref().map(client_list::brussels),
+                revoked_date: view.revoked_at.as_deref().map(client_list::brussels_date),
+                state,
+                idle_days,
                 view,
                 declared,
                 extra,
@@ -872,12 +908,26 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
             }
         })
         .collect();
+    let counts = client_list::counts(rows.iter().map(|r| (r.state, &r.view)));
+    // A project column sorts as a number only when every cell is one.
     let columns: Vec<serde_json::Value> = d
         .columns
         .iter()
-        .map(|c| serde_json::json!({ "title": c.title() }))
+        .enumerate()
+        .map(|(i, c)| {
+            let numeric = !rows.is_empty()
+                && rows.iter().all(|r| {
+                    r.extra
+                        .get(i)
+                        .is_some_and(|cell| cell.trim().parse::<f64>().is_ok())
+                });
+            serde_json::json!({ "title": c.title(), "numeric": numeric })
+        })
         .collect();
     serde_json::json!({
+        "counts": counts,
+        "idle_after_days": client_list::IDLE_AFTER_DAYS,
+        "command_template": &*d.command_template,
         "clients": rows,
         "declared_columns": d
             .form_fields

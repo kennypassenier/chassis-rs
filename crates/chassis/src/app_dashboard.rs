@@ -158,6 +158,8 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         format!("http://{}:{}", host, addr.port())
     };
     let has_test_route = test_route.is_some();
+    let command_template =
+        clients_api::command_template(&self_base_url, test_route.as_ref().map(|t| t.path.as_str()));
     let api = ClientsApi {
         clients: clients.clone(),
         captures: captures.clone(),
@@ -242,7 +244,8 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         open,
     )?
     .with_vocabulary(vocab.clone())
-    .with_client_actions(registry.client_actions);
+    .with_client_actions(registry.client_actions)
+    .with_command_template(command_template);
 
     // feat-pages-1: one list of pages for every navigation. `nav_entry`
     // links from before 3.1.0 join it as visible project pages.

@@ -9,6 +9,8 @@ pub mod backup;
 #[cfg(feature = "dashboard")]
 pub mod captures;
 #[cfg(feature = "dashboard")]
+pub(crate) mod client_list;
+#[cfg(feature = "dashboard")]
 pub mod clients_api;
 pub mod config_load;
 #[cfg(feature = "dashboard")]
