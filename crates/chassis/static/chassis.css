@@ -867,6 +867,9 @@ pre.snippet {
 .kit-ops .kp-qr:empty { min-block-size: 21.7rem; }
 @media (max-width: 40rem) { .kit-ops .kp-qr:empty { min-block-size: 22.15rem; } }
 
+/* ---- UNTIL kp-themes 11.1.0 (passkeys page overrides) ---------------------
+   kp-themes 11.1.0 ships the QR code and page-header grid fixes. Delete this
+   whole block when that release is vendored. */
 /* One left edge on a phone (Kenny, 2026-10-19: align on the grid). The
    package centres the code's plate in a narrow card while the link and Copy
    under it start at the left edge, and it puts the primary header button on
@@ -884,6 +887,7 @@ pre.snippet {
   }
   [data-kit-passkeys-page] .kp-page-header__actions > .kp-button--primary { order: 0; }
 }
+/* ---- END UNTIL kp-themes 11.1.0 ---- */
 
 /* TEMPORARY: .kp-formgrid until the next kp-themes release is vendored
    (kp-themes main, css/components.css "Form grid"; remove with the vendoring). */
