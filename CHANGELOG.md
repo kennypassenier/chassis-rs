@@ -27,6 +27,17 @@ scaffold writes. A breaking change in either is a major and carries a
   got a 404. The kit's pages on kp-themes 11 use these modules themselves, so
   the set follows the pages; `webapp` keeps meaning a project's own browser
   app. A build without `dashboard` (kyu-runner) is unchanged.
+- **The client dialogs are the approved kp-themes 11 compositions, round 3**
+  (kit-kp11): the issue fields are rows of one `.kp-formgrid` and fill their
+  cell; the manage dialog is identity and three figures, a rail with the token
+  (`.kp-secret`, asked of the service only when shown or copied), the command
+  with `$CLIENT_TOKEN` (`.kp-command`) and the project's actions, the Test it
+  card (a JSON field and Send test on one form-grid row), the request
+  inspector (`.kp-inspector`, replacing the hand-built log) and a danger band
+  of three equal cells with a typed confirmation on Delete. The list has its
+  own empty, loading and failed states, and the walk-through's wait step its
+  failed state. `POST /api/clients/{id}/test` takes an optional
+  `{"body": "…"}` (at most 64 KiB); without it the route's own body is sent.
 
 ### Added
 

@@ -41,22 +41,32 @@ fn chassis_css_caps_only_prose_and_dialogs_never_the_page() {
 }
 
 /// 2026-10-02: side-by-side elements sit on a grid, so they align and take
-/// the same space. The client issue form is the kit's one such row.
+/// the same space. 2026-10-19 (Kenny, "HOE VAAK MOET IK NOG ZEGGEN OM ALLES
+/// DEFTIG VERTICAAL TE ALIGNEN EN GRID TE GEBRUIKEN IPV LINKS ALIGNEN???"):
+/// the client dialogs are rows of kp-themes' form grid, never fields placed by
+/// hand. The issue fields fill their cell (no 28rem cap) and the manage
+/// dialog's test is one row with Send test on the line of Format and Minify.
 #[test]
-fn the_issue_form_is_a_grid() {
+fn the_client_dialogs_are_form_grids() {
     let html = kit_file("templates/clients.html");
     assert!(
-        html.contains(r#"<form id="issue" class="kp-autogrid issue-form">"#),
-        "the issue form must stay on kp-autogrid"
+        html.contains(r#"<div class="kp-formgrid issue-form">"#),
+        "the issue fields must stay rows of one .kp-formgrid"
+    );
+    assert!(
+        !html.contains("kp-autogrid"),
+        "the old auto grid is gone from the clients page"
+    );
+    assert!(
+        html.contains(r#"class="kp-formgrid manage-test__grid" data-kp-formgrid-stack="never""#)
+            && html.contains(r#"class="kp-formgrid__actions manage-test__send""#),
+        "the manage test is one form-grid row, Send test on the actions track"
     );
     let css = kit_file("static/chassis.css");
     assert!(
-        css.contains(".issue-form {"),
-        "its grid knobs live in chassis.css"
-    );
-    assert!(
-        css.contains(".issue-form > .kp-field__help { grid-column: 1 / -1; }"),
-        "the help line spans the whole row"
+        css.contains(".issue-form { --kp-field-max-width: none; }")
+            && css.contains("--kp-field-max-width: none;"),
+        "a field fills its track: nothing caps it below the cell"
     );
 }
 
