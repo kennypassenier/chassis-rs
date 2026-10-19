@@ -115,6 +115,18 @@ fn id_of(body: &str) -> String {
 
 /// The text a reader sees: tags (attributes included) and comments gone.
 fn visible_text(html: &str) -> String {
+    // Comments are source for developers, never shown to a reader.
+    let mut stripped = String::new();
+    let mut rest = html;
+    while let Some(start) = rest.find("<!--") {
+        stripped.push_str(&rest[..start]);
+        rest = match rest[start..].find("-->") {
+            Some(end) => &rest[start + end + 3..],
+            None => "",
+        };
+    }
+    stripped.push_str(rest);
+    let html = stripped.as_str();
     let mut out = String::new();
     let mut in_tag = false;
     for ch in html.chars() {
@@ -155,7 +167,9 @@ fn iso_timestamp_in(text: &str) -> Option<String> {
 /// (Kenny, 2026-09-10: the name is Clients everywhere, and a project renames
 /// it in one place or not at all).
 fn says_client(text: &str) -> Option<String> {
-    text.split(|c: char| !c.is_alphanumeric())
+    // `_` stays inside a word: `$CLIENT_TOKEN` is the shell variable of the
+    // copy-paste command (one identifier, not the prose word "client").
+    text.split(|c: char| !c.is_alphanumeric() && c != '_')
         .map(|w| w.to_ascii_lowercase())
         .find(|w| matches!(w.as_str(), "client" | "clients" | "caller" | "callers"))
 }
@@ -202,14 +216,16 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     assert_eq!(says_client(&text), None, "{empty}");
     assert!(empty.contains(">Sources</h1>"), "{empty}");
     assert!(empty.contains("No sources yet"), "{empty}");
-    assert!(empty.contains("Add a source"), "{empty}");
+    assert!(empty.contains("Issue a source"), "{empty}");
     assert!(
         empty.contains("Wire up your first source"),
         "the first-client walk-through speaks the vocabulary: {empty}"
     );
     assert!(empty.contains("vocabdemo — sources</title>"), "{empty}");
     assert!(
-        empty.contains(">Sources</a>") && !empty.contains("sources\""),
+        empty.contains(">Sources</a>")
+            && !empty.contains("href=\"/sources")
+            && !empty.contains("href=\"&#x2f;sources"),
         "the nav label follows the vocabulary, the URL does not: {empty}"
     );
 
@@ -326,7 +342,7 @@ async fn k28_without_vocabulary_the_pages_still_say_client() {
     let cookie = login(addr).await;
     let (_, _, page) = http(addr, "GET", "/clients", &[("Cookie", &cookie)], "").await;
     assert!(page.contains(">Clients</h1>"), "{page}");
-    assert!(page.contains("Add a client"), "{page}");
+    assert!(page.contains("Issue a client"), "{page}");
     assert!(page.contains("No clients yet"), "{page}");
     assert!(says_client(&visible_text(&page)).is_some(), "{page}");
     running.stop().await;
@@ -346,7 +362,7 @@ async fn k28_clients_label_still_names_the_page_when_set() {
     let cookie = login(addr).await;
     let (_, _, page) = http(addr, "GET", "/clients", &[("Cookie", &cookie)], "").await;
     assert!(page.contains(">Feeds</h1>"), "{page}");
-    assert!(page.contains("Add a source"), "{page}");
+    assert!(page.contains("Issue a source"), "{page}");
     assert_eq!(says_client(&visible_text(&page)), None, "{page}");
     running.stop().await;
 }
@@ -635,6 +651,8 @@ async fn kit_kp11_section_assets_render_once_in_the_head() {
     let addr = running.addr;
     let cookie = login(addr).await;
     let (_, _, page) = http(addr, "GET", "/", &[("Cookie", &cookie)], "").await;
+    // The template escapes `/` in attribute values (`&#x2f;`); same URL.
+    let page = page.replace("&#x2f;", "/");
     assert_eq!(
         page.matches("<script type=\"module\" src=\"/app/orders.js\"></script>")
             .count(),
