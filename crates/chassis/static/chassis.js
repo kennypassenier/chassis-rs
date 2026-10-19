@@ -213,10 +213,11 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
-// feat-ui-1: a timestamp on a page is read by a person, so it is rendered in
-// the reader's own locale — which only the browser knows. The server puts the
-// exact RFC 3339 value in `datetime` and a plain "date time" fallback in the
-// text; this replaces that text and keeps the exact value in the tooltip, so
+// feat-ui-1: a timestamp on a page is read by a person, so it is rendered the
+// one way the kit writes dates: dd/mm/yyyy HH:mm, 24 hours, Europe/Brussels
+// (kit-kp11, UI principles rule 52; it was the reader's locale before). The
+// server puts the exact RFC 3339 value in `datetime` and a plain fallback in
+// the text; this replaces that text and keeps the exact value in the tooltip, so
 // nothing is lost for whoever does want the machine form. Kenny's case was
 // `2026-09-10T02:16:47Z` in a live table column.
 //
@@ -226,7 +227,7 @@ function localiseTimes(root = document) {
   for (const el of root.querySelectorAll('time[datetime]:not([data-localised])')) {
     const when = new Date(el.getAttribute('datetime'));
     if (Number.isNaN(when.getTime())) continue;
-    el.textContent = when.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    el.textContent = formatBrussels(when);
     el.title = el.getAttribute('datetime');
     el.dataset.localised = 'true';
   }
@@ -313,12 +314,17 @@ document.addEventListener('click', (event) => {
   // control that hides what the reader just asked for.
   const manage = event.target.closest('[data-manage]');
   if (manage) {
+    // The name in the list is a link (#manage-ID) and opens the same dialog.
+    event.preventDefault();
     const id = manage.dataset.manage;
     const dialog = document.getElementById(`manage-${id}`);
     if (!dialog) return;
     dialog.showModal();
     const panel = dialog.querySelector(`#requests-${id}`);
-    if (panel) busy(manage, () => loadRequests(id, panel));
+    if (panel) {
+      if (manage.matches('button')) busy(manage, () => loadRequests(id, panel));
+      else loadRequests(id, panel);
+    }
     return;
   }
 
@@ -370,36 +376,439 @@ function hide(target, toggle) {
 }
 
 
-// The Issue-token form (clients page): posts JSON, reloads on success, shows
-// the kit's remedy on failure. Lives here rather than inline so the page
-// carries no inline script (CSP script-src 'self', S8).
-document.addEventListener('submit', async (event) => {
+// Forms with a plain POST (login): a plain POST navigates away; the button
+// still shows its busy label until the page changes (rule 31). The Issue
+// form on the Clients page is the dialog in the "clients" block below: it
+// never navigates, so its submit is only kept from doing so here. Lives in
+// this file rather than inline so the page carries no inline script (CSP
+// script-src 'self', S8).
+document.addEventListener('submit', (event) => {
   const form = event.target;
   if (!(form instanceof HTMLFormElement)) return;
   const button = form.querySelector('button[type="submit"]');
   if (form.id === 'issue') {
     event.preventDefault();
-    if (!button) return;
-    await busy(button, async () => {
+    return;
+  }
+  if (button && button.dataset.busyLabel) {
+    button.disabled = true;
+    button.textContent = button.dataset.busyLabel;
+  }
+});
+
+// ============================================================================
+// clients (kit-kp11): the Clients page, as approved in the clients-list and
+// clients-first reviews. The server renders the whole page; this block adds
+//
+//   - the kp modules the page uses (loaded only on this page),
+//   - the four figures as filters (a click toggles, a second click resets),
+//   - the idle callout with "Show them",
+//   - the auto-refresh (swaps the figures, the rows and the dialogs in place),
+//   - the first-client walk-through: with no call yet, the page asks
+//     /api/kit/clients every 5 seconds and finishes step 3 by itself,
+//   - the issue dialog (clients-issue): the live client card that follows
+//     the form, and the swap to the token, the first command and the receipt
+//     after Issue, without a reload.
+//
+// Dates are written by the server in dd/mm/yyyy HH:mm (Europe/Brussels);
+// `formatBrussels` is the same format for the few times the browser writes.
+// ============================================================================
+
+// dd/mm/yyyy HH:mm, 24 hours, Europe/Brussels (UI principles, rule 52).
+// A function declaration so localiseTimes() above can call it before this
+// block runs; the formatter is built on first use for the same reason.
+function formatBrussels(when) {
+  formatBrussels.format ??= new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Brussels',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+  const p = Object.fromEntries(formatBrussels.format.formatToParts(when).map((x) => [x.type, x.value]));
+  return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
+}
+
+// What each figure searches for in the State column. The words are the ones
+// the server writes in the badges.
+const CLIENTS_FILTER_WORDS = { 'in use': 'active', idle: 'idle', new: 'not used yet', revoked: 'revoked' };
+// The State column: Client is the first.
+const CLIENTS_STATE_COLUMN = 1;
+const CLIENTS_POLL_MS = 5000;
+
+// [selector the module is for, module, what it attaches]. The same
+// selectors js/auto.js asks; the page loads only what it carries.
+const CLIENTS_MODULES = [
+  ['[data-kp-remember]', 'remember', 'attachRemembered'],
+  ['.kp-lede', 'lede', 'attachLedes'],
+  ['.kp-kpis[data-kp-kpis-columns]', 'kpi', 'attachKpiStrips'],
+  ['.kp-table-wrap', 'tables', 'attachTableRegions'],
+  ['[data-kp-datatable]', 'datatable', 'attachDataTables'],
+  ['[data-kp-idmark]', 'idmark', 'attachIdmarks'],
+  ['.kp-steplist', 'steplist', 'attachSteplists'],
+  ['[data-kp-art]', 'art', 'attachArt'],
+  ['[data-kp-problems]', 'problems', 'attachProblems'],
+  ['[data-kp-refresh]', 'auto-refresh', 'attachRefresh'],
+  ['.kp-ops', 'footprint', 'attachFootprints'],
+  ['dialog.kp-dialog, .kp-datatable', 'motion', 'attachMotion'],
+  ['.kp-card, [data-kp-datatable]', 'loading-pieces', 'attachLoadingPieces'],
+];
+
+const clientsPageRoot = document.querySelector('[data-clients-page]');
+if (clientsPageRoot) startClientsPage(clientsPageRoot);
+
+async function startClientsPage(root) {
+  const base = './kp/js/';
+  const modules = {};
+  const load = async (name) => (modules[name] ??= await import(`${base}${name}.js`));
+  const wanted = CLIENTS_MODULES.filter(([selector]) => root.querySelector(selector));
+  await Promise.all([...wanted.map(([, name]) => load(name)), load('overlays'), load('hovercard'), load('problems'), load('datatable'), load('steplist')]);
+  if (modules.remember) modules.remember.restoreRemembered(root);
+  // The dialogs and hovercards live outside the page's root (a dialog in the
+  // top layer, a card on <body>), and both modules attach each trigger once.
+  modules.overlays.attachDialogs(document);
+  modules.hovercard.attachHoverCards(document);
+  const issueDialog = document.getElementById('issue-dialog');
+  if (issueDialog) await startIssueDialog(issueDialog, load, root.dataset.clientsOne);
+  for (const [, name, attach] of wanted) modules[name][attach](root);
+
+  const one = root.dataset.clientsOne;
+  const many = root.dataset.clientsMany;
+  const days = root.dataset.clientsDays;
+  const tiles = () => [...root.querySelectorAll('[data-clients-filter]')];
+  let pressed = '';
+
+  // ---- the figures as filters -------------------------------------------
+  const tableHandle = () => {
+    const wrap = root.querySelector('[data-kp-datatable]');
+    return wrap ? modules.datatable.dataTable(wrap) : null;
+  };
+  function filterBy(key) {
+    pressed = key;
+    for (const tile of tiles()) tile.setAttribute('aria-pressed', String(tile.dataset.clientsFilter === key));
+    const handle = tableHandle();
+    if (!handle) return;
+    if (key) {
+      handle.scope(CLIENTS_STATE_COLUMN);
+      handle.query(CLIENTS_FILTER_WORDS[key]);
+    } else {
+      handle.query('');
+      handle.scope(null);
+    }
+  }
+  root.addEventListener('click', (event) => {
+    const tile = event.target.closest('[data-clients-filter]');
+    if (tile) filterBy(tile.getAttribute('aria-pressed') === 'true' ? '' : tile.dataset.clientsFilter);
+  });
+  // Typing something else in the search box ends the filter: the figure
+  // lets go and the search covers every column again.
+  root.querySelector('[data-kp-datatable-search]')?.addEventListener('input', (event) => {
+    if (pressed && event.target.value !== CLIENTS_FILTER_WORDS[pressed]) {
+      pressed = '';
+      for (const tile of tiles()) tile.setAttribute('aria-pressed', 'false');
+      tableHandle()?.scope(null);
+    }
+  });
+
+  // ---- the idle callout -------------------------------------------------
+  function paintProblems() {
+    const box = root.querySelector('[data-kp-problems]');
+    if (!box) return;
+    const names = [...root.querySelectorAll('tr[data-clients-state="idle"] .kp-fw-medium')].map((a) => a.textContent.trim());
+    const show = document.createElement('button');
+    show.type = 'button';
+    show.className = 'kp-button';
+    show.textContent = 'Show them';
+    show.addEventListener('click', () => filterBy('idle'));
+    modules.problems.setProblems(
+      box,
+      names.length
+        ? [
+            {
+              key: 'idle',
+              severity: 'warning',
+              what: `${names.length} ${names.length === 1 ? `${one} has` : `${many} have`} not called in ${days} days or more`,
+              why: names.join(', '),
+              remedy: 'Revoke the ones no program uses any more; a revoked token stops working at once.',
+              action: show,
+            },
+          ]
+        : [],
+    );
+  }
+  paintProblems();
+
+  // ---- the auto-refresh -------------------------------------------------
+  const modalOpen = () => document.querySelector('dialog[open]') !== null;
+  const rowIds = (scope) => [...scope.querySelectorAll('tbody tr[data-kp-row-key]')].map((tr) => tr.dataset.kpRowKey).sort().join();
+
+  // Ask the page again and swap what moved. A change of shape (a new
+  // client, the first call) is a reload, unless a dialog is open.
+  async function refreshPage() {
+    const res = await fetch('/clients', { headers: { accept: 'text/html' }, credentials: 'same-origin' });
+    if (!res.ok || res.redirected) return false;
+    const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+    const next = doc.querySelector('[data-clients-page]');
+    if (!next) return false;
+    const reshaped = next.hasAttribute('data-clients-onboarding') !== root.hasAttribute('data-clients-onboarding') || rowIds(next) !== rowIds(root);
+    if (reshaped) {
+      if (!modalOpen()) window.location.reload();
+      return true;
+    }
+    for (const tile of next.querySelectorAll('[data-clients-filter]')) {
+      const mine = root.querySelector(`[data-clients-filter="${tile.dataset.clientsFilter}"]`);
+      if (!mine) continue;
+      mine.querySelector('.kp-kpi__value').textContent = tile.querySelector('.kp-kpi__value').textContent;
+      if (tile.hasAttribute('data-kp-tone')) mine.setAttribute('data-kp-tone', tile.getAttribute('data-kp-tone'));
+      else mine.removeAttribute('data-kp-tone');
+    }
+    const body = root.querySelector('tbody');
+    const nextBody = next.querySelector('tbody');
+    if (body && nextBody) {
+      body.replaceChildren(...[...nextBody.children].map((row) => document.adoptNode(row)));
+      tableHandle()?.refresh();
+    }
+    // A dialog that is open keeps what it shows; the others are replaced so
+    // "last used" is current the next time one opens.
+    for (const fresh of doc.querySelectorAll('dialog.client-dialog')) {
+      const mine = document.getElementById(fresh.id);
+      if (mine && !mine.open) mine.replaceWith(document.adoptNode(fresh));
+    }
+    paintProblems();
+    return true;
+  }
+  root.addEventListener('kp-refresh', async (event) => {
+    let ok = false;
+    try {
+      ok = await refreshPage();
+    } catch (_) {
+      ok = false;
+    }
+    event.detail.done(ok);
+  });
+
+  // ---- the first client: the page notices the first call -----------------
+  if (root.hasAttribute('data-clients-onboarding')) watchForFirstCall(root, modules, one);
+}
+
+// ---- the issue dialog (clients-issue) -----------------------------------
+// One dialog, three states in the same boxes: the form (and the form with
+// its refusal), then the result. The rows of the grid have minimum heights
+// and the card contents swap inside them, so the dialog is as tall in every
+// state. The token lives in this closure only, never in the page: the secret
+// field asks for it when it is shown or copied.
+
+const ISSUE_OPEN_KEY = 'chassis-open-manage';
+
+async function startIssueDialog(dialog, load, one) {
+  const [forms, combobox, usual, patterns, command, flash, idmark, lede] = await Promise.all(
+    ['forms', 'combobox', 'usual-picker', 'patterns', 'command', 'flash', 'idmark', 'lede'].map(load),
+  );
+  const form = dialog.querySelector('form#issue');
+  const $ = (selector) => dialog.querySelector(selector);
+  let token = '';
+  let issued = null;
+  let opening = false;
+  let pollTimer = 0;
+
+  forms.attachForms(dialog);
+  combobox.attachComboboxes(dialog);
+  combobox.attachSelects(dialog);
+  usual.attachUsualPickers(dialog);
+  flash.attachFlashButtons(dialog);
+  idmark.attachIdmarks(dialog);
+  lede.attachLedes(dialog);
+  patterns.attachPatterns(dialog, { secretLoad: () => token });
+
+  // ---- the client card follows what is typed ----
+  const nameInput = $('[data-issue-in="name"]');
+  const topicInput = $('[data-issue-in="topic"]');
+  const card = $('[data-issue-card]');
+  const state = $('[data-issue-state]');
+  const textOf = (input) => {
+    if (!input) return '';
+    if (input instanceof HTMLSelectElement) return input.value ? input.selectedOptions[0].textContent.trim() : '';
+    return input.value.trim();
+  };
+  function sync() {
+    if (issued) return;
+    const name = textOf(nameInput);
+    for (const [key, input] of [['name', nameInput], ['topic', topicInput]]) {
+      const target = $(`[data-issue-${key}]`);
+      if (target) target.textContent = textOf(input) || target.dataset.issueEmpty;
+    }
+    idmark.setIdmark($('[data-issue-mark]'), name || `new ${one}`);
+    card.classList.toggle('issue-prev--empty', !name);
+    if (state.dataset.issueRefused !== undefined) {
+      // Typing a new name takes the refusal back.
+      delete state.dataset.issueRefused;
+      state.className = 'kp-badge kp-badge--info';
+      state.textContent = 'will be active';
+    }
+  }
+  const later = () => window.setTimeout(sync, 0);
+  for (const type of ['input', 'change', 'kp-usual-pick', 'kp-usual-add']) dialog.addEventListener(type, later);
+  sync();
+
+  // ---- Issue ----
+  const submit = $('[data-issue-submit]');
+  form.addEventListener('kp-form-valid', () => {
+    flash.runFlashButton(submit, async () => {
+      const name = textOf(nameInput);
       const res = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
         // Every named control, so a project's extra fields (K16) ride along.
         body: JSON.stringify(Object.fromEntries(new FormData(form))),
       });
-      if (res.ok) { window.location.reload(); return; }
-      const body = await res.json().catch(() => ({}));
-      alert(body.remedy ? `${body.error}. ${body.remedy}` : `HTTP ${res.status}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const sentence = body.remedy ? `${body.error}. ${body.remedy}` : body.error || `HTTP ${res.status}`;
+        // A refusal about the name stands under the name; any other speaks as a toast.
+        if (name && sentence.includes(name)) {
+          forms.showError(nameInput, sentence);
+          state.dataset.issueRefused = '';
+          state.className = 'kp-badge kp-badge--destructive';
+          state.textContent = 'not issued';
+          return { error: '' };
+        }
+        return { error: body.error || `HTTP ${res.status}`, remedy: body.remedy };
+      }
+      issued = await res.json();
+      const [reveal, kit] = await Promise.all([
+        fetchToken(issued.id),
+        fetch('/api/kit/clients', { headers: { accept: 'application/json' }, credentials: 'same-origin' })
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null),
+      ]);
+      token = reveal.token;
+      const template = kit?.command_template || reveal.command.replaceAll(token, '$CLIENT_TOKEN');
+      showIssued(issued, template, reveal.command);
+      return 'Issued';
     });
-    return;
+  });
+
+  function setText(selector, text) {
+    const el = $(selector);
+    if (el) el.textContent = text;
   }
-  // Any other form (login): a plain POST navigates away; the button still
-  // shows its busy label until the page changes (rule 31).
-  if (button && button.dataset.busyLabel) {
-    button.disabled = true;
-    button.textContent = button.dataset.busyLabel;
+
+  function showIssued(client, template, full) {
+    setText('[data-issue-title]', `${client.name} is ready`);
+    $('[data-issue-title-badge]').hidden = false;
+    setText('[data-issue-description]', 'Copy the token now and give it to the program.');
+    setText('[data-issue-main-title]', 'Token and first call');
+    setText('[data-issue-main-about]', 'The token, and the command that uses it, in one place.');
+    setText('[data-issue-main-foot]', `The ${one}’s row shows its first request as soon as it calls.`);
+    setText('[data-issue-side-title]', `The ${one}`);
+    setText('[data-issue-side-about]', 'What was made, and where it appears.');
+    setText('[data-issue-side-foot]', `It stays on the ${one}’s page, with its token.`);
+    state.className = 'kp-badge kp-badge--success';
+    state.textContent = 'active';
+    delete state.dataset.issueRefused;
+    setText('[data-issue-fact-token]', `Made ${formatBrussels(new Date())}`);
+    setText('[data-issue-fact-call]', 'Not yet: this page notices it');
+    // The command block is made from the template the API gave, with $CLIENT_TOKEN where the token goes.
+    const host = $('[data-issue-command]');
+    host.innerHTML = '<div class="kp-command" data-kp-command="bash" data-kp-command-where="the machine that will call this service"><pre class="kp-command__code"><code></code></pre></div>';
+    host.querySelector('code').textContent = template;
+    command.attachCommands(host);
+    const copyFull = $('[data-issue-copy-full]');
+    copyFull.onclick = () => flash.runFlashButton(copyFull, async () => {
+      if (!(await copyText(full))) throw new Error('The browser refused to copy');
+      return 'Copied';
+    });
+    $('[data-issue-pane="form"]').hidden = true;
+    $('[data-issue-pane="result"]').hidden = false;
+    $('[data-issue-actions="form"]').hidden = true;
+    $('[data-issue-actions="done"]').hidden = false;
+    $('[data-issue-pane="result"] [data-kp-secret-reveal]')?.focus();
+    pollTimer = window.setInterval(watchFirstCall, CLIENTS_POLL_MS);
   }
-});
+
+  // The first call, noticed while the receipt is open.
+  async function watchFirstCall() {
+    if (document.visibilityState === 'hidden' || !issued) return;
+    try {
+      const res = await fetch('/api/kit/clients', { headers: { accept: 'application/json' }, credentials: 'same-origin' });
+      if (!res.ok) return;
+      const mine = (await res.json()).clients.find((c) => c.id === issued.id);
+      if (!mine || !mine.uses) return;
+      setText('[data-issue-fact-call]', `Called ${mine.last_used_ago}`);
+      window.clearInterval(pollTimer);
+    } catch (_) {
+      // The next look tries again.
+    }
+  }
+
+  // "Open the client": the page reloads (the list is stale) and opens its manage dialog.
+  $('[data-issue-open]').addEventListener('click', () => {
+    opening = true;
+    try {
+      sessionStorage.setItem(ISSUE_OPEN_KEY, issued.id);
+    } catch (_) {
+      // Without storage the page just reloads.
+    }
+    window.location.reload();
+  });
+  // Whatever closes it, an issued client means the list on the page is out of date.
+  dialog.addEventListener('close', () => {
+    window.clearInterval(pollTimer);
+    if (issued && !opening) window.location.reload();
+  });
+
+  // Back from "Open the client".
+  try {
+    const wanted = sessionStorage.getItem(ISSUE_OPEN_KEY);
+    if (wanted) {
+      sessionStorage.removeItem(ISSUE_OPEN_KEY);
+      document.querySelector(`[data-manage="${CSS.escape(wanted)}"]`)?.click();
+    }
+  } catch (_) {
+    // No storage, nothing to open.
+  }
+}
+
+function watchForFirstCall(root, modules, one) {
+  const list = root.querySelector('[data-clients-steps]');
+  if (!list) return;
+  let timer = 0;
+  async function look() {
+    if (document.visibilityState === 'hidden') return;
+    let data;
+    try {
+      const res = await fetch('/api/kit/clients', { headers: { accept: 'application/json' }, credentials: 'same-origin' });
+      if (!res.ok) return;
+      data = await res.json();
+    } catch (_) {
+      return;
+    }
+    if (data.counts.called === 0) {
+      // A client was issued from another tab: the page reshapes.
+      if ((data.counts.active > 0) !== (root.querySelector('[data-kp-step-id="s1"]').dataset.state === 'done') && !document.querySelector('dialog[open]')) {
+        window.location.reload();
+      }
+      return;
+    }
+    window.clearInterval(timer);
+    const caller = data.clients.filter((c) => c.last_used_at).sort((a, b) => b.last_used_at.localeCompare(a.last_used_at))[0];
+    for (const key of ['s1', 's2']) modules.steplist.setStep(list, key, { state: 'done' });
+    modules.steplist.setStep(list, 's3', { state: 'done', note: caller ? `${caller.name} called ${caller.last_used_ago}` : 'The first request arrived' });
+    const what = root.querySelector('[data-clients-what]');
+    if (what) {
+      what.setAttribute('data-kp-art', 'done');
+      what.querySelector('.kp-empty__title').textContent = 'Connected';
+      what.querySelector('.kp-empty__body').textContent = `The first request arrived. The list shows the ${one}, when it last called and how often.`;
+    }
+    root.querySelector('[data-clients-done]')?.removeAttribute('hidden');
+  }
+  timer = window.setInterval(look, CLIENTS_POLL_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') look();
+  });
+}
 
 // kit-kp11: the page-ready signal. Everything above has attached by now, so
 // an app's own module can attach ITS kp modules after the kit without

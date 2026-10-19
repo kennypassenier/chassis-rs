@@ -249,6 +249,21 @@ pub struct TokenReveal {
     pub command: String,
 }
 
+/// What stands where the token goes in [`command_template`].
+pub(crate) const TOKEN_PLACEHOLDER: &str = "$CLIENT_TOKEN";
+
+/// The curl line a program is wired up with, the token replaced by
+/// `$CLIENT_TOKEN` (kit-kp11): safe to paste in a chat, and it works as it
+/// stands once the shell has `CLIENT_TOKEN` set. The header is double-quoted
+/// so the shell expands the variable; the token is hex, so the revealed line
+/// (this template with the token in place) needs no escaping.
+pub(crate) fn command_template(base_url: &str, test_path: Option<&str>) -> String {
+    format!(
+        "curl -sS -H \"Authorization: Bearer {TOKEN_PLACEHOLDER}\" -H 'Content-Type: application/json' -d '{{}}' {base_url}{}",
+        test_path.unwrap_or("/v1/")
+    )
+}
+
 /// The one place the token leaves the store (K12).
 pub async fn reveal(
     State(api): State<ClientsApi>,
@@ -257,15 +272,11 @@ pub async fn reveal(
 ) -> Result<Json<TokenReveal>, Error> {
     let client = lookup(&api, &vocab, &id, true)?;
     let token = client.token.clone().ok_or_else(|| revoked(&vocab, &id))?;
-    let path = api
-        .test_route
-        .as_ref()
-        .map(|t| t.path.clone())
-        .unwrap_or_else(|| "/v1/".to_string());
-    let command = format!(
-        "curl -sS -H 'Authorization: Bearer {token}' -H 'Content-Type: application/json' -d '{{}}' {}{path}",
-        api.self_base_url
-    );
+    let command = command_template(
+        &api.self_base_url,
+        api.test_route.as_ref().map(|t| t.path.as_str()),
+    )
+    .replace(TOKEN_PLACEHOLDER, &token);
     Ok(Json(TokenReveal { token, command }))
 }
 
@@ -314,7 +325,7 @@ pub async fn send_test(
         .request(method, &url)
         .bearer_auth(&token)
         .header("content-type", &route.content_type)
-        .header("x-chassis-test", "1")
+        .header(crate::shell::captures::TEST_HEADER, "1")
         .body(route.body.clone())
         .send()
         .await
@@ -326,9 +337,7 @@ pub async fn send_test(
         })?;
     let status = res.status().as_u16();
     let body = res.text().await.unwrap_or_default();
-    // Mark the capture as a test so the row can show where it came from.
-    if let Some(last) = api.captures.list(&id).first().cloned() {
-        let _ = last;
-    }
+    // The capture middleware files this request as a test: it carries
+    // `x-chassis-test`, which only this function sends.
     Ok(Json(TestResult { status, body }))
 }

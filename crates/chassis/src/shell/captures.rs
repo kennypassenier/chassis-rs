@@ -143,6 +143,9 @@ impl Captures {
     }
 }
 
+/// The header the dashboard's test button sends.
+pub(crate) const TEST_HEADER: &str = "x-chassis-test";
+
 /// Middleware for API routes: after `require_caller` attached a `Caller`,
 /// record the request for that client. The body is read into memory
 /// (the body-size cap already bounds it) and handed on unchanged.
@@ -178,6 +181,13 @@ pub async fn capture_requests(
     let headers = parts.headers.clone();
     let req = Request::from_parts(parts, Body::from(bytes.clone()));
     let response = next.run(req).await;
+    // The dashboard's test button marks its request with this header
+    // (`clients_api::send_test`); the list says where each came from.
+    let source = if headers.contains_key(TEST_HEADER) {
+        "test"
+    } else {
+        "api"
+    };
     captures.record(
         &client_id,
         &method,
@@ -185,7 +195,7 @@ pub async fn capture_requests(
         &headers,
         &bytes,
         response.status().as_u16(),
-        "api",
+        source,
     );
     response
 }
@@ -261,5 +271,59 @@ mod tests {
         let c = Captures::new(cfg);
         c.record("id", "GET", "/", &HeaderMap::new(), b"", 200, "api");
         assert!(c.list("id").is_empty(), "a zero TTL expires at once");
+    }
+
+    /// kit-kp11: the dashboard's JSON keeps one casing, snake_case, in every
+    /// field (`body_bytes`, not `bodyBytes`), and says where a request came from.
+    #[test]
+    fn a_capture_serialises_in_snake_case_with_its_source() {
+        let c = Captures::new(cfg());
+        c.record("id", "POST", "/v1/x", &HeaderMap::new(), b"{}", 202, "test");
+        let v = serde_json::to_value(&c.list("id")[0]).unwrap();
+        let keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+        for key in keys {
+            assert!(
+                key.chars().all(|ch| ch.is_ascii_lowercase() || ch == '_'),
+                "field `{key}` is not snake_case"
+            );
+        }
+        assert_eq!(v["body_bytes"], 2);
+        assert_eq!(v["source"], "test");
+    }
+
+    /// kit-kp11: the test button's request is filed as `test`, a real call as `api`.
+    #[tokio::test]
+    async fn the_test_header_files_a_request_as_a_test() {
+        use axum::{Router, body::Body, middleware::from_fn_with_state, routing::post};
+        use tower::ServiceExt;
+
+        let captures = Captures::new(cfg());
+        let app = Router::new()
+            .route("/v1/x", post(|| async { "ok" }))
+            .layer(from_fn_with_state(captures.clone(), capture_requests))
+            .layer(axum::middleware::from_fn(
+                |mut req: Request<Body>, next: Next| async move {
+                    req.extensions_mut().insert(Caller::Client {
+                        id: "id".into(),
+                        name: "n".into(),
+                    });
+                    next.run(req).await
+                },
+            ));
+        for (header, _) in [(Some(TEST_HEADER), "test"), (None, "api")] {
+            let mut req = Request::post("/v1/x");
+            if let Some(h) = header {
+                req = req.header(h, "1");
+            }
+            let res = app
+                .clone()
+                .oneshot(req.body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(res.status(), 200);
+        }
+        let list = captures.list("id");
+        assert_eq!(list[0].source, "api", "newest first");
+        assert_eq!(list[1].source, "test");
     }
 }

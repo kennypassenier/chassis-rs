@@ -201,12 +201,12 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     let (_, _, empty) = http(addr, "GET", "/clients", &admin, "").await;
     let text = visible_text(&empty);
     assert_eq!(says_client(&text), None, "{empty}");
-    assert!(empty.contains("<h1>Sources</h1>"), "{empty}");
-    assert!(empty.contains("No sources yet. Add one above."), "{empty}");
+    assert!(empty.contains(">Sources</h1>"), "{empty}");
+    assert!(empty.contains("No sources yet"), "{empty}");
     assert!(empty.contains("Add a source"), "{empty}");
     assert!(
-        empty.contains("<h2>Registered sources</h2>"),
-        "the second heading speaks the vocabulary too: {empty}"
+        empty.contains("Wire up your first source"),
+        "the first-client walk-through speaks the vocabulary: {empty}"
     );
     assert!(empty.contains("vocabdemo — sources</title>"), "{empty}");
     assert!(
@@ -219,6 +219,10 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     let id = id_of(&body);
     let (_, _, full) = http(addr, "GET", "/clients", &admin, "").await;
     assert_eq!(says_client(&visible_text(&full)), None, "{full}");
+    assert!(
+        full.contains("Registered sources (1)"),
+        "the list heading speaks the vocabulary and counts exactly: {full}"
+    );
     assert!(
         full.contains(&format!("data-post=\"/api/clients/{id}/revoke\"")),
         "API paths are not vocabulary: {full}"
@@ -235,11 +239,11 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     // red by dropping `state-cell` from clients.html, and again by leaving
     // `state-badge` on the badge.
     assert!(
-        full.contains("<td class=\"state-cell\">"),
+        full.contains("<td class=\"state-cell\" data-label=\"State\""),
         "the state column declares the wrap knob: {full}"
     );
     assert!(
-        full.contains("<span class=\"kp-badge kp-badge--success\">active</span>"),
+        full.contains("<span class=\"kp-badge\">not used yet</span>"),
         "the badge itself is plain: {full}"
     );
     assert!(
@@ -322,9 +326,9 @@ async fn k28_without_vocabulary_the_pages_still_say_client() {
     let addr = running.addr;
     let cookie = login(addr).await;
     let (_, _, page) = http(addr, "GET", "/clients", &[("Cookie", &cookie)], "").await;
-    assert!(page.contains("<h1>Clients</h1>"), "{page}");
+    assert!(page.contains(">Clients</h1>"), "{page}");
     assert!(page.contains("Add a client"), "{page}");
-    assert!(page.contains("No clients yet. Add one above."), "{page}");
+    assert!(page.contains("No clients yet"), "{page}");
     assert!(says_client(&visible_text(&page)).is_some(), "{page}");
     running.stop().await;
 }
@@ -342,7 +346,7 @@ async fn k28_clients_label_still_names_the_page_when_set() {
     let addr = running.addr;
     let cookie = login(addr).await;
     let (_, _, page) = http(addr, "GET", "/clients", &[("Cookie", &cookie)], "").await;
-    assert!(page.contains("<h1>Feeds</h1>"), "{page}");
+    assert!(page.contains(">Feeds</h1>"), "{page}");
     assert!(page.contains("Add a source"), "{page}");
     assert_eq!(says_client(&visible_text(&page)), None, "{page}");
     running.stop().await;

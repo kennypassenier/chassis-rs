@@ -24,6 +24,7 @@ use serde::Serialize;
 use crate::core::error::Error;
 use crate::shell::assets::{KP_THEMES_VERSION, asset_version};
 use crate::shell::auth::{AuthState, LoginForm, LoginOutcome, login};
+use crate::shell::client_list;
 use crate::shell::clients_api::ClientView;
 use crate::shell::health::Health;
 use crate::shell::store::Clients;
@@ -482,6 +483,9 @@ pub struct Dashboard {
     pub auth: AuthState,
     /// The service opted in and runs without secrets: no door, a banner.
     pub open: bool,
+    /// kit-kp11: the curl line with `$CLIENT_TOKEN` where the token goes,
+    /// for `/api/kit/clients`. Private so the public surface stays as it was.
+    command_template: Arc<str>,
     env: Arc<Environment<'static>>,
     /// The last 48 hours of health, one sample per check (kit-kp11); in
     /// memory only.
@@ -622,6 +626,7 @@ impl Dashboard {
             clients,
             auth,
             open,
+            command_template: Arc::from(""),
             env: Arc::new(env),
             uptime: UptimeHistory::default(),
             clients_href: Some("/clients".to_string()),
@@ -672,6 +677,13 @@ impl Dashboard {
         };
         self.uptime
             .record(Sample::from_report(report.status == "ok", parts, failing));
+    }
+
+    /// kit-kp11: the command a program is wired up with, token as
+    /// `$CLIENT_TOKEN` (see `clients_api::command_template`).
+    pub(crate) fn with_command_template(mut self, template: String) -> Self {
+        self.command_template = Arc::from(template);
+        self
     }
 
     /// K28: what this service calls a client, for every template
@@ -1073,6 +1085,18 @@ struct ClientRow {
     /// Empty on a revoked row — an action on a client that no longer has a
     /// token has nothing to act on.
     actions: Vec<serde_json::Value>,
+    /// kit-kp11: `in use`, `idle`, `new` or `revoked` (client_list).
+    state: client_list::Standing,
+    /// Days without a call; 0 unless `state` is `idle`.
+    idle_days: i64,
+    /// dd/mm/yyyy HH:mm, Europe/Brussels.
+    issued_display: String,
+    last_used_display: Option<String>,
+    /// `12 s ago`, `5 days ago`.
+    last_used_ago: Option<String>,
+    revoked_display: Option<String>,
+    /// dd/mm/yyyy.
+    revoked_date: Option<String>,
 }
 
 /// `GET /clients` — the clients page (K12, K13, K14).
@@ -1097,13 +1121,35 @@ pub async fn clients_json(State(d): State<Dashboard>) -> Response {
         .into_response()
 }
 
+/// The distinct, filled-in values of one declared field, in the order given.
+fn usual_values<'a>(values: impl Iterator<Item = &'a str>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for v in values {
+        if !v.is_empty() && v != "—" && !out.iter().any(|o| o == v) {
+            out.push(v.to_string());
+        }
+    }
+    out
+}
+
+/// The path a client calls (`/v1/messages`): the last word of the curl line in
+/// `command_template`, without its scheme and host.
+fn calls_path(template: &str) -> String {
+    let url = template.split_whitespace().last().unwrap_or("");
+    let rest = url.split_once("://").map_or(url, |(_, r)| r);
+    rest.find('/')
+        .map_or_else(|| "/".to_string(), |i| rest[i..].to_string())
+}
+
 fn clients_data(d: &Dashboard) -> serde_json::Value {
     let snap = d.clients.snapshot();
+    let now = chrono::Utc::now();
     let rows: Vec<ClientRow> = snap
         .clients
         .iter()
         .map(|c| {
             let view = ClientView::from(c);
+            let (state, idle_days) = client_list::standing(&view, now);
             // feat-clients-2: one cell per declared field, before the
             // project's own columns. The project declared the field, so the
             // kit shows it back without being asked. The template renders
@@ -1129,6 +1175,16 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
                 Vec::new()
             };
             ClientRow {
+                issued_display: client_list::brussels(&view.issued_at),
+                last_used_display: view.last_used_at.as_deref().map(client_list::brussels),
+                last_used_ago: view
+                    .last_used_at
+                    .as_deref()
+                    .map(|t| client_list::ago_words(t, now)),
+                revoked_display: view.revoked_at.as_deref().map(client_list::brussels),
+                revoked_date: view.revoked_at.as_deref().map(client_list::brussels_date),
+                state,
+                idle_days,
                 view,
                 declared,
                 extra,
@@ -1136,12 +1192,33 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
             }
         })
         .collect();
+    let counts = client_list::counts(rows.iter().map(|r| (r.state, &r.view)));
+    // A project column sorts as a number only when every cell is one.
     let columns: Vec<serde_json::Value> = d
         .columns
         .iter()
-        .map(|c| serde_json::json!({ "title": c.title() }))
+        .enumerate()
+        .map(|(i, c)| {
+            let numeric = !rows.is_empty()
+                && rows.iter().all(|r| {
+                    r.extra
+                        .get(i)
+                        .is_some_and(|cell| cell.trim().parse::<f64>().is_ok())
+                });
+            serde_json::json!({ "title": c.title(), "numeric": numeric })
+        })
+        .collect();
+    // kit-kp11 (clients-issue): the values each declared field already holds,
+    // most recent first, for the "used before" list of its combobox.
+    let form_usual: Vec<Vec<String>> = (0..d.form_fields.len())
+        .map(|i| usual_values(rows.iter().rev().map(|r| r.declared[i].as_str())))
         .collect();
     serde_json::json!({
+        "counts": counts,
+        "idle_after_days": client_list::IDLE_AFTER_DAYS,
+        "command_template": &*d.command_template,
+        "calls_path": calls_path(&d.command_template),
+        "form_usual": form_usual,
         "clients": rows,
         "declared_columns": d
             .form_fields
@@ -1193,6 +1270,65 @@ mod tests {
             assert_eq!(found, art, "{code}");
             assert!(why.ends_with('.'), "{code}: {why}");
         }
+    }
+
+    /// kit-kp11: the shell's palette and shortcuts find the clients page's
+    /// actions through these hooks, and the figures stay exact filters.
+    #[test]
+    fn the_calls_path_is_the_end_of_the_command_template() {
+        assert_eq!(
+            calls_path(
+                "curl -sS -H \"A: B $CLIENT_TOKEN\" -d '{}' http://127.0.0.1:8080/v1/messages"
+            ),
+            "/v1/messages"
+        );
+        assert_eq!(calls_path(""), "/");
+        assert_eq!(
+            usual_values(["b", "—", "", "a", "b"].into_iter()),
+            vec!["b".to_string(), "a".to_string()]
+        );
+    }
+
+    /// kit-kp11 (clients-issue, approved): one dialog on the 12-column grid
+    /// with the form card, the live client card, the secret and the command
+    /// block; a flash button is never set to grow by hand.
+    #[test]
+    fn the_issue_dialog_keeps_its_approved_parts() {
+        let html = include_str!("../../templates/clients.html");
+        let css = include_str!("../../static/chassis.css");
+        for part in [
+            "id=\"issue-dialog\"",
+            "kp-dialog--wide issue-dialog",
+            "grid-template-rows: subgrid",
+            "data-kp-usual=",
+            "data-kp-secret",
+            "data-issue-command",
+            "Copy with the token filled in",
+            "data-issue-pane=\"result\"",
+        ] {
+            assert!(
+                html.contains(part) || css.contains(part),
+                "the issue dialog lost {part}"
+            );
+        }
+        assert!(
+            !html.contains("data-kp-width=\"grow\""),
+            "a flash button's width is the package's to grow"
+        );
+    }
+
+    #[test]
+    fn the_clients_page_carries_the_command_hooks() {
+        let html = include_str!("../../templates/clients.html");
+        for hook in [
+            "data-chassis-command=\"filter-idle\"",
+            "data-chassis-command=\"search\"",
+            "data-chassis-command=\"issue\"",
+            "data-manage=\"{{ c.id }}\"",
+        ] {
+            assert!(html.contains(hook), "clients.html lost {hook}");
+        }
+        assert!(html.contains("{{ counts.idle }}") && !html.contains("9+"));
     }
 
     #[test]

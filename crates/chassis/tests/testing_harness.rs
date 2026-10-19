@@ -515,7 +515,7 @@ async fn feat_clients_2_a_declared_field_is_stored_shown_and_returned() {
     // Shown on the page, under the label the project gave the field.
     let (page_status, page) = app.page("/clients").await;
     assert_eq!(page_status, 200);
-    assert!(page.contains("<th>Calendar</th>"), "{page}");
+    assert!(page.contains(">Calendar</th>"), "{page}");
     assert!(page.contains("work-cal"), "{page}");
 
     // A key the project never declared is not stored, so a caller cannot
