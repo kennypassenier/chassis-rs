@@ -358,6 +358,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         Router::new()
     } else {
         use crate::shell::passkeys::{self, PasskeyState};
+        use axum::routing::patch;
         let webauthn = passkeys::build_webauthn(spec.name, &prefix, limits.public_url.as_deref())?;
         let pk = PasskeyState::open(
             webauthn,
@@ -385,8 +386,12 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         let admin_api = Router::new()
             .route("/passkeys/register/start", post(passkeys::register_start))
             .route("/passkeys/register/finish", post(passkeys::register_finish))
-            .route("/api/passkeys", get(passkeys::list))
-            .route("/api/passkeys/{id}", delete(passkeys::delete))
+            .route("/api/passkeys", get(passkeys::list_current))
+            .route(
+                "/api/passkeys/{id}",
+                delete(passkeys::delete).patch(passkeys::rename),
+            )
+            .route("/api/kit/passkeys/{id}", patch(passkeys::rename))
             .layer(from_fn_with_state(pk.clone(), passkeys::require_https))
             .with_state(pk.clone())
             .layer(from_fn_with_state(auth.clone(), require_admin));
@@ -400,7 +405,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
                 >,
                  headers: axum::http::HeaderMap| async move {
                     let https = d.is_https(peer, &headers);
-                    d.passkeys_page(https, pk.list())
+                    d.passkeys_page(https, pk.list_for_request(&headers).await)
                 },
             ),
         );
@@ -418,7 +423,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
                         axum::Json(serde_json::json!({
                             "https": d.is_https(peer, &headers),
                             "public_url": d.public_url,
-                            "passkeys": pk.list(),
+                            "passkeys": pk.list_for_request(&headers).await,
                         })),
                     )
                 },

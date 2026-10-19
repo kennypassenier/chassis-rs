@@ -7,6 +7,20 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **Passkeys: `current` flag and rename** (kit-kp11). `/api/kit/passkeys` and
+  `GET /api/passkeys` carry `current: true` on the passkey this session logged
+  in with (the dashboard remembers, in memory, which stored passkey opened
+  each session; a token login has none, and a restart forgets it until the
+  next passkey login, so every row is `false` until then).
+  `PATCH /api/passkeys/{id}` and `PATCH /api/kit/passkeys/{id}` take
+  `{ "name": "…" }`, trim it, accept 1 to 64 characters, and answer the
+  updated passkey; same admin session and CSRF guard as the delete. Public
+  surface (additive): `PasskeyListing` (`PasskeyView` plus `current`),
+  `PasskeyState::list_for` and `list_for_request`, `passkeys::list_current`,
+  `rename`, `RenameBody`, `clean_name`, `MAX_NAME_CHARS`.
+
 ## [3.8.0] - 2026-10-19
 
 ### Changed
