@@ -335,3 +335,52 @@ fn login_and_passkeys_pages_keep_their_approved_parts() {
         "the not-HTTPS alert speaks plain words, no variable names"
     );
 }
+
+/// 2026-10-19 (Kenny: "elk thema heeft al een loading animatie voor dit soort
+/// element, gebruik het!"): the passkeys page shows loading, empty and failed
+/// through the kp components' own states (the list's busy card and state
+/// notes, the code's own states), never a stand-in spinner, plain text or
+/// hand-drawn skeleton; a failed read offers the list's own Retry; the
+/// dialog holds still while the browser asks; the first step of the
+/// walk-through is not claimed done before anyone scanned.
+#[test]
+fn passkeys_page_uses_the_components_own_states() {
+    let pk = kit_file("templates/passkeys.html");
+    let js = kit_file("static/chassis.js");
+    let start = js
+        .find("async function initPasskeys")
+        .expect("initPasskeys");
+    let end = js[start..].find("\n}\n").expect("end of initPasskeys") + start;
+    let block = &js[start..end];
+    assert!(
+        pk.contains(r#"id="passkeys-list" data-kp-state="loading""#),
+        "the list is loading from the first byte"
+    );
+    assert!(
+        pk.contains(r#"data-kp-state="loading" data-kit-qr"#),
+        "the code is loading from the first byte"
+    );
+    for part in [
+        "state: 'loading'",
+        "state: 'error'",
+        "kp-passkeys-retry",
+        "kit-passkey-registered",
+    ] {
+        assert!(block.contains(part), "initPasskeys lost {part}");
+    }
+    for stand_in in ["spinner", "skeleton", "Loading…", "Loading..."] {
+        assert!(
+            !block.contains(stand_in) && !pk.contains(&format!("kp-{stand_in}")),
+            "a stand-in for the component's own state: {stand_in}"
+        );
+    }
+    assert!(
+        !pk.contains(r#"data-state="done"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Scan"#),
+        "step one is the current step, not a done one"
+    );
+    let own = kit_file("static/passkeys.js");
+    assert!(
+        own.contains("holdDialog") && own.contains("'cancel'"),
+        "the register dialog must hold still while the browser asks"
+    );
+}
