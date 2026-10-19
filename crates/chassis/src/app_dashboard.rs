@@ -243,7 +243,8 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
     )?
     .with_vocabulary(vocab.clone())
     .with_client_actions(registry.client_actions)
-    .with_update_check(registry.check_update);
+    .with_update_check(registry.check_update)
+    .with_repository(spec.repository);
 
     // feat-pages-1: one list of pages for every navigation. `nav_entry`
     // links from before 3.1.0 join it as visible project pages.

@@ -419,3 +419,511 @@ document.addEventListener('submit', async (event) => {
   });
   window.chassis = Object.freeze({ ...(window.chassis || {}), attached, ready });
 }
+
+/* ======================================================================
+   status (kit-kp11)
+   The status page as an operations page. The server draws the first
+   paint; this block attaches the kp modules the page uses, keeps the page
+   fresh from /api/kit/status (the refresh control, a failed health row's
+   Retry, a section card's Try again), runs the section buttons that keep
+   the page, and loads the cards that read their own JSON. Nothing here
+   touches another page: it starts only where [data-chassis-status] is.
+   ====================================================================== */
+const statusRoot = document.querySelector('[data-chassis-status]');
+if (statusRoot) {
+  startStatus(statusRoot).catch((error) => console.error('chassis status page', error));
+}
+
+async function startStatus(root) {
+  const kp = (name) => import(`./kp/js/${name}.js`);
+  const { restoreRemembered, attachRemembered } = await kp('remember');
+  restoreRemembered(root);
+  attachRemembered(root);
+
+  // Only what this page carries is fetched, as kp-themes' auto.js does; the
+  // theme picker and the confirmations are chassis.js's own and stay single.
+  const modules = [
+    ['freshness', '[data-kp-ago]', (m) => m.attachAgo(root)],
+    ['auto-refresh', '[data-kp-refresh]', (m) => m.attachRefresh(root)],
+    ['patterns', '[data-kp-copy]', (m) => m.attachPatterns(root)],
+    ['version-delta', '[data-kp-version-to]', (m) => m.attachVersionDeltas(root)],
+    ['uptime', '[data-kp-uptime]', (m) => m.attachUptimes(root)],
+    ['problems', '[data-kp-problems]', (m) => m.attachProblems(root)],
+    ['kpi', '.kp-kpis[data-kp-kpis-columns]', (m) => m.attachKpiStrips(root)],
+    ['statusrow', '.kp-statuslist', (m) => m.attachStatusLists(root)],
+    ['card-state', '.kp-card[data-kp-state]', (m) => m.attachCardStates(root)],
+    ['flash', '[data-kp-flash-button]', (m) => m.attachFlashButtons(root)],
+    ['datatable', '[data-kp-datatable]', (m) => m.attachDataTables(root)],
+    ['tables', '.kp-table-wrap', (m) => m.attachTableRegions(root)],
+    ['menu-button', '[data-kp-menu-button]', (m) => m.attachMenuButtons(root)],
+    ['lede', '.kp-lede', (m) => m.attachLedes(root)],
+    ['attention', '.kp-attention', (m) => m.attachAttention(root)],
+    ['loading-pieces', '.kp-kpi, .kp-card, [data-kp-datatable], [data-kp-menu-button]', (m) => m.attachLoadingPieces(root)],
+    ['footprint', '.kp-ops', (m) => m.attachFootprints(root)],
+    ['motion', '.kp-card, .kp-datatable, .kp-toasts', (m) => m.attachMotion(root)],
+  ];
+  await Promise.all(
+    modules
+      .filter(([, when]) => root.querySelector(when))
+      .map(async ([name, , attach]) => attach(await kp(name))),
+  );
+  if (root.querySelector('[data-kp-disabled-reason]')) (await kp('reason')).attachDisabledReasons(root);
+
+  const { setProblems } = await kp('problems');
+  const { setUptime } = await kp('uptime');
+  const { setStatus } = await kp('statusrow');
+  const { setCardState } = await kp('card-state');
+  const { runFlashButton } = await kp('flash');
+  const { toast } = await kp('overlays');
+  const { refreshOf } = await kp('auto-refresh');
+  const { attachAgo } = await kp('freshness');
+  const { attachVersionDeltas } = await kp('version-delta');
+  const { attachStatusLists } = await kp('statusrow');
+  const { attachDataTables } = await kp('datatable');
+  const { attachKpiStrips } = await kp('kpi');
+
+  const say = (text) => toast(text, { ms: 3200 });
+  const BRUSSELS = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Brussels', day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  });
+  const HOURS = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  // dd/mm/yyyy HH:mm, 24 hours (UI principles, rule 52).
+  function when(iso) {
+    const t = new Date(iso);
+    if (Number.isNaN(t.getTime())) return iso;
+    const p = Object.fromEntries(BRUSSELS.formatToParts(t).map((x) => [x.type, x.value]));
+    return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
+  }
+  const stampTimes = (scope) => {
+    for (const el of scope.querySelectorAll('time[data-chassis-when]')) {
+      el.textContent = when(el.getAttribute('datetime'));
+      el.title = el.getAttribute('datetime');
+    }
+  };
+  const esc = escapeHtml;
+  const plural = (word, n) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+  /* ---------------------------------------------------------- bodies -- */
+  const kvHtml = (pairs) =>
+    `<dl class="kp-kv kp-kv--lines" data-chassis-rows>${pairs
+      .map(([l, v]) => `<div class="kp-kv__row"><dt>${esc(l)}</dt><dd>${v.html ?? esc(v)}</dd></div>`)
+      .join('')}</dl>`;
+  const kpisHtml = (list, label) =>
+    `<div class="kp-kpis" role="group" aria-label="${esc(label)}">${list
+      .map(
+        (k) =>
+          `<div class="kp-kpi"${k.tone ? ` data-kp-tone="${esc(k.tone)}"` : ''}><span class="kp-kpi__label">${esc(k.label)}</span><span class="kp-kpi__value">${esc(k.value)}</span>${k.note ? `<span class="kp-kpi__trend">${esc(k.note)}</span>` : ''}</div>`,
+      )
+      .join('')}</div>`;
+  const checkState = (c) => (c.state === 'failed' || c.state === 'warn' ? c.state : c.ok === false ? 'failed' : 'ok');
+  const checksHtml = (list, label) =>
+    `<ul class="kp-statuslist kp-statuslist--rows" aria-label="${esc(label)}">${list
+      .map(
+        (c) =>
+          `<li class="kp-statusrow" data-state="${checkState(c)}" data-kp-status-id="${esc(c.name)}"><span class="kp-statusrow__mark" aria-hidden="true"></span><span class="kp-statusrow__body"><span class="kp-statusrow__label">${esc(c.name)}</span><span class="kp-statusrow__detail">${esc(c.detail ?? '')}</span></span></li>`,
+      )
+      .join('')}</ul>`;
+  const sortsOf = (columns, rows) =>
+    columns.map((_, c) => {
+      const cells = rows.map((r) => String(r[c] ?? '').trim()).filter(Boolean);
+      return cells.length && cells.every((s) => Number.isFinite(Number(s))) ? 'number' : 'text';
+    });
+  const tableHtml = (slug, title, { columns, rows, key = 0 }) => {
+    const sorts = sortsOf(columns, rows);
+    return `<div class="kp-datatable" data-kp-datatable data-kp-page-size="5" data-kp-remember="status-${esc(slug)}"><div class="kp-table-wrap"><table class="kp-table"><caption class="kp-sr-only">${esc(title)}</caption><thead><tr>${columns
+      .map((c, i) => `<th scope="col" data-kp-sort="${sorts[i]}">${esc(c)}</th>`)
+      .join('')}</tr></thead><tbody>${rows
+      .map(
+        (r) =>
+          `<tr data-kp-row-key="${esc(r[key] ?? '')}">${r.map((cell, i) => `<td${sorts[i] === 'number' ? ' class="kp-numeric"' : ''}>${esc(cell)}</td>`).join('')}</tr>`,
+      )
+      .join('')}</tbody></table></div></div>`;
+  };
+
+  // What a JSON answer becomes, by the render a section named (JsonRender).
+  const label = (key) => key.charAt(0).toUpperCase() + key.slice(1).replace(/[_-]+/g, ' ');
+  const scalar = (key, v) => {
+    if (key === 'status' && typeof v === 'string') {
+      const state = v === 'ok' ? 'ok' : v === 'degraded' ? 'warn' : 'down';
+      return { html: `<span class="kp-health" data-state="${state}"><span class="kp-health__dot" aria-hidden="true"></span> ${esc(v)}</span>` };
+    }
+    if (key === 'version') return { html: `<span class="mono">${esc(v)}</span>` };
+    if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+    if (Array.isArray(v)) return v.join(', ');
+    return String(v);
+  };
+  function jsonPairs(data) {
+    if (Array.isArray(data)) return data.map((x) => (Array.isArray(x) ? [String(x[0]), String(x[1])] : [String(x.label ?? x.name), String(x.value ?? x.detail ?? '')]));
+    const pairs = [];
+    for (const [k, v] of Object.entries(data ?? {})) {
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        for (const [name, sub] of Object.entries(v)) {
+          if (sub && typeof sub === 'object' && 'detail' in sub) pairs.push([label(name), String(sub.detail)]);
+        }
+      } else pairs.push([label(k), scalar(k, v)]);
+    }
+    // The service's own facts first, the way a person reads them.
+    return pairs;
+  }
+  function checksOf(data) {
+    if (Array.isArray(data)) return data;
+    return Object.entries(data ?? {}).map(([name, v]) => ({ name, ok: v.ok, state: v.state, detail: v.detail }));
+  }
+  function jsonEmpty(render, data) {
+    if (render === 'table') return !(data?.rows?.length);
+    if (render === 'rows') return jsonPairs(data).length === 0;
+    return (Array.isArray(data) ? data : checksOf(data)).length === 0;
+  }
+  function jsonHtml(render, data, slug, title) {
+    if (render === 'table') return tableHtml(slug, title, data);
+    if (render === 'kpis') return kpisHtml(data, title);
+    if (render === 'checks') return checksHtml(checksOf(data), title);
+    return kvHtml(jsonPairs(data));
+  }
+
+  /* ------------------------------------------------------- the polling -- */
+  const refreshEl = root.querySelector('.kp-refresh');
+  let lastData = null;
+  let failures = 0;
+  const signatures = new Map();
+
+  async function poll() {
+    const res = await fetch('/api/kit/status', { headers: { accept: 'application/json' }, cache: 'no-store', redirect: 'manual' });
+    // A session that ended answers with the login redirect: take the reader there.
+    if (res.type === 'opaqueredirect' || res.status === 401 || res.status === 303) {
+      location.reload();
+      throw new Error('The session ended');
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  const only = (selector) => root.querySelector(selector);
+  function swap(el, html, attach) {
+    if (!el) return;
+    el.innerHTML = html;
+    attach?.(el);
+  }
+
+  function kpiTiles(d) {
+    const parts = d.parts;
+    const ok = parts.total - parts.failing;
+    const degraded = d.health.status !== 'ok';
+    const u = d.update_facts;
+    const repo = d.repository_url ? ` data-kp-version-href="${esc(d.repository_url)}/releases/tag/v{to}"` : '';
+    const chip = `<span class="kp-badge kp-badge--version" data-kp-version-from="${esc(d.version)}" data-kp-version-to="${esc(u.latest)}"${repo}></span>`;
+    const running = u.newer
+      ? `${chip} is out`
+      : u.latest
+        ? 'The latest release'
+        : u.mode === 'unavailable'
+          ? 'Updates are not available in this service'
+          : 'No newer release known';
+    const trend = degraded
+      ? `${plural('part', parts.failing)} failing; the health check answers 503`
+      : parts.total > 0
+        ? 'Every part can do its work'
+        : 'This service has no parts to check; being alive is the only signal';
+    const meter =
+      parts.total > 0
+        ? `<span class="kp-kpi__meter" role="meter" aria-label="Parts that can do their work" aria-valuenow="${ok}" aria-valuemin="0" aria-valuemax="${parts.total}" style="--kp-value: ${ok / parts.total}"></span>`
+        : '';
+    const clients = d.clients
+      ? `<a class="kp-kpi" href="${esc(d.clients.href)}" data-chassis-kpi="clients"><span class="kp-kpi__label">${esc(d.clients.label)}</span><span class="kp-kpi__value">${d.clients.active}<small>of ${d.clients.total}</small></span><span class="kp-kpi__trend">active; open the list</span></a>`
+      : '';
+    return `<div class="kp-kpi"${degraded ? ' data-kp-tone="destructive"' : ''} data-chassis-kpi="health"><span class="kp-kpi__label">Health</span><span class="kp-kpi__value">${degraded ? 'Degraded' : 'Healthy'}${parts.total > 0 ? `<small>${ok} of ${parts.total} parts</small>` : ''}</span><span class="kp-kpi__trend">${trend}</span>${meter}</div>
+      <div class="kp-kpi" data-chassis-kpi="running"><span class="kp-kpi__label">Running</span><span class="kp-kpi__value">${esc(d.version)}</span><span class="kp-kpi__trend">${running}</span></div>
+      <div class="kp-kpi" data-chassis-kpi="up"><span class="kp-kpi__label">Up for</span><span class="kp-kpi__value">${esc(d.up_for)}</span><span class="kp-kpi__trend">since <time datetime="${esc(d.started_at)}" data-chassis-when data-localised="true"></time></span></div>
+      ${clients}`;
+  }
+
+  function updatesRows(d) {
+    const u = d.update_facts;
+    const latest = u.newer
+      ? `<span class="kp-badge kp-badge--version" data-kp-version-from="${esc(d.version)}" data-kp-version-to="${esc(u.latest)}"${d.repository_url ? ` data-kp-version-href="${esc(d.repository_url)}/releases/tag/v{to}"` : ''}></span>`
+      : u.latest
+        ? 'You are on it'
+        : '<span class="kp-kv__none">—<span class="kp-sr-only">not checked</span></span>';
+    const checked = u.last_check_at
+      ? `<time datetime="${esc(u.last_check_at)}" data-chassis-when data-localised="true"></time> <time class="kp-ago" data-localised="true" data-kp-ago data-kp-ago-verb="checked" datetime="${esc(u.last_check_at)}"></time>`
+      : 'Never';
+    return `<div class="kp-kv__row"><dt>Mode</dt><dd>${esc(u.mode_label)}</dd></div><div class="kp-kv__row"><dt>Running</dt><dd><span class="mono">${esc(d.version)}</span></dd></div><div class="kp-kv__row"><dt>Latest release</dt><dd>${latest}</dd></div><div class="kp-kv__row"><dt>Last check</dt><dd>${checked}</dd></div>`;
+  }
+
+  // One section card, brought up to date. A part is redrawn only when what
+  // it shows changed, so a poll that finds nothing new touches nothing.
+  function partHtml(s, part) {
+    if (part.kind === 'rows') return kvHtml(part.data);
+    if (part.kind === 'kpis') return kpisHtml(part.data, s.title);
+    if (part.kind === 'checks') return checksHtml(part.data, s.title);
+    if (part.kind === 'table') return tableHtml(s.slug, s.title, part.data);
+    return null;
+  }
+  function updateSection(card, s, force) {
+    const redraw = (key, sig, draw) => {
+      const known = signatures.get(key);
+      signatures.set(key, sig);
+      if ((known === undefined || known === sig) && !force) return;
+      draw();
+    };
+    if (!card.dataset.chassisKind) {
+      // A section as it always was: label/value rows.
+      const rows = s.body && s.body.kind === 'rows' ? s.body.data : s.rows;
+      const dl = card.querySelector('dl[data-chassis-rows]');
+      if (dl && rows) redraw(s.slug, JSON.stringify(rows), () => (dl.outerHTML = kvHtml(rows)));
+      return;
+    }
+    if (card.dataset.chassisKind !== 'parts') return;
+    (s.parts || []).forEach((part, i) => {
+      const wrapper = card.querySelector(`[data-chassis-part="${i}"]`);
+      const html = partHtml(s, part);
+      if (!wrapper || html === null) return;
+      redraw(`${s.slug}#${i}`, JSON.stringify(part.data), () => {
+        wrapper.innerHTML = html;
+        if (part.kind === 'table') attachDataTables(wrapper);
+        else if (part.kind === 'checks') attachStatusLists(wrapper);
+        else if (part.kind === 'kpis') attachKpiStrips(wrapper);
+      });
+    });
+  }
+
+  async function apply(d, { force = false } = {}) {
+    lastData = d;
+    // The four figures: rebuilt when they changed; the age of the service
+    // is patched in place, since it moves every minute.
+    const strip = only('.kp-ops__kpis .kp-kpis');
+    const tiles = kpiTiles(d);
+    const kpiSig = tiles.replace(/<span class="kp-kpi__value">[^<]*<\/span><span class="kp-kpi__trend">since/, '');
+    const upTile = only('[data-chassis-kpi="up"] .kp-kpi__value');
+    if (strip && (strip.dataset.sig !== kpiSig || force)) {
+      strip.dataset.sig = kpiSig;
+      strip.innerHTML = tiles;
+      strip.setAttribute('data-kp-kpis-columns', `all ${d.clients ? 4 : 3} 2 1`);
+      attachVersionDeltas(strip);
+      attachKpiStrips(strip);
+      stampTimes(strip);
+    } else if (upTile) upTile.textContent = d.up_for;
+
+    // Health rows, by part.
+    const list = only('[data-chassis-health]');
+    if (list) {
+      const names = Object.keys(d.health.subsystems);
+      const have = [...list.querySelectorAll(':scope > .kp-statusrow')].map((r) => r.getAttribute('data-kp-status-id'));
+      if (names.join('\n') === have.join('\n')) {
+        for (const name of names) {
+          const sub = d.health.subsystems[name];
+          setStatus(list, name, { state: sub.ok ? 'ok' : 'failed', detail: sub.detail });
+        }
+      } else {
+        list.innerHTML = names
+          .map((name) => {
+            const sub = d.health.subsystems[name];
+            return `<li class="kp-statusrow" data-state="${sub.ok ? 'ok' : 'failed'}" data-kp-status-id="${esc(name)}"><span class="kp-statusrow__mark" aria-hidden="true"></span><span class="kp-statusrow__body"><span class="kp-statusrow__label">${esc(name)}</span><span class="kp-statusrow__detail">${esc(sub.detail)}</span></span></li>`;
+          })
+          .join('');
+        attachStatusLists(list.parentElement);
+      }
+    }
+
+    // What needs a person.
+    const box = only('[data-kp-problems]');
+    if (box) setProblems(box, d.problems);
+
+    // The updates card.
+    const dl = only('[data-chassis-updates]');
+    if (dl) {
+      const rows = updatesRows(d);
+      if (dl.dataset.sig !== rows || force) {
+        dl.dataset.sig = rows;
+        dl.innerHTML = rows;
+        attachVersionDeltas(dl);
+        attachAgo(dl);
+        stampTimes(dl);
+      }
+    }
+
+    // The last 48 hours.
+    const up = only('[data-kp-uptime]');
+    if (up) setUptime(up, { label: up.getAttribute('data-kp-uptime-label') || '', periods: d.uptime.map((p) => ({ ...p, label: HOURS.format(new Date(p.at)) })) });
+
+    for (const s of d.sections) {
+      const card = root.querySelector(`[data-chassis-section="${CSS.escape(s.slug)}"]`);
+      if (card) updateSection(card, s, force);
+    }
+  }
+
+  async function refreshAll({ force = false } = {}) {
+    const data = await poll();
+    await apply(data, { force });
+    await Promise.all([...root.querySelectorAll('[data-chassis-json]')].map((card) => loadJson(card, { quiet: true })));
+    return data;
+  }
+
+  /* ------------------------------------------------ the failed plate -- */
+  const plateHtml = `<div class="kp-attention__item kp-alert kp-alert--destructive" role="alert" data-kp-severity="critical"><span class="kp-attention__icon" aria-hidden="true">!</span><div class="kp-attention__text"><strong><span class="kp-sr-only">Critical: </span>The status could not be read</strong><span>The service did not answer. What now: check that it is running, then try again.</span></div><div class="kp-attention__actions"><button type="button" class="kp-button kp-button--sm" data-chassis-retry>Try again</button></div></div>`;
+  function showFailure(on) {
+    const ops = root;
+    let plate = ops.querySelector(':scope > [data-chassis-plate]');
+    if (on && !plate) {
+      plate = document.createElement('div');
+      plate.className = 'kp-ops__attention kp-attention';
+      plate.setAttribute('data-chassis-plate', '');
+      plate.innerHTML = plateHtml;
+      ops.querySelector('.kp-ops__attention')?.after(plate);
+      ops.setAttribute('data-kp-state', 'error');
+    } else if (!on && plate) {
+      plate.remove();
+      ops.removeAttribute('data-kp-state');
+    }
+  }
+  root.addEventListener('click', async (event) => {
+    if (!event.target.closest('[data-chassis-retry]')) return;
+    try {
+      await refreshAll({ force: true });
+      failures = 0;
+      showFailure(false);
+    } catch (_) {
+      /* the plate stays */
+    }
+  });
+
+  // The refresh control: the app fetches, the control keeps the line.
+  refreshEl?.addEventListener('kp-refresh', async (event) => {
+    const { done } = event.detail;
+    try {
+      await refreshAll();
+      failures = 0;
+      showFailure(false);
+      done(true);
+    } catch (_) {
+      failures += 1;
+      // One blip is the refresh line's to report; a second in a row means
+      // the numbers on the page can no longer be trusted.
+      if (failures >= 2) showFailure(true);
+      done(false);
+    }
+  });
+
+  // A failed row's Retry reads the status again; the rest of the page
+  // follows, so a row never keeps saying "loading".
+  root.addEventListener(
+    'kp-status-retry',
+    async (event) => {
+      const list = event.target.closest('.kp-statuslist');
+      const id = event.detail?.id ?? event.detail?.key;
+      if (list && id) setStatus(list, id, { state: 'loading', detail: 'Reading again…' });
+      try {
+        await refreshAll({ force: true });
+      } catch (_) {
+        if (list && id) setStatus(list, id, { state: 'failed', detail: 'The service did not answer' });
+      }
+    },
+    true,
+  );
+
+  /* ------------------------------------------- cards that read JSON -- */
+  async function loadJson(card, { quiet = false } = {}) {
+    const url = card.dataset.chassisJson;
+    const render = card.dataset.chassisRender || 'rows';
+    const slug = card.dataset.chassisSection;
+    const title = card.querySelector('.kp-card__title')?.textContent ?? '';
+    const body = card.querySelector('[data-chassis-part="0"]');
+    if (!quiet) setCardState(card, 'loading', { words: 'Reading…' });
+    try {
+      const res = await fetch(url, { headers: { accept: 'application/json' }, cache: 'no-store' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok && !(data && typeof data === 'object' && 'status' in data)) throw new Error(data?.remedy || data?.error || `HTTP ${res.status}`);
+      if (data === null) throw new Error('The answer is not JSON');
+      if (jsonEmpty(render, data)) {
+        body.innerHTML = '';
+        setCardState(card, 'empty', { title: 'Nothing to show yet', text: 'It fills when the service has something to report.' });
+        return;
+      }
+      body.innerHTML = `${jsonHtml(render, data, slug, title)}<p class="kp-text-muted chassis-status__read"><time class="kp-ago" data-localised="true" data-kp-ago data-kp-ago-verb="read" datetime="${new Date().toISOString()}"></time></p><div class="kp-row section-actions"><button type="button" class="kp-button" data-kp-flash-button data-kp-flash-words="Read,Refused" data-chassis-read-again>Read again</button></div>`;
+      attachAgo(body);
+      attachDataTables(body);
+      attachStatusLists(body);
+      attachKpiStrips(body);
+      (await kp('flash')).attachFlashButtons(body);
+      setCardState(card, 'ready');
+    } catch (error) {
+      if (quiet && card.getAttribute('data-kp-state') === 'ready') return; // stale data stays readable
+      setCardState(card, 'error', { title: 'This section could not be read', text: `${error.message || error}. Nothing was changed.`, action: 'Try again' });
+    }
+  }
+  root.addEventListener('kp-card-retry', (event) => {
+    const card = event.target.closest('[data-chassis-json]');
+    if (card) loadJson(card);
+  });
+
+  /* ------------------------------------------------------ the buttons -- */
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-chassis-flash], [data-chassis-read-again], [data-chassis-update-check]');
+    if (!button || !root.contains(button) || button.hasAttribute('disabled')) return;
+
+    if (button.matches('[data-chassis-read-again]')) {
+      const card = button.closest('[data-chassis-json]');
+      runFlashButton(button, async () => {
+        await loadJson(card, { quiet: true });
+        return card.getAttribute('data-kp-state') === 'ready' ? 'Read' : { error: 'The section could not be read', remedy: 'Try again in a moment.' };
+      });
+      return;
+    }
+
+    if (button.matches('[data-chassis-update-check]')) {
+      runFlashButton(button, async () => {
+        const res = await fetch('/api/kit/status/update-check', { method: 'POST', headers: { accept: 'application/json' } });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) return { error: body.error || `HTTP ${res.status}`, remedy: body.remedy };
+        refreshAll({ force: true }).catch(() => {});
+        return body.newer ? 'Update found' : 'Up to date';
+      });
+      return;
+    }
+
+    // A section's own button that keeps the page. A destructive one has
+    // been through the confirmation dialog by the time this click arrives.
+    runFlashButton(button, async () => {
+      const res = await fetch(button.dataset.chassisFlash, { method: button.dataset.method || 'POST', headers: { accept: 'application/json' } });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) return { error: body.error || res.statusText || `HTTP ${res.status}`, remedy: body.remedy };
+      const n = Number.isInteger(body.count) ? body.count : null;
+      const template = n === 1 && button.dataset.chassisToastOne ? button.dataset.chassisToastOne : button.dataset.chassisToast;
+      if (template && (n !== null || !template.includes('{n}'))) say(template.replaceAll('{n}', String(n)));
+      else if (typeof body.message === 'string' && body.message) say(body.message);
+      // What the button changed shows in its section.
+      refreshAll({ force: true }).catch(() => {});
+      return button.dataset.kpFlashWord || undefined;
+    });
+  });
+
+  // The header's More menu.
+  root.addEventListener('kp-menu-select', async (event) => {
+    const value = event.detail?.value;
+    if (value === 'copy-health') {
+      const ok = await copyText(`${location.origin}/healthz`);
+      say(ok ? 'Copied the health address' : 'Copying is not available here; the address is /healthz');
+    } else if (value === 'download-json') {
+      const link = document.createElement('a');
+      link.href = '/api/kit/status';
+      link.download = 'status.json';
+      document.body.append(link);
+      link.click();
+      link.remove();
+    }
+  });
+
+  /* ------------------------------------------------------- first paint -- */
+  stampTimes(root);
+  const box = only('[data-kp-problems]');
+  if (box) setProblems(box, JSON.parse(box.getAttribute('data-chassis-problems') || '[]'));
+  const strip = only('[data-kp-uptime]');
+  if (strip) {
+    const periods = JSON.parse(strip.getAttribute('data-chassis-uptime') || '[]');
+    setUptime(strip, { label: strip.getAttribute('data-kp-uptime-label') || '', periods: periods.map((p) => ({ ...p, label: HOURS.format(new Date(p.at)) })) });
+  }
+  for (const card of root.querySelectorAll('[data-chassis-json]')) loadJson(card);
+  // The page is as fresh as the moment it was drawn.
+  refreshOf(refreshEl)?.now?.('now');
+}

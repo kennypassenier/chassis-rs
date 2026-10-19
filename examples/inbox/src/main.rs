@@ -15,7 +15,8 @@ use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use chassis::shell::clients_api::ClientView;
 use chassis::shell::dashboard::{
-    ClientColumn, ClientFormField, Section, SectionAction, StatusSection,
+    Check, ClientColumn, ClientFormField, FlashAction, JsonRender, Kpi, Section, SectionAction,
+    SectionBody, StatusSection,
 };
 use chassis::shell::metrics::{Counter, Gauge};
 use chassis::shell::notify::Notifier;
@@ -65,6 +66,102 @@ impl StatusSection for MessagesSection {
                 .destructive("Clear every message? They are kept nowhere else.")
                 .busy_label("Clearing…"),
         ]
+    }
+}
+
+/// The newest messages as a table that sorts and searches (kit-kp11): a
+/// section's body can be data, and the kit draws it.
+struct LatestSection(Messages);
+
+impl StatusSection for LatestSection {
+    fn render(&self) -> Section {
+        Section {
+            title: "Latest messages".into(),
+            explain:
+                "The newest twenty messages clients posted. A table, so it sorts and searches."
+                    .into(),
+            rows: Vec::new(),
+            html: None,
+        }
+    }
+
+    fn body(&self) -> Option<SectionBody> {
+        let all = self.0.lock().expect("messages lock");
+        let rows: Vec<Vec<String>> = all
+            .iter()
+            .enumerate()
+            .rev()
+            .take(20)
+            .map(|(i, m)| {
+                vec![
+                    (i + 1).to_string(),
+                    m["from"].as_str().unwrap_or("?").to_string(),
+                    m["body"].to_string(),
+                ]
+            })
+            .collect();
+        Some(SectionBody::table(["#", "From", "Body"], rows))
+    }
+}
+
+/// Key figures, a check and a button that keeps the page (kit-kp11).
+struct IntakeSection(Messages);
+
+impl StatusSection for IntakeSection {
+    fn render(&self) -> Section {
+        Section {
+            title: "Intake".into(),
+            explain: "How many messages arrived and whether the store holds them. Key figures and a check row, written as data.".into(),
+            rows: Vec::new(),
+            html: None,
+        }
+    }
+
+    fn body(&self) -> Option<SectionBody> {
+        let all = self.0.lock().expect("messages lock");
+        let senders: std::collections::BTreeSet<&str> =
+            all.iter().filter_map(|m| m["from"].as_str()).collect();
+        // Two cards of the page's twelve columns: this one is the wide one.
+        Some(SectionBody::Many(vec![
+            SectionBody::Kpis(vec![
+                Kpi::new("Received", all.len()).note("since the service started"),
+                Kpi::new("Senders", senders.len()).note("clients that posted at least once"),
+            ]),
+            SectionBody::Checks(vec![Check::ok(
+                "Message store",
+                &format!("holding {} in memory", all.len()),
+            )]),
+        ]))
+    }
+
+    /// Counted again, without leaving the page: a spinner, a word and a toast
+    /// with the number.
+    fn flash_actions(&self) -> Vec<FlashAction> {
+        vec![
+            FlashAction::post("Count messages", "/messages/count")
+                .word("Counted")
+                .toast("Counted {n} messages")
+                .toast_one("Counted 1 message"),
+        ]
+    }
+}
+
+/// A card that reads its own JSON (kit-kp11): the kit's `/healthz`, shown
+/// as rows, with loading, empty and failed handled by the card.
+struct StoreSection;
+
+impl StatusSection for StoreSection {
+    fn render(&self) -> Section {
+        Section {
+            title: "Store, read live".into(),
+            explain: "A card that reads its own address and shows its state while it waits: /healthz, as the service answers it.".into(),
+            rows: Vec::new(),
+            html: None,
+        }
+    }
+
+    fn body(&self) -> Option<SectionBody> {
+        Some(SectionBody::json("/healthz", JsonRender::Rows))
     }
 }
 
@@ -143,6 +240,13 @@ async fn messages_page(
     )
 }
 
+/// The flash action's route (kit-kp11): the answer carries the count the
+/// toast shows.
+async fn count_messages(State(messages): State<Messages>) -> Json<serde_json::Value> {
+    let count = messages.lock().expect("messages lock").len();
+    Json(serde_json::json!({ "count": count }))
+}
+
 /// The section action's route (K29): behind the admin login like every
 /// `dashboard_routes` handler; a 204 makes the button reload the page.
 async fn clear_messages(
@@ -208,6 +312,9 @@ async fn main() -> std::process::ExitCode {
         r#"{"hello":"from the dashboard"}"#,
     );
     app.status_section(MessagesSection(messages.clone()));
+    app.status_section(LatestSection(messages.clone()));
+    app.status_section(IntakeSection(messages.clone()));
+    app.status_section(StoreSection);
     app.client_column(MessagesColumn(messages.clone()));
     // feat-clients-2: what a client of THIS service needs besides a name.
     // The kit stores it with the client, renders it as a column under this
@@ -234,7 +341,9 @@ async fn main() -> std::process::ExitCode {
             .route("/messages", get(messages_page))
             .with_state(messages.clone())
             .route("/messages/clear", post(clear_messages))
-            .with_state((messages.clone(), stored.clone())),
+            .with_state((messages.clone(), stored.clone()))
+            .route("/messages/count", post(count_messages))
+            .with_state(messages.clone()),
     );
     // K21: before a binary swap, the kit asks for a consistent copy of the state.
     app.state_copy(move |dest| {

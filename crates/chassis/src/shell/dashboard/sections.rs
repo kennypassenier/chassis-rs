@@ -43,8 +43,12 @@ pub enum SectionBody {
     Checks(Vec<Check>),
     /// A card that fetches `url` itself (same origin, with the session) and
     /// draws the answer as `render`; the card shows loading, empty and
-    /// failed by itself, with Try again.
+    /// failed by itself, with Try again. It stands alone in its section:
+    /// inside [`SectionBody::Many`] it is left out and logged.
     Json { url: String, render: JsonRender },
+    /// Several bodies in one section, in order: key figures over the checks
+    /// behind them, a table under a summary.
+    Many(Vec<SectionBody>),
 }
 
 impl SectionBody {
@@ -89,12 +93,70 @@ impl SectionBody {
         self
     }
 
+    /// The bodies a section draws, in order: itself, or what a
+    /// [`SectionBody::Many`] holds (flattened; a `Json` among several is
+    /// dropped, because a card that reads its own data owns the card).
+    pub(crate) fn parts(&self) -> Vec<&SectionBody> {
+        match self {
+            Self::Many(list) => {
+                let mut out = Vec::new();
+                for b in list {
+                    for part in b.parts() {
+                        if matches!(part, Self::Json { .. }) {
+                            tracing::warn!(
+                                "a Json body inside SectionBody::Many is left out: it owns its card"
+                            );
+                        } else {
+                            out.push(part);
+                        }
+                    }
+                }
+                out
+            }
+            other => vec![other],
+        }
+    }
+
+    /// How each column of a table sorts: `number` when every cell reads as
+    /// one (so 9 comes before 10), `text` otherwise.
+    pub(crate) fn column_sorts(&self) -> Vec<&'static str> {
+        match self {
+            Self::Table { columns, rows, .. } => (0..columns.len())
+                .map(|c| {
+                    let cells: Vec<&str> = rows
+                        .iter()
+                        .filter_map(|r| r.get(c).map(|s| s.trim()))
+                        .filter(|s| !s.is_empty())
+                        .collect();
+                    if !cells.is_empty() && cells.iter().all(|s| s.parse::<f64>().is_ok()) {
+                        "number"
+                    } else {
+                        "text"
+                    }
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
     /// The span a section card takes of the page's twelve columns; see
     /// [`pack_spans`].
     fn width(&self) -> Width {
         match self {
-            Self::Kpis(_) | Self::Checks(_) => Width::Wide,
             Self::Json { .. } => Width::Narrow,
+            Self::Many(_) => {
+                let parts = self.parts();
+                if parts.is_empty()
+                    || parts
+                        .iter()
+                        .any(|p| matches!(p, Self::Table { .. } | Self::Rows(_)))
+                {
+                    Width::Full
+                } else {
+                    Width::Wide
+                }
+            }
+            Self::Kpis(_) | Self::Checks(_) => Width::Wide,
             _ => Width::Full,
         }
     }
@@ -689,6 +751,34 @@ mod tests {
         );
         assert_eq!(kinds(&[wide()]), [12]);
         assert_eq!(kinds(&[wide(), wide()]), [12, 12]);
+    }
+
+    #[test]
+    fn several_bodies_make_a_wide_card_unless_a_table_or_rows_are_among_them() {
+        let both = Some(SectionBody::Many(vec![
+            SectionBody::Kpis(vec![]),
+            SectionBody::Checks(vec![]),
+        ]));
+        assert_eq!(kinds(&[both.clone(), narrow()]), [8, 4]);
+        let with_table = Some(SectionBody::Many(vec![
+            SectionBody::Kpis(vec![]),
+            SectionBody::table(["a"], [vec!["1"]]),
+        ]));
+        assert_eq!(kinds(&[with_table, narrow()]), [12, 12]);
+        let nested = SectionBody::Many(vec![
+            SectionBody::Many(vec![SectionBody::Kpis(vec![])]),
+            SectionBody::json("/x", JsonRender::Rows),
+        ]);
+        assert_eq!(nested.parts().len(), 1, "a Json among several is left out");
+    }
+
+    #[test]
+    fn a_table_column_sorts_as_numbers_only_when_every_cell_is_one() {
+        let t = SectionBody::table(
+            ["id", "from", "mixed"],
+            [vec!["9", "a", "1"], vec!["10", "b", "x"]],
+        );
+        assert_eq!(t.column_sorts(), ["number", "text", "text"]);
     }
 
     #[test]

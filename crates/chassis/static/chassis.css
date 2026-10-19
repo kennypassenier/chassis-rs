@@ -147,3 +147,69 @@ pre.snippet {
   min-height: 2.4rem;
   box-sizing: border-box;
 }
+
+/* ======================================================================
+   status (kit-kp11)
+   The status page is kp-themes' own `.kp-ops` frame; these rules add only
+   what the package leaves to the page: where the freshness line stands,
+   the rhythm of a section's buttons and the small notes.
+   ====================================================================== */
+
+/* The header's freshness line and refresh control stand under the
+   description, on one row that wraps as whole items. */
+.chassis-status__fresh {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--kp-space-sm, 0.5rem) var(--kp-space-md, 1rem);
+    margin-block-start: var(--kp-space-sm, 0.5rem);
+}
+
+/* A section's buttons sit under its content, inside the card. */
+.chassis-status .section-actions {
+    margin: var(--kp-space-sm, 0.5rem) 0 0;
+    align-items: center;
+}
+
+.chassis-status__note,
+.chassis-status__read {
+    margin-block: var(--kp-space-sm, 0.5rem) 0;
+}
+
+/* The card that reads its own JSON: the body and its buttons keep the
+   card's footprint whatever the answer says. */
+.chassis-status [data-chassis-json] .kp-card__data {
+    min-inline-size: 0;
+}
+
+/* The kit's global h1/h2 sizes and margins are for plain pages; inside the
+   operations frame the package's own title rules decide, so a card's title
+   starts at its padding like every other card's. */
+.chassis-status :is(h1, h2) { margin: 0; }
+
+/* One visual row, one row track (Kenny, 2026-10-19): the refresh control's
+   three parts and the copyable's two parts share top and bottom edges
+   instead of being centred at their own heights, and the freshness line
+   keeps its column when the page is narrow instead of wrapping its button
+   under it. */
+.chassis-status .kp-refresh__bar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: stretch;
+    column-gap: var(--kp-space-md, 1rem);
+}
+.chassis-status .kp-refresh__bar > .kp-button {
+    block-size: auto;
+    min-block-size: 0;
+}
+.chassis-status .kp-refresh__bar > :not(.kp-button):not(.kp-menu-button) {
+    display: flex;
+    align-items: center;
+}
+.chassis-status .kp-copyable {
+    align-items: stretch;
+}
+.chassis-status .kp-copyable__value {
+    display: flex;
+    align-items: center;
+}

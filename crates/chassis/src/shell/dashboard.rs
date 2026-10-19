@@ -490,6 +490,9 @@ pub struct Dashboard {
     clients_href: Option<String>,
     /// One read-only look at the release host, when a checker exists.
     check_update: Option<UpdateCheck>,
+    /// `https://github.com/<repository>`, for the release notes link of a
+    /// version chip.
+    repository_url: Option<String>,
 }
 
 /// The "Check for updates" button's work.
@@ -606,7 +609,17 @@ impl Dashboard {
             uptime: UptimeHistory::default(),
             clients_href: Some("/clients".to_string()),
             check_update: None,
+            repository_url: None,
         })
+    }
+
+    /// kit-kp11: where the service's releases are described, from
+    /// `AppSpec::repository`.
+    pub(crate) fn with_repository(mut self, repository: Option<&str>) -> Self {
+        self.repository_url = repository
+            .filter(|r| r.split('/').count() == 2)
+            .map(|r| format!("https://github.com/{r}"));
+        self
     }
 
     /// kit-kp11: the checker behind "Check for updates".
@@ -828,6 +841,8 @@ struct SectionView {
     /// kit-kp11: the body as data, when the section declares one.
     body: Option<SectionBody>,
     flash_actions: Vec<serde_json::Value>,
+    /// The bodies the card draws, each as `{kind, data, sorts?}`.
+    parts: Vec<serde_json::Value>,
     /// A readable id for the card, unique on the page.
     slug: String,
     /// Columns of twelve the card takes (see `sections::pack_spans`).
@@ -900,6 +915,19 @@ async fn status_data(d: &Dashboard) -> serde_json::Value {
             slug: sections::slug(&section.title, i),
             section,
             actions: s.actions().iter().map(|a| a.view(None)).collect(),
+            parts: body
+                .as_ref()
+                .map(|b| {
+                    b.parts()
+                        .into_iter()
+                        .map(|p| {
+                            let mut v = serde_json::to_value(p).unwrap_or_default();
+                            v["sorts"] = serde_json::json!(p.column_sorts());
+                            v
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
             body,
             flash_actions: s.flash_actions().iter().map(FlashAction::view).collect(),
             span,
@@ -938,6 +966,7 @@ async fn status_data(d: &Dashboard) -> serde_json::Value {
         "update_facts": update_facts,
         "backup": paused,
         "uptime": d.uptime.periods(),
+        "repository_url": d.repository_url,
         "clients": d.clients_href.as_ref().map(|href| serde_json::json!({
             "href": href,
             "label": d.vocab.plural_cap,
@@ -1120,7 +1149,12 @@ mod tests {
             ),
         ] {
             assert!(
-                src.contains("class=\"explain\""),
+                src.contains("class=\"explain\"")
+                // The status page opens on kp-themes' own page header and
+                // ledes (kit-kp11), which say the same thing in the
+                // package's words.
+                || src.contains("kp-page-header__description")
+                || src.contains("kp-lede"),
                 "{name} lacks an explain block"
             );
         }
