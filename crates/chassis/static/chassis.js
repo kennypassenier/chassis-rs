@@ -810,6 +810,203 @@ function watchForFirstCall(root, modules, one) {
   });
 }
 
+// ==========================================================================
+// kp parts of the login and passkeys pages (kit-kp11)
+// The two pages are made of kp-themes parts that need their behaviour
+// attached. Only the modules a page's markup asks for are fetched, so the
+// other kit pages pay nothing; every attach below is idempotent, so a part
+// the shell attaches too is not attached twice.
+// ==========================================================================
+const PAGE_PARTS = [
+  ['[data-kp-dialog], [data-kp-dialog-close]', './kp/js/overlays.js', (m, root) => m.attachDialogs(root)],
+  ['.kp-switch', './kp/js/forms.js', (m, root) => m.attachSwitches(root)],
+  ['[data-kp-flash-button]', './kp/js/flash.js', (m, root) => m.attachFlashButtons(root)],
+  ['[data-kp-ago]', './kp/js/freshness.js', (m, root) => m.attachAgo(root)],
+  ['.kp-lede', './kp/js/lede.js', (m, root) => m.attachLedes(root)],
+  ['[data-kp-qr]', './kp/js/qr.js', (m, root) => m.attachQr(root)],
+  ['.kp-steplist', './kp/js/steplist.js', (m, root) => m.attachSteplists(root)],
+  ['[data-kp-menu-button]', './kp/js/menu-button.js', (m, root) => m.attachMenuButtons(root)],
+];
+
+async function attachPageParts(root) {
+  await Promise.all(
+    PAGE_PARTS.filter(([selector]) => root.querySelector(selector)).map(async ([, path, attach]) => {
+      try {
+        attach(await import(path), root);
+      } catch (e) {
+        console.warn(`chassis: ${path} did not attach`, e);
+      }
+    }),
+  );
+}
+
+// ==========================================================================
+// login (kit-kp11, approved demo "login")
+// ==========================================================================
+function initLogin(root) {
+  // Show / Hide on the token field.
+  root.addEventListener('click', (event) => {
+    const peek = event.target.closest('[data-kit-peek]');
+    if (!peek) return;
+    const input = document.getElementById(peek.getAttribute('aria-controls'));
+    if (!input) return;
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    peek.textContent = show ? 'Hide' : 'Show';
+    peek.setAttribute('aria-pressed', String(show));
+  });
+
+  // Caps Lock hint under the field, only while the field has focus.
+  const input = root.querySelector('#token');
+  const caps = root.querySelector('[data-kit-caps]');
+  if (input && caps) {
+    const read = (event) => {
+      if (event.getModifierState) caps.hidden = !event.getModifierState('CapsLock');
+    };
+    input.addEventListener('keydown', read);
+    input.addEventListener('keyup', read);
+    input.addEventListener('blur', () => { caps.hidden = true; });
+  }
+
+  // Logging in keeps the button's width: the submit button is a kp flash
+  // button, so its busy face (the theme's spinner) shares the rest face's
+  // box and nothing around it moves. The form still submits as a plain POST;
+  // a service that does not answer within 20 s ends the spin with a reason.
+  const submit = root.querySelector('form button[type="submit"]');
+  root.querySelector('form')?.addEventListener('submit', async () => {
+    if (!submit) return;
+    const { runFlashButton } = await import('./kp/js/flash.js');
+    runFlashButton(submit, () => new Promise((resolve) => {
+      window.setTimeout(() => resolve({ error: 'The service did not answer', remedy: 'Try again in a moment.' }), 20000);
+    }));
+  });
+
+  readServiceHealth(root);
+  attachPageParts(root);
+}
+
+// What the service says about itself before anyone is in: the open /healthz.
+async function readServiceHealth(root) {
+  const badge = root.querySelector('[data-kit-health-badge]');
+  const words = root.querySelector('[data-kit-health-words]');
+  if (!badge || !words) return;
+  const say = (state, text) => {
+    badge.dataset.state = state;
+    words.textContent = text;
+  };
+  try {
+    const res = await fetch('/healthz', { headers: { accept: 'application/json' }, cache: 'no-store' });
+    const body = await res.json();
+    if (body.status === 'ok') say('ok', 'The service is healthy');
+    else say('down', 'The service is degraded');
+  } catch (_) {
+    say('down', 'The service did not answer');
+  }
+}
+
+{
+  const login = document.querySelector('[data-kit-login]');
+  if (login) initLogin(login);
+}
+
+// ==========================================================================
+// passkeys (kit-kp11, approved demo "passkeys-list" and "passkeys-qr")
+// The list is a kp-themes component the server fills with the passkeys it
+// holds; rename and remove go to the kit's own routes.
+// ==========================================================================
+function passkeyRow(p) {
+  return {
+    key: p.id,
+    label: p.label,
+    kind: 'passkey',
+    createdAt: Date.parse(p.created_at),
+    lastUsedAt: p.last_used_at ? Date.parse(p.last_used_at) : null,
+    current: Boolean(p.current),
+  };
+}
+
+// The kit's refusal shape ({ error, remedy }) as the one sentence the list shows.
+async function refused(res) {
+  const body = await res.json().catch(() => ({}));
+  throw new Error([body.error, body.remedy].filter(Boolean).join('. ') || `HTTP ${res.status}`);
+}
+
+// A name for this device to start the dialog with: "Firefox on Linux".
+function deviceName() {
+  const ua = navigator.userAgent;
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+  const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'macOS' : /Linux|X11/.test(ua) ? 'Linux' : '';
+  return os ? `${browser} on ${os}` : browser;
+}
+
+async function initPasskeys(root) {
+  const list = root.querySelector('[data-kp-passkeys]');
+  const name = root.querySelector('[data-kit-device-name]');
+  if (name && !name.value) name.value = deviceName();
+  // The code carries the address this page was opened at when that is the
+  // https one; otherwise the address the service was told to expect.
+  const qr = root.querySelector('[data-kit-qr]');
+  if (qr && location.protocol === 'https:') qr.setAttribute('data-kp-qr-value', `${location.origin}/passkeys`);
+
+  await attachPageParts(root);
+
+  const { setPasskeys } = await import('./kp/js/passkeys.js');
+  const dialog = document.getElementById('passkey-register');
+  const draw = (passkeys) =>
+    setPasskeys(list, {
+      markCurrent: true,
+      protectLast: 'off',
+      rows: passkeys.map(passkeyRow),
+      remove: async (row) => {
+        const res = await fetch(`/api/passkeys/${encodeURIComponent(row.key)}`, { method: 'DELETE', headers: { accept: 'application/json' } });
+        if (!res.ok) await refused(res);
+      },
+      rename: async (row, label) => {
+        const res = await fetch(`/api/passkeys/${encodeURIComponent(row.key)}`, {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify({ name: label }),
+        });
+        if (!res.ok) await refused(res);
+      },
+    });
+  let first = [];
+  try {
+    first = JSON.parse(list.dataset.kitPasskeys || '[]');
+  } catch (_) {
+    first = [];
+  }
+  draw(first);
+
+  // The empty list's own Register button opens the same dialog.
+  list.addEventListener('kp-passkeys-register', () => {
+    if (dialog && !dialog.open) dialog.showModal();
+  });
+  // A new passkey: ask for the list again instead of reloading the page.
+  document.addEventListener('kit-passkey-registered', async () => {
+    try {
+      const res = await fetch('/api/passkeys', { headers: { accept: 'application/json' }, cache: 'no-store' });
+      if (res.ok) draw(await res.json());
+    } catch (_) {
+      // The list stays as it was; the registration itself succeeded.
+    }
+  });
+  // More ▾ → Register on another device: bring the code into view.
+  root.addEventListener('kp-menu-select', (event) => {
+    if (event.detail?.value !== 'other-device') return;
+    const card = document.getElementById('other-device');
+    if (!card) return;
+    card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    // The menu hands focus back to its button as it closes; the card takes it after.
+    window.setTimeout(() => card.focus({ preventScroll: true }), 60);
+  });
+}
+
+{
+  const page = document.querySelector('[data-kit-passkeys-page]');
+  if (page) initPasskeys(page);
+}
+
 // kit-kp11: the page-ready signal. Everything above has attached by now, so
 // an app's own module can attach ITS kp modules after the kit without
 // double-attaching what is listed in `attached` (the theme picker above all).

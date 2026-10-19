@@ -9,6 +9,18 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Changed
 
+- **The passkeys page is the approved kp-themes 11 composition** (kit-kp11):
+  one card of ways to sign in (this-device badge from `current`, rename in
+  place through `PATCH /api/passkeys/{id}`, an unused flag, removal behind a
+  confirm dialog), a code and three steps to register another device, and a
+  not-on-HTTPS alert in plain words. Register and login buttons are kp flash
+  buttons that show the browser's refusal as one sentence.
+- **The login page is the approved kp-themes 11 composition** (kit-kp11): the
+  intro and the service's health, version and age on the left (read from the
+  open `/healthz`), the card on the right with "Log in with a passkey" as the
+  one primary button, "or with the token", Show/Hide on the token field, a
+  switch for keep-signed-in and a three-part alert (what, why, what now) for
+  a wrong token. The Log in button keeps its width while it works.
 - **Every kp-themes module is served under `dashboard`**, no longer only with
   `webapp` (kyu, gap 30): a status section or page a service adds under
   `dashboard` alone loaded `/static/kp/js/datatable.js` or another module and

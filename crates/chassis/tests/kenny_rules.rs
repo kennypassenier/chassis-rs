@@ -260,3 +260,43 @@ async fn a_disabled_kit_page_is_gone_from_the_nav_and_its_route() {
         }
     }
 }
+
+/// 2026-10-19 (kit-kp11, approved demos "login" and "passkeys"): the login
+/// page's passkey is the one primary button, the token field has Show/Hide,
+/// keep-signed-in is a switch, and a failed login says what, why and what
+/// now. The passkeys page lists through the kp component and never puts
+/// `data-kp-confirm` on the list (components.js arms any such element and
+/// swallowed every Rename click).
+#[test]
+fn login_and_passkeys_pages_keep_their_approved_parts() {
+    let login = kit_file("templates/login.html");
+    for part in [
+        "kp-switch",
+        "data-kit-peek",
+        "kp-alert__what",
+        "kp-alert__why",
+        "kp-alert__remedy",
+        "kp-health",
+        "kp-ago",
+        "data-passkey-login",
+    ] {
+        assert!(login.contains(part), "login.html lost {part}");
+    }
+    let pk = kit_file("templates/passkeys.html");
+    for part in [
+        "data-kp-passkeys",
+        "kp-qr",
+        "kp-steplist",
+        "data-passkey-register",
+    ] {
+        assert!(pk.contains(part), "passkeys.html lost {part}");
+    }
+    assert!(
+        !pk.contains("data-kp-confirm"),
+        "data-kp-confirm on the list is read as a button to arm"
+    );
+    assert!(
+        !pk.contains("_TRUSTED_PROXIES") && !pk.contains("_PUBLIC_URL"),
+        "the not-HTTPS alert speaks plain words, no variable names"
+    );
+}
