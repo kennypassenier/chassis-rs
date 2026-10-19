@@ -162,6 +162,12 @@ pre.snippet {
     .chassis-search-word {
         display: none;
     }
+    /* Signed out, the bar is the brand and the theme menu only: with the
+       links gone, the brand keeps the spacer's job so the menu stays at the
+       end of the bar, as in the approved login demo. */
+    .kp-nav:not([data-kp-nav-fold]) .kp-nav__brand {
+        margin-inline-end: auto;
+    }
 }
 
 /* The count stands beside its icon, not on its corner: text never lies over

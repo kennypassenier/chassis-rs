@@ -133,6 +133,24 @@ fn the_shell_renders_from_the_registry_and_counts_exactly() {
             "the shell block computes idleness itself ({own}); read counts.idle instead"
         );
     }
+    // Signed out (the login page) the bar is the brand and the theme menu
+    // only: every other part of the shell sits inside `logged_in`.
+    for part in [
+        r#"<ul class="kp-nav__links" aria-hidden="true"></ul>"#,
+        "{% if logged_in %}\n  <!-- kit-kp11: Search",
+        "{% if logged_in and not open_dashboard %}\n  <form",
+    ] {
+        assert!(
+            layout.contains(part),
+            "the signed-out bar lacks its guard: {part}"
+        );
+    }
+    assert!(
+        layout.contains("{% if logged_in %}\n<!-- kit-kp11 shell: the search palette")
+            && layout
+                .contains("<nav class=\"kp-nav\"{% if logged_in %} data-kp-nav-fold{% endif %}"),
+        "palette, tab bar and drawer are drawn only when signed in"
+    );
     let css = kit_file("static/chassis.css");
     let phone = css
         .split("@media (max-width: 39.99rem)")
