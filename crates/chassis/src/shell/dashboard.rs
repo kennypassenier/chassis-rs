@@ -1320,9 +1320,7 @@ mod tests {
     #[test]
     fn the_calls_path_is_the_end_of_the_command_template() {
         assert_eq!(
-            calls_path(
-                "curl -sS -H \"A: B $CLIENT_TOKEN\" -d '{}' http://127.0.0.1:8080/v1/messages"
-            ),
+            calls_path("curl -sS -H \"A: B $CLIENT_TOKEN\" -d '{}' http://127.0.0.1:9/v1/messages"),
             "/v1/messages"
         );
         assert_eq!(calls_path(""), "/");
