@@ -1797,6 +1797,52 @@ async function startStatus(root) {
   }
   // What a failed read says: the service's own sentence, or that it did not answer.
   const why = (error) => (error instanceof TypeError || !error?.message ? 'The service did not answer.' : `${String(error.message).replace(/\.+$/, '')}.`);
+  // A card whose body is data tables only (a section table, or a JSON-fed
+  // card that renders one) uses the data table's own busy and failed states,
+  // the standard ones, instead of the card's: busy({ overlay: true }) +
+  // state('loading') while it reads, fail(reason) with the table's Try again
+  // when it cannot. Every other card keeps the card's own four states.
+  const tableCard = (card) => {
+    if (card.dataset.chassisRender) return card.dataset.chassisRender === 'table';
+    const parts = [...card.querySelectorAll('[data-chassis-part]')];
+    return parts.length > 0 && parts.every((p) => p.querySelector('[data-kp-datatable]'));
+  };
+  const tableHandles = (card) => [...card.querySelectorAll('[data-kp-datatable]')].map((host) => dataTable(host)).filter(Boolean);
+  // A JSON-fed table card has no table until its first answer: a table with
+  // no rows stands in so the standard loading and failed states have a body.
+  function ensureTable(card) {
+    const body = card.querySelector('[data-chassis-part="0"]');
+    if (body && !body.querySelector('[data-kp-datatable]')) {
+      body.innerHTML = tableHtml(card.dataset.chassisSection || 'read', card.querySelector('.kp-card__title')?.textContent ?? '', { columns: ['\u00a0'], rows: [] });
+      attachDataTables(body);
+    }
+  }
+  function cardReading(card) {
+    if (!tableCard(card)) return setCardState(card, 'loading', { words: 'Reading…' });
+    if (card.getAttribute('data-kp-state') !== 'ready') setCardState(card, 'ready');
+    ensureTable(card);
+    for (const h of tableHandles(card)) {
+      h.busy({ text: 'Reading…', overlay: true });
+      h.state('loading');
+    }
+  }
+  function cardReadFailed(card, error) {
+    if (!tableCard(card)) return setCardState(card, 'error', { title: 'This section could not be read', text: `${why(error)} Nothing was changed.`, action: 'Try again' });
+    if (card.getAttribute('data-kp-state') !== 'ready') setCardState(card, 'ready');
+    ensureTable(card);
+    for (const h of tableHandles(card)) h.fail(`${why(error)} Nothing was changed.`);
+  }
+  function cardReadBack(card, was) {
+    if (!tableCard(card)) return setCardState(card, was, was === 'empty' ? emptyNote(card) : undefined);
+    for (const h of tableHandles(card)) h.state('ready');
+  }
+  // The table's own Try again reads its card again.
+  root.addEventListener('kp-datatable-retry', (event) => {
+    const card = event.target.closest('.kp-card[data-chassis-section]');
+    if (!card) return;
+    if (card.matches('[data-chassis-json]')) loadJson(card);
+    else reread([card]).catch(() => {});
+  });
   async function reread(scope) {
     const page = scope === 'page';
     const cards = page ? [...root.querySelectorAll('.kp-card[data-kp-state]')] : scope.filter((c) => c.matches(POLLED));
@@ -1812,7 +1858,7 @@ async function startStatus(root) {
     }
     for (const card of cards) {
       reading.add(card);
-      setCardState(card, 'loading', { words: 'Reading…' });
+      cardReading(card);
     }
     try {
       const data = await poll();
@@ -1838,11 +1884,10 @@ async function startStatus(root) {
         }
         const up = only('[data-kp-uptime]');
         if (up) drawUptime(up, lastData ? lastData.uptime : JSON.parse(up.getAttribute('data-chassis-uptime') || '[]'));
-        for (const card of cards) setCardState(card, was.get(card), was.get(card) === 'empty' ? emptyNote(card) : undefined);
+        for (const card of cards) cardReadBack(card, was.get(card));
         showFailure(true);
       } else {
-        for (const card of cards)
-          setCardState(card, 'error', { title: 'This section could not be read', text: `${why(error)} Nothing was changed.`, action: 'Try again' });
+        for (const card of cards) cardReadFailed(card, error);
       }
       throw error;
     }
@@ -1931,13 +1976,13 @@ async function startStatus(root) {
     const slug = card.dataset.chassisSection;
     const title = card.querySelector('.kp-card__title')?.textContent ?? '';
     const body = card.querySelector('[data-chassis-part="0"]');
-    if (!quiet) setCardState(card, 'loading', { words: 'Reading…' });
+    if (!quiet) cardReading(card);
     try {
       const res = await fetch(url, { headers: { accept: 'application/json' }, cache: 'no-store' });
       const data = await res.json().catch(() => null);
       if (!res.ok && !(data && typeof data === 'object' && 'status' in data)) throw new Error(data?.remedy || data?.error || `HTTP ${res.status}`);
       if (data === null) throw new Error('The answer is not JSON');
-      if (jsonEmpty(render, data)) {
+      if (render !== 'table' && jsonEmpty(render, data)) {
         body.innerHTML = '';
         setCardState(card, 'empty', { title: 'Nothing to show yet', text: 'It fills when the service has something to report.' });
         return;
@@ -1951,7 +1996,7 @@ async function startStatus(root) {
       setCardState(card, 'ready');
     } catch (error) {
       if (quiet && card.getAttribute('data-kp-state') === 'ready') return; // stale data stays readable
-      setCardState(card, 'error', { title: 'This section could not be read', text: `${why(error)} Nothing was changed.`, action: 'Try again' });
+      cardReadFailed(card, error);
     }
   }
   root.addEventListener('kp-card-retry', (event) => {
