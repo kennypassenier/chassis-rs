@@ -52,11 +52,6 @@ pre.snippet {
 .row-label { text-align: start; white-space: nowrap; }
 .divider { margin: 1rem 0; border: 0; border-top: 1px solid var(--border); }
 
-/* Client rows (K12/K13): the token cell and the expandable requests. */
-.secret { font-family: var(--theme-font-mono, ui-monospace, monospace); font-size: 0.85rem; }
-.requests[hidden] { display: none; }
-.requests table { font-size: 0.85rem; }
-.requests pre { margin: 0; max-height: 12rem; overflow: auto; }
 /* K29: a project's buttons under a status section sit with the text, not at the right edge. */
 .section-actions { margin: 0.75rem 0 1.5rem; }
 
@@ -78,62 +73,6 @@ pre.snippet {
    protection, and kp-themes measured what dropping it costs: one unbroken
    value 485 px wide on a 360 px viewport. */
 .state-cell { --kp-badge-wrap: normal; }
-
-/* feat-clients-4 (Kenny, 2026-09-10). Everything that used to sit in the row
-   sits in a dialog now: the row carried up to eight controls across two
-   columns, both wrapped, and one row grew as tall as whichever project had
-   registered the most actions.
-
-   `display` on a <dialog> is the browser's, not ours — it flips between none
-   and block to open and close it — so the flex column is scoped to [open].
-   Without that scope the dialog would be laid out and visible while closed. */
-.client-dialog[open] {
-  display: flex;
-  flex-direction: column;
-  max-height: min(80vh, 42rem);
-  /* kp-themes writes `max-width: var(--kp-dialog-max-width, min(32rem, …))`,
-     so 32rem is a DEFAULT behind a knob rather than a cap — the same shape as
-     `--kp-badge-wrap` (ask-1). Setting the knob is therefore the right move;
-     overriding their `max-width` works too and would stop working the day
-     they change how that property is composed.
-
-     Found the way these things have to be found: the first attempt set only
-     `width` and changed nothing on screen. Measured in the running page on
-     CT 118 with the dialog open, `getComputedStyle` reported 512px where the
-     rule asked for 672 — a width above a lower max-width is a rule that looks
-     applied and is not. */
-  --kp-dialog-max-width: min(42rem, calc(100vw - 2rem));
-  width: min(42rem, calc(100vw - 2rem));
-}
-.client-dialog__head {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-.client-dialog__head .kp-dialog__title { margin: 0; }
-.client-dialog__head .kp-dialog__description { flex-basis: 100%; margin: 0; }
-/* The scrolling middle. `min-height: 0` is what lets a flex child shrink
-   below its content and scroll instead of pushing the footer off-screen. */
-.client-dialog__body {
-  overflow-y: auto;
-  min-height: 0;
-  flex: 1 1 auto;
-}
-.client-dialog__section { padding: 0.75rem 0; border-top: 1px solid var(--kp-border, currentColor); }
-.client-dialog__section:first-child { border-top: 0; }
-.client-dialog__heading { font-size: 0.9rem; margin: 0 0 0.5rem; }
-.client-dialog__note { font-size: 0.8rem; margin: 0.5rem 0 0; }
-/* The token on a line of its own: revealing it swaps 12 bullets for 48
-   characters, and on the old single row that moved every button beside it. */
-.token-line {
-  margin: 0 0 0.5rem;
-  padding: 0.5rem 0.6rem;
-  font-family: var(--kp-font-mono, monospace);
-  overflow-wrap: anywhere;
-  min-height: 2.4rem;
-  box-sizing: border-box;
-}
 
 /* ===================================================================== shell ==
    kit-kp11: the bar, the palette's keys, the phone's tab bar and the error
@@ -496,6 +435,232 @@ pre.snippet {
       'mark topic state';
   }
 }
+/* ======================================================================
+   clients-manage (kit-kp11, the approved round 3): the manage dialog is a
+   composition on the 12-column grid. The head is the client's identity
+   (columns 1-5) against its three facts (6-12); the control rail (1-5)
+   holds token, command and the project's actions in fixed order; the Test it
+   card and the request inspector stand in 6-12, the inspector as tall as the
+   rail in every state; the danger band repeats the split, its words under the
+   rail and its three actions, each with its consequence, in three equal
+   cells. A revoked client keeps every area. The dialog is the container the
+   phone arrangement answers to. Only tokens.
+   ====================================================================== */
+
+.manage-dialog {
+  --kp-dialog-wide: 76rem;
+  container: managed / inline-size;
+}
+.manage-dialog [hidden] { display: none !important; }
+.manage-dialog .kp-dialog__head { margin: 0; }
+/* The plain-page h2/h3 margins at the top of this file are not for dialogs. */
+.manage-dialog :is(.kp-dialog__title, .kp-dialog__heading) { margin: 0; }
+
+.manage-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: auto auto minmax(var(--manage-requests, 16.5rem), 1fr) auto;
+  column-gap: var(--kp-space-lg, 1.5rem);
+  row-gap: var(--kp-space-md, 1rem);
+  min-inline-size: 0;
+  grid-template-areas:
+    'id id id id id facts facts facts facts facts facts facts'
+    'rail rail rail rail rail test test test test test test test'
+    'rail rail rail rail rail req req req req req req req'
+    'dh dh dh dh dh acts acts acts acts acts acts acts';
+}
+.manage-grid > * { min-inline-size: 0; }
+
+.manage-dialog .manage-head {
+  grid-area: id;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'mark title badge'
+    'mark desc desc';
+  align-items: center;
+  align-content: center;
+  column-gap: var(--kp-space-md, 1rem);
+  row-gap: var(--kp-space-2xs, 0.125rem);
+}
+.manage-head > .kp-idmark { grid-area: mark; }
+.manage-head > .kp-dialog__title { grid-area: title; }
+.manage-head > .kp-badge { grid-area: badge; }
+.manage-head > .kp-dialog__description { grid-area: desc; margin: 0; }
+
+.manage-facts {
+  grid-area: facts;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--kp-space-md, 1rem);
+  align-items: stretch;
+}
+
+.manage-rail {
+  grid-area: rail;
+  display: grid;
+  align-content: start;
+  gap: 0;
+  padding-block: 0;
+}
+.manage-rail--revoked { align-content: center; }
+.manage-tool {
+  display: grid;
+  gap: var(--kp-space-sm, 0.5rem);
+  padding: var(--kp-space-md, 1rem) var(--kp-space-sm, 0.5rem);
+  min-inline-size: 0;
+}
+.manage-tool > * { margin: 0; }
+.manage-tool .kp-button[data-kp-flash-button] { inline-size: 100%; }
+.manage-dialog .kp-secret { --kp-secret-min: 8rem; }
+
+/* The project's own buttons stand in equal cells. */
+.manage-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--kp-space-sm, 0.5rem);
+}
+
+/* The revoked client's alert says its three parts one under the other, at the rail's width. */
+.manage-rail--revoked .kp-alert {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--kp-space-xs, 0.25rem);
+}
+
+/* The test: a head, then one form-grid row. The label stands on the centre of
+   the field's tool row, and Send test is a small button like Format and
+   Minify, so the three stand on one line. */
+.manage-test {
+  grid-area: test;
+  display: grid;
+  align-content: start;
+  gap: var(--kp-space-sm, 0.5rem);
+}
+.manage-test__head > * { margin: 0; }
+.manage-test__head > .kp-dialog__note { margin-block-start: var(--kp-space-xs, 0.25rem); }
+.manage-test__grid {
+  --kp-field-max-width: none;
+  --kp-formgrid-label-min: 6.8rem;
+  --kp-formgrid-label-max: 6.8rem;
+  --kp-formgrid-value: 0fr;
+  --kp-formgrid-column-gap: var(--kp-space-md, 1rem);
+}
+/* The actions track is as wide as the button and its note; the note wraps under the button without widening the track. */
+.manage-test__send {
+  display: grid;
+  align-content: start;
+  justify-items: stretch;
+  gap: var(--kp-space-sm, 0.5rem);
+  min-inline-size: 7rem;
+}
+.manage-test__send > * { margin: 0; }
+.manage-test__send > .kp-dialog__note { contain: inline-size; }
+
+/* The requests are the wide area: as tall as the rail, scrolling inside,
+   never making the row taller. */
+.manage-requests {
+  grid-area: req;
+  position: relative;
+  min-block-size: 0;
+}
+.manage-requests__in {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--kp-space-sm, 0.5rem);
+  min-block-size: 0;
+}
+.manage-requests__in > * { margin: 0; min-block-size: 0; }
+.manage-requests__in > .kp-inspector { overflow: auto; }
+/* A state (loading, empty, failed) fills what the inspector shows and is
+   centred in it, with its button in view; only the rows of a ready list
+   scroll. */
+.manage-requests__in > .kp-inspector:is([data-kp-state='loading'], [data-kp-state='empty'], [data-kp-state='error']) { overflow: hidden; }
+.manage-requests__in > .kp-inspector:is([data-kp-state='loading'], [data-kp-state='empty'], [data-kp-state='error']) .kp-card__stage { min-block-size: 0; }
+
+.manage-danger { display: contents; }
+.manage-danger__head {
+  grid-area: dh;
+  padding-inline-start: var(--kp-space-md, 1rem);
+  border-inline-start: 3px solid var(--destructive);
+  align-self: stretch;
+}
+.manage-danger__head > * { margin: 0; }
+.manage-danger__head > .kp-dialog__note { margin-block-start: var(--kp-space-xs, 0.25rem); }
+.manage-danger__acts {
+  grid-area: acts;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--kp-space-md, 1rem);
+  align-items: stretch;
+}
+.manage-act {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--kp-space-xs, 0.25rem);
+  min-inline-size: 0;
+}
+.manage-act > .kp-button {
+  inline-size: 100%;
+  white-space: nowrap;
+  padding-inline: var(--kp-space-xs, 0.25rem);
+}
+.manage-act > .kp-dialog__note { margin: 0; }
+
+/* The phone: its own arrangement. */
+@container managed (max-width: 39.99rem) {
+  .manage-dialog .kp-dialog__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .manage-dialog .kp-dialog__actions > :only-child { grid-column: 1 / -1; }
+
+  .manage-grid {
+    grid-template-rows: auto;
+    grid-template-areas:
+      'id id id id id id id id id id id id'
+      'facts facts facts facts facts facts facts facts facts facts facts facts'
+      'rail rail rail rail rail rail rail rail rail rail rail rail'
+      'test test test test test test test test test test test test'
+      'req req req req req req req req req req req req'
+      'dh dh dh dh dh dh dh dh dh dh dh dh'
+      'acts acts acts acts acts acts acts acts acts acts acts acts';
+  }
+  .manage-requests { min-block-size: 24rem; }
+
+  /* The facts: the last call is the tall tile, requests and the third fact stand stacked beside it. */
+  .manage-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      'req last'
+      'third last';
+    gap: var(--kp-space-sm, 0.5rem);
+  }
+  .manage-facts > :nth-child(1) { grid-area: req; }
+  .manage-facts > :nth-child(2) { grid-area: last; }
+  .manage-facts > :nth-child(3) { grid-area: third; }
+
+  /* The test row reads top to bottom on a phone, as the form grid does
+     under 36rem (data-kp-formgrid-stack="always"). */
+  .manage-test__grid,
+  .manage-test__grid > .kp-formgrid__row { grid-template-columns: minmax(0, 1fr); }
+  .manage-test__grid > .kp-formgrid__row {
+    grid-column: 1 / -1;
+    row-gap: var(--kp-space-xs, 0.25rem);
+  }
+  .manage-test__grid > .kp-formgrid__row > * {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .manage-test__send {
+    justify-content: flex-start;
+    justify-items: start;
+  }
+  .manage-test__send > .kp-dialog__note { contain: none; }
+}
+
 /* ==========================================================================
    login (kit-kp11, approved demo "login")
    The intro on the left and the sign-in card on the right on a wide page,

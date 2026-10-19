@@ -44,7 +44,8 @@ fn chassis_css_caps_only_prose_and_dialogs_never_the_page() {
 /// the same space. 2026-10-19 (Kenny, "HOE VAAK MOET IK NOG ZEGGEN OM ALLES
 /// DEFTIG VERTICAAL TE ALIGNEN EN GRID TE GEBRUIKEN IPV LINKS ALIGNEN???"):
 /// the client dialogs are rows of kp-themes' form grid, never fields placed by
-/// hand. The issue fields fill their cell (no 28rem cap).
+/// hand. The issue fields fill their cell (no 28rem cap) and the manage
+/// dialog's test is one row with Send test on the line of Format and Minify.
 #[test]
 fn the_client_dialogs_are_form_grids() {
     let html = kit_file("templates/clients.html");
@@ -55,6 +56,11 @@ fn the_client_dialogs_are_form_grids() {
     assert!(
         !html.contains("kp-autogrid"),
         "the old auto grid is gone from the clients page"
+    );
+    assert!(
+        html.contains(r#"class="kp-formgrid manage-test__grid" data-kp-formgrid-stack="never""#)
+            && html.contains(r#"class="kp-formgrid__actions manage-test__send""#),
+        "the manage test is one form-grid row, Send test on the actions track"
     );
     let css = kit_file("static/chassis.css");
     assert!(

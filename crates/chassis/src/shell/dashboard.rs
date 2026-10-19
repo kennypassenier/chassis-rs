@@ -486,6 +486,11 @@ pub struct Dashboard {
     /// kit-kp11: the curl line with `$CLIENT_TOKEN` where the token goes,
     /// for `/api/kit/clients`. Private so the public surface stays as it was.
     command_template: Arc<str>,
+    /// kit-kp11 (clients-manage): the test route's body, which the Test it
+    /// field starts with, and whether it is JSON (the field's Format and
+    /// Minify tools only make sense then).
+    test_body: Arc<str>,
+    test_json: bool,
     env: Arc<Environment<'static>>,
     /// The last 48 hours of health, one sample per check (kit-kp11); in
     /// memory only.
@@ -627,6 +632,8 @@ impl Dashboard {
             auth,
             open,
             command_template: Arc::from(""),
+            test_body: Arc::from(""),
+            test_json: false,
             env: Arc::new(env),
             uptime: UptimeHistory::default(),
             clients_href: Some("/clients".to_string()),
@@ -683,6 +690,13 @@ impl Dashboard {
     /// `$CLIENT_TOKEN` (see `clients_api::command_template`).
     pub(crate) fn with_command_template(mut self, template: String) -> Self {
         self.command_template = Arc::from(template);
+        self
+    }
+
+    /// kit-kp11 (clients-manage): what the Test it field starts with.
+    pub(crate) fn with_test_body(mut self, body: String, content_type: &str) -> Self {
+        self.test_json = content_type.to_ascii_lowercase().contains("json");
+        self.test_body = Arc::from(body);
         self
     }
 
@@ -1094,6 +1108,8 @@ struct ClientRow {
     idle_days: i64,
     /// dd/mm/yyyy HH:mm, Europe/Brussels.
     issued_display: String,
+    /// dd/mm/yyyy.
+    issued_date: String,
     last_used_display: Option<String>,
     /// `12 s ago`, `5 days ago`.
     last_used_ago: Option<String>,
@@ -1179,6 +1195,7 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
             };
             ClientRow {
                 issued_display: client_list::brussels(&view.issued_at),
+                issued_date: client_list::brussels_date(&view.issued_at),
                 last_used_display: view.last_used_at.as_deref().map(client_list::brussels),
                 last_used_ago: view
                     .last_used_at
@@ -1234,6 +1251,8 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
         "capture_body_bytes": d.capture_body_bytes,
         "capture_ttl_minutes": d.capture_ttl_minutes,
         "has_test_route": d.has_test_route,
+        "test_body": &*d.test_body,
+        "test_json": d.test_json,
     })
 }
 
@@ -1319,6 +1338,52 @@ mod tests {
             !html.contains("data-kp-width=\"grow\""),
             "a flash button's width is the package's to grow"
         );
+    }
+
+    /// kit-kp11 (clients-manage, round 3, approved): one dialog per client on
+    /// the 12-column composition, built from kp-themes parts used as the
+    /// package documents them; nothing hand-built stands in for them.
+    #[test]
+    fn the_manage_dialog_keeps_its_approved_parts() {
+        let html = include_str!("../../templates/clients.html");
+        let css = include_str!("../../static/chassis.css");
+        let js = include_str!("../../static/chassis.js");
+        for part in [
+            "kp-dialog kp-dialog--wide manage-dialog",
+            "data-kp-secret data-kp-secret-ttl=",
+            "data-kp-command=\"bash\"",
+            "data-kp-json=",
+            "data-kp-requests data-kp-requests-open=\"failed\"",
+            "data-kp-confirm-type=\"{{ c.name }}\"",
+            "manage-danger__acts",
+            "class=\"kp-formgrid manage-test__grid\"",
+        ] {
+            assert!(html.contains(part), "the manage dialog lost {part}");
+        }
+        for part in [".manage-grid {", "@container managed (max-width: 39.99rem)"] {
+            assert!(css.contains(part), "chassis.css lost {part}");
+        }
+        for part in [
+            "kp-secret-request",
+            "setRequests(",
+            "bodyBytes: c.body_bytes",
+            "runFlashButton",
+        ] {
+            assert!(js.contains(part), "chassis.js lost {part}");
+        }
+        // The hand-built request log, token line and copy/busy code are gone.
+        for gone in [
+            "renderRequests",
+            "data-copy-token",
+            "data-reveal",
+            "token-line",
+            "client-dialog",
+        ] {
+            assert!(
+                !html.contains(gone) && !css.contains(gone) && !js.contains(gone),
+                "{gone} came back"
+            );
+        }
     }
 
     #[test]

@@ -223,11 +223,11 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
         "the list heading speaks the vocabulary and counts exactly: {full}"
     );
     assert!(
-        full.contains(&format!("data-post=\"/api/clients/{id}/revoke\"")),
+        full.contains(&format!("data-kp-post=\"/api/clients/{id}/revoke\"")),
         "API paths are not vocabulary: {full}"
     );
     assert!(
-        full.contains("Delete this source and its history?"),
+        full.contains("Delete job-tracker and its history?"),
         "{full}"
     );
     // ask-1, second half (kp-themes 5.1.0): the wrap override is the
@@ -287,7 +287,7 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
         "the token column is gone from the table: {full}"
     );
     assert!(
-        full.contains("data-manage=") && full.contains("client-dialog"),
+        full.contains("data-manage=") && full.contains("manage-dialog"),
         "and the row's button opens the dialog that holds the rest: {full}"
     );
 
@@ -296,8 +296,8 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     // putting "caller" back in the Revoke confirmation.
     let confirms = confirm_texts(&full);
     assert!(
-        confirms.iter().any(|c| c.contains("source")),
-        "the confirmations speak the vocabulary: {confirms:?}"
+        confirms.iter().any(|c| c.contains("job-tracker")),
+        "the confirmations name the thing by its own name: {confirms:?}"
     );
     for c in &confirms {
         assert_eq!(
@@ -716,5 +716,86 @@ async fn kit_kp11_body_sections_and_flash_actions_render_without_a_reload_hook()
     assert_eq!(v["sections"][0]["span"], 12);
     assert_eq!(v["sections"][0]["parts"].as_array().unwrap().len(), 2);
     assert_eq!(v["uptime"].as_array().unwrap().len(), 48);
+    running.stop().await;
+}
+
+// kit-kp11 (clients-manage, round 3): the Test it field sends the body the
+// reader edited, and starts from the test route's own; without a body the
+// request is the route's, as before (the palette's "send a test" posts none).
+// A body past the cap is refused with the kit's error. The send goes to the
+// service's own address, so this one listens on a free port, not port 0.
+async fn record_body(State(seen): State<Arc<Mutex<Vec<String>>>>, body: String) -> StatusCode {
+    seen.lock().unwrap().push(body);
+    StatusCode::ACCEPTED
+}
+
+#[tokio::test]
+async fn the_test_it_field_sends_the_edited_body_to_the_test_route() {
+    let port = {
+        let probe = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        probe.local_addr().unwrap().port()
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let mut vars = env(dir.path());
+    vars.insert("VOCABDEMO_LISTEN".into(), format!("127.0.0.1:{port}"));
+    let mut app = App::from_args_with_env(
+        AppSpec {
+            name: "vocabdemo",
+            version: "0.0.0",
+            ..Default::default()
+        },
+        vec!["vocabdemo".into()],
+        vars,
+        Router::new(),
+    )
+    .unwrap();
+    let seen: Arc<Mutex<Vec<String>>> = Default::default();
+    app.test_route(
+        "POST",
+        "/v1/events",
+        "application/json",
+        r#"{"hello":"route"}"#,
+    );
+    app.api_routes(
+        Router::new()
+            .route("/v1/events", post(record_body))
+            .with_state(seen.clone()),
+    );
+    let running = app.start().await.unwrap();
+    let addr = running.addr;
+    let cookie = login(addr).await;
+    let (_, issued) = issue(addr, &cookie, "job-tracker").await;
+    let id = id_of(&issued);
+
+    let (_, _, page) = http(addr, "GET", "/clients", &[("Cookie", &cookie)], "").await;
+    assert!(
+        page.contains("data-manage-body") && page.contains("data-kp-json=\"strict\""),
+        "the field starts from a JSON route and checks JSON: {page}"
+    );
+
+    let path = format!("/api/clients/{id}/test");
+    // No body: the route's own.
+    let (status, _, body) = http(addr, "POST", &path, &[("Cookie", &cookie)], "").await;
+    assert_eq!(status, 200, "{body}");
+    // The edited body.
+    let json = [
+        ("Cookie", cookie.as_str()),
+        ("Content-Type", "application/json"),
+    ];
+    let edited = r#"{"body":"{\"hello\":\"edited\"}"}"#;
+    let (status, _, body) = http(addr, "POST", &path, &json, edited).await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(
+        *seen.lock().unwrap(),
+        vec![
+            r#"{"hello":"route"}"#.to_string(),
+            r#"{"hello":"edited"}"#.to_string()
+        ]
+    );
+    // Past the cap: refused with the kit's error, nothing sent.
+    let huge = serde_json::json!({ "body": "x".repeat(70 * 1024) }).to_string();
+    let (status, _, body) = http(addr, "POST", &path, &json, &huge).await;
+    assert_eq!(status, 400, "{body}");
+    assert_eq!(seen.lock().unwrap().len(), 2);
     running.stop().await;
 }

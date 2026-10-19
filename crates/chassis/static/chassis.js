@@ -2,20 +2,17 @@
 // else is server-rendered HTML and plain forms. This module is the kit's
 // own file, not vendored: the gate does not check it against kp-themes.
 //
-// It attaches the four @kp-soft/themes behaviours the kit's templates use
+// It attaches the @kp-soft/themes behaviours the kit's templates use
 // (v3.x modules are pure, so somebody has to call them), then wires the
 // kit's own controls:
 //
-//   [data-reveal="ID"]        fetch the token once, show it for N seconds
-//   [data-copy-token="ID"]    fetch and copy ONLY the token (Kenny's ask)
-//   [data-copy-command="ID"]  fetch and copy the whole curl line
-//   [data-test="ID"]          send the test request, then refresh requests
-//   [data-requests="ID"]      toggle the last-requests panel, loading it
-//   [data-post]               a POST-and-reload button (re-issue, revoke, delete)
+//   [data-post]               a POST-and-reload button of a project (a row
+//                             or a section action); a kp flash button runs it
 //
-// The token is never in the page: every reveal/copy fetches
-// /api/clients/ID/token on click, so a "view source" or a cached page holds
-// nothing (K12).
+// The Clients page (the "clients" block below) wires its manage and issue
+// dialogs from kp-themes parts: the token is a .kp-secret that asks
+// /api/clients/ID/token when it is shown or copied, so a "view source" or a
+// cached page holds nothing (K12); the requests are a .kp-inspector.
 //
 // Clipboard: navigator.clipboard exists only in a secure context (https, or
 // http://localhost). On http://inbox.lan:8080 from another machine the
@@ -116,82 +113,6 @@ function copyText(text) {
   return Promise.resolve(copyLegacy(text));
 }
 
-// The label a button goes back to after a busy spell or a flash. Saved
-// on the button the first time either needs it; the reveal button moves
-// it between Reveal and Hide itself.
-function restLabel(button) {
-  if (button.dataset.label === undefined) button.dataset.label = button.textContent;
-  return button.dataset.label;
-}
-
-// Show a message on the button for a moment, then its rest label. Safe to
-// call from inside `busy`: the flash outlives the busy spell (K29, found
-// while wiring project actions — a remedy flashed during `busy` was
-// overwritten the same tick by busy's own restore, so no [data-post]
-// refusal was ever visible, and the button then came back wearing its
-// busy label).
-function flash(button, message, ms = 1500) {
-  restLabel(button);
-  pinWidth(button);
-  button.textContent = message;
-  window.clearTimeout(button.flashTimer);
-  button.flashTimer = window.setTimeout(() => {
-    button.flashTimer = 0;
-    button.textContent = button.dataset.label;
-    unpinWidth(button);
-  }, ms);
-}
-
-// rule 31: busy while a request is in flight; disabled so a second click
-// cannot become a second action.
-// feat-clients-5: a control that reports it is working may not move the
-// layout around it (Kenny, looking at a live dashboard on 2026-09-10:
-// clicking `Send test` made Revoke and Delete jump from stacked to side by
-// side). The cause is width, not the label: these buttons sit in a wrapping
-// flex row inside a table cell, so a busy label narrower than the rest label
-// — "Sending…" against "Send test" — lets the row unwrap, and the whole cell
-// re-lays out under the reader's cursor. Measuring the button once and
-// holding that as a floor keeps every other element where it was.
-//
-// What this does NOT hold: a refusal flashed on the button carries a whole
-// remedy sentence (K29) and is wider than any rest label, so that case still
-// grows the button. Narrowing it would hide the remedy, which is the more
-// important of the two; feat-clients-4 removes the problem at the root by
-// moving these controls out of the table row and into a modal.
-function pinWidth(button) {
-  if (button.dataset.restWidth === undefined) {
-    button.dataset.restWidth = String(Math.ceil(button.getBoundingClientRect().width));
-  }
-  button.style.minWidth = `${button.dataset.restWidth}px`;
-}
-
-// Only once the button is wearing its rest label again — releasing it while a
-// flash is still up would let the row jump a second time.
-function unpinWidth(button) {
-  button.style.minWidth = '';
-  delete button.dataset.restWidth;
-}
-
-async function busy(button, work) {
-  if (button.getAttribute('aria-busy') === 'true') return;
-  restLabel(button);
-  pinWidth(button);
-  button.setAttribute('aria-busy', 'true');
-  button.disabled = true;
-  button.textContent = button.dataset.busyLabel || 'Working…';
-  try {
-    await work();
-  } finally {
-    button.removeAttribute('aria-busy');
-    button.disabled = false;
-    // A flash raised by `work` stays on screen; the timer restores the label.
-    if (!button.flashTimer) {
-      button.textContent = button.dataset.label;
-      unpinWidth(button);
-    }
-  }
-}
-
 // The one line a refusal becomes on a button: the kit's error and its
 // remedy when the body carries them (project routes answer the same shape
 // through chassis::Error), the bare status otherwise.
@@ -234,147 +155,30 @@ function localiseTimes(root = document) {
 }
 localiseTimes();
 
-function renderRequests(list) {
-  if (!list.length) return '<p class="text-secondary" style="margin:0.5rem 0">No requests captured yet.</p>';
-  return list
-    .map((c) => {
-      const headers = c.headers.map(([k, v]) => `${escapeHtml(k)}: ${escapeHtml(v)}`).join('\n');
-      const trunc = c.truncated ? ` <span class="kp-badge">truncated, ${c.body_bytes} bytes</span>` : '';
-      const source = c.source === 'test' ? ' <span class="kp-badge kp-badge--info">test</span>' : '';
-      return `<details class="kp-card" style="margin:0.5rem 0"><summary><time datetime="${escapeHtml(c.at)}">${escapeHtml(c.at)}</time> ${escapeHtml(c.method)} ${escapeHtml(c.path)} → ${c.status}${source}${trunc}</summary><pre class="snippet">${headers}\n\n${escapeHtml(c.body)}</pre></details>`;
-    })
-    .join('');
-}
-
-async function loadRequests(id, panel) {
-  const res = await fetch(`/api/clients/${id}/requests`, { headers: { accept: 'application/json' } });
-  const list = res.ok ? await res.json() : [];
-  panel.innerHTML = renderRequests(list);
-  localiseTimes(panel);
-}
-
-document.addEventListener('click', (event) => {
-  const reveal = event.target.closest('[data-reveal]');
-  if (reveal) {
-    const id = reveal.dataset.reveal;
-    const target = document.getElementById(`token-${id}`);
-    if (target.dataset.revealed === 'true') {
-      hide(target, reveal);
-      return;
-    }
-    busy(reveal, async () => {
-      try {
-        const { token } = await fetchToken(id);
-        target.textContent = token;
-        target.dataset.revealed = 'true';
-        reveal.dataset.label = 'Hide';
-        const seconds = parseInt(reveal.dataset.revealSeconds, 10) || 10;
-        window.clearTimeout(target.revealTimer);
-        target.revealTimer = window.setTimeout(() => hide(target, reveal), seconds * 1000);
-      } catch (e) {
-        flash(reveal, e.message, 3000);
-      }
-    });
-    return;
-  }
-
-  const copyToken = event.target.closest('[data-copy-token]');
-  const copyCommand = event.target.closest('[data-copy-command]');
-  const copier = copyToken || copyCommand;
-  if (copier) {
-    const id = copyToken ? copyToken.dataset.copyToken : copyCommand.dataset.copyCommand;
-    busy(copier, async () => {
-      try {
-        const data = await fetchToken(id);
-        const ok = await copyText(copyToken ? data.token : data.command);
-        flash(copier, ok ? 'Copied' : 'Copy failed — use Reveal');
-      } catch (e) {
-        flash(copier, e.message, 3000);
-      }
-    });
-    return;
-  }
-
-  const test = event.target.closest('[data-test]');
-  if (test) {
-    const id = test.dataset.test;
-    busy(test, async () => {
-      const res = await fetch(`/api/clients/${id}/test`, { method: 'POST', headers: { accept: 'application/json' } });
-      const body = await res.json().catch(() => ({}));
-      flash(test, res.ok ? `Sent → ${body.status}` : refusal(res, body), 3000);
-      const panel = document.getElementById(`requests-${id}`);
-      if (panel && !panel.hidden) await loadRequests(id, panel);
-    });
-    return;
-  }
-
-  // feat-clients-4: the row carries one button; everything else is in the
-  // dialog it opens. The requests load on open rather than behind a second
-  // click — the panel is already on screen there, so a toggle would only be a
-  // control that hides what the reader just asked for.
-  const manage = event.target.closest('[data-manage]');
-  if (manage) {
-    // The name in the list is a link (#manage-ID) and opens the same dialog.
-    event.preventDefault();
-    const id = manage.dataset.manage;
-    const dialog = document.getElementById(`manage-${id}`);
-    if (!dialog) return;
-    dialog.showModal();
-    const panel = dialog.querySelector(`#requests-${id}`);
-    if (panel) {
-      if (manage.matches('button')) busy(manage, () => loadRequests(id, panel));
-      else loadRequests(id, panel);
-    }
-    return;
-  }
-
-  const closeManage = event.target.closest('[data-close-manage]');
-  if (closeManage) {
-    closeManage.closest('dialog')?.close();
-    return;
-  }
-
-  const toggle = event.target.closest('[data-requests]');
-  if (toggle) {
-    const id = toggle.dataset.requests;
-    const panel = document.getElementById(`requests-${id}`);
-    if (panel.hidden) {
-      panel.hidden = false;
-      toggle.textContent = 'Hide requests';
-      busy(toggle, () => loadRequests(id, panel));
-    } else {
-      panel.hidden = true;
-      toggle.textContent = 'Last requests';
-    }
-    return;
-  }
-
+// A project's [data-post] button (a row or a section action, K29): POST (or
+// its method) to the route it names, then reload; a refusal is the kit's JSON
+// and shows as a word on the button with the sentence under it. Destructive
+// ones carry data-kp-confirm; components.js asks first and lets the second
+// click through, which is the click seen here. The button is a kp flash
+// button: the theme's own spinner while it works, one width throughout.
+document.addEventListener('click', async (event) => {
   const post = event.target.closest('[data-post]');
-  // Destructive buttons carry data-kp-confirm; components.js arms them on
-  // the first click and lets the second through, which is the click we see.
-  // The same path serves the kit's own buttons and a project's row or
-  // section actions (K29): the route is whatever data-post says.
-  if (post && !post.hasAttribute('data-kp-armed-pending')) {
-    busy(post, async () => {
+  if (!post || post.hasAttribute('data-kp-armed-pending')) return;
+  const { runFlashButton } = await import('./kp/js/flash.js');
+  runFlashButton(
+    post,
+    async () => {
       const res = await fetch(post.dataset.post, { method: post.dataset.method || 'POST', headers: { accept: 'application/json' } });
       if (res.ok) {
         window.location.reload();
-      } else {
-        const body = await res.json().catch(() => ({}));
-        flash(post, refusal(res, body), 5000);
+        return 'Done';
       }
-    });
-  }
+      const body = await res.json().catch(() => ({}));
+      return { error: body.error || `HTTP ${res.status}`, remedy: body.remedy };
+    },
+    { busyLabel: post.dataset.busyLabel },
+  );
 });
-
-function hide(target, toggle) {
-  window.clearTimeout(target.revealTimer);
-  target.textContent = target.dataset.masked;
-  target.dataset.revealed = 'false';
-  toggle.dataset.label = 'Reveal';
-  toggle.textContent = 'Reveal';
-}
-
 
 // Forms with a plain POST (login): a plain POST navigates away; the button
 // still shows its busy label until the page changes (rule 31). The Issue
@@ -408,7 +212,10 @@ document.addEventListener('submit', (event) => {
 //     /api/kit/clients every 5 seconds and finishes step 3 by itself,
 //   - the issue dialog (clients-issue): the live client card that follows
 //     the form, and the swap to the token, the first command and the receipt
-//     after Issue, without a reload.
+//     after Issue, without a reload,
+//   - the manage dialogs (clients-manage): kp-themes parts attached when a
+//     dialog first opens; the token is a .kp-secret that asks the service,
+//     the requests are a .kp-inspector, Send test is a flash button.
 //
 // Dates are written by the server in dd/mm/yyyy HH:mm (Europe/Brussels);
 // `formatBrussels` is the same format for the few times the browser writes.
@@ -472,6 +279,7 @@ async function startClientsPage(root) {
   modules.hovercard.attachHoverCards(document);
   const issueDialog = document.getElementById('issue-dialog');
   if (issueDialog) await startIssueDialog(issueDialog, load, root.dataset.clientsOne);
+  startManageDialogs(root, load);
   for (const [, name, attach] of wanted) modules[name][attach](root);
 
   const one = root.dataset.clientsOne;
@@ -501,6 +309,8 @@ async function startClientsPage(root) {
   root.addEventListener('click', (event) => {
     const tile = event.target.closest('[data-clients-filter]');
     if (tile) filterBy(tile.getAttribute('aria-pressed') === 'true' ? '' : tile.dataset.clientsFilter);
+    // "Clear the search" in the table's empty state also lets go of a pressed figure.
+    if (event.target.closest('[data-kp-datatable-clear]')) filterBy('');
   });
   // Typing something else in the search box ends the filter: the figure
   // lets go and the search covers every column again.
@@ -572,22 +382,30 @@ async function startClientsPage(root) {
     }
     // A dialog that is open keeps what it shows; the others are replaced so
     // "last used" is current the next time one opens.
-    for (const fresh of doc.querySelectorAll('dialog.client-dialog')) {
+    for (const fresh of doc.querySelectorAll('dialog.manage-dialog')) {
       const mine = document.getElementById(fresh.id);
       if (mine && !mine.open) mine.replaceWith(document.adoptNode(fresh));
     }
     paintProblems();
     return true;
   }
-  root.addEventListener('kp-refresh', async (event) => {
+  // The list answers in its own states: loading (the table's busy card, only when
+  // the read takes longer than a blink), failed (with its own Try again), ready.
+  async function readAgain() {
+    const handle = tableHandle();
+    const waiting = handle ? window.setTimeout(() => handle.state('loading'), 400) : 0;
     let ok = false;
     try {
       ok = await refreshPage();
     } catch (_) {
       ok = false;
     }
-    event.detail.done(ok);
-  });
+    window.clearTimeout(waiting);
+    handle?.state(ok ? 'ready' : 'failed');
+    return ok;
+  }
+  root.addEventListener('kp-refresh', async (event) => event.detail.done(await readAgain()));
+  root.addEventListener('kp-datatable-retry', readAgain);
 
   // ---- the first client: the page notices the first call -----------------
   if (root.hasAttribute('data-clients-onboarding')) watchForFirstCall(root, modules, one);
@@ -758,33 +576,173 @@ async function startIssueDialog(dialog, load, one) {
     window.clearInterval(pollTimer);
     if (issued && !opening) window.location.reload();
   });
+}
 
-  // Back from "Open the client".
+// ---- the manage dialogs (clients-manage) --------------------------------
+// One dialog per client, rendered by the server. The parts are attached the
+// first time a dialog opens (a dialog the auto-refresh replaced is a new node
+// and gets its own first time). Nothing about a token is in the page: the
+// secret field asks for it when it is shown or copied.
+
+const MANAGE_MODULES = ['components', 'overlays', 'idmark', 'lede', 'flash', 'patterns', 'command', 'json-field', 'request-inspector', 'card-state', 'loading-pieces', 'motion'];
+const manageReady = new WeakMap();
+
+// What the inspector reads of a request the service captured.
+function inspectorRequest(c) {
+  return {
+    at: c.at,
+    method: c.method,
+    path: c.path,
+    status: c.status,
+    headers: c.headers,
+    body: c.body,
+    bodyBytes: c.body_bytes,
+    truncated: c.truncated,
+    source: c.source === 'test' ? 'test' : 'client',
+  };
+}
+
+function startManageDialogs(root, load) {
+  // The name in the list is a link (#manage-ID) and opens the same dialog as the button.
+  root.addEventListener('click', (event) => {
+    const manage = event.target.closest('[data-manage]');
+    if (!manage) return;
+    event.preventDefault();
+    openManage(manage.dataset.manage, load);
+  });
+  // Back from "Open the client" or from a re-issue.
   try {
     const wanted = sessionStorage.getItem(ISSUE_OPEN_KEY);
     if (wanted) {
       sessionStorage.removeItem(ISSUE_OPEN_KEY);
-      document.querySelector(`[data-manage="${CSS.escape(wanted)}"]`)?.click();
+      openManage(wanted, load);
     }
   } catch (_) {
     // No storage, nothing to open.
   }
 }
 
+async function openManage(id, load) {
+  const dialog = document.getElementById(`manage-${id}`);
+  if (!dialog || dialog.open) return;
+  dialog.showModal();
+  const view = await prepareManage(dialog, load);
+  view.loadRequests();
+}
+
+function prepareManage(dialog, load) {
+  if (!manageReady.has(dialog)) manageReady.set(dialog, wireManage(dialog, load));
+  return manageReady.get(dialog);
+}
+
+async function wireManage(dialog, load) {
+  const id = dialog.dataset.manageId;
+  const [components, overlays, idmark, lede, flash, patterns, command, json, inspector, cardState, pieces, motion] = await Promise.all(MANAGE_MODULES.map(load));
+  const $ = (selector) => dialog.querySelector(selector);
+
+  components.attachConfirmations(dialog);
+  overlays.attachDialogs(dialog);
+  idmark.attachIdmarks(dialog);
+  lede.attachLedes(dialog);
+  flash.attachFlashButtons(dialog);
+  patterns.attachPatterns(dialog);
+  command.attachCommands(dialog);
+  json.attachJsonFields(dialog);
+  cardState.attachCardStates(dialog);
+  inspector.attachRequestInspectors(dialog, { origin: location.origin });
+  pieces.attachLoadingPieces(dialog);
+  motion.attachMotion(dialog);
+
+  // ---- the token: asked of the service only when it is shown or copied ----
+  const secret = $('[data-manage-secret]');
+  secret?.addEventListener('kp-secret-request', (event) => {
+    event.preventDefault();
+    const { respond, fail } = event.detail;
+    fetchToken(id).then((data) => respond(data.token), fail);
+  });
+
+  // ---- the command with the real token in ----
+  const copyFull = $('[data-manage-copy-full]');
+  copyFull?.addEventListener('click', () =>
+    flash.runFlashButton(copyFull, async () => {
+      const data = await fetchToken(id);
+      if (!(await copyText(data.command))) return { error: 'The browser refused to copy', remedy: 'Reveal the token and copy it by hand.' };
+      return 'Copied';
+    }),
+  );
+
+  // ---- the requests ----
+  const host = $('[data-kp-requests]');
+  async function loadRequests() {
+    if (!host) return;
+    // A first read or a retry shows the waiting card; a read after a test keeps the list on screen.
+    if (host.dataset.kpState !== 'ready') inspector.setRequestsState(host, 'loading');
+    try {
+      const res = await fetch(`/api/clients/${encodeURIComponent(id)}/requests`, { headers: { accept: 'application/json' }, credentials: 'same-origin' });
+      if (!res.ok) throw new Error(refusal(res, await res.json().catch(() => ({}))));
+      const list = await res.json();
+      inspector.setRequests(host, list.map(inspectorRequest));
+    } catch (e) {
+      inspector.setRequestsState(host, 'error', { message: e instanceof Error && e.message ? e.message : 'The service did not answer.' });
+    }
+  }
+  host?.addEventListener('kp-requests-retry', loadRequests);
+
+  // ---- Send test: the body in the field, to the service's own test route ----
+  const send = $('[data-manage-send]');
+  const body = $('[data-manage-body]');
+  send?.addEventListener('click', () =>
+    flash.runFlashButton(send, async () => {
+      if (body && json.jsonField(body)?.state() === 'invalid') return { error: 'The body is not valid JSON', remedy: 'Fix the line the field marks, or press Format.' };
+      const res = await fetch(`/api/clients/${encodeURIComponent(id)}/test`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body ? { body: body.value } : {}),
+      });
+      const answer = await res.json().catch(() => ({}));
+      await loadRequests();
+      if (!res.ok) return { error: answer.error || `HTTP ${res.status}`, remedy: answer.remedy };
+      if (answer.status >= 400) return { error: `The test route answered ${answer.status}`, remedy: 'Open the request in the list to read the answer.' };
+      return 'Sent';
+    }),
+  );
+
+  // A re-issued token is shown again from the page that comes back.
+  $('[data-manage-reissue]')?.addEventListener('kp-flash', (event) => {
+    if (event.detail.state !== 'success') return;
+    try {
+      sessionStorage.setItem(ISSUE_OPEN_KEY, id);
+    } catch (_) {
+      // Without storage the page just reloads.
+    }
+  });
+
+  return { loadRequests };
+}
+
 function watchForFirstCall(root, modules, one) {
   const list = root.querySelector('[data-clients-steps]');
   if (!list) return;
   let timer = 0;
+  // The third step is the one that waits; when the service does not answer it says so in its own failed state and
+  // goes back to waiting with the next answer.
+  const waitNote = root.querySelector('[data-clients-wait-note]')?.textContent ?? '';
+  const waitState = () => root.querySelector('[data-kp-step-id="s3"]')?.dataset.state;
+  let before = '';
   async function look() {
     if (document.visibilityState === 'hidden') return;
     let data;
     try {
       const res = await fetch('/api/kit/clients', { headers: { accept: 'application/json' }, credentials: 'same-origin' });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       data = await res.json();
     } catch (_) {
+      if (waitState() !== 'failed') before = waitState();
+      if (before === 'running') modules.steplist.setStep(list, 's3', { state: 'failed', note: 'The service did not answer; this page looks again in 5 seconds.' });
       return;
     }
+    if (waitState() === 'failed') modules.steplist.setStep(list, 's3', { state: before, note: waitNote });
     if (data.counts.called === 0) {
       // A client was issued from another tab: the page reshapes.
       if ((data.counts.active > 0) !== (root.querySelector('[data-kp-step-id="s1"]').dataset.state === 'done') && !document.querySelector('dialog[open]')) {

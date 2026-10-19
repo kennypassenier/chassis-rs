@@ -288,6 +288,17 @@ pub async fn requests(
     Json(api.captures.list(&id))
 }
 
+/// What the Test it field sends (kit-kp11, clients-manage): the body the
+/// reader edited. Without one the request carries the route's own body.
+#[derive(Debug, Default, Deserialize)]
+pub struct TestRequest {
+    pub body: Option<String>,
+}
+
+/// The longest body the dashboard will send as a test, so a pasted file
+/// cannot turn the test button into an upload.
+const TEST_BODY_MAX: usize = 64 * 1024;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TestResult {
     pub status: u16,
@@ -300,6 +311,7 @@ pub async fn send_test(
     State(api): State<ClientsApi>,
     Extension(vocab): Extension<Vocabulary>,
     Path(id): Path<String>,
+    request: Option<Json<TestRequest>>,
 ) -> Result<Json<TestResult>, Error> {
     let route = api.test_route.as_ref().ok_or_else(|| {
         Error::invalid(
@@ -307,6 +319,15 @@ pub async fn send_test(
             "the project can register one with App::test_route",
         )
     })?;
+    let body = request
+        .and_then(|Json(r)| r.body)
+        .unwrap_or_else(|| route.body.clone());
+    if body.len() > TEST_BODY_MAX {
+        return Err(Error::invalid(
+            format!("the test body is {} bytes", body.len()),
+            format!("keep it under {TEST_BODY_MAX} bytes"),
+        ));
+    }
     let token = lookup(&api, &vocab, &id, true)?
         .token
         .ok_or_else(|| revoked(&vocab, &id))?;
@@ -326,7 +347,7 @@ pub async fn send_test(
         .bearer_auth(&token)
         .header("content-type", &route.content_type)
         .header(crate::shell::captures::TEST_HEADER, api.captures.test_key())
-        .body(route.body.clone())
+        .body(body)
         .send()
         .await
         .map_err(|e| {
