@@ -1282,18 +1282,24 @@ import { attachForms } from './kp/js/forms.js';
       anchor.after(...groups.filter((g) => g.ul.children.length).map((g) => g.li));
       handle.refresh();
     };
-    // The clients the palette and the tab badge need: loading is the palette's
-    // own busy card over its list, a failure its failed plate with Try again
-    // (kp-palette-retry) above the static pages, which stay usable.
+    // The clients the palette lists (Manage, Send a test): read when the palette
+    // opens, never at load (the tab badge's idle count is written by the
+    // server). Loading is the palette's own busy card over its list, a
+    // failure its failed plate with Try again (kp-palette-retry) above the
+    // static pages, which stay usable.
+    let reading = false;
     const loadClients = () => {
-      if (onClients && handle) handle.setState('loading');
+      if (reading) return Promise.resolve();
+      reading = true;
+      handle?.setState('loading');
       return fetch('/api/kit/clients', { headers: { accept: 'application/json' } })
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
         .then((data) => { fromClients(data); handle?.setState('ready'); })
-        .catch(() => handle?.setState(onClients ? 'error' : 'ready', { message: 'The clients could not be read.' }));
+        .catch(() => handle?.setState('error', { message: 'The clients could not be read.' }))
+        .finally(() => { reading = false; });
     };
     if (clientsPath) {
-      loadClients();
+      paletteEl.addEventListener('kp-palette-open', (event) => { if (event.detail?.open) loadClients(); });
       paletteEl.addEventListener('kp-palette-retry', () => loadClients());
     }
 

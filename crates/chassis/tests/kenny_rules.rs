@@ -137,6 +137,22 @@ fn the_shell_renders_from_the_registry_and_counts_exactly() {
         shell.contains("data.counts.idle"),
         "the tab badge reads counts.idle"
     );
+    // The server writes the same number into every signed-in page, so the
+    // shell never reads the clients at load for the badge.
+    let layout_src = kit_file("templates/layout.html");
+    assert!(
+        layout_src.contains("idle_clients") && layout_src.contains("kp-tabbar__badge"),
+        "the layout writes the idle count on the Clients tab"
+    );
+    let dash = kit_file("src/shell/dashboard.rs");
+    assert!(
+        dash.contains("client_list::counts(") && dash.contains("fn idle_clients"),
+        "the server's idle count is client_list's own counts.idle"
+    );
+    assert!(
+        !shell.contains("loadClients();\n      paletteEl"),
+        "the shell reads the clients when the palette opens, not at load"
+    );
     for own in ["86400000", "* 30", "30 *", "issued_at", "filter(idle"] {
         assert!(
             !shell.contains(own),

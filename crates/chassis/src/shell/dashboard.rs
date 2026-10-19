@@ -773,6 +773,7 @@ impl Dashboard {
         let own = minijinja::Value::from_serialize(&ctx);
         let full = context! {
             logged_in => true,
+            idle_clients => self.idle_clients(),
             active_nav => active_nav,
             ..own
         };
@@ -795,6 +796,7 @@ impl Dashboard {
             "error.html",
             context! {
                 logged_in => signed_in,
+                idle_clients => if signed_in { self.idle_clients() } else { 0 },
                 active_nav => "",
                 status => status.as_u16(),
                 reason => status.canonical_reason().unwrap_or(""),
@@ -808,6 +810,22 @@ impl Dashboard {
         )
         .ok()
         .map(|h| h.0)
+    }
+
+    /// kit-kp11: how many clients are idle, the number on the Clients tab.
+    /// The same figure as `counts.idle` on the Clients page (one rule, in
+    /// `client_list`), written into the page by the server so the bar never
+    /// waits on a read.
+    fn idle_clients(&self) -> usize {
+        let now = chrono::Utc::now();
+        let views: Vec<ClientView> = self
+            .clients
+            .snapshot()
+            .clients
+            .iter()
+            .map(ClientView::from)
+            .collect();
+        client_list::counts(views.iter().map(|v| (client_list::standing(v, now).0, v))).idle
     }
 
     fn render(&self, name: &str, ctx: minijinja::Value) -> Result<Html<String>, Error> {
@@ -846,6 +864,7 @@ impl Dashboard {
             "passkeys.html",
             context! {
                 logged_in => true,
+                idle_clients => self.idle_clients(),
                 active_nav => "/passkeys",
                 https => https,
                 public_url => self.public_url,
@@ -970,6 +989,7 @@ pub async fn status_page(State(d): State<Dashboard>) -> Result<Html<String>, Err
         "status.html",
         context! {
             logged_in => true,
+            idle_clients => d.idle_clients(),
             active_nav => "/status",
             ..minijinja::Value::from_serialize(&data)
         },
@@ -1125,6 +1145,7 @@ pub async fn clients_page(State(d): State<Dashboard>) -> Result<Html<String>, Er
         "clients.html",
         context! {
             logged_in => true,
+            idle_clients => d.idle_clients(),
             active_nav => "/clients",
             ..minijinja::Value::from_serialize(&data)
         },
