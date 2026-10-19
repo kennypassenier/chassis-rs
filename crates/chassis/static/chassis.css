@@ -195,3 +195,32 @@ pre.snippet {
         display: none;
     }
 }
+
+/* The error page: the plate is centred in its card, the facts use one label
+   column, the two ways out stand on one grid row. */
+.chassis-error__actions {
+    align-items: center;
+    margin-block-start: var(--kp-space-md, 1rem);
+}
+@media (max-width: 39.99rem) {
+    .chassis-error__actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+/* The request id wraps inside its own column and its Copy button keeps its word. */
+.chassis-error__facts .kp-copyable {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--kp-space-sm, 0.5rem);
+}
+.chassis-error__facts .kp-copyable__value {
+    overflow-wrap: anywhere;
+}
+.chassis-error__facts .kp-copyable__button {
+    white-space: nowrap;
+}
+.chassis-error__facts {
+    margin-block-start: var(--kp-space-md, 1rem);
+}

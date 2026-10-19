@@ -51,6 +51,28 @@ pub struct AccessState {
 pub type HtmlErrorRenderer =
     std::sync::Arc<dyn Fn(StatusCode, &str, &str) -> Option<String> + Send + Sync>;
 
+/// kit-kp11: what an error page knows about the request it answers, set
+/// for the one call of the [`HtmlErrorRenderer`] so the renderer's
+/// signature stays what it was: the request id to quote in a report, and
+/// the request's headers, from which the dashboard tells whether the
+/// browser is signed in (the page then draws the navigation and Log out,
+/// as on every other page).
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ErrorContext {
+    pub(crate) request_id: Option<String>,
+    pub(crate) headers: axum::http::HeaderMap,
+}
+
+thread_local! {
+    static ERROR_CONTEXT: std::cell::RefCell<ErrorContext> = std::cell::RefCell::new(ErrorContext::default());
+}
+
+/// The context of the error page being rendered right now (empty outside
+/// a render).
+pub(crate) fn error_context() -> ErrorContext {
+    ERROR_CONTEXT.with(|c| c.borrow().clone())
+}
+
 /// Whether the request is a browser navigation — a page load or a form
 /// submit — as opposed to a script or API call: `Sec-Fetch-Mode: navigate`
 /// (every modern browser), else an `Accept` that asks for HTML.
@@ -79,6 +101,14 @@ pub async fn html_errors(
     next: Next,
 ) -> Response {
     let wants_page = render.is_some() && is_navigation(req.headers());
+    let context = wants_page.then(|| ErrorContext {
+        request_id: req
+            .headers()
+            .get(&X_REQUEST_ID)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string),
+        headers: req.headers().clone(),
+    });
     let res = next.run(req).await;
     let Some(render) = render else { return res };
     if !wants_page || !res.status().is_client_error() && !res.status().is_server_error() {
@@ -101,7 +131,10 @@ pub async fn html_errors(
     let parsed: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or_default();
     let message = parsed["error"].as_str().unwrap_or("request refused");
     let remedy = parsed["remedy"].as_str().unwrap_or("");
-    match render(parts.status, message, remedy) {
+    ERROR_CONTEXT.with(|c| *c.borrow_mut() = context.unwrap_or_default());
+    let page = render(parts.status, message, remedy);
+    ERROR_CONTEXT.with(|c| *c.borrow_mut() = ErrorContext::default());
+    match page {
         Some(html) => {
             parts.headers.remove(axum::http::header::CONTENT_LENGTH);
             parts.headers.insert(
@@ -457,5 +490,50 @@ mod tests {
         );
         let body = axum::body::to_bytes(res.into_body(), 4096).await.unwrap();
         assert!(String::from_utf8_lossy(&body).contains("\"remedy\""));
+    }
+
+    /// kit-kp11: the renderer sees the request id and the headers of the
+    /// request it answers, and nothing of them afterwards.
+    #[tokio::test]
+    async fn the_error_page_renderer_sees_the_request_id_and_cookie() {
+        let render: HtmlErrorRenderer = std::sync::Arc::new(|_, _, _| {
+            let ctx = error_context();
+            Some(format!(
+                "<html>{} · {}</html>",
+                ctx.request_id.unwrap_or_default(),
+                ctx.headers
+                    .get("cookie")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("none")
+            ))
+        });
+        let app = Router::new()
+            .route(
+                "/act",
+                axum::routing::get(|| async {
+                    (
+                        StatusCode::NOT_FOUND,
+                        axum::Json(serde_json::json!({ "error": "gone", "remedy": "look again" })),
+                    )
+                }),
+            )
+            .layer(middleware::from_fn_with_state(Some(render), html_errors));
+        let req = Request::builder()
+            .uri("/act")
+            .header("sec-fetch-mode", "navigate")
+            .header("x-request-id", "req-42")
+            .header("cookie", "inbox_session=abc")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.oneshot(req).await.unwrap();
+        let body = axum::body::to_bytes(res.into_body(), 4096).await.unwrap();
+        assert_eq!(
+            String::from_utf8(body.to_vec()).unwrap(),
+            "<html>req-42 · inbox_session=abc</html>"
+        );
+        assert!(
+            error_context().request_id.is_none() && error_context().headers.is_empty(),
+            "the context ends with the render"
+        );
     }
 }

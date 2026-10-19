@@ -435,10 +435,14 @@ them a second time (a second theme picker binds every click twice):
   the stored theme before first paint);
 - `enforceContracts()` and `attachConfirmations()` (`data-kp-confirm` /
   `data-kp-destructive` controls, `[data-post]` buttons);
-- `attachEffects(document)` (caret, arrivals) and `attachSkipLinks()`.
+- `attachEffects(document)` and `attachSkipLinks()`;
+- the shell (see "The shell" below): `attachNavFolds`, `attachPalettes`,
+  `attachShortcuts`, `attachTabbars`, `attachConnection`, `attachArt`,
+  `attachPatterns` and the More drawer's dialog wiring. They are added to
+  `window.chassis.attached` too.
 
-Everything else under `/static/kp/js/` (tabbar, palette, datatable,
-undo-toast, …) is the app's to attach.
+Everything else under `/static/kp/js/` (datatable, undo-toast, …) is the
+app's to attach.
 
 **Page ready.** Once those are attached, chassis.js fires `chassis:ready` on
 `document` (detail `{ attached }`, the names above) and resolves
@@ -457,6 +461,41 @@ run earlier listens for the event and checks `window.chassis?.ready` first.
 `<div id="chassis-toasts" class="kp-toast-region" aria-live="polite"></div>`
 after `<main>`, on every page (class `kp-toasts`). The kit puts nothing in it; an app
 mounts its kp toasts there so a screen reader announces them.
+
+## The shell (kit-kp11)
+
+Every kit page and every project page in `layout.html` stands in one shell,
+drawn from the page registry (`nav` and `pages` in the template context),
+never from a list in the layout:
+
+- **The bar:** brand, the visible pages, Search (a palette on Ctrl or Cmd K),
+  the theme menu and Log out; links that do not fit fold behind More. On a
+  phone (below 40rem) the bar keeps the brand, a Search icon and the theme
+  menu.
+- **The palette:** *Go to* (one link per page, with the chord `g` plus the
+  page's first letter, where the letter is free), *This service* (refresh
+  and updates, when the status page is on), *Account*. On the clients page it
+  adds one *Manage* and one *Send a test* entry per active client, read from
+  `/api/kit/clients`.
+- **A page offers commands** by marking the control that does it
+  `data-chassis-command="issue"` (focused, or clicked if it is not a field),
+  `"filter-idle"` or `"search"`; the palette and the `n`, `/` keys only list
+  what the page carries. `r` is answered by the page's own refresh control
+  (`[data-kp-refresh]`); the sheet dims it where there is none.
+- **The sheet** (`?`) is filled from the registered shortcuts, so it cannot
+  promise a key that does nothing.
+- **The connection line** takes no room while all is well. The kit wraps
+  `window.fetch` of its own pages: a network failure reports `offline`; a
+  401, 502, 503 or 504 reports `refused` with the service's own remedy; the
+  next good answer clears it. Retry asks `/healthz`. The kit has no queue of
+  waiting changes, so it never claims a count.
+- **The phone's tab bar:** the first three pages are tabs, More opens a
+  drawer with the rest, Choose a theme and Log out. The Clients tab carries
+  the exact number of idle clients (active, no call for 30 days; one never
+  called counts from its issue); no count is capped or abbreviated.
+- **The error page** shows the status, one plate (what, why in plain words,
+  what to do) with a drawing per kind, Go back, the status page, and the
+  request id to copy. It draws the navigation when the browser is signed in.
 
 ## What the kit guarantees around a project page
 

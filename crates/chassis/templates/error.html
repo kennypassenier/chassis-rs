@@ -1,8 +1,38 @@
 {% extends "layout.html" %}
 {% block title %}{{ status }} {{ reason }} · {{ app_name }}{% endblock %}
 {% block content %}
-<h1>{{ status }} · {{ reason }}</h1>
-<p class="explain">The request was refused before it reached the page you were on. Nothing was changed. The same error and remedy that a script would receive as JSON:</p>
-<div class="kp-alert kp-alert--danger" role="alert"><strong>{{ message }}</strong>{% if remedy %}<br>{{ remedy }}{% endif %}</div>
-<p><a class="kp-button" href="/">Back to the dashboard</a> <span class="text-secondary">— or use the browser's back button to return to the form.</span></p>
+{# kit-kp11: one plate in a card, the way out and the request to quote. The
+   heading carries the status; the plate says what is wrong in plain words
+   (the kit's own error), why, and the remedy. #}
+<div class="kp-ops chassis-ops" data-kp-ops-sticky="none">
+  <header class="kp-ops__head kp-page-header">
+    <div class="kp-page-header__inner">
+      <div>
+        <h1 class="kp-page-header__title">{{ status }} · {{ reason }}</h1>
+        <p class="kp-page-header__description explain">The request was refused before it reached the page you were on. Nothing was changed.</p>
+      </div>
+      <div class="kp-page-header__actions">
+        <a class="kp-button kp-button--primary" href="/">Back to the dashboard</a>
+      </div>
+    </div>
+  </header>
+  <div class="kp-ops__body">
+    <section class="kp-card chassis-error" data-kp-span="12" aria-labelledby="chassis-error-title">
+      <div class="kp-empty" data-kp-art="{{ art }}" role="alert">
+        <h2 class="kp-empty__title" id="chassis-error-title">{{ message }}</h2>
+        <p class="kp-empty__body">{{ why }}{% if remedy %} {{ remedy }}{% endif %}</p>
+        <div class="kp-row chassis-error__actions">
+          <button type="button" class="kp-button" data-chassis-back>Go back</button>
+          {% for page in pages %}{% if page.id == "status" %}<a class="kp-button" href="{{ page.path }}">Open the {{ page.title | lower }} page</a>{% endif %}{% endfor %}
+        </div>
+      </div>
+      <dl class="kp-kv kp-kv--lines chassis-error__facts">
+        {% if request_id %}
+        <div class="kp-kv__row"><dt>Request</dt><dd><span class="kp-copyable"><span class="kp-copyable__value" id="chassis-error-rid">{{ request_id }}</span><button type="button" class="kp-button kp-button--ghost kp-button--sm kp-copyable__button" data-kp-copy="chassis-error-rid">Copy</button></span></dd></div>
+        {% endif %}
+        <div class="kp-kv__row"><dt>When</dt><dd><time datetime="{{ when }}" data-localised="true" data-chassis-when>{{ when | human_time }}</time></dd></div>
+      </dl>
+    </section>
+  </div>
+</div>
 {% endblock %}

@@ -434,6 +434,8 @@ import { attachPalettes, palette as paletteOf } from './kp/js/palette.js';
 import { attachShortcuts, registerShortcuts } from './kp/js/shortcuts.js';
 import { attachTabbars, setTabbarBadge } from './kp/js/tabbar.js';
 import { attachConnection, setConnection } from './kp/js/connection.js';
+import { attachArt } from './kp/js/art.js';
+import { attachPatterns } from './kp/js/patterns.js';
 import { attachDialogs, toast as shellToast } from './kp/js/overlays.js';
 import { setStrings } from './kp/js/strings.js';
 
@@ -441,6 +443,24 @@ import { setStrings } from './kp/js/strings.js';
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const joined = [];
+
+  // Error page: the drawing, the copy button, the way back, the time.
+  attachArt(document);
+  attachPatterns(document);
+  joined.push('art', 'patterns');
+  for (const el of $$('[data-chassis-when]')) {
+    const when = new Date(el.getAttribute('datetime'));
+    if (Number.isNaN(when.getTime())) continue;
+    const two = (n) => String(n).padStart(2, '0');
+    // dd/mm/yyyy HH:mm, 24 hours (UI_PRINCIPLES, rule 52).
+    el.textContent = `${two(when.getDate())}/${two(when.getMonth() + 1)}/${when.getFullYear()} ${two(when.getHours())}:${two(when.getMinutes())}`;
+    el.title = el.getAttribute('datetime');
+  }
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-chassis-back]')) return;
+    if (history.length > 1) history.back();
+    else location.assign('/');
+  });
 
   const paletteEl = $('#chassis-palette');
   const connectionEl = $('[data-kp-connection]');

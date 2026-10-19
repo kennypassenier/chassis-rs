@@ -662,16 +662,28 @@ impl Dashboard {
     /// CF-7: a refusal shown to a browser as a page in the layout — the
     /// kit's error and remedy, with the navigation around it and a way
     /// back — instead of a JSON document on its own tab.
+    ///
+    /// kit-kp11: the page also says why in plain words, draws the kind of
+    /// error, carries the request id to quote in a report, and draws the
+    /// navigation when the browser is signed in. The id and the session
+    /// come from [`crate::shell::http::error_context`], set for this call.
     pub fn render_error(&self, status: StatusCode, message: &str, remedy: &str) -> Option<String> {
+        let ctx = crate::shell::http::error_context();
+        let signed_in = crate::shell::auth::still_valid_now(&self.auth, &ctx.headers);
+        let (art, why) = error_look(status);
         self.render(
             "error.html",
             context! {
-                logged_in => false,
+                logged_in => signed_in,
                 active_nav => "",
                 status => status.as_u16(),
                 reason => status.canonical_reason().unwrap_or(""),
-                message => message,
-                remedy => remedy,
+                message => capitalised(message),
+                remedy => sentence(remedy),
+                why => why,
+                art => art,
+                request_id => ctx.request_id,
+                when => crate::shell::time::now_rfc3339(),
             },
         )
         .ok()
@@ -717,6 +729,48 @@ impl Dashboard {
                 passkeys => passkeys,
             },
         )
+    }
+}
+
+/// The kit writes its errors and remedies as lowercase fragments for a log
+/// line and a JSON body; on a page they open a sentence.
+fn capitalised(text: &str) -> String {
+    let text = text.trim();
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
+/// [`capitalised`] and closed with a full stop; empty stays empty.
+fn sentence(text: &str) -> String {
+    let mut out = capitalised(text);
+    if !out.is_empty() && !out.ends_with(['.', '!', '?']) {
+        out.push('.');
+    }
+    out
+}
+
+/// kit-kp11: the drawing and the plain reason an error page shows for a
+/// status. The reason says what kind of thing happened, never an id or a
+/// raw error; the kit's own remedy follows it on the page.
+fn error_look(status: StatusCode) -> (&'static str, &'static str) {
+    match status.as_u16() {
+        401 => ("locked", "You are not signed in, or the session has ended."),
+        403 => (
+            "locked",
+            "The request came from an address or a page this service does not trust.",
+        ),
+        404 => (
+            "nomatch",
+            "It was moved or removed, or the address is not right.",
+        ),
+        413 => ("error", "The request is larger than this service accepts."),
+        429 => ("offline", "Too many requests came in a short time."),
+        502..=504 => ("offline", "A part this service needs did not answer."),
+        500..=599 => ("error", "Something went wrong on the service’s side."),
+        _ => ("error", "The service could not accept the request as sent."),
     }
 }
 
@@ -939,6 +993,27 @@ mod tests {
         ));
         let js = include_str!("../../static/chassis.js");
         assert!(js.contains("'chassis:ready'") && js.contains("window.chassis"));
+    }
+
+    /// kit-kp11: an error page's sentences open with a capital and close with
+    /// a stop, the drawing and the plain reason follow the status.
+    #[test]
+    fn error_pages_read_as_sentences_with_a_drawing_per_kind() {
+        assert_eq!(sentence("log in again"), "Log in again.");
+        assert_eq!(sentence("Try later!"), "Try later!");
+        assert_eq!(sentence(""), "");
+        assert_eq!(capitalised(" no client with id x"), "No client with id x");
+        for (code, art) in [
+            (401, "locked"),
+            (403, "locked"),
+            (404, "nomatch"),
+            (500, "error"),
+            (503, "offline"),
+        ] {
+            let (found, why) = error_look(StatusCode::from_u16(code).unwrap());
+            assert_eq!(found, art, "{code}");
+            assert!(why.ends_with('.'), "{code}: {why}");
+        }
     }
 
     #[test]
