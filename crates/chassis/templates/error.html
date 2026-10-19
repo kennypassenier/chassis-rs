@@ -18,9 +18,10 @@
   </header>
   <div class="kp-ops__body">
     <section class="kp-card chassis-error" data-kp-span="12" aria-labelledby="chassis-error-title">
-      <div class="kp-empty" data-kp-art="{{ art }}" role="alert">
-        <h2 class="kp-empty__title" id="chassis-error-title">{{ message }}</h2>
-        <p class="kp-empty__body">{{ why }}{% if remedy %} {{ remedy }}{% endif %}</p>
+      {# The package's plate (js/state-plate.js draws the same markup); a refusal keeps the empty plate's look and its alert role. #}
+      <div class="kp-empty kp-stateplate kp-stateplate--empty" data-kp-art="{{ art }}" role="alert">
+        <strong class="kp-stateplate__title" id="chassis-error-title">{{ message }}</strong>
+        <span class="kp-stateplate__text">{{ why }}{% if remedy %} {{ remedy }}{% endif %}</span>
         <div class="kp-row chassis-error__actions">
           <button type="button" class="kp-button" data-chassis-back>Go back</button>
           {% for page in pages %}{% if page.id == "status" %}<a class="kp-button" href="{{ page.path }}">Open the {{ page.title | lower }} page</a>{% endif %}{% endfor %}

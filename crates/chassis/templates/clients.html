@@ -56,13 +56,14 @@
     <section class="kp-card" data-kp-span="6" aria-labelledby="clients-what-title">
       <h2 class="kp-card__title" id="clients-what-title">What a {{ vocab.singular }} is</h2>
       <p class="kp-lede" data-kp-lede-measure="full">The same token never goes to two programs.</p>
-      <div class="kp-empty" data-kp-art="nomatch" data-clients-what>
+      {# The package's empty plate (js/state-plate.js draws the same markup); chassis.js turns it into "Connected" through statePlate(). #}
+      <div class="kp-empty kp-stateplate kp-stateplate--empty" role="status" data-kp-art="nomatch" data-clients-what>
         {% if step == 1 %}
-        <p class="kp-empty__title">No {{ vocab.plural }} yet</p>
-        <p class="kp-empty__body">A {{ vocab.singular }} is one program with its own token. Switch one off without touching the others.</p>
+        <strong class="kp-stateplate__title">No {{ vocab.plural }} yet</strong>
+        <span class="kp-stateplate__text">A {{ vocab.singular }} is one program with its own token. Switch one off without touching the others.</span>
         {% else %}
-        <p class="kp-empty__title">Waiting for a call</p>
-        <p class="kp-empty__body">The {{ vocab.singular }} exists. The list opens here as soon as its first request arrives.</p>
+        <strong class="kp-stateplate__title">Waiting for a call</strong>
+        <span class="kp-stateplate__text">The {{ vocab.singular }} exists. The list opens here as soon as its first request arrives.</span>
         {% endif %}
       </div>
     </section>
