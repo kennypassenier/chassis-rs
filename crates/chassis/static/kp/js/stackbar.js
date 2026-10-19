@@ -25,6 +25,12 @@
 // part or its legend row lights both. A press on either fires
 // `kp-stackbar-pick` `{ key, part }` on the root (the page may filter).
 //
+// Picked parts [stackbar-refresh-1019; homelab 61]: `picked: ['images']` (keys, any number, `[]` for none picked yet) says which
+// parts the page has pressed, as a chart's filter does. Every part then is a toggle button (`role="button"`, `aria-pressed`
+// true or false) and the part and its legend row take `data-kp-stackbar-picked`, drawn as a heavier ring on the bar and a
+// start rule with a heavier label in the legend, so the state is not carried by colour alone. The page owns the state: it
+// handles `kp-stackbar-pick` and calls setStackbar() again with the new keys. Without `picked` a part is an image, as before.
+//
 // States: `state: 'loading'` (the bar shows the meter's own loading picture,
 // js/kpi.js setMeter, the one every theme draws for a bar that waits: formal
 // rules a navy line along it [G10]; the legend keeps its rows as the theme's
@@ -75,6 +81,7 @@ export const STACKBAR_RETRY_EVENT = 'kp-stackbar-retry';
  * @property {string} [message]     the sentence of an empty or failed bar
  * @property {boolean} [retry]      false leaves Retry out of a failed bar (a read the page cannot repeat)
  * @property {string} [label]       the bar's accessible name (default: every part in order)
+ * @property {string[]} [picked]    keys of the parts the page has pressed; given (even empty), the parts are toggle buttons with `aria-pressed`
  */
 
 /** @type {WeakMap<HTMLElement, { parts: number, wired: boolean, height: number }>} */
@@ -150,6 +157,8 @@ export function setStackbar(el, spec) {
     else el.removeAttribute('aria-busy');
 
     const nodes = [];
+    const pickable = Array.isArray(spec.picked);
+    const pickedKeys = new Set(spec.picked ?? []);
     const calc = stackbarParts(spec.parts ?? [], spec.total, spec.other ?? 0);
     if (spec.title !== undefined) {
         const head = make(doc, 'kp-stackbar__head', 'div');
@@ -236,7 +245,11 @@ export function setStackbar(el, spec) {
             spoken.push(strings.stackbarPart(part.label, format(part.value), shareText(part.share, lang)));
             const seg = make(doc, 'kp-stackbar__seg');
             seg.dataset.kpStackbarKey = part.key;
-            seg.setAttribute('role', 'img');
+            seg.setAttribute('role', pickable ? 'button' : 'img');
+            if (pickable) {
+                seg.setAttribute('aria-pressed', String(pickedKeys.has(part.key)));
+                seg.toggleAttribute('data-kp-stackbar-picked', pickedKeys.has(part.key));
+            }
             seg.setAttribute('aria-label', words);
             seg.setAttribute('data-kp-hovercard', words);
             seg.setAttribute('tabindex', '-1');
@@ -247,6 +260,7 @@ export function setStackbar(el, spec) {
             if (legend) {
                 const item = make(doc, 'kp-stackbar__item', 'li');
                 item.dataset.kpStackbarKey = part.key;
+                item.toggleAttribute('data-kp-stackbar-picked', pickable && pickedKeys.has(part.key));
                 const swatch = make(doc, 'kp-stackbar__swatch');
                 swatch.setAttribute('aria-hidden', 'true');
                 swatch.style.setProperty('--kp-stackbar-colour', colour);

@@ -21,11 +21,31 @@
 //   data-kp-show-when     on a phrase: `field=value` (a comma lists values); the phrase shows only then   always
 //   data-kp-block         on a field: it always takes a line of its own (the weekday picker)   off
 //   data-kp-disabled-reason  on a disabled fieldset: the sentence that says why     none
+//   data-kp-sentence-computed      on an `<output class="kp-sentence__computed">`: the name of a read-only field the sentence works out   none
 //
 // `wrap` (Kenny, 2026-10-17) lets the sentence run on over several lines with the fields between the words, and a field
 // whose natural width is more than `data-kp-own-line-ratio` of the line (a stack name that is long) takes a line of its own,
 // the full width; `stack` puts every field on its own line below 30rem; `flow` never does. A phrase that is hidden is
 // `hidden` and `inert`, its controls disabled, so they are neither tabbed to nor submitted.
+//
+// A read-only computed field [audhd-opts-1019; AuDHD recipes 24]: a word the sentence works out from its other fields, such as
+// "ready at 18:40" from the start time and the minutes:
+//
+//   Start at <span class="kp-sentence__field"><input name="start" aria-label="Start" value="17:30" /></span>,
+//   it takes <span class="kp-sentence__field"><input name="minutes" aria-label="Minutes" value="70" /></span> min and is
+//   ready at <span class="kp-sentence__field"><output class="kp-sentence__computed" data-kp-sentence-computed="ready"
+//   aria-label="Ready at"></output></span>.
+//
+//   attachSentences(root, { computed: { ready: (values) => addMinutes(values.start, Number(values.minutes)) } });
+//   sentence(form).compute('ready', (values, form) => …)    // the same, after attach
+//   setSentenceComputed(form, 'ready', '18:40')              // or push the text yourself (an answer that arrives late)
+//
+// The function gets the value of every named control (`{ start: '17:30', minutes: '70' }`; a radio or checkbox that is not
+// chosen is null) and is called again on every change, before the summary is spoken, so the summary holds the new text. It
+// returns a string or a number; nothing (null, undefined, an empty string) draws a dash and the summary says "(Ready at)"; a
+// function that throws draws the dash and warns once in the console. The field is drawn apart from the editable ones (a quiet
+// plate, no underline in the primary colour), is not a control (no tab stop, no focus ring, never submitted) and is not
+// announced on its own: `aria-live="off"`, because the sentence's own status line already speaks the whole sentence.
 //
 // A select in a sentence opens the package's drawn list (data-kp-select="native" keeps the browser's).
 //
@@ -70,12 +90,43 @@ function nameOf(control) {
 }
 
 /**
+ * What a computed field shows, in words: its text, or "(Ready at)" while it has none.
+ * @param {Element} output a `[data-kp-sentence-computed]` element
+ * @returns {string}
+ */
+function computedText(output) {
+    return output.hasAttribute('data-kp-sentence-empty') ? getStrings().sentenceEmpty(nameOf(output)) : (output.textContent?.trim() ?? '');
+}
+
+/** What a computed field draws when it has nothing to say. */
+const COMPUTED_NONE = '\u2014';
+
+/**
+ * Write the text of a computed field (`[data-kp-sentence-computed="<name>"]`); null, undefined or '' draws a dash.
+ * @param {Element} element a `.kp-sentence`
+ * @param {string} name the field's `data-kp-sentence-computed`
+ * @param {string | number | null | undefined} text
+ */
+export function setSentenceComputed(element, name, text) {
+    const value = text === null || text === undefined ? '' : String(text).trim();
+    for (const output of element.querySelectorAll('[data-kp-sentence-computed]')) {
+        if (output.getAttribute('data-kp-sentence-computed') !== name) continue;
+        output.toggleAttribute('data-kp-sentence-empty', value === '');
+        const shown = value === '' ? COMPUTED_NONE : value;
+        if (output.textContent !== shown) output.textContent = shown;
+        output.setAttribute('aria-live', 'off');
+    }
+}
+
+/**
  * What a field shows, in words.
  * @param {Element} field a `.kp-sentence__field`
  * @returns {string}
  */
 function fieldText(field) {
     const s = getStrings();
+    const computed = field.querySelector('[data-kp-sentence-computed]');
+    if (computed) return computedText(computed);
     const picker = field.querySelector('.kp-weekdays');
     if (picker) return weekdays(picker)?.summary() ?? '';
     const select = field.querySelector('select');
@@ -99,6 +150,7 @@ export function sentenceSummary(element) {
         if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
         if (!(node instanceof HTMLElement) || node.hidden) return '';
         if (node.classList.contains('kp-sentence__field')) return ` ${fieldText(node)} `;
+        if (node.hasAttribute('data-kp-sentence-computed')) return ` ${computedText(node)} `;
         if (node.classList.contains('kp-sr-only') || node.matches('script, style, [data-kp-sentence-skip]')) return '';
         return [...node.childNodes].map(walk).join('');
     };
@@ -187,7 +239,15 @@ export function setSentenceFieldState(field, state) {
  * @property {HTMLElement} element
  * @property {HTMLElement} line the line under the sentence
  * @property {() => string} summary the sentence in words
- * @property {() => void} refresh show and hide the phrases and place the fields again
+ * @property {() => void} refresh show and hide the phrases, work the computed fields out again and place the fields
+ * @property {(name: string, fn: ComputedFn | null) => void} compute set (or with null, drop) the function behind a computed field
+ */
+
+/**
+ * @callback ComputedFn
+ * @param {Record<string, string | null>} values the value of every named control
+ * @param {Element} element the sentence
+ * @returns {string | number | null | undefined}
  */
 
 /** @type {WeakMap<Element, SentenceHandle>} */
@@ -215,9 +275,10 @@ function valueOfControl(root, name) {
 /**
  * Wire every sentence form under `root`.
  * @param {ParentNode} [root]
+ * @param {{ computed?: Record<string, ComputedFn> }} [options] the functions behind the computed fields, by `data-kp-sentence-computed`
  * @returns {() => void} detach
  */
-export function attachSentences(root = document) {
+export function attachSentences(root = document, { computed = {} } = {}) {
     /** @type {(() => void)[]} */
     const cleanups = [];
     const found = /** @type {HTMLElement[]} */ ([
@@ -333,8 +394,36 @@ export function attachSentences(root = document) {
             }
         };
 
+        /** @type {Map<string, ComputedFn>} */
+        const fns = new Map(Object.entries(computed));
+        let warnedComputed = false;
+        /** Work every computed field out from the controls as they stand. */
+        const compute = () => {
+            if (fns.size === 0) return;
+            /** @type {Record<string, string | null>} */
+            const values = {};
+            for (const control of el.querySelectorAll('[name]')) {
+                const name = control.getAttribute('name') ?? '';
+                if (name && !(name in values)) values[name] = valueOfControl(el, name);
+            }
+            for (const [name, fn] of fns) {
+                /** @type {string | number | null | undefined} */
+                let text = null;
+                try {
+                    text = fn(values, el);
+                } catch (error) {
+                    if (!warnedComputed) {
+                        warnedComputed = true;
+                        console.warn(`kp-sentence: the computed field "${name}" threw`, error);
+                    }
+                }
+                setSentenceComputed(el, name, text);
+            }
+        };
+
         const refresh = () => {
             phrases();
+            compute();
             place();
         };
 
@@ -378,8 +467,22 @@ export function attachSentences(root = document) {
         void doc.fonts?.ready.then(place);
 
         /** @type {SentenceHandle} */
-        const handle = { element: el, line, summary: () => sentenceSummary(el), refresh };
+        const handle = {
+            element: el,
+            line,
+            summary: () => sentenceSummary(el),
+            refresh,
+            compute: (name, fn) => {
+                if (fn) fns.set(name, fn);
+                else fns.delete(name);
+                refresh();
+                live.textContent = sentenceSummary(el);
+            },
+        };
         HANDLES.set(el, handle);
+        // A computed field with no text yet shows its dash, and one with authored text keeps it until its function speaks.
+        for (const output of el.querySelectorAll('[data-kp-sentence-computed]'))
+            setSentenceComputed(el, output.getAttribute('data-kp-sentence-computed') ?? '', output.textContent);
         refresh();
         live.textContent = sentenceSummary(el);
 

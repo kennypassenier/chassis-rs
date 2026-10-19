@@ -38,7 +38,10 @@
 //     a reader who asked for less motion it takes the short way in
 //     `data-kp-wheel-reduced-ms` (600; 0 places it at once), with no whole turn.
 //   - Space or Enter on Spin spins it; the outcome is said, once.
-//   - A long name is cut on its segment, whole in the result. Segments take
+//   - A name is never cut: on its segment it takes the largest type the room allows, goes onto two lines when that reads
+//     larger, and gives way to the item's `short` form (`{ label: 'Chicken curry with rice', short: 'Curry' }`) when
+//     neither fits; a name that fits in no form is not drawn on the disc, it is the segment's tooltip and whole in the
+//     result. Segments take
 //     the theme's chart colours, soft, and the chosen one is filled deeper
 //     while the others step back.
 //   - When the choices change (a filter), the segments grow and shrink to
@@ -53,6 +56,17 @@
 // Events (bubbling, on the root):
 //   kp-wheel-spin    { item, index, turns }        the outcome is drawn and the wheel starts (turns: whole turns it will make)
 //   kp-wheel-result  { item, index, source }       'spin' | 'only'
+//
+// Kiosk, tags and the answer card [hover-wheel-1019; the AuDHD recipes app's page for Kenny's parents]:
+//   - `data-kp-wheel-kiosk`: no controls. The Spin button in the hub is gone and the wheel itself is the one control: a
+//     tap (or Enter / Space with the focus on it) on the disc or on the answer spins it. The hub stays as a quiet plate.
+//     A page with only the wheel over a chosen list needs nothing else. Live: set or remove it at any time.
+//   - `tag` on an item (`{ label: 'Lasagne', tag: 'Oven, 45 min' }`): a short line about the choice. It stands under the
+//     name in the answer card and in the segment's tooltip.
+//   - `resting: true` on an item: it stays on the disc so the list is whole, but it is stepped back (faded, dashed edge,
+//     its name in italics, "resting" in its tooltip) and the wheel never lands on it while another choice is not resting.
+//   - `data-kp-wheel-answer`: the answer card. The caption, the name and the tag stand in one bordered card of reserved
+//     size (a tag line is kept even when the choice has none), so nothing under it moves.
 //
 // Every word it adds is in js/strings.js. Nothing runs on import.
 
@@ -69,6 +83,9 @@ export const WHEEL_RESULT_EVENT = 'kp-wheel-result';
  * @property {string} id
  * @property {string} label
  * @property {number} [weight]  1 by default; larger is likelier and a larger segment
+ * @property {string} [tag]  a short line about the choice, shown in the answer card and the segment's tooltip
+ * @property {boolean} [resting]  stays on the wheel, marked, and is never drawn while another choice is not resting
+ * @property {string} [short]  a shorter name for the wheel's face, used when the whole label does not fit a thin segment
  */
 
 /**
@@ -107,7 +124,11 @@ const weightOf = (item) => Math.max(0.05, Number.isFinite(item.weight) ? Number(
  * @returns {number} the index drawn, -1 when there is none
  */
 export function pickWeighted(items, { random = Math.random, avoid = null } = {}) {
-    const open = items.map((item, index) => ({ item, index })).filter(({ item }) => items.length < 2 || item.id !== avoid);
+    // A resting choice is not drawn while another is not resting; when every one rests, they are all in play again.
+    const awake = items.some((item) => !item.resting);
+    const open = items
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => (items.length < 2 || item.id !== avoid) && (!awake || !item.resting));
     const total = open.reduce((sum, { item }) => sum + weightOf(item), 0);
     if (!open.length || total <= 0) return -1;
     let at = random() * total;
@@ -184,20 +205,21 @@ function build(root) {
     result.setAttribute('role', 'status');
     const caption = el('kp-wheel__caption', 'p');
     const outcome = el('kp-wheel__outcome', 'p');
-    result.append(caption, outcome);
+    const tag = el('kp-wheel__tag', 'p');
+    result.append(caption, outcome, tag);
     root.append(stage, result);
     if (!root.hasAttribute('role')) root.setAttribute('role', 'group');
 }
 
 /**
- * Draw the disc from the weights shown now. `measure` cuts the labels to
+ * Draw the disc from the weights shown now. `measure` fits the labels to
  * their room exactly (else by an estimate, for the frames of a glide).
  * @param {HTMLElement} root @param {boolean} measure
  */
 function drawDisc(root, measure) {
     const state = stateOf(root);
     const group = /** @type {SVGGElement} */ (root.querySelector('.kp-wheel__segments'));
-    const labels = new Map(state.items.map((item) => [item.id, item.label]));
+    const items = new Map(state.items.map((item) => [item.id, item]));
     const ids = state.order.filter((id) => (state.shown.get(id) ?? 0) > 0.0001);
     const angles = wheelAngles(ids.map((id) => state.shown.get(id) ?? 0));
     const won = root.getAttribute('data-kp-wheel-won');
@@ -221,49 +243,107 @@ function drawDisc(root, measure) {
         shape.setAttribute('data-tone', String(tone));
         shape.setAttribute('data-id', id);
         if (won !== null) shape.setAttribute(won === id ? 'data-kp-wheel-chosen' : 'data-kp-wheel-other', '');
+        const known = items.get(id);
+        const resting = known?.resting === true;
+        if (resting) shape.setAttribute('data-kp-wheel-resting', '');
         group.append(shape);
         // The label along the radius, reading outward on the right and inward on the left, so it is never upside down.
         const mid = (a0 + a1) / 2;
-        // The type is as large as the segment allows at the middle of the label's room, at most 9 units; the label
-        // starts where the segment is wide enough for it, so labels of narrow neighbours never meet near the hub.
         const half = Math.min(Math.PI / 2, ((span / 2) * Math.PI) / 180);
-        const size = Math.min(9, 2 * ((LABEL_IN + LABEL_OUT) / 2) * Math.sin(half) * 0.62);
-        const start = Math.max(LABEL_IN, (size * 0.75) / Math.max(0.0001, Math.sin(half)));
-        if (size < 4.5 || LABEL_OUT - start < 16) return;
+        const item = items.get(id);
+        const plan = fitLabel(group, [item?.label ?? '', item?.short ?? ''], half, measure);
+        // The segment says its whole name, its tag and that it rests when pointed at, whether or not the name fits on the disc.
+        const name = svg('title');
+        name.textContent = [item?.label ?? '', item?.tag ?? '', resting ? getStrings().wheelResting : ''].filter(Boolean).join(' · ');
+        shape.append(name);
+        // No size fits the name whole, on one line or two, and it has no shorter form: nothing is drawn rather than a cut name.
+        if (!plan) return;
         const left = mid > 180;
         const text = svg('text', {
             class: 'kp-wheel__label',
             transform: `rotate(${(left ? mid + 90 : mid - 90).toFixed(3)})`,
-            x: String(left ? -start : start),
+            x: String(left ? -plan.start : plan.start),
             y: '0',
             'dominant-baseline': 'central',
             'text-anchor': left ? 'end' : 'start',
-            'font-size': size.toFixed(2),
+            'font-size': plan.size.toFixed(2),
         });
         if (won === id) text.setAttribute('data-kp-wheel-chosen', '');
+        if (resting) text.setAttribute('data-kp-wheel-resting', '');
         text.setAttribute('data-span', span.toFixed(3));
-        const full = labels.get(id) ?? '';
-        text.textContent = full;
+        if (plan.lines.length === 1) text.textContent = plan.lines[0];
+        else
+            plan.lines.forEach((line, n) => {
+                const row = svg('tspan', {
+                    x: String(left ? -plan.start : plan.start),
+                    dy: (n === 0 ? -0.55 * plan.size : 1.1 * plan.size).toFixed(2),
+                });
+                row.textContent = line;
+                text.append(row);
+            });
         group.append(text);
-        const room = LABEL_OUT - start;
-        if (!measure) {
-            const fits = Math.max(1, Math.floor(room / (size * 0.56)));
-            if (full.length > fits) text.textContent = `${full.slice(0, Math.max(1, fits - 1)).trimEnd()}…`;
-            return;
-        }
-        const length = () => /** @type {SVGTextElement} */ (text).getComputedTextLength();
-        if (length() <= room) return;
-        // One size of type on the whole wheel (calmer than names in many sizes): a long name is cut, whole in the result.
-        let lo = 0;
-        let hi = full.length;
-        while (lo < hi) {
-            const m = Math.ceil((lo + hi) / 2);
-            text.textContent = `${full.slice(0, m).trimEnd()}…`;
-            if (length() <= room) lo = m;
-            else hi = m - 1;
-        }
-        text.textContent = `${full.slice(0, Math.max(1, lo)).trimEnd()}…`;
     });
+}
+
+/** The smallest type a label is drawn in (units of the 200-unit disc). */
+const LABEL_MIN = 4.5;
+/** A label at or above this size is good as it is; below it a shorter form or a second line is tried first. */
+const LABEL_COMFORT = 6.5;
+/** The largest type. */
+const LABEL_MAX = 9;
+
+/**
+ * Where and how large a segment's label goes, never cut: the whole name on one line at the size the room allows, else on
+ * two lines, else the item's `short` form the same way; null when none of them fits at LABEL_MIN or more [rule-fixes-1019].
+ * @param {SVGGElement} group @param {[string, string]} names the label and its short form
+ * @param {number} half half the segment's angle, radians @param {boolean} measure read the real width of the text
+ * @returns {{ size: number, start: number, lines: string[] } | null}
+ */
+function fitLabel(group, names, half, measure) {
+    const sin = Math.max(0.0001, Math.sin(half));
+    const mid = (LABEL_IN + LABEL_OUT) / 2;
+    /** Width of `text` at size 1, from the page's own face when asked, else an estimate. @param {string} text */
+    const unit = (text) => {
+        if (!measure) return text.length * 0.56;
+        const probe = svg('text', { class: 'kp-wheel__label', 'font-size': '10', visibility: 'hidden' });
+        probe.textContent = text;
+        group.append(probe);
+        const width = /** @type {SVGTextElement} */ (probe).getComputedTextLength() / 10;
+        probe.remove();
+        return width;
+    };
+    /** The best break of a name into two lines, at a space near its middle. @param {string} text */
+    const halves = (text) => {
+        const spaces = [...text.matchAll(/ /g)].map((m) => m.index ?? 0);
+        if (!spaces.length) return null;
+        const at = spaces.reduce((best, i) => (Math.abs(i - text.length / 2) < Math.abs(best - text.length / 2) ? i : best));
+        return [text.slice(0, at).trim(), text.slice(at + 1).trim()];
+    };
+    /** @type {{ size: number, start: number, lines: string[] } | null} */
+    let best = null;
+    for (const name of names) {
+        const text = name.trim();
+        if (!text) continue;
+        const two = halves(text);
+        for (const lines of two ? [[text], two] : [[text]]) {
+            const rows = lines.length;
+            // The type the segment's width allows at the middle of the label's room: two lines need half of it each.
+            const allowed = Math.min(LABEL_MAX, (2 * mid * sin * 0.62) / (rows === 2 ? 1.5 : 1));
+            if (allowed < LABEL_MIN) continue;
+            // The label starts where the segment is wide enough for it, so labels of narrow neighbours never meet near the hub.
+            const start = Math.max(LABEL_IN, (allowed * 0.75 * (rows === 2 ? 1.5 : 1)) / sin);
+            const room = LABEL_OUT - start;
+            if (room < 16) continue;
+            const widest = Math.max(...lines.map(unit));
+            const size = Math.min(allowed, room / Math.max(0.0001, widest));
+            if (size < LABEL_MIN) continue;
+            const grown = Math.max(LABEL_IN, (size * 0.75 * (rows === 2 ? 1.5 : 1)) / sin);
+            const plan = { size, start: grown, lines };
+            if (size >= LABEL_COMFORT) return plan;
+            if (!best || size > best.size) best = plan;
+        }
+    }
+    return best;
 }
 
 /** The words under the wheel and the Spin button's state. @param {HTMLElement} root */
@@ -273,7 +353,9 @@ function paint(root) {
     const spin = /** @type {HTMLButtonElement} */ (part(root, 'spin'));
     const caption = part(root, 'caption');
     const outcome = part(root, 'outcome');
+    const tag = part(root, 'tag');
     const result = part(root, 'result');
+    const kiosk = root.hasAttribute('data-kp-wheel-kiosk');
     const error = root.getAttribute('data-kp-wheel-error');
     const busy = root.hasAttribute('aria-busy');
     const won = root.getAttribute('data-kp-wheel-won');
@@ -297,15 +379,29 @@ function paint(root) {
         caption.textContent = state.items.length === 1 ? strings.wheelOnlyOne : strings.wheelChose;
         outcome.textContent = chosen.label;
     } else {
-        caption.textContent = strings.wheelIdle;
+        caption.textContent = kiosk ? strings.wheelIdleKiosk : strings.wheelIdle;
         outcome.textContent = '';
     }
+    tag.textContent = chosen && !state.spinning && !note ? (chosen.tag ?? '') : '';
+    tag.title = tag.textContent;
     outcome.title = outcome.textContent ?? '';
     caption.title = caption.textContent ?? '';
     const blocked = busy || error !== null || state.items.length < 2 || state.spinning;
     spin.textContent = won !== null && state.items.length > 1 ? strings.wheelSpinAgain : strings.wheelSpin;
     if (blocked) spin.setAttribute('aria-disabled', 'true');
     else spin.removeAttribute('aria-disabled');
+    // Kiosk: the wheel is the one control. The hub's button leaves the tab order and the reading order; the stage takes over.
+    const stage = part(root, 'stage');
+    spin.hidden = kiosk;
+    if (kiosk) {
+        stage.setAttribute('role', 'button');
+        stage.tabIndex = 0;
+        stage.setAttribute('aria-label', strings.wheelSpinKiosk);
+        if (blocked) stage.setAttribute('aria-disabled', 'true');
+        else stage.removeAttribute('aria-disabled');
+    } else {
+        for (const name of ['role', 'tabindex', 'aria-label', 'aria-disabled']) stage.removeAttribute(name);
+    }
 }
 
 /** @returns {boolean} */
@@ -523,16 +619,32 @@ export function attachWheels(scope = document) {
         paint(root);
         /** @param {MouseEvent} event */
         const click = (event) => {
-            const spin = event.target instanceof Element ? event.target.closest('.kp-wheel__spin') : null;
-            if (!spin || !root.contains(spin) || spin.getAttribute('aria-disabled') === 'true') return;
+            const kiosk = root.hasAttribute('data-kp-wheel-kiosk');
+            const target = event.target instanceof Element ? event.target : null;
+            const spin = target?.closest(kiosk ? '.kp-wheel__stage, .kp-wheel__result' : '.kp-wheel__spin');
+            if (!spin || !root.contains(spin) || root.hasAttribute('aria-busy')) return;
+            if (!kiosk && spin.getAttribute('aria-disabled') === 'true') return;
+            void spinWheel(root);
+        };
+        /** Kiosk: Enter or Space on the focused wheel spins it. @param {KeyboardEvent} event */
+        const key = (event) => {
+            if (!root.hasAttribute('data-kp-wheel-kiosk') || event.target !== part(root, 'stage')) return;
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
             void spinWheel(root);
         };
         root.addEventListener('click', click);
+        root.addEventListener('keydown', key);
+        // The kiosk attribute is live.
+        const watch = new MutationObserver(() => paint(root));
+        watch.observe(root, { attributes: true, attributeFilter: ['data-kp-wheel-kiosk'] });
         // Labels are cut to their room in the theme's face: again once the fonts are in.
         void document.fonts?.ready.then(() => root.isConnected && !stateOf(root).spinning && drawDisc(root, true));
         undo.push(() => {
             WIRED.delete(root);
             root.removeEventListener('click', click);
+            root.removeEventListener('keydown', key);
+            watch.disconnect();
         });
     }
     return () => undo.forEach((u) => u());

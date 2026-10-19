@@ -53,12 +53,20 @@
 //   kp-timer-change  { timer, action: 'pause' | 'resume' | 'add' | 'stop-ring' }
 //   kp-timer-done    { timer }
 //   kp-timer-stop    { timer }            removed
+//   kp-timers-retry  {}                   the Retry of the failed state (setTimersState(list, 'error'))
+//
+// States: `setTimersState(list, 'loading' | 'error' | 'ready', message)`: loading lays the data table's busy card over the
+// box the timers fill, error says the message on the failed plate with a Retry, and a list without timers says
+// `data-kp-timers-empty` (or the dictionary's sentence) on the empty plate; all three fill the box a row of timer cards fills
+// (js/state-plate.js, js/footprint.js).
 //
 // Every word it adds is in js/strings.js. Nothing runs on import.
 
 import { getStrings } from './strings.js';
 import { buildProgressbar } from './progressbar.js';
 import { formatCountdown, parseDuration } from './countdown.js';
+import { openBusyCard } from './busy-card.js';
+import { hostStatePlate } from './state-plate.js';
 
 /** The lists this module looks after. */
 export const TIMERS = '[data-kp-timers]';
@@ -68,6 +76,8 @@ export const TIMER_START_EVENT = 'kp-timer-start';
 export const TIMER_CHANGE_EVENT = 'kp-timer-change';
 export const TIMER_DONE_EVENT = 'kp-timer-done';
 export const TIMER_STOP_EVENT = 'kp-timer-stop';
+/** Fired on the list, bubbling, when the Retry of its failed state is pressed [r6r8-1019]. */
+export const TIMERS_RETRY_EVENT = 'kp-timers-retry';
 /** How often the shown time is brought up to date [ms]; the time itself comes from the end, not from this. */
 export const TIMER_TICK_MS = 250;
 
@@ -149,7 +159,7 @@ function part(list, name) {
         node = el('kp-timers__list', 'ul');
         list.prepend(node);
     } else if (name === 'empty') {
-        node = el('kp-timers__empty', 'p');
+        node = el('kp-timers__empty', 'div');
         part(list, 'list').after(node);
     } else {
         node = el(`kp-sr-only kp-timers__${name}`, 'span');
@@ -253,12 +263,39 @@ function paint(timer) {
     remove.title = strings.timerRemove(timer.name);
 }
 
-/** Show or hide the empty line, start or stop the ticker. @param {HTMLElement} list */
+/** Per list: the busy card while loading. @type {WeakMap<Element, import('./busy-card.js').BusyCard>} */
+const BUSY = new WeakMap();
+/** Per empty line: the plate drawn in it (its kind and words), so a draw that changes nothing leaves it alone. @type {WeakMap<Element, string>} */
+const PLATE = new WeakMap();
+
+/** Show or hide the state plate (empty or failed), start or stop the ticker. @param {HTMLElement} list */
 function sync(list) {
     const timers = listOf(list);
     const empty = part(list, 'empty');
-    empty.textContent = list.getAttribute('data-kp-timers-empty') ?? getStrings().timerEmpty;
-    empty.hidden = timers.size > 0;
+    const strings = getStrings();
+    const error = list.getAttribute('data-kp-timers-error');
+    const loading = list.hasAttribute('aria-busy');
+    // A list without timers is the state `empty`, written like every other data component's, so the footprint
+    // (js/footprint.js) holds the height the list had; `loading` and `error` are the page's to set [r6r8-1019].
+    const shown = list.getAttribute('data-kp-state');
+    if (shown === null || shown === 'ready' || shown === 'empty') {
+        if (timers.size === 0) list.setAttribute('data-kp-state', 'empty');
+        else if (shown === 'empty') list.setAttribute('data-kp-state', 'ready');
+    }
+    // Empty and failed are the package's state plate over the whole box a row of timers fills, a failure with its Retry
+    // (`kp-timers-retry`); loading is the busy card over that box. The empty part is the plate itself (the themes dress it).
+    const title = error ?? list.getAttribute('data-kp-timers-empty') ?? strings.timerEmpty;
+    const plateKey = loading ? 'loading' : `${error !== null ? 'error' : 'empty'}|${title}`;
+    if (PLATE.get(empty) !== plateKey) {
+        PLATE.set(empty, plateKey);
+        if (loading) {
+            empty.replaceChildren();
+            empty.classList.remove('kp-alert', 'kp-alert--destructive', 'kp-empty', 'kp-stateplate', 'kp-stateplate--error', 'kp-stateplate--empty');
+        } else hostStatePlate(list, { kind: error !== null ? 'error' : 'empty', title, retryEvent: TIMERS_RETRY_EVENT, into: empty });
+    }
+    empty.hidden = !(error !== null || timers.size === 0);
+    empty.toggleAttribute('data-kp-timers-failed', error !== null);
+    list.toggleAttribute('data-kp-timers-covered', error !== null || timers.size === 0);
     const running = [...timers.values()].some((t) => t.state === 'running');
     const ticker = TICKERS.get(list);
     if (running && !ticker)
@@ -270,6 +307,35 @@ function sync(list) {
         clearInterval(ticker);
         TICKERS.delete(list);
     }
+}
+
+/**
+ * The list's state: `loading` lays the busy card over the box the timers fill (and keeps it at its height), `error` says
+ * `message` on the failed plate with a Retry where the timers were (they keep running underneath), `ready` is neither
+ * [r6r8-1019; audhd-recepten gap 30].
+ * @param {Element} list @param {'loading' | 'error' | 'ready'} state @param {string} [message]
+ */
+export function setTimersState(list, state, message) {
+    if (!(list instanceof HTMLElement)) return;
+    list.setAttribute('data-kp-state', state);
+    if (state === 'error') list.setAttribute('data-kp-timers-error', message ?? getStrings().timersFailed);
+    else list.removeAttribute('data-kp-timers-error');
+    const card = BUSY.get(list);
+    if (state === 'loading') {
+        list.setAttribute('aria-busy', 'true');
+        if (!card)
+            BUSY.set(
+                list,
+                openBusyCard(list, { words: message ?? getStrings().timersLoading, area: () => [list], className: 'kp-timers__busy' }),
+            );
+    } else {
+        list.removeAttribute('aria-busy');
+        if (card) {
+            BUSY.delete(list);
+            void card.close();
+        }
+    }
+    sync(list);
 }
 
 /** @param {HTMLElement} list */

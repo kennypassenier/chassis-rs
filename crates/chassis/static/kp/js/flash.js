@@ -20,7 +20,8 @@
 //   data-kp-flash-error-ms   how long a refusal's word stays (default 3000)
 //   data-kp-flash-word       the success word (default the dictionary's "Done")
 //   data-kp-flash-words      every word the button may say, comma separated, so the width holds them all
-//   data-kp-width            `keep` (default) or `grow`
+//   data-kp-width            `keep` (default: the button holds the width of its widest word) or `grow` (as wide as what it says now; set by hand it
+//                            works at rest and busy too)
 //   data-kp-refusal          `line` (default), `button` or `toast`
 //   data-kp-flash-line       a selector for the element that holds the line (default: one made after the button)
 //   data-kp-post, data-kp-method, data-kp-post-body, data-kp-reload (`none` default, `page`, `region` with
@@ -224,6 +225,8 @@ export async function runFlashButton(button, work, options = {}) {
     glyph.className = 'kp-flash__glyph';
     glyph.textContent = ok ? '✓' : '✕';
     w.result.append(glyph, ` ${onButton || word}`);
+    // A width a page set by hand (`data-kp-width="grow"`, or `keep`) stays: only the grow this refusal asked for is taken back.
+    const handWidth = button.getAttribute('data-kp-width');
     if (onButton) button.setAttribute('data-kp-width', 'grow');
     w.status.textContent = '';
     window.setTimeout(() => {
@@ -242,7 +245,10 @@ export async function runFlashButton(button, work, options = {}) {
         : num(button, 'data-kp-flash-error-ms', options.errorMs ?? FLASH_ERROR_MS);
     w.timer = window.setTimeout(() => {
         if (!wired.has(button)) return;
-        if (onButton && options.width === undefined) button.removeAttribute('data-kp-width');
+        if (onButton && options.width === undefined) {
+            if (handWidth === null) button.removeAttribute('data-kp-width');
+            else button.setAttribute('data-kp-width', handWidth);
+        }
         setState(button, w, 'rest');
     }, ms);
     return { ok, word, line };

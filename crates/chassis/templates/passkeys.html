@@ -24,11 +24,7 @@
     <section class="kp-card" data-kp-span="12" aria-labelledby="passkeys-ways">
       <h2 class="kp-card__title" id="passkeys-ways">Ways to sign in</h2>
       <p class="kp-lede" data-kp-lede-measure="full">Every way into this dashboard. The login token always works, so you cannot lock yourself out.</p>
-      {#- TODO(kp-themes next release): the list's confirm option ("dialog", the package default) goes back as an attribute on the list
-          below once the package carries confirm-scope-1019 (kp-themes b5d397b0). Until then attachConfirmations arms the whole list
-          as a button and Rename opens a confirm dialog, so the attribute stays off; the list's own default runs without it (a
-          confirmation dialog on Remove, the name typed for the device in use). -#}
-      <div class="kp-passkeys" id="passkeys-list" data-kp-state="loading" aria-busy="true" data-kp-passkeys data-kp-protect-last="off" data-kp-never-used-after="90" data-kit-passkeys='{{ passkeys|tojson }}'></div>
+      <div class="kp-passkeys" id="passkeys-list" data-kp-state="loading" aria-busy="true" data-kp-passkeys data-kp-confirm="dialog" data-kp-protect-last="off" data-kp-never-used-after="90" data-kit-passkeys='{{ passkeys|tojson }}'></div>
       <p class="kp-lede" data-kp-lede-measure="full">The login token always works. It is set in the service’s settings, not here, so it is not a row you can remove.</p>
     </section>
     <section class="kp-card" data-kp-span="6" id="other-device" tabindex="-1" aria-labelledby="passkeys-q">

@@ -26,9 +26,17 @@
 //            `data-kp-pipeline-share="false"` leaves it out
 //   states   setPipelineState(el, state, words): `loading` keeps the lanes
 //            and lays the data table's own loading card (js/busy-card.js)
-//            over the board, the cards drawn once it has gone; `empty` keeps
-//            every lane with “none” and one sentence above the board; `error`
-//            says why with Try again (`kp-pipeline-retry`)
+//            over the board, the cards drawn once it has gone; `empty` and
+//            `error` put the package's state plate over the whole board
+//            (lanes included, none of their counts drawn) at the height the
+//            board had [r1r2-1019]: `empty` says `words` or “Nothing on the
+//            board yet.”, `error` “Could not read the board.” with `words` as
+//            its reason and Try again (`kp-pipeline-retry`)
+//   danger   a lane marked `danger: true` is a failing stage: its name plate
+//            is the destructive status plate and it says “Needs attention”
+//            in words as well [r1r2-1019]
+//   names    a lane's name wraps and never ends in an ellipsis; the plates of
+//            the lanes on a board share one height (a subgrid)
 //   keys     one tab stop: ← → to the neighbouring lane (the same place, or
 //            its last card), ↑ ↓ along a lane, Home and End to a lane's first
 //            and last; Enter follows the link or presses the button
@@ -39,6 +47,7 @@
 
 import { resolveStrings } from './strings.js';
 import { openBusyCard } from './busy-card.js';
+import { hostStatePlate } from './state-plate.js';
 
 /** A board: `section.kp-pipeline[data-kp-pipeline]`. */
 export const PIPELINE = '[data-kp-pipeline]';
@@ -50,7 +59,7 @@ export const PIPELINE_RETRY_EVENT = 'kp-pipeline-retry';
 export const PIPELINE_MORE_EVENT = 'kp-pipeline-more';
 
 /**
- * @typedef {{ key: string, label: string, tone?: 1 | 2 | 3 | 4 | 5, closed?: boolean }} PipelineLane
+ * @typedef {{ key: string, label: string, tone?: 1 | 2 | 3 | 4 | 5, closed?: boolean, danger?: boolean }} PipelineLane
  * @typedef {object} PipelineCard
  * @property {string} id
  * @property {string} lane the lane's key
@@ -65,7 +74,7 @@ export const PIPELINE_MORE_EVENT = 'kp-pipeline-more';
  * @typedef {{ strings?: Partial<Strings> }} PipelineOptions
  * @typedef {{ el: HTMLElement, strings: Strings, lanes: PipelineLane[], cards: PipelineCard[], state: PipelineState,
  *   words: string, open: Set<string>, selected: string | null, active: string | null, board: HTMLElement,
- *   closed: HTMLElement, stateBox: HTMLElement, stateWords: HTMLElement, retry: HTMLButtonElement, live: HTMLElement,
+ *   closed: HTMLElement, plate: HTMLElement, plateKey: string, live: HTMLElement,
  *   nodes: Map<string, HTMLElement>, busy: import('./busy-card.js').BusyCard | null, leaving: Promise<void> | null, drawn: boolean }} PipelineModel
  */
 
@@ -94,17 +103,14 @@ function build(c) {
     c.board.setAttribute('role', 'list');
     c.closed = make(doc, 'div', 'kp-pipeline__closed');
     c.closed.setAttribute('role', 'list');
-    c.stateBox = make(doc, 'div', 'kp-pipeline__state');
-    c.stateWords = make(doc, 'p', 'kp-pipeline__words');
-    c.retry = make(doc, 'button', 'kp-button kp-button--sm kp-pipeline__retry', c.strings.pipelineRetry);
-    c.retry.type = 'button';
-    c.stateBox.append(c.stateWords, c.retry);
+    c.plate = make(doc, 'div', 'kp-pipeline__plate');
+    c.plate.hidden = true;
     c.live = make(doc, 'p', 'kp-sr-only kp-pipeline__live');
     c.live.setAttribute('role', 'status');
     const frame = make(doc, 'div', 'kp-pipeline__frame');
-    // The sentence of an empty or failed board stands on its own plate above the lanes, covering none of them.
-    frame.append(c.stateBox, c.board);
-    c.el.replaceChildren(frame, c.closed, c.live);
+    // An empty or failed board is one state plate over the whole board, closed lane included [r1r2-1019].
+    frame.append(c.board);
+    c.el.replaceChildren(frame, c.closed, c.plate, c.live);
 }
 
 /**
@@ -159,6 +165,7 @@ function laneNode(c, lane, cards, total) {
     node.setAttribute('role', 'listitem');
     node.dataset.kpLane = lane.key;
     if (lane.tone) node.dataset.kpTone = String(lane.tone);
+    if (lane.danger) node.dataset.kpStatus = 'danger';
     const head = make(doc, 'header', 'kp-pipeline__head');
     const name = make(doc, 'h3', 'kp-pipeline__name', lane.label);
     const id = `${c.el.id || 'kp-pipeline'}-${lane.key}`;
@@ -167,7 +174,8 @@ function laneNode(c, lane, cards, total) {
     const count = make(doc, 'span', 'kp-pipeline__count');
     if (loading) count.append(make(doc, 'span', 'kp-skeleton kp-pipeline__ghost-count'));
     else count.textContent = String(cards.length);
-    head.append(name, count);
+    if (lane.danger) head.append(name, make(doc, 'span', 'kp-pipeline__flag', s.pipelineDanger), count);
+    else head.append(name, count);
     node.append(head);
     if (c.el.dataset.kpPipelineShare !== 'false' && !lane.closed) {
         const share = make(doc, 'p', 'kp-pipeline__share');
@@ -222,14 +230,30 @@ function paint(c) {
     c.board.replaceChildren(...open.map((l) => laneNode(c, l, byLane.get(l.key) ?? [], total)));
     c.closed.replaceChildren(...closed.map((l) => laneNode(c, l, byLane.get(l.key) ?? [], total)));
     c.closed.hidden = closed.length === 0;
-    c.el.dataset.kpState = c.state;
-    c.board.toggleAttribute('aria-busy', c.state === 'loading');
     const empty = c.state === 'empty' || (c.state === 'ready' && c.cards.length === 0);
-    const words = c.state === 'error' ? s.pipelineFailed(c.words) : empty ? c.words || s.pipelineEmpty : '';
-    c.stateBox.hidden = words === '' || c.leaving !== null;
-    c.stateBox.dataset.kpState = c.state === 'error' ? 'error' : 'empty';
-    c.stateWords.textContent = words;
-    c.retry.hidden = c.state !== 'error';
+    const shown = c.state === 'error' ? 'error' : empty && c.leaving === null ? 'empty' : null;
+    c.el.dataset.kpState = c.state === 'ready' && empty ? 'empty' : c.state;
+    c.board.toggleAttribute('aria-busy', c.state === 'loading');
+    // Rebuilt only when what it says changes, so the focus on its Retry survives a repaint.
+    const key = shown === null ? '' : `${shown}|${c.words}`;
+    if (c.plateKey !== key) {
+        c.plateKey = key;
+        c.plate.replaceChildren();
+        if (shown !== null)
+            c.plate.append(
+                hostStatePlate(c.el, {
+                    kind: shown,
+                    title: shown === 'error' ? s.pipelineFailed('') : c.words || s.pipelineEmpty,
+                    ...(shown === 'error' && c.words ? { text: c.words } : {}),
+                    retryEvent: PIPELINE_RETRY_EVENT,
+                    retryLabel: s.pipelineRetry,
+                }),
+            );
+    }
+    c.plate.hidden = shown === null;
+    // What the plate covers is not read behind it: no counts of zero for a board that could not be read.
+    c.board.parentElement?.toggleAttribute('inert', shown !== null);
+    c.closed.toggleAttribute('inert', shown !== null);
     drawBusy(c);
     syncTabStops(c);
 }
@@ -310,9 +334,8 @@ export function attachPipelines(root = document, options = {}) {
             active: null,
             board: el,
             closed: el,
-            stateBox: el,
-            stateWords: el,
-            retry: /** @type {HTMLButtonElement} */ (/** @type {unknown} */ (el)),
+            plate: el,
+            plateKey: '',
             live: el,
             nodes: new Map(),
             busy: null,
@@ -328,10 +351,6 @@ export function attachPipelines(root = document, options = {}) {
         const onClick = (event) => {
             const target = event.target instanceof Element ? event.target : null;
             if (!target) return;
-            if (target.closest('.kp-pipeline__retry')) {
-                el.dispatchEvent(new CustomEvent(PIPELINE_RETRY_EVENT, { bubbles: true }));
-                return;
-            }
             const more = /** @type {HTMLElement | null} */ (target.closest('[data-kp-pipeline-more]'));
             if (more) {
                 const key = more.dataset.kpPipelineMore ?? '';
@@ -412,8 +431,8 @@ export function setPipeline(el, { lanes, cards }) {
 }
 
 /**
- * The board as a whole: `loading` (the lanes kept, the table's loading card over them), `ready`, `empty` (every lane says
- * none, `words` over the board) or `error` (`words` with Try again).
+ * The board as a whole: `loading` (the lanes kept, the table's loading card over them), `ready`, `empty` (the state plate
+ * over the whole board, `words` its heading) or `error` (the plate with Try again, `words` the reason under its heading).
  * @param {Element} el
  * @param {PipelineState} state
  * @param {string} [words]

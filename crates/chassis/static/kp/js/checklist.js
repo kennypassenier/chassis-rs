@@ -33,18 +33,20 @@
 //
 // States: `setChecklistState(list, 'loading' | 'error' | 'ready', message)`:
 // loading lays the data table's busy card over the body (js/busy-card.js),
-// error says the message in the empty line's place; an empty list says
-// `data-kp-checklist-empty` (or the dictionary's sentence).
+// error says the message on the failed plate with a Retry in the empty line's place; an empty list says
+// `data-kp-checklist-empty` (or the dictionary's sentence) on the empty plate. Both are js/state-plate.js.
 //
 // Events (bubbling, on the list):
 //   kp-checklist-change   { id, checked, items }   a tick, Check all or Uncheck all (id null)
 //   kp-checklist-clear    { removed, items }       Clear checked
 //   kp-checklist-undo     { restored, items }      Undo after a clear
+//   kp-checklist-retry    {}                       the Retry of the failed state
 //
 // Every word it adds is in js/strings.js. Nothing runs on import.
 
 import { getStrings } from './strings.js';
 import { openBusyCard } from './busy-card.js';
+import { hostStatePlate } from './state-plate.js';
 import { motionAllowed } from './calm.js';
 
 /** The lists this module looks after. */
@@ -55,6 +57,8 @@ export const CHECKLIST_EVENT = 'kp-checklist-change';
 export const CHECKLIST_CLEAR_EVENT = 'kp-checklist-clear';
 /** Fired on Undo: `{ restored, items }`. */
 export const CHECKLIST_UNDO_EVENT = 'kp-checklist-undo';
+/** Fired on the list, bubbling, when the Retry of its failed state is pressed [r6r8-1019]. */
+export const CHECKLIST_RETRY_EVENT = 'kp-checklist-retry';
 /** Fired on the list (not bubbling) after every draw, so a part that adds to the rows can draw its cells [kpadopt6]. */
 export const CHECKLIST_RENDER_EVENT = 'kp-checklist-render';
 /** How long Undo is offered after a clear, unless the list says otherwise [ms]. */
@@ -76,6 +80,8 @@ export const CHECKLIST_UNDO_MS = 6000;
 const ITEMS = new WeakMap();
 /** Per list: the Undo on offer. @type {WeakMap<Element, Undo>} */
 const UNDO = new WeakMap();
+/** Per empty line: the plate drawn in it (its kind and words), so a draw that changes nothing leaves it alone. @type {WeakMap<Element, string>} */
+const PLATE = new WeakMap();
 /** Per list: the busy card while loading. @type {WeakMap<Element, import('./busy-card.js').BusyCard>} */
 const BUSY = new WeakMap();
 /** Lists already wired. @type {WeakSet<Element>} */
@@ -130,7 +136,8 @@ function part(list, name) {
         node.setAttribute('role', 'status');
         list.append(node);
     } else {
-        node = el(`kp-checklist__${name}`, 'p');
+        // The empty line is a plate (it holds a heading and a Retry), so a div, not a paragraph [r6r8-1019].
+        node = el(`kp-checklist__${name}`, 'div');
         part(list, 'body').append(node);
     }
     return node;
@@ -300,10 +307,16 @@ function render(list) {
         if (total === 0) list.setAttribute('data-kp-state', 'empty');
         else if (shown === 'empty') list.setAttribute('data-kp-state', 'ready');
     }
-    empty.textContent = error ?? list.getAttribute('data-kp-checklist-empty') ?? strings.checklistEmpty;
+    // Empty and failed are the package's state plate, the empty line itself being the plate (the themes dress it by that class),
+    // with a Retry on a failure: the event `kp-checklist-retry` on the list [r6r8-1019; audhd-recepten gap 29].
+    const title = error ?? list.getAttribute('data-kp-checklist-empty') ?? strings.checklistEmpty;
+    const plateKey = `${error !== null ? 'error' : 'empty'}|${title}`;
+    if (PLATE.get(empty) !== plateKey) {
+        PLATE.set(empty, plateKey);
+        hostStatePlate(list, { kind: error !== null ? 'error' : 'empty', title, retryEvent: CHECKLIST_RETRY_EVENT, into: empty });
+    }
     empty.hidden = !(error !== null || (total === 0 && !list.hasAttribute('aria-busy')));
     empty.toggleAttribute('data-kp-checklist-failed', error !== null);
-    empty.setAttribute('role', error !== null ? 'alert' : 'note');
     body.append(empty);
     // A part that adds to the rows (js/claim.js) draws its own cells once the rows stand [kpadopt6].
     list.dispatchEvent(new CustomEvent(CHECKLIST_RENDER_EVENT));

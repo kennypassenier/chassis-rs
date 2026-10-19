@@ -13,12 +13,24 @@
 //
 // Without this module the bar still paints: `--kp-value` in the style
 // attribute is the whole contract, and the parts are plain spans.
+//
+// A task that failed is a state of the bar [kyu-plates-1019]: `setProgressFailed(bar, { title, text, art })` takes the bar's row
+// (its `.kp-progress__wrap`, label and reading with it) out of sight and puts the package's failed plate in its place, set at the
+// heading size with a normal-size Retry that fires `kp-progressbar-retry` on the bar (bubbling); `setProgressFailed(bar, null)`,
+// `setProgress()` and `setIndeterminate(bar, true)` bring the bar back. A bar is one line high, so the plate is as wide as the row
+// and as high as its words need: the one state of a one-line component that cannot keep its height.
+
+import { hostStatePlate } from './state-plate.js';
+import { getStrings } from './strings.js';
 
 /** The bars this module looks after. */
 export const PROGRESSBAR_SELECTOR = '.kp-progressbar';
 
 /** The custom property the bar paints from, 0 to 1. */
 export const VALUE_PROPERTY = '--kp-value';
+
+/** Fired on a bar, bubbling, when the Retry of its failed state is pressed [kyu-plates-1019]. */
+export const PROGRESSBAR_RETRY_EVENT = 'kp-progressbar-retry';
 
 /** The attribute that says "busy, no idea how far". */
 export const INDETERMINATE_ATTRIBUTE = 'data-kp-indeterminate';
@@ -79,6 +91,7 @@ export function syncProgressbar(el) {
  * @param {number} value
  */
 export function setProgress(el, value) {
+    clearFailure(el);
     const min = numberAttribute(el, 'aria-valuemin', 0);
     const max = numberAttribute(el, 'aria-valuemax', 100);
     el.removeAttribute(INDETERMINATE_ATTRIBUTE);
@@ -95,6 +108,7 @@ export function setProgress(el, value) {
  * @param {boolean} on
  */
 export function setIndeterminate(el, on) {
+    if (on) clearFailure(el);
     if (on) {
         el.setAttribute(INDETERMINATE_ATTRIBUTE, '');
         el.removeAttribute('aria-valuenow');
@@ -102,6 +116,61 @@ export function setIndeterminate(el, on) {
         el.removeAttribute(INDETERMINATE_ATTRIBUTE);
         syncProgressbar(el);
     }
+}
+
+/** The plate of each failed bar, and the row it replaced. @type {WeakMap<Element, { plate: HTMLElement, row: HTMLElement }>} */
+const FAILED = new WeakMap();
+
+/** @param {HTMLElement} el */
+function clearFailure(el) {
+    const failed = FAILED.get(el);
+    if (!failed) return;
+    FAILED.delete(el);
+    failed.plate.remove();
+    failed.row.hidden = false;
+    el.removeAttribute('data-kp-state');
+    el.removeAttribute('aria-valuetext');
+}
+
+/**
+ * @typedef {object} ProgressFailure
+ * @property {string} [title] what failed, in one line (the plate's heading); else the dictionary's
+ * @property {string} [text] one sentence more: why (else the package's own)
+ * @property {Node | string | null} [art] a picture over the heading
+ */
+
+/**
+ * The bar's task failed (`failure`), or did not any more (`null`). The bar's row is out of sight and the package's failed plate
+ * stands in its place with a Retry (`kp-progressbar-retry` on the bar, bubbling); the bar says the title as its `aria-valuetext`.
+ * Called again it rewrites the plate, never a second one.
+ *
+ * @param {HTMLElement} el
+ * @param {ProgressFailure | null} failure
+ */
+export function setProgressFailed(el, failure) {
+    if (failure === null) return clearFailure(el);
+    const had = FAILED.get(el);
+    const row = had?.row ?? /** @type {HTMLElement} */ (el.closest('.kp-progress__wrap') ?? el);
+    const width = row.getBoundingClientRect().width;
+    const height = row.getBoundingClientRect().height;
+    had?.plate.remove();
+    const title = failure.title ?? getStrings().progressFailed;
+    const plate = hostStatePlate(el, {
+        kind: 'error',
+        title,
+        ...(failure.text ? { text: failure.text } : {}),
+        art: failure.art,
+        retryEvent: PROGRESSBAR_RETRY_EVENT,
+    });
+    plate.classList.add('kp-progressbar__plate');
+    if (width > 0 && !had) plate.style.setProperty('max-inline-size', `${Math.round(width)}px`);
+    else if (had) plate.style.setProperty('max-inline-size', had.plate.style.getPropertyValue('max-inline-size'));
+    if (height > 0 && !had) plate.style.setProperty('min-block-size', `${Math.round(height)}px`);
+    row.after(plate);
+    row.hidden = true;
+    el.setAttribute('data-kp-state', 'error');
+    el.setAttribute('aria-valuetext', title);
+    FAILED.set(el, { plate, row });
 }
 
 /**

@@ -189,7 +189,7 @@ export function meterText(value, mark = null, { unit = '%', label, markLabel = '
  * @typedef {object} Meter
  * @property {number | null} [value] the share, 0 up (1 is full; above 1 the bar is full and says so); null is not measured
  * @property {number | null} [mark] a tick at this share (a target, a limit, what is booked), 0 up; null is none
- * @property {'warning' | 'destructive' | null} [tone] the fill's colour; a tone on the tile around it does the same
+ * @property {'success' | 'neutral' | 'warning' | 'destructive' | null} [tone] the fill's colour (`success` good, `neutral` quiet); a tone on the tile around it does the same
  * @property {string} [label] what the share is, in the words a screen reader hears ("full"); `meterUsed` unless given
  * @property {string} [markLabel] what the mark is ("the target level")
  * @property {boolean} [loading] the track pulses at its height, with no fill and no mark

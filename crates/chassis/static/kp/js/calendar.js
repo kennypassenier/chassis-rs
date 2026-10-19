@@ -34,7 +34,8 @@
 // Calm tones [kpadopt6]: `data-kp-tones="calm"` swaps ok, warn and bad for `logged` (the theme's accent), `quiet` (nothing
 // logged: lighter than muted, no border, no count, never "missed") and `paused` (`data-kp-paused-range="2026-10-03/2026-10-14"`,
 // hatched), for a calendar that tracks a person and not a machine (js/calm-tones.js). A month with nothing logged keeps its six
-// rows quiet under a centred plate; a month that could not be read is dimmed under one with Retry (`kp-calendar-retry`);
+// rows quiet under a centred plate; a month that could not be read is dimmed under one with Retry (`kp-calendar-retry`; every tone gets
+// the plate, a standard calendar with the page's words or "Nothing to show." / "Could not be read." [r1r2-1019]);
 // `data-kp-legend="hide"` leaves out the legend, `setCalendarCaption` writes a sentence under the grid.
 //
 // Every date a person reads is dd/mm/yyyy (rule 52); the machine's date is
@@ -49,7 +50,7 @@ import { CHART_TIME_ZONE, wallTime } from './chart.js';
 import { calendarNames, resolveLocale, weekStartsOn } from './locale.js';
 import { DEFAULT_STRINGS, getStrings, resolveStrings } from './strings.js';
 import { calmTone, calmWord, inPausedRange, isCalmTones } from './calm-tones.js';
-import { statePlate } from './state-plate.js';
+import { hostStatePlate, statePlate } from './state-plate.js';
 
 /** A month heatmap: `section.kp-calendar[data-kp-calendar]`. */
 export const CALENDAR = '[data-kp-calendar]';
@@ -57,7 +58,7 @@ export const CALENDAR = '[data-kp-calendar]';
 export const CALENDAR_PICK_EVENT = 'kp-calendar-pick';
 /** Fired on the calendar, bubbling, when a person moves it to another month: `detail` `{ year, month }` (month 1-12). */
 export const CALENDAR_MONTH_EVENT = 'kp-calendar-month';
-/** Fired on a calm calendar, bubbling, when Retry is pressed on its failed plate. */
+/** Fired on a calendar, bubbling, when Retry is pressed on its failed plate (every tone) [r1r2-1019]. */
 export const CALENDAR_RETRY_EVENT = 'kp-calendar-retry';
 
 /**
@@ -322,17 +323,19 @@ function paintCalendar(c) {
         if (monthChanged) c.decorate?.(cell.button, { kind: 'day', host: c.el, key: keyOf(c.el), index: i, value: iso });
     });
     if (leaving.length > 0) leaveBusyLayers(leaving);
-    syncCalmPlate(c);
+    syncStatePlate(c);
 }
 
 /**
- * The plate over a calm calendar's grid: "Nothing logged this month" over an empty month (the grid keeps its six quiet rows),
- * or "Could not read this month" with Retry over a month that failed (the grid dimmed under it).
+ * The plate over a calendar's grid, in every tone [r1r2-1019]: an empty month keeps its six quiet rows under a centred plate, a
+ * month that could not be read is dimmed under one with Retry (`kp-calendar-retry`). A calm calendar says its own calm words
+ * ("Nothing logged this month"); any other says the page's words (`setCalendarState`'s `words`, else the package's "Nothing to
+ * show." / "Could not be read."). The state line keeps its row and its words for a screen reader but is not drawn a second time.
  * @param {CalendarModel} c
  */
-function syncCalmPlate(c) {
+function syncStatePlate(c) {
     const calm = isCalmTones(c.el);
-    const kind = calm && c.state === 'empty' ? 'empty' : calm && c.state === 'error' ? 'error' : null;
+    const kind = c.state === 'empty' ? 'empty' : c.state === 'error' ? 'error' : null;
     const old = c.el.querySelector(':scope > .kp-calendar__plate');
     c.grid.toggleAttribute('data-kp-dim', kind !== null);
     c.grid.toggleAttribute('inert', kind === 'error');
@@ -340,19 +343,27 @@ function syncCalmPlate(c) {
         old?.remove();
         return;
     }
-    if (old?.getAttribute('data-kp-plate') === kind) return;
-    old?.remove();
     const s = getStrings();
-    const inner = statePlate(c.el.ownerDocument, {
-        kind,
-        title: kind === 'empty' ? s.calmEmptyTitle : s.calmFailedTitle,
-        text: kind === 'empty' ? s.calmEmptyText : s.calmFailedText,
-        ...(kind === 'error'
-            ? { actionLabel: s.calmRetry, onAction: () => c.el.dispatchEvent(new CustomEvent(CALENDAR_RETRY_EVENT, { bubbles: true })) }
-            : {}),
-    });
+    const words = c.stateLine.textContent ?? '';
+    const key = `${kind}|${calm ? 'calm' : words}`;
+    if (old?.getAttribute('data-kp-plate-key') === key) return;
+    old?.remove();
+    const retry = () => c.el.dispatchEvent(new CustomEvent(CALENDAR_RETRY_EVENT, { bubbles: true }));
+    const inner = calm
+        ? statePlate(c.el.ownerDocument, {
+              kind,
+              title: kind === 'empty' ? s.calmEmptyTitle : s.calmFailedTitle,
+              text: kind === 'empty' ? s.calmEmptyText : s.calmFailedText,
+              ...(kind === 'error' ? { actionLabel: s.calmRetry, onAction: retry } : {}),
+          })
+        : hostStatePlate(c.el, {
+              kind,
+              title: words || (kind === 'error' ? s.heatFailed : s.heatEmpty),
+              retryEvent: CALENDAR_RETRY_EVENT,
+          });
     const plate = make(c.el.ownerDocument, 'div', 'kp-calendar__plate');
     plate.setAttribute('data-kp-plate', kind);
+    plate.setAttribute('data-kp-plate-key', key);
     plate.append(inner);
     c.grid.after(plate);
 }

@@ -24,7 +24,8 @@
 //
 // States: `loading` (the body keeps its height under the data table's busy
 // card, js/busy-card.js; the tools wait, disabled), `empty`, `binary` (`size`)
-// and `error` (`message`), each a sentence in the body's place at its height.
+// and `error` (`message`). Empty and error are the package plate (js/state-plate.js, `.kp-stateplate`) in the body's place at its
+// height, the failed one with a Retry that fires `kp-code-retry` on the root [states-check-1019]; binary is one muted sentence.
 // The same block as a table cell [kpadopt5], `.kp-code--cell`: no title, the
 // words wrap (a row never scrolls sideways), three lines show and "Show all 40
 // lines" opens the rest in place (`data-kp-code-open="inline"`, default) or in a
@@ -33,8 +34,8 @@
 // one muted line "binary, 2.1 kB" with its link; `data-kp-truncated="1024/4096"`
 // (bytes shown / bytes in all) gives the foot line; `data-kp-copy="false"` takes
 // Copy away, otherwise it copies the whole value, folded or not. Empty is the
-// muted line "empty payload"; loading is a skeleton line, since the table
-// around it lays the busy card.
+// muted line "empty payload"; loading is the busy card over a block of its
+// final height.
 //
 // Events on the root: `kp-code-copy` `{ text }`, `kp-code-copy-failed`,
 // `kp-code-wrap` `{ wrap }`, `kp-code-layout` `{ layout }`, `kp-code-fold`
@@ -42,6 +43,8 @@
 
 import { getStrings } from './strings.js';
 import { openBusyCard } from './busy-card.js';
+import { hostStatePlate } from './state-plate.js';
+import { holdFootprint } from './footprint.js';
 import { attachSegmented } from './segmented.js';
 import { formatBytes } from './locale.js';
 
@@ -121,7 +124,8 @@ export function prettyJson(text) {
 function jsonLine(doc, line) {
     /** @type {Node[]} */
     const out = [];
-    const pattern = /("(?:[^"\\]|\\.)*")(\s*:)?|([{}[\],:])/g;
+    // A run of punctuation (`},` `],` `}]`) is ONE element: two spans side by side sat 0 px from each other.
+    const pattern = /("(?:[^"\\]|\\.)*")(\s*:)?|([{}[\],:]+)/g;
     let last = 0;
     for (const match of line.matchAll(pattern)) {
         const at = match.index ?? 0;
@@ -194,6 +198,8 @@ export function setCode(el, given) {
     el.classList.add('kp-code');
     el.classList.toggle('kp-code--cell', cell);
     el.setAttribute('data-kp-code', '');
+    // A block a page draws later was not there when js/auto.js scanned: it holds its own loaded height for empty and failed.
+    if (!cell && typeof ResizeObserver === 'function') holdFootprint(el);
     const state = spec.state ?? 'ready';
     if (state === 'loading') {
         memory.pending = null;
@@ -317,14 +323,26 @@ function drawLoading(el, memory) {
     el.setAttribute('aria-busy', 'true');
     el.setAttribute('data-kp-state', 'loading');
     if (memory.cell) {
-        // A cell waits as a skeleton line: the table around it lays the busy card.
-        for (const node of [...el.children]) if (node !== memory.head) node.remove();
+        // A cell waits on a block of its final height with the data table's busy card over it [states-two-1019]; the table around it
+        // may lay its own over the rows, the cell is never a bare skeleton.
+        for (const node of [...el.children]) if (node !== memory.head && node !== memory.card?.layer) node.remove();
         el.removeAttribute('data-kp-code-folded');
         const line = make(doc, 'kp-code__skeleton');
         const bar = make(doc, 'kp-skeleton');
         bar.setAttribute('aria-hidden', 'true');
         line.append(bar);
         el.append(line);
+        if (memory.card) {
+            memory.card.place();
+            return;
+        }
+        memory.card = openBusyCard(el, {
+            words: memory.spec.loadingWords ?? getStrings().codeLoading,
+            area: () => [line],
+            className: 'kp-code__busy',
+            arrive: memory.drawn,
+        });
+        memory.drawn = true;
         return;
     }
     const was = el.querySelector(':scope > :is(.kp-code__body, .kp-code__note)')?.getBoundingClientRect().height ?? 0;
@@ -338,7 +356,6 @@ function drawLoading(el, memory) {
     body.style.setProperty('--kp-code-min-lines', String(lines));
     body.style.minBlockSize = was > 0 ? `${was}px` : '';
     body.replaceChildren(make(doc, '', 'code'));
-    body.removeAttribute('tabindex');
     if (memory.card) {
         memory.card.place();
         return;
@@ -382,6 +399,21 @@ function drawBody(el, memory) {
         const kind = state === 'ready' ? 'empty' : state;
         el.setAttribute('data-kp-state', kind);
         el.removeAttribute('data-kp-code-folded');
+        if (!memory.cell && kind !== 'binary') {
+            // Empty and failed are the package plate, centred at the body's height with a normal Retry [states-check-1019]; the
+            // Retry fires `kp-code-retry` on the root.
+            const message = spec.message;
+            const plate = hostStatePlate(el, {
+                kind: kind === 'error' ? 'error' : 'empty',
+                title: message ?? (kind === 'error' ? strings.codeError : strings.codeEmpty),
+                ...(kind === 'error' ? { retryEvent: 'kp-code-retry' } : {}),
+            });
+            plate.classList.add('kp-code__plate');
+            plate.style.minBlockSize = was > 0 ? `max(${Math.round(was)}px, 0px)` : 'var(--kp-stateplate-floor, 12rem)';
+            el.append(plate);
+            memory.shown = '';
+            return;
+        }
         const note = make(doc, memory.cell ? 'kp-code__note kp-code__note--line' : 'kp-code__note', 'p');
         note.setAttribute('role', 'status');
         if (was > 0 && !memory.cell) note.style.minBlockSize = `${was}px`;
@@ -410,10 +442,11 @@ function drawBody(el, memory) {
     memory.lines = lines.length;
     const body = make(doc, 'kp-code__body', 'pre');
     body.id ||= `kp-code-${(serial += 1)}`;
-    body.setAttribute('tabindex', '0');
-    body.setAttribute('role', 'region');
-    body.setAttribute('aria-label', spec.title ?? spec.language ?? strings.codeLabel);
+    // The `code` is what scrolls sideways, inside the body's padding, so a long line is cut 0.75rem from the plate's edge, never at it.
     const code = make(doc, '', 'code');
+    code.setAttribute('tabindex', '0');
+    code.setAttribute('role', 'region');
+    code.setAttribute('aria-label', spec.title ?? spec.language ?? strings.codeLabel);
     for (const line of lines) {
         const row = make(doc, 'kp-code__line');
         const words = make(doc, 'kp-code__text');

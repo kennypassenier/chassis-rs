@@ -22,7 +22,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 /// The kp-themes version the kit vendors (C3: one place).
-pub const KP_THEMES_VERSION: &str = "11.0.0";
+pub const KP_THEMES_VERSION: &str = "11.1.0";
 
 /// name → (content type, bytes). Explicit list, no path joining (kyu's
 /// traversal-proof shape).
@@ -516,6 +516,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/diagnostics.js"),
     ),
     (
+        "kp/js/diff.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/diff.js"),
+    ),
+    (
         "kp/js/docpreview.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/docpreview.js"),
@@ -529,6 +534,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/facets.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/facets.js"),
+    ),
+    (
+        "kp/js/feed.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/feed.js"),
     ),
     (
         "kp/js/flash.js",
@@ -626,6 +636,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/listbox.js"),
     ),
     (
+        "kp/js/live-options.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/live-options.js"),
+    ),
+    (
         "kp/js/loading-pieces.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/loading-pieces.js"),
@@ -639,6 +654,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/log.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/log.js"),
+    ),
+    (
+        "kp/js/logviewer.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/logviewer.js"),
     ),
     (
         "kp/js/master-detail.js",

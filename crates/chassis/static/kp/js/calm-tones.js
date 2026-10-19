@@ -76,3 +76,17 @@ export function inPausedRange(range, iso) {
     const [from = '', to = ''] = range.split('/');
     return (from === '' || iso >= from) && (to === '' || iso <= to);
 }
+
+/**
+ * The legend of a calm component: logged, nothing logged, paused, in the words of the dictionary (`calmLegend…`). A heat grid draws
+ * it by itself (js/heat.js) unless `data-kp-legend="hide"`.
+ * @returns {{ tone: 'logged' | 'quiet' | 'paused', label: string }[]}
+ */
+export function calmLegendEntries() {
+    const s = getStrings();
+    return [
+        { tone: 'logged', label: s.calmLegendLogged },
+        { tone: 'quiet', label: s.calmLegendQuiet },
+        { tone: 'paused', label: s.calmLegendPaused },
+    ];
+}

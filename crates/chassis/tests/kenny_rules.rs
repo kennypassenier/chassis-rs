@@ -325,9 +325,9 @@ async fn a_disabled_kit_page_is_gone_from_the_nav_and_its_route() {
 /// 2026-10-19 (kit-kp11, approved demos "login" and "passkeys"): the login
 /// page's passkey is the one primary button, the token field has Show/Hide,
 /// keep-signed-in is a switch, and a failed login says what, why and what
-/// now. The passkeys page lists through the kp component and never puts
-/// `data-kp-confirm` on the list (components.js arms any such element and
-/// swallowed every Rename click).
+/// now. The passkeys page lists through the kp component with the approved
+/// `data-kp-confirm="dialog"` on the list (kp-themes 11.1.0 arms only real
+/// controls, so Rename no longer asks to confirm).
 #[test]
 fn login_and_passkeys_pages_keep_their_approved_parts() {
     let login = kit_file("templates/login.html");
@@ -353,8 +353,8 @@ fn login_and_passkeys_pages_keep_their_approved_parts() {
         assert!(pk.contains(part), "passkeys.html lost {part}");
     }
     assert!(
-        !pk.contains("data-kp-confirm"),
-        "data-kp-confirm on the list is read as a button to arm"
+        pk.contains("data-kp-confirm=\"dialog\""),
+        "the passkey list removes through the approved confirm dialog"
     );
     assert!(
         !pk.contains("_TRUSTED_PROXIES") && !pk.contains("_PUBLIC_URL"),
@@ -395,9 +395,10 @@ fn login_card_is_one_form_grid_and_phone_search_is_a_square() {
             && css.contains("block-size: var(--kit-bar-button, 2.25rem);"),
         "the phone's Search is a 36 px square"
     );
+    let kp = kit_file("static/kp/dist/kp-themes.css");
     assert!(
-        css.contains("TEMPORARY: .kp-formgrid until the next kp-themes release is vendored"),
-        "the form grid rules are carried until the vendored kp-themes has them"
+        kp.contains(".kp-formgrid") && !css.contains("TEMPORARY: .kp-formgrid"),
+        "the form grid comes from the vendored kp-themes (11.1.0), not a kit copy"
     );
 }
 
