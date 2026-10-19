@@ -335,3 +335,42 @@ fn login_and_passkeys_pages_keep_their_approved_parts() {
         "the not-HTTPS alert speaks plain words, no variable names"
     );
 }
+
+/// Round 3 (Kenny approved 4/4, 2026-10-19 11:22): the login card is one
+/// form grid, so label, field, passkey button, switch and Log in share one
+/// start edge ("HOE VAAK MOET IK NOG ZEGGEN OM ALLES DEFTIG VERTICAAL TE
+/// ALIGNEN"); the phone bar's Search is a 36 px square beside the theme menu.
+#[test]
+fn login_card_is_one_form_grid_and_phone_search_is_a_square() {
+    let login = kit_file("templates/login.html");
+    assert!(
+        login.contains("class=\"kp-formgrid kit-login__grid\"")
+            && login.contains("data-kp-formgrid-stack=\"never\""),
+        "the login card is one .kp-formgrid that never stacks"
+    );
+    for part in [
+        "kp-formgrid__label\" for=\"token\"",
+        "kp-formgrid__actions\"><button type=\"button\" class=\"kp-button kp-button--ghost\" data-kit-peek",
+        "kp-formgrid__row--buttons",
+    ] {
+        assert!(login.contains(part), "login grid lacks {part}");
+    }
+    assert!(
+        !login.contains("kit-login__token") && !login.contains("kp-form\""),
+        "no hand-made side-by-side row beside the grid"
+    );
+    let css = kit_file("static/chassis.css");
+    assert!(
+        css.contains("align-items: first baseline;\n  max-inline-size: 64rem"),
+        "the intro and the card share a first baseline"
+    );
+    assert!(
+        css.contains("inline-size: var(--kit-bar-button, 2.25rem);")
+            && css.contains("block-size: var(--kit-bar-button, 2.25rem);"),
+        "the phone's Search is a 36 px square"
+    );
+    assert!(
+        css.contains("TEMPORARY: .kp-formgrid until the next kp-themes release is vendored"),
+        "the form grid rules are carried until the vendored kp-themes has them"
+    );
+}
