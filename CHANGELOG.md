@@ -7,6 +7,15 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed
+
+- **Every kp-themes module is served under `dashboard`**, no longer only with
+  `webapp` (kyu, gap 30): a status section or page a service adds under
+  `dashboard` alone loaded `/static/kp/js/datatable.js` or another module and
+  got a 404. The kit's pages on kp-themes 11 use these modules themselves, so
+  the set follows the pages; `webapp` keeps meaning a project's own browser
+  app. A build without `dashboard` (kyu-runner) is unchanged.
+
 ### Added
 
 - **A kit toast region and a page-ready signal** (kit-kp11). `layout.html`
