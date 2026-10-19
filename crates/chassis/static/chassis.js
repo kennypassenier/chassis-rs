@@ -1314,20 +1314,36 @@ import { setStrings } from './kp/js/strings.js';
     const realFetch = window.fetch.bind(window);
     let state = 'online';
     connectionEl.addEventListener('kp-connection-state', (event) => { state = event.detail.state; });
-    const refusedWhy = async (res) => {
-      const body = await res.clone().json().catch(() => ({}));
-      return body.remedy || body.error || `The service answered ${res.status} to the last request.`;
-    };
     const online = () => { if (state !== 'online') setConnection(connectionEl, 'online'); };
+    // The line is for the whole service being out of reach. A request that
+    // fails or is refused is not that by itself: the component that asked
+    // already shows its own failed state. So a failing request only makes the
+    // line ask the open /healthz; the line shows when that cannot be reached
+    // (offline) or answers 503 (refused), and stays away when it answers.
+    let probing = null;
+    const probe = () => {
+      probing ||= (async () => {
+        try {
+          const res = await realFetch('/healthz', { cache: 'no-store' });
+          if (res.status === 503) setConnection(connectionEl, 'refused', { why: 'The service answered 503: it is not ready.' });
+          else online();
+        } catch (_) {
+          setConnection(connectionEl, 'offline');
+        } finally {
+          probing = null;
+        }
+      })();
+      return probing;
+    };
     window.fetch = async (...args) => {
       let res;
       try {
         res = await realFetch(...args);
       } catch (error) {
-        if (error && error.name !== 'AbortError') setConnection(connectionEl, 'offline');
+        if (error && error.name !== 'AbortError') probe();
         throw error;
       }
-      if ([401, 502, 503, 504].includes(res.status)) setConnection(connectionEl, 'refused', { why: await refusedWhy(res) });
+      if ([401, 502, 503, 504].includes(res.status)) probe();
       else online();
       return res;
     };
