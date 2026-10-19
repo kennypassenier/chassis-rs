@@ -960,6 +960,22 @@ mod tests {
         assert!(js.contains("'chassis:ready'") && js.contains("window.chassis"));
     }
 
+    /// kit-kp11: the shell's palette and shortcuts find the clients page's
+    /// actions through these hooks, and the figures stay exact filters.
+    #[test]
+    fn the_clients_page_carries_the_command_hooks() {
+        let html = include_str!("../../templates/clients.html");
+        for hook in [
+            "data-chassis-command=\"filter-idle\"",
+            "data-chassis-command=\"search\"",
+            "data-chassis-command=\"issue\"",
+            "data-manage=\"{{ c.id }}\"",
+        ] {
+            assert!(html.contains(hook), "clients.html lost {hook}");
+        }
+        assert!(html.contains("{{ counts.idle }}") && !html.contains("9+"));
+    }
+
     #[test]
     fn section_assets_merge_once_in_order_and_refuse_foreign_paths() {
         let a = SectionAssets::new()
