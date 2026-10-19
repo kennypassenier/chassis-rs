@@ -756,9 +756,16 @@ function watchForFirstCall(root, modules, one) {
     modules.steplist.setStep(list, 's3', { state: 'done', note: caller ? `${caller.name} called ${caller.last_used_ago}` : 'The first request arrived' });
     const what = root.querySelector('[data-clients-what]');
     if (what) {
-      what.setAttribute('data-kp-art', 'done');
-      what.querySelector('.kp-empty__title').textContent = 'Connected';
-      what.querySelector('.kp-empty__body').textContent = `The first request arrived. The list shows the ${one}, when it last called and how often.`;
+      // The package's own plate, redrawn in place with the "done" picture.
+      const [{ statePlate }, { drawArt }] = await Promise.all([import('./kp/js/state-plate.js'), import('./kp/js/art.js')]);
+      what.removeAttribute('data-kp-art');
+      statePlate(document, {
+        kind: 'empty',
+        into: what,
+        title: 'Connected',
+        text: `The first request arrived. The list shows the ${one}, when it last called and how often.`,
+        art: drawArt(document, 'done'),
+      });
     }
     root.querySelector('[data-clients-done]')?.removeAttribute('hidden');
   }
