@@ -95,6 +95,9 @@ fn a_new_project_compiles_and_answers_version() {
     assert!(gates.exists(), "gates.sh is part of the scaffold");
     let out = in_repo("bash", &project)
         .arg(&gates)
+        // Since the gate cache defers test suites to the release, this test
+        // asks for them: it exists to prove the smoke test runs and is green.
+        .env("GATE_TESTS", "1")
         .env("CARGO_TARGET_DIR", &workspace_target)
         .output()
         .unwrap();
