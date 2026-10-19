@@ -95,3 +95,8 @@ demos on the kp-themes Agenda (research/chassis-kit-*); the rest is API.
 - At 390 the fixed .kp-tabbar overlaps content in measure-gaps (it does not
   scroll); check that every page reserves the tab bar's height at its foot so
   the last content can scroll clear of it.
+- 3.9.0 re-measure on kp-themes 11.1.1 (5d3647f8 scripts): 28 of 28 page ×
+  theme × width combinations clear; dialogs clear except the command
+  palette, where kp-palette__label / __description edges differ per row
+  (1.9 to 31.8 px at 1280, 7 to 19 px at 390). Package-side markup; not yet
+  passed on (Kenny passes 3.9.0 news himself, 2026-10-19).
