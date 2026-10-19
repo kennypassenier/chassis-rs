@@ -9,6 +9,12 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Changed
 
+- **kp-themes 11.1.0 vendored** (verified against the release SHA256SUMS;
+  four new modules: `diff`, `feed`, `live-options`, `logviewer`). Every data
+  component has one loading look per kind, the form grid (`.kp-formgrid`),
+  the page-header and QR grid fixes and the passkey list's confirm fix come
+  from the package; the kit's temporary copies of them are gone. No consumer
+  action (kp-themes 11.1.0 is a minor without a migration section).
 - **The passkeys page is the approved kp-themes 11 composition** (kit-kp11):
   one card of ways to sign in (this-device badge from `current`, rename in
   place through `PATCH /api/passkeys/{id}`, an unused flag, removal behind a
