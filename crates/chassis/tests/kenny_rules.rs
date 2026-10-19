@@ -335,3 +335,74 @@ fn login_and_passkeys_pages_keep_their_approved_parts() {
         "the not-HTTPS alert speaks plain words, no variable names"
     );
 }
+
+/// Kenny, 2026-10-19: "elk thema heeft al een loading animatie voor dit soort
+/// element, gebruik het!" The status page uses each kp-themes component's own
+/// loading, empty and failed states and its standard parts; no stand-in
+/// spinner, "Loading…" line or hand-drawn skeleton.
+#[test]
+fn the_status_page_uses_the_components_own_states() {
+    let html = kit_file("templates/status.html");
+    let js = kit_file("static/chassis.js");
+    let status = js
+        .split("status (kit-kp11)")
+        .nth(1)
+        .expect("the status block");
+
+    // Every data card is a card in four states, with the plate for empty.
+    for part in [
+        r#"data-chassis-card="health""#,
+        r#"data-chassis-card="updates""#,
+        r#"data-chassis-card="service""#,
+        "kp-card__stage",
+        "data-kp-card-built",
+        "data-chassis-empty-title",
+    ] {
+        assert!(html.contains(part), "status.html lacks {part}");
+    }
+    // A data table carries its standard parts: search, empty slot with its
+    // two reasons, the status line and the pager.
+    for part in [
+        "data-kp-datatable-search",
+        "data-kp-datatable-empty-none",
+        "data-kp-datatable-empty-nomatch",
+        "data-kp-datatable-status",
+        "data-kp-datatable-pager",
+    ] {
+        assert!(html.contains(part), "the status table lacks {part}");
+        assert!(
+            status.contains(part),
+            "the redrawn status table lacks {part}"
+        );
+    }
+    // An absent value is the key-value list's own mark.
+    assert!(html.contains("kp-kv__none") && status.contains("kp-kv__none"));
+    // The package's own loading and failed parts, through their APIs.
+    for api in [
+        "setCardState(card, 'loading'",
+        "setCardState(card, 'error'",
+        "setAttention(plate",
+        "state: 'loading'",
+        "setMeter(meter, { loading: true",
+        "kp-skeleton",
+        "handle.refresh()",
+    ] {
+        assert!(status.contains(api), "the status block lacks {api}");
+    }
+    // No stand-ins.
+    for stand_in in [
+        "Loading…",
+        "Loading...",
+        "kp-spinner",
+        "plateHtml",
+        "text-muted\">Loading",
+    ] {
+        assert!(
+            !html.contains(stand_in) && !status.contains(stand_in),
+            "stand-in on the status page: {stand_in}"
+        );
+    }
+    // A phone: the freshness line takes its own row instead of overflowing.
+    let css = kit_file("static/chassis.css");
+    assert!(css.contains(".chassis-status .kp-refresh__bar > .kp-refresh__line"));
+}
