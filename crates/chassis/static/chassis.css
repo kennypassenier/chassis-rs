@@ -154,7 +154,44 @@ pre.snippet {
    media queries where the demo answered to its frame. Stands alone at the end
    of the file; tokens only. */
 
+/* A phone: the tab bar carries the pages (kp-themes shows it below 40rem), so
+   the bar keeps the brand, Search as an icon and the theme menu. */
+@media (max-width: 39.99rem) {
+    .kp-nav__links,
+    .chassis-logout,
+    .chassis-search-word {
+        display: none;
+    }
+}
+
+/* The count stands beside its icon, not on its corner: text never lies over
+   a drawing (measure-gaps). Every digit shows; the tab does not grow. */
+.chassis-tabbar .kp-tabbar__badge {
+    inset-inline-start: calc(50% + var(--kp-tabbar-icon, 1.5rem) / 2 + var(--kp-space-xs, 0.25rem));
+}
+
 /* A chord such as "g c" stays on one line. */
 .kp-palette__keys {
     white-space: nowrap;
+}
+
+/* Search: the word and the key on a screen with a keyboard, the icon alone on
+   a phone (kp-themes draws the search button as a word and a key). */
+.kp-nav__search-trigger svg {
+    display: none;
+    flex: none;
+    inline-size: 1.25em;
+    block-size: 1.25em;
+}
+@media (max-width: 39.99rem) {
+    .kp-nav__search-trigger svg {
+        display: block;
+    }
+    .kp-nav__search-trigger {
+        min-inline-size: 0;
+        padding-inline: 0.625rem;
+    }
+    .kp-nav__search-trigger .kp-palette__keys {
+        display: none;
+    }
 }

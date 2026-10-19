@@ -133,6 +133,22 @@
 <dialog class="kp-shortcuts" data-kp-shortcuts data-kp-shortcuts-live id="chassis-sheet" aria-labelledby="chassis-sheet-title">
   <h2 class="kp-dialog__title" id="chassis-sheet-title">Keyboard shortcuts</h2>
 </dialog>
+<nav class="kp-tabbar chassis-tabbar" id="chassis-tabbar" aria-label="Areas">
+  {% for item in nav %}{% if loop.index <= 3 %}{% set page = pages[loop.index0] %}
+  <a class="kp-tabbar__tab" href="{{ item.href }}" data-kp-tab="{{ page.id }}"{% if item.href == active_nav %} aria-current="page"{% endif %}><span class="kp-tabbar__icon">{{ glyph(page.id) }}</span><span class="kp-tabbar__label">{{ item.label }}</span></a>
+  {% endif %}{% endfor %}
+  <button type="button" class="kp-tabbar__tab kp-tabbar__tab--more" data-kp-dialog="chassis-more"><span class="kp-tabbar__icon kp-tabbar__icon--more" aria-hidden="true"></span><span class="kp-tabbar__label">More</span></button>
+</nav>
+<dialog class="kp-drawer kp-dialog" id="chassis-more" aria-labelledby="chassis-more-title">
+  <header class="kp-drawer__head"><h2 class="kp-dialog__title" id="chassis-more-title">More</h2><button type="button" class="kp-icon-button kp-dialog__close" data-kp-dialog-close aria-label="Close">×</button><p class="kp-drawer__desc">The pages you need less often, and your session.</p></header>
+  <div class="kp-drawer__body"><div class="kp-menu kp-menu--rich" role="group" aria-label="More">
+    {% for item in nav %}{% if loop.index > 3 %}{% set page = pages[loop.index0] %}
+    <a class="kp-menu__item" href="{{ item.href }}"{% if item.href == active_nav %} aria-current="page"{% endif %}><span class="kp-menu__label">{{ item.label }}</span>{% if hints[page.id] %}<span class="kp-menu__hint">{{ hints[page.id] }}</span>{% endif %}</a>
+    {% endif %}{% endfor %}
+    <button type="button" class="kp-menu__item" data-chassis-run="theme"><span class="kp-menu__label">Choose a theme</span><span class="kp-menu__hint">Colours and feel of this dashboard</span></button>
+    {% if not open_dashboard %}<button type="submit" form="chassis-logout" class="kp-menu__item"><span class="kp-menu__label">Log out</span><span class="kp-menu__hint">End this session on this browser</span></button>{% endif %}
+  </div></div>
+</dialog>
 {% endif %}
 <!-- kit-kp11: one empty toast region for the kit and the app. The kit puts
      nothing in it; mount kp toasts here so a screen reader announces them. -->

@@ -432,8 +432,9 @@ document.addEventListener('submit', async (event) => {
 import { attachNavFolds } from './kp/js/nav-fold.js';
 import { attachPalettes, palette as paletteOf } from './kp/js/palette.js';
 import { attachShortcuts, registerShortcuts } from './kp/js/shortcuts.js';
+import { attachTabbars, setTabbarBadge } from './kp/js/tabbar.js';
 import { attachConnection, setConnection } from './kp/js/connection.js';
-import { toast as shellToast } from './kp/js/overlays.js';
+import { attachDialogs, toast as shellToast } from './kp/js/overlays.js';
 import { setStrings } from './kp/js/strings.js';
 
 {
@@ -612,6 +613,9 @@ import { setStrings } from './kp/js/strings.js';
     const fromClients = (data) => {
       clientList = data;
       const active = data.clients.filter((c) => c.active);
+      // The count on the Clients tab: how many need a look, exactly.
+      const tab = $('#chassis-tabbar [data-kp-tab="clients"]');
+      if (tab) setTabbarBadge(tab, data.clients.filter(idle).length);
       if (!onClients || !handle) return;
       const manage = group('Manage a client', 'manage');
       manage.ul.append(...active.slice(0, 5).map((c) => wrap(option(`manage-${c.id}`, `Manage ${c.name}`, `Last used ${ago(c.last_used_at)}`))));
@@ -633,6 +637,20 @@ import { setStrings } from './kp/js/strings.js';
         .catch(() => handle?.setState(onClients ? 'error' : 'ready', { message: 'The clients could not be read.' }));
     }
 
+    // ---- the phone: the tab bar and its More drawer
+    const tabbar = $('#chassis-tabbar');
+    if (tabbar) {
+      attachDialogs(tabbar);
+      attachDialogs($('#chassis-more'));
+      attachTabbars(document);
+      joined.push('tabbar', 'dialogs');
+      $('#chassis-more')?.addEventListener('click', (event) => {
+        const t = event.target.closest('[data-chassis-run]');
+        if (!t) return;
+        $('#chassis-more').close();
+        run[t.dataset.chassisRun]?.();
+      });
+    }
   }
 
   // ---- the connection line: the page's own requests report what they see.
