@@ -29,6 +29,37 @@ scaffold writes. A breaking change in either is a major and carries a
   before, and deletes the record once the release is published. Any other
   change runs the whole suite and says why. `--full-tests` forces the whole
   suite. The measured duration of the test step is printed either way.
+- **The status page as an operations page** (kit-kp11, approved demo
+  `research/chassis-kit-status` in kp-themes). A `.kp-ops` frame: header with
+  a remembered refresh control and "updated N s ago", four key figures
+  (health with a meter, running version with a version chip when a newer
+  release is known, up for, and a tile linked to the clients list), an
+  attention band built from `Problem` (what, why, what now, and a Copy button
+  when the remedy quotes a command in backticks), cards for service facts
+  (copyable address), health rows with Retry that re-poll `/api/kit/status`,
+  the update card in plain words, and an availability strip of the last 48
+  hours. The history is bounded and in memory (sampled every five minutes and
+  on every poll): a restart empties it. `POST /api/kit/status/update-check`
+  does one read-only look at the release host for the "Check for updates"
+  button. `/api/kit/status` gains `up_for`, `parts`, `update_facts`,
+  `uptime`, `clients`, `repository_url`, per problem a `key`, `severity` and
+  `command`, and per section `body`, `parts`, `span`, `slug` and
+  `flash_actions`. `layout.html` is untouched.
+- **Status sections as data** (kit-kp11). `StatusSection::body()` returns a
+  `SectionBody` (`Rows`, `Table { columns, rows, key }`, `Kpis`, `Checks`,
+  `Json { url, render }`, `Many`); `Section::html` stays the escape hatch and
+  `Section` is unchanged, so struct literals keep compiling. A table sorts,
+  searches and remembers; a `Json` card reads its own address and shows
+  loading, empty and failed with Try again; the cards of one row always add
+  up to twelve columns. New public items: `SectionBody`, `JsonRender`, `Kpi`,
+  `KpiTone`, `Check`, `CheckState`.
+- **Section buttons that keep the page** (kit-kp11).
+  `StatusSection::flash_actions()` returns `FlashAction`s: a spinner, a short
+  word and a success toast carrying the count the route answered
+  (`{"count": 12}` becomes "Retried 12 entries"); `destructive(confirm)` keeps
+  the confirmation dialog. A type of its own because `SectionAction` is an
+  open struct services build as a literal; it keeps its reload.
+
 - **A kit toast region and a page-ready signal** (kit-kp11). `layout.html`
   carries one empty `<div id="chassis-toasts" class="kp-toasts"
   aria-live="polite">` on every page. After chassis.js has attached its kp

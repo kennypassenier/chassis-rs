@@ -585,8 +585,8 @@ async fn k29_section_actions_render_under_the_section_and_none_without() {
         "{page}"
     );
     // The block sits under its own section, before the next heading.
-    let profiles = page.find("<h2>Profiles</h2>").unwrap();
-    let quiet = page.find("<h2>Quiet</h2>").unwrap();
+    let profiles = page.find(">Profiles</h2>").unwrap();
+    let quiet = page.find(">Quiet</h2>").unwrap();
     let block = page.find("section-actions").unwrap();
     assert!(profiles < block && block < quiet, "{page}");
     let (status, _, _) = http(
@@ -646,5 +646,72 @@ async fn kit_kp11_section_assets_render_once_in_the_head() {
     );
     let head_end = page.find("</head>").unwrap();
     assert!(page.find("/app/orders.js").unwrap() < head_end, "{page}");
+    running.stop().await;
+}
+
+struct Delivery;
+
+impl StatusSection for Delivery {
+    fn render(&self) -> Section {
+        Section {
+            title: "Delivery".into(),
+            explain: "What is waiting to be sent.".into(),
+            rows: vec![],
+            html: None,
+        }
+    }
+    fn body(&self) -> Option<chassis::SectionBody> {
+        Some(chassis::SectionBody::Many(vec![
+            chassis::SectionBody::Kpis(vec![chassis::Kpi::new("Waiting", 12)]),
+            chassis::SectionBody::Checks(vec![chassis::Check::failed("Webhook", "answered 502")]),
+        ]))
+    }
+    fn flash_actions(&self) -> Vec<chassis::FlashAction> {
+        vec![
+            chassis::FlashAction::post("Retry failed deliveries", "/deliveries/retry")
+                .word("Retried")
+                .toast("Retried {n} entries"),
+        ]
+    }
+}
+
+// kit-kp11: a section body drawn by the kit, and a flash action that keeps
+// the page: it is a flash button (no data-post, so no reload) carrying its
+// toast, and the status data names the card's span and the 48-hour strip.
+#[tokio::test]
+async fn kit_kp11_body_sections_and_flash_actions_render_without_a_reload_hook() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app(dir.path(), Router::new());
+    app.status_section(Delivery);
+    let running = app.start().await.unwrap();
+    let addr = running.addr;
+    let cookie = login(addr).await;
+    let (_, _, page) = http(addr, "GET", "/", &[("Cookie", &cookie)], "").await;
+    assert!(
+        page.contains("class=\"kp-kpis\"") && page.contains("Waiting"),
+        "{page}"
+    );
+    assert!(
+        page.contains("data-state=\"failed\" data-kp-status-id=\"Webhook\""),
+        "{page}"
+    );
+    assert!(
+        page.contains("data-chassis-flash=\"/deliveries/retry\"")
+            && page.contains("data-chassis-toast=\"Retried {n} entries\"")
+            && !page.contains("data-post=\"/deliveries/retry\""),
+        "{page}"
+    );
+    let (_, _, json) = http(
+        addr,
+        "GET",
+        "/api/kit/status",
+        &[("Cookie", &cookie), ("Accept", "application/json")],
+        "",
+    )
+    .await;
+    let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(v["sections"][0]["span"], 12);
+    assert_eq!(v["sections"][0]["parts"].as_array().unwrap().len(), 2);
+    assert_eq!(v["uptime"].as_array().unwrap().len(), 48);
     running.stop().await;
 }

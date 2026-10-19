@@ -242,7 +242,9 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         open,
     )?
     .with_vocabulary(vocab.clone())
-    .with_client_actions(registry.client_actions);
+    .with_client_actions(registry.client_actions)
+    .with_update_check(registry.check_update)
+    .with_repository(spec.repository);
 
     // feat-pages-1: one list of pages for every navigation. `nav_entry`
     // links from before 3.1.0 join it as visible project pages.
@@ -272,6 +274,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         ),
     );
     let dash = dash.with_pages(&page_set);
+    dash.spawn_uptime_sampler();
     let kit_renders = !extra.kit_in_webapp;
 
     let pages_public = Router::new()
@@ -292,7 +295,12 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
     let (status_on, clients_on) = (on("status"), on("clients"));
     let mut pages_admin = Router::new();
     if status_on {
-        pages_admin = pages_admin.route("/api/kit/status", get(dashboard::status_json));
+        pages_admin = pages_admin
+            .route("/api/kit/status", get(dashboard::status_json))
+            .route(
+                "/api/kit/status/update-check",
+                axum::routing::post(dashboard::update_check),
+            );
     }
     if clients_on {
         pages_admin = pages_admin.route("/api/kit/clients", get(dashboard::clients_json));
