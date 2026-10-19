@@ -77,6 +77,74 @@ fn the_layout_brand_comes_from_the_registry() {
     );
 }
 
+/// kit-kp11 (Kenny approved the shell demo, 2026-10-19): the bar, the search
+/// palette and the phone's tab bar render from the page registry, never from
+/// a list written into the layout; a tab's count is the exact number; the
+/// phone hides the links, Log out and the Search word; the error page has a
+/// copyable request id, a drawing per kind and no alert class the package
+/// does not have.
+#[test]
+fn the_shell_renders_from_the_registry_and_counts_exactly() {
+    let layout = kit_file("templates/layout.html");
+    for hard_coded in [
+        r#"href="/status""#,
+        r#"href="/clients""#,
+        r#"href="/passkeys""#,
+    ] {
+        assert!(
+            !layout.contains(hard_coded),
+            "the layout lists pages from `nav`, not {hard_coded}"
+        );
+    }
+    assert!(
+        layout.matches("{% for item in nav %}").count() >= 4,
+        "bar, palette, tab bar and drawer each loop over the registry"
+    );
+    for part in [
+        "data-kp-nav-fold",
+        r#"data-kp-palette-open="chassis-palette""#,
+        r#"data-kp-hotkey="k""#,
+        "data-kp-shortcuts-live",
+        r#"class="kp-tabbar chassis-tabbar""#,
+        r#"id="chassis-more""#,
+        "data-kp-connection",
+    ] {
+        assert!(layout.contains(part), "the shell lacks {part}");
+    }
+    let js = kit_file("static/chassis.js");
+    assert!(
+        js.contains("setTabbarBadge") && !js.contains("99+"),
+        "a count on a tab is the exact number"
+    );
+    let css = kit_file("static/chassis.css");
+    let phone = css
+        .split("@media (max-width: 39.99rem)")
+        .nth(1)
+        .expect("a phone block");
+    for hidden in [".kp-nav__links", ".chassis-logout", ".chassis-search-word"] {
+        assert!(phone.contains(hidden), "the phone hides {hidden}");
+    }
+    assert!(
+        css.contains(".chassis-tabbar .kp-tabbar__badge"),
+        "badge beside its icon"
+    );
+    assert!(
+        css.contains("white-space: nowrap"),
+        "a chord stays on one line"
+    );
+    let error = kit_file("templates/error.html");
+    assert!(
+        !error.contains("kp-alert--danger"),
+        "no class the package lacks"
+    );
+    assert!(
+        error.contains("data-kp-copy")
+            && error.contains("request_id")
+            && error.contains("data-kp-art"),
+        "the request id is copyable and the plate has its drawing"
+    );
+}
+
 /// 2026-10-01 (backup pause, refined with the homelab): a write held by a
 /// pause waits at most 10 s and is then answered 503 with Retry-After,
 /// never left hanging.

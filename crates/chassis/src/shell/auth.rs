@@ -219,6 +219,30 @@ pub async fn require_caller(
     }
 }
 
+/// [`still_valid`] for a caller that cannot wait (the error page is rendered
+/// by a plain function): the session store's lock is tried, not awaited. A
+/// store that is busy answers `false`, which draws the page without the
+/// navigation; the next page load is right again.
+pub(crate) fn still_valid_now(state: &AuthState, headers: &HeaderMap) -> bool {
+    let Some(secrets) = &state.secrets else {
+        return true;
+    };
+    if let Some(token) = bearer(headers) {
+        return ct_eq(
+            token.as_bytes(),
+            secrets.login_token.expose_secret().as_bytes(),
+        );
+    }
+    let jar = CookieJar::from_headers(headers);
+    match (
+        jar.get(&state.cookie_name()),
+        state.sessions.state.try_read(),
+    ) {
+        (Some(cookie), Ok(sessions)) => sessions.is_live(cookie.value(), now_epoch()),
+        _ => false,
+    }
+}
+
 /// Middleware for dashboard routes: only Admin passes; a browser without
 /// a session is redirected to `/login` instead of getting a JSON 401.
 pub async fn require_admin(
