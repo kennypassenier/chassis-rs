@@ -425,6 +425,39 @@ impl StatusSection for Orders {
 - `/api/kit/status` carries the merged list as `section_assets`
   (`{ module_scripts, stylesheets }`) for a web app that draws the page.
 
+## What the kit attaches itself, and the page-ready signal (kit-kp11)
+
+The layout loads `/static/chassis.js` as a module on every kit page. It
+attaches these kp-themes modules itself; an app's own code must not attach
+them a second time (a second theme picker binds every click twice):
+
+- `attachThemePickers()` (the theme menu in the nav; `theme-boot.js` applies
+  the stored theme before first paint);
+- `enforceContracts()` and `attachConfirmations()` (`data-kp-confirm` /
+  `data-kp-destructive` controls, `[data-post]` buttons);
+- `attachEffects(document)` (caret, arrivals) and `attachSkipLinks()`.
+
+Everything else under `/static/kp/js/` (tabbar, palette, datatable,
+undo-toast, …) is the app's to attach.
+
+**Page ready.** Once those are attached, chassis.js fires `chassis:ready` on
+`document` (detail `{ attached }`, the names above) and resolves
+`window.chassis.ready`:
+
+```js
+await window.chassis.ready;            // also resolves when awaited late
+// or: document.addEventListener('chassis:ready', attachMine, { once: true });
+```
+
+`chassis.ready` is a promise, so awaiting it after the event has fired still
+resolves. `window.chassis` exists once chassis.js has run; a script that may
+run earlier listens for the event and checks `window.chassis?.ready` first.
+
+**Toast region.** `layout.html` carries one empty
+`<div id="chassis-toasts" class="kp-toast-region" aria-live="polite"></div>`
+after `<main>`, on every page (class `kp-toasts`). The kit puts nothing in it; an app
+mounts its kp toasts there so a screen reader announces them.
+
 ## What the kit guarantees around a project page
 
 - **Admin login.** The whole `dashboard_routes` router sits behind

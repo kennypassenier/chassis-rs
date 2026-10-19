@@ -71,5 +71,8 @@
 {% endif %}
 {% block content %}{% endblock %}
 </main>
+<!-- kit-kp11: one empty toast region for the kit and the app. The kit puts
+     nothing in it; mount kp toasts here so a screen reader announces them. -->
+<div id="chassis-toasts" class="kp-toasts" aria-live="polite"></div>
 </body>
 </html>

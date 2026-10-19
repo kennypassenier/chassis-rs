@@ -897,6 +897,19 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
 mod tests {
     use super::*;
 
+    /// kit-kp11: one empty live toast region in the layout, and the ready
+    /// signal in chassis.js (event plus promise).
+    #[test]
+    fn layout_has_one_toast_region_and_chassis_js_signals_ready() {
+        let layout = include_str!("../../templates/layout.html");
+        assert_eq!(layout.matches("id=\"chassis-toasts\"").count(), 1);
+        assert!(layout.contains(
+            "<div id=\"chassis-toasts\" class=\"kp-toasts\" aria-live=\"polite\"></div>"
+        ));
+        let js = include_str!("../../static/chassis.js");
+        assert!(js.contains("'chassis:ready'") && js.contains("window.chassis"));
+    }
+
     #[test]
     fn section_assets_merge_once_in_order_and_refuse_foreign_paths() {
         let a = SectionAssets::new()

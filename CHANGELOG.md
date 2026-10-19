@@ -9,6 +9,14 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **A kit toast region and a page-ready signal** (kit-kp11). `layout.html`
+  carries one empty `<div id="chassis-toasts" class="kp-toasts"
+  aria-live="polite">` on every page. After chassis.js has attached its kp
+  modules (theme picker, contracts, confirmations, effects, skip links) it
+  fires `chassis:ready` on `document` and resolves `window.chassis.ready`,
+  so an app attaches its own kp modules after the kit without
+  double-attaching the theme picker. docs/DASHBOARD.md lists what the kit
+  attaches itself. No Rust API change.
 - **Status sections declare their module script and stylesheet** (kit-kp11).
   `StatusSection::assets()` (a default method) returns a `SectionAssets`
   (`module_script(path)`, `stylesheet(path)`); the kit renders the tags once
