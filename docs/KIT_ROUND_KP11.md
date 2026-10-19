@@ -68,3 +68,30 @@ demos on the kp-themes Agenda (research/chassis-kit-*); the rest is API.
   not a field on `SectionAction`, because consumers build `SectionAction`
   as a struct literal; `SectionBody::Many` added for a card with figures and
   checks; check lists use one column (`kp-statuslist--rows`).
+- Shell at 1894: the signed-in bar's Search trigger is 38.5 px tall beside
+  the 36 px theme button (centres equal); same row, so it must share top and
+  bottom. Fix at the merge.
+- Clients manage: with the dialog itself as the measured section, the align
+  check reads two offsets that the approved demo also has (its check scoped
+  them away): identity head vs figure tiles 14.3 px (centred on purpose) and
+  danger words vs the three actions 4.6 px. The 4.6 px one is a near-miss
+  under Kenny's rule: fix at the merge.
+- Shell + components: on a failed read the shell's connection banner and the
+  component's own failed state both show (double warning). Settle at the
+  merge: the banner only for whole-service unreachability, not for one
+  component's read.
+- When kp-themes 11.1.0 is vendored: delete the TEMPORARY .kp-formgrid block
+  at the end of chassis.css, the passkeys page-scoped QR and page-header grid
+  overrides, and put data-kp-confirm="dialog" back on the passkey list
+  (kp-themes b5d397b0).
+- At the 11.1.0 re-measure: nav links are now --kp-control-height (36 px
+  in formal, dark, cyberpunk, nostromo, solstice, titanium; kp-themes
+  7c6c0607); brutalism, synthwave, deco, blueprint and pastel stay taller by
+  design, so the bar row check must allow those themes' own heights.
+- Pre-check branch kit-kp11-precheck (kp-themes main ab7a749b vendored,
+  throwaway): fixes 398e21e (clients empty plate), 569b01e (status first
+  read through the package states), 1dab477 (error page plate) are kit-only
+  commits to cherry-pick onto the real 11.1.0 vendoring.
+- At 390 the fixed .kp-tabbar overlaps content in measure-gaps (it does not
+  scroll); check that every page reserves the tab bar's height at its foot so
+  the last content can scroll clear of it.
