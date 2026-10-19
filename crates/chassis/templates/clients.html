@@ -153,35 +153,39 @@
         <div class="issue-card__main">
           <div class="issue-fields" data-issue-pane="form">
             <div class="kp-form__summary" data-kp-form-summary tabindex="-1" hidden></div>
-            <div class="kp-field">
-              <label class="kp-field__label" for="name">Name <span class="kp-field__required">required</span></label>
-              <input class="kp-field__input" type="text" id="name" name="name" placeholder="home-assistant" required pattern="[A-Za-z0-9._\-]{1,64}" autocomplete="off" data-issue-in="name">
-              <p class="kp-field__help">Letters, digits, dots, underscores and hyphens; 1 to 64 characters.</p>
-              <span class="kp-field__error" data-kp-field-error hidden></span>
-            </div>
-            {% for f in form_fields %}
-            <div class="kp-field">
-              <label class="kp-field__label" for="field-{{ f.name }}">{{ f.label }} <span class="kp-field__required">required</span></label>
-              {% if f.kind == "select" %}
-              <select class="kp-field__input" id="field-{{ f.name }}" name="{{ f.name }}" required{% if loop.first %} data-issue-in="topic"{% endif %}>
-                <option value="" disabled selected>— choose —</option>
-                {% for o in f.options %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
-              </select>
-              {% elif not form_usual[loop.index0] %}
-              {# Nothing used before: the usual picker would draw an empty plate in the middle of the form, so a plain field until the first value exists. #}
-              <input class="kp-field__input" type="text" id="field-{{ f.name }}" name="{{ f.name }}" autocomplete="off" placeholder="{{ f.placeholder }}" required{% if loop.first %} data-issue-in="topic"{% endif %}>
-              <p class="kp-field__help">None used before yet; what you type is offered next time.</p>
-              {% else %}
-              <div class="kp-combobox kp-usual" data-kp-combobox data-kp-usual='{{ form_usual[loop.index0]|tojson }}' data-kp-add="inline" data-kp-usual-label="Used before" data-kp-all="open">
-                <input class="kp-combobox__input kp-field__input" id="field-{{ f.name }}" name="{{ f.name }}" type="text" role="combobox" aria-expanded="false" aria-controls="field-{{ f.name }}-list" autocomplete="off" placeholder="{{ f.placeholder }}" required{% if loop.first %} data-issue-in="topic"{% endif %}>
-                <ul class="kp-combobox__list" id="field-{{ f.name }}-list" role="listbox" hidden>{% for v in form_usual[loop.index0] %}<li class="kp-combobox__option" role="option" data-kp-option data-value="{{ v }}">{{ v }}</li>{% endfor %}</ul>
-                <p class="kp-combobox__status" data-kp-combobox-status role="status" aria-live="polite"></p>
+            {# clients-issue, round 3: every field is a row of one .kp-formgrid
+               (label, control, then the hint on the value track), so the
+               fields fill their cell and start and end on the same edges. #}
+            <div class="kp-formgrid issue-form">
+              <div class="kp-field kp-formgrid__row">
+                <label class="kp-formgrid__label" for="name"><span>Name <span class="kp-field__required">required</span></span></label>
+                <div class="kp-formgrid__control"><input class="kp-field__input" type="text" id="name" name="name" placeholder="home-assistant" required pattern="[A-Za-z0-9._\-]{1,64}" autocomplete="off" data-issue-in="name"></div>
+                <div class="kp-formgrid__value"><p class="kp-field__help">Letters, digits, dots, underscores and hyphens; 1 to 64 characters.</p><span class="kp-field__error" data-kp-field-error hidden></span></div>
               </div>
-              <p class="kp-field__help">Pick one used before, or type a new one.</p>
-              {% endif %}
-              <span class="kp-field__error" data-kp-field-error hidden></span>
+              {% for f in form_fields %}
+              <div class="kp-field kp-formgrid__row">
+                <label class="kp-formgrid__label" for="field-{{ f.name }}"><span>{{ f.label }} <span class="kp-field__required">required</span></span></label>
+                <div class="kp-formgrid__control">
+                {% if f.kind == "select" %}
+                  <select class="kp-field__input" id="field-{{ f.name }}" name="{{ f.name }}" required{% if loop.first %} data-issue-in="topic"{% endif %}>
+                    <option value="" disabled selected>— choose —</option>
+                    {% for o in f.options %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
+                  </select>
+                {% elif not form_usual[loop.index0] %}
+                  {# Nothing used before: the usual picker would draw an empty plate in the middle of the form, so a plain field until the first value exists. #}
+                  <input class="kp-field__input" type="text" id="field-{{ f.name }}" name="{{ f.name }}" autocomplete="off" placeholder="{{ f.placeholder }}" required{% if loop.first %} data-issue-in="topic"{% endif %}>
+                {% else %}
+                  <div class="kp-combobox kp-usual" data-kp-combobox data-kp-usual='{{ form_usual[loop.index0]|tojson }}' data-kp-add="inline" data-kp-usual-label="Used before" data-kp-all="open">
+                    <input class="kp-combobox__input kp-field__input" id="field-{{ f.name }}" name="{{ f.name }}" type="text" role="combobox" aria-expanded="false" aria-controls="field-{{ f.name }}-list" autocomplete="off" placeholder="{{ f.placeholder }}" required{% if loop.first %} data-issue-in="topic"{% endif %}>
+                    <ul class="kp-combobox__list" id="field-{{ f.name }}-list" role="listbox" hidden>{% for v in form_usual[loop.index0] %}<li class="kp-combobox__option" role="option" data-kp-option data-value="{{ v }}">{{ v }}</li>{% endfor %}</ul>
+                    <p class="kp-combobox__status" data-kp-combobox-status role="status" aria-live="polite"></p>
+                  </div>
+                {% endif %}
+                </div>
+                <div class="kp-formgrid__value">{% if f.kind != "select" %}<p class="kp-field__help">{% if form_usual[loop.index0] %}Pick one used before, or type a new one.{% else %}None used before yet; what you type is offered next time.{% endif %}</p>{% endif %}<span class="kp-field__error" data-kp-field-error hidden></span></div>
+              </div>
+              {% endfor %}
             </div>
-            {% endfor %}
           </div>
           <div class="issue-result" data-issue-pane="result" hidden>
             <div class="issue-result__part">

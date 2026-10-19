@@ -1308,6 +1308,7 @@ mod tests {
             "data-issue-command",
             "Copy with the token filled in",
             "data-issue-pane=\"result\"",
+            "class=\"kp-formgrid issue-form\"",
         ] {
             assert!(
                 html.contains(part) || css.contains(part),
