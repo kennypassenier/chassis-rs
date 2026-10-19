@@ -951,6 +951,26 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/week.js"),
     ),
     (
+        "kp/js/diff.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/diff.js"),
+    ),
+    (
+        "kp/js/feed.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/feed.js"),
+    ),
+    (
+        "kp/js/live-options.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/live-options.js"),
+    ),
+    (
+        "kp/js/logviewer.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/logviewer.js"),
+    ),
+    (
         "kp/js/weekdays.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/weekdays.js"),

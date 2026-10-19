@@ -16,7 +16,7 @@
 //
 //   data-kp-follow            `tail` (default) | `head`: where new rows arrive (head: a newest-first list)
 //   data-kp-follow-threshold  px from the end that still count as following (default 24)
-//   data-kp-pill-placement    `bottom` | `top`; default the end the rows arrive at
+//   data-kp-pill-placement    `bottom` | `top`; default the end the rows arrive at; read again when it changes (js/live-options.js)
 //   data-kp-pill-unit         "line,lines": the app's word for a row, singular and plural
 //   data-kp-since-left        on by default: a divider "New since 14:32" before the first row that came while the tab was away;
 //                             `off` leaves it out (read each time, so it can be switched at runtime)
@@ -30,6 +30,7 @@
 // to a screen reader at most every ten seconds.
 
 import { getStrings } from './strings.js';
+import { watchOptions } from './live-options.js';
 
 /** The scrollers this module looks after. */
 export const FOLLOW = '[data-kp-follow]';
@@ -89,14 +90,11 @@ function attachOne(el, options) {
     const strings = getStrings();
     const head = (options.follow ?? el.getAttribute('data-kp-follow')) === 'head';
     const threshold = options.threshold ?? (Number(el.getAttribute('data-kp-follow-threshold')) || FOLLOW_THRESHOLD);
-    const placement =
-        (options.placement ?? el.getAttribute('data-kp-pill-placement')) === 'top'
-            ? 'top'
-            : (options.placement ?? el.getAttribute('data-kp-pill-placement')) === 'bottom'
-              ? 'bottom'
-              : head
-                ? 'top'
-                : 'bottom';
+    // Read again when `data-kp-pill-placement` changes [live-options-1019].
+    const placementNow = () => {
+        const asked = options.placement ?? el.getAttribute('data-kp-pill-placement');
+        return asked === 'top' ? 'top' : asked === 'bottom' ? 'bottom' : head ? 'top' : 'bottom';
+    };
     const unitRaw = (options.unit ?? el.getAttribute('data-kp-pill-unit') ?? '').split(/[,/]/).map((w) => w.trim());
     const unitOne = unitRaw[0] || strings.newpillUnitOne;
     const unitMany = unitRaw[1] || (unitRaw[0] ? `${unitRaw[0]}s` : strings.newpillUnitMany);
@@ -109,7 +107,8 @@ function attachOne(el, options) {
     const pill = /** @type {HTMLButtonElement} */ (doc.createElement('button'));
     pill.type = 'button';
     pill.className = 'kp-newpill kp-button';
-    pill.setAttribute('data-kp-pill-placement', placement);
+    pill.setAttribute('data-kp-pill-placement', placementNow());
+    const stopOptions = watchOptions(el, ['data-kp-pill-placement'], () => pill.setAttribute('data-kp-pill-placement', placementNow()));
     pill.hidden = true;
     const number = doc.createElement('span');
     number.className = 'kp-newpill__count';
@@ -171,8 +170,6 @@ function attachOne(el, options) {
         if (n > 0) {
             number.textContent = strings.newpillNew(n, n === 1 ? unitOne : unitMany);
             back.textContent = head ? strings.newpillBackHead : strings.newpillBackTail;
-            // The widest the pill gets for this count: the next digit's room is held.
-            pill.style.setProperty('--kp-newpill-digits', String(Math.max(2, String(n).length)));
         }
         el.setAttribute('data-kp-following', String(following && !paused));
         for (const toggle of toggles()) {
@@ -315,6 +312,7 @@ function attachOne(el, options) {
 
     HANDLES.set(el, { pause, resume: jump, jump, unseen: count, following: () => following && !paused });
     return () => {
+        stopOptions();
         observer?.disconnect();
         el.removeEventListener('scroll', onScroll);
         el.removeEventListener('keydown', onKey);

@@ -580,6 +580,10 @@ export function attachConfirmations(
         // never fired at any number of clicks. A consumer who wants this
         // module over a React button anyway passes `ownedBy: ''`.
         if (ownedBy !== '' && button.matches(ownedBy)) continue;
+        // Only a control is confirmed. A component that takes `data-kp-confirm` as an option of its own (the passkey
+        // list's `dialog` or `type-name`) is not a button: armed as one, every click inside it, Rename too, asked to
+        // confirm (chassis-rs, 2026-10-19).
+        if (!button.matches('button, a[href], input[type="button"], input[type="submit"], [role="button"]')) continue;
         if (button.dataset.kpConfirmAttached === '1') continue;
         button.dataset.kpConfirmAttached = '1';
 

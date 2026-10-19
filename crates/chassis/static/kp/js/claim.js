@@ -47,7 +47,7 @@
 // update (another person took it while the page was open). Every word is in js/strings.js; nothing runs on import.
 
 import { getStrings } from './strings.js';
-import { CHECKLIST_RENDER_EVENT, getChecklistItems, setChecklistItems } from './checklist.js';
+import { CHECKLIST_RENDER_EVENT, CHECKLIST_RETRY_EVENT, getChecklistItems, setChecklistItems } from './checklist.js';
 import { setIdmark } from './idmark.js';
 import { setMenu, attachMenuButtons, MENU_SELECT_EVENT } from './menu-button.js';
 import { attachDisabledReasons } from './reason.js';
@@ -515,17 +515,7 @@ function decorate(list) {
         }
     } else note?.remove();
 
-    // A failed list gets its Retry.
-    const empty = /** @type {HTMLElement | null} */ (body.querySelector(':scope > .kp-checklist__empty'));
-    if (empty) {
-        const retry = empty.querySelector('.kp-claim__retry');
-        if (list.hasAttribute('data-kp-checklist-error') && !retry) {
-            const b = /** @type {HTMLButtonElement} */ (el('kp-button kp-stateplate__action kp-claim__retry', 'button'));
-            b.type = 'button';
-            b.textContent = s.claimRetry;
-            empty.append(b);
-        } else if (!list.hasAttribute('data-kp-checklist-error') && retry) retry.remove();
-    }
+    // A failed list has its Retry on the checklist's own failed plate; the claim part only re-fires it under its own name (attachClaims).
     if (loading) list.setAttribute('data-kp-claim-loading', '');
     else list.removeAttribute('data-kp-claim-loading');
 }
@@ -742,7 +732,6 @@ export function attachClaims(root = document) {
             if (chip) return setClaimFilter(list, chip.getAttribute('data-value') ?? 'all');
             if (target.closest('.kp-claim__take-all')) return void takeAll(list);
             if (target.closest('.kp-claim__copy')) return void copyGaps(list);
-            if (target.closest('.kp-claim__retry')) list.dispatchEvent(new CustomEvent(CLAIM_RETRY_EVENT, { bubbles: true }));
         };
         /** @param {Event} event */
         const onMenu = (event) => {
@@ -783,6 +772,9 @@ export function attachClaims(root = document) {
             attributeFilter: ['mode', 'gap', 'gap-sort', 'person', 'count', 'self-label', 'max', 'disabled', 'disabled-reason', 'take-all', 'copy', 'filter-chips'].map((n) => `data-kp-claim-${n}`),
         });
         list.addEventListener('click', onClick);
+        // The checklist's Retry is the claim list's Retry too [r6r8-1019].
+        const onRetry = () => list.dispatchEvent(new CustomEvent(CLAIM_RETRY_EVENT, { bubbles: true }));
+        list.addEventListener(CHECKLIST_RETRY_EVENT, onRetry);
         list.addEventListener(MENU_SELECT_EVENT, onMenu);
         /** @type {(() => void) | undefined} */
         let stopKeys;
@@ -817,6 +809,7 @@ export function attachClaims(root = document) {
             () => watcher.disconnect(),
             () => list.removeEventListener('keydown', onKey),
             () => list.removeEventListener('click', onClick),
+            () => list.removeEventListener(CHECKLIST_RETRY_EVENT, onRetry),
             () => list.removeEventListener(MENU_SELECT_EVENT, onMenu),
             () => stopKeys?.(),
             stopReasons,

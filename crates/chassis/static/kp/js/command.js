@@ -147,10 +147,12 @@ export function attachCommands(root = document) {
         copy.dataset.kpCopiedText = s.copied;
         copy.textContent = s.copy;
         copy.setAttribute('aria-describedby', name.id);
-        // Two invisible copies hold the cell as wide as the wider word.
+        // Invisible copies hold the cell as wide as the widest word of the code block's Copy (Copy, Copied, Blocked), so the
+        // two Copy buttons of one page share one width [alignrest-1019].
         for (const [word, copied] of [
             [s.copy, false],
             [s.copied, true],
+            [s.copyBlocked, false],
         ]) {
             const ghost = doc.createElement('span');
             ghost.className = 'kp-button kp-button--sm kp-copyable__button kp-command__copy kp-command__ghost';

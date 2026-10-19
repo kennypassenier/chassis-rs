@@ -22,6 +22,9 @@
 // off. Turning every other value on is the same as none, so a multi group
 // goes back to All (`data-kp-segmented-collapse="false"` keeps them on).
 //
+// The mode is an option that can change at runtime [live-options-1019]: set `data-kp-segmented` to `single`, `multi` or `tri`
+// and the group is written the way the new mode reads it, the values that were on staying on (a single group keeps the first).
+//
 // Both modes use a roving tabindex: one tab stop in, arrows within. In multi
 // the arrows only move the focus; Space and Enter turn the value.
 //
@@ -64,6 +67,7 @@
 // Nothing runs on import; attachSegmented(root) returns a detach.
 
 import { getStrings } from './strings.js';
+import { watchOptions } from './live-options.js';
 
 /** A segmented control or a chip group. */
 export const SEGMENTED = '[data-kp-segmented]';
@@ -115,6 +119,8 @@ export const MORE_ATTRIBUTE = 'data-kp-segmented-more';
 
 /** Observers, per group, so a detach can let go. @type {WeakMap<Element, ResizeObserver>} */
 const WATCH = new WeakMap();
+/** The stop of the watcher on `data-kp-segmented`, per group. @type {WeakMap<Element, () => void>} */
+const MODE = new WeakMap();
 /** The scroll listener of a scrolling track, per group, so a detach can let go. @type {WeakMap<Element, () => void>} */
 const REACH = new WeakMap();
 /** Events already handled, for a group under two attached roots. @type {WeakSet<Event>} */
@@ -413,6 +419,57 @@ export function layout(group) {
 }
 
 /**
+ * The values that were on while the group was in `mode`, read the way that mode wrote them.
+ * @param {Element} group @param {string} mode
+ */
+function valuesIn(group, mode) {
+    const on = mode === 'tri' ? 'include' : 'true';
+    return itemsOf(group)
+        .filter((item) => (mode === 'tri' ? item.getAttribute(TRI_ATTRIBUTE) : item.getAttribute(mode === 'multi' ? 'aria-pressed' : 'aria-checked')) === on)
+        .filter((item) => !(mode !== 'single' && isAll(item)))
+        .map(valueOf);
+}
+
+/**
+ * `data-kp-segmented` changed from `was` to something else: the roles and the state attributes are written the way the new
+ * mode reads them, and the values that were on stay on (a single group keeps the first of several). The event is not fired:
+ * the page changed the mode, the person chose nothing.
+ * @param {Element} group @param {string} was
+ */
+function switchMode(group, was) {
+    const tri = isTri(group);
+    const multi = isMulti(group);
+    // The "All" item is a value of its own in a single group and the absence of values in the other two.
+    const all = itemsOf(group).find(isAll);
+    let values = valuesIn(group, was);
+    if (all && (multi || tri)) values = values.filter((value) => value !== valueOf(all));
+    else if (all && values.length === 0) values = [valueOf(all)];
+    if (was === 'tri' && !tri) {
+        // Leaving the three-way look: its marks, spoken words, summary line and status region go.
+        for (const item of itemsOf(group)) {
+            item.removeAttribute(TRI_ATTRIBUTE);
+            item.removeAttribute('aria-disabled');
+            for (const part of item.querySelectorAll(':scope > .kp-segmented__mark, :scope > .kp-segmented__state')) part.remove();
+        }
+        const next = group.nextElementSibling;
+        if (next?.classList.contains('kp-segmented__summary')) next.remove();
+        group.parentElement?.querySelector(`:scope > .kp-segmented__live[data-for="${CSS.escape(group.id || '')}"]`)?.remove();
+    }
+    const role = group.getAttribute('role');
+    if (role === null || role === 'group' || role === 'radiogroup') group.setAttribute('role', multi || tri ? 'group' : 'radiogroup');
+    for (const item of itemsOf(group)) {
+        item.removeAttribute('aria-checked');
+        item.removeAttribute('aria-pressed');
+        if (multi || tri) {
+            if (item.getAttribute('role') === 'radio') item.removeAttribute('role');
+        } else if (!item.hasAttribute('role')) item.setAttribute('role', 'radio');
+        if (tri && !isAll(item)) writeTri(item, 'any');
+    }
+    if (tri) setSegmentedTri(group, { include: values });
+    else paint(group, values);
+}
+
+/**
  * Give a group the roles and states its markup left out, and watch its size.
  * Idempotent; called by attach and, for a group added later, by its first use.
  * @param {Element} group
@@ -433,6 +490,16 @@ function enhance(group) {
             REACH.set(group, onScroll);
         }
         if (typeof document !== 'undefined' && document.fonts?.ready) document.fonts.ready.then(() => layout(group));
+        // The mode (`single`, `multi`, `tri`) is read again when `data-kp-segmented` changes [live-options-1019].
+        let mode = group.getAttribute('data-kp-segmented') ?? 'single';
+        MODE.set(
+            group,
+            watchOptions(group, ['data-kp-segmented'], () => {
+                const was = mode;
+                mode = group.getAttribute('data-kp-segmented') ?? 'single';
+                switchMode(group, was);
+            }),
+        );
     }
     const observer = WATCH.get(group);
     for (const item of itemsOf(group)) {
@@ -712,6 +779,8 @@ export function attachSegmented(root = document) {
             const onScroll = REACH.get(group);
             if (onScroll) group.removeEventListener('scroll', onScroll);
             REACH.delete(group);
+            MODE.get(group)?.();
+            MODE.delete(group);
             ENHANCED.delete(group);
         }
     };

@@ -37,11 +37,11 @@
 // list, as a listbox does; Home and End jump; Enter and Space open it when the
 // panes are folded. Esc in the aside closes it (`data-kp-aside-closable`).
 //
-// States of the detail pane (setPaneState): `empty` (the default while nothing
-// is selected: "Pick an item on the left", centred at the heading size),
-// `loading` (the theme's busy card over the detail pane only; the list stays
-// usable), `error` (the destructive plate filling the pane with Retry) and
-// `ready`. The consumer reacts to the events and draws the detail itself.
+// States (setPaneState): `empty` (the default while nothing is selected:
+// "Pick an item on the left", centred at the heading size in the detail pane;
+// with nothing in the list it covers the whole master-detail), `loading` (the theme's
+// busy card over the detail pane only; the list stays usable), `error` (the
+// destructive plate over the whole master-detail with Retry) and `ready`. The consumer reacts to the events and draws the detail itself.
 //
 // Events (bubbling, on the root):
 //   kp-pane-select  { key, item }       the selection moved (arrow keys, a click)
@@ -280,6 +280,12 @@ function wire(rootEl, historyOption) {
     const setState = (next, options = {}) => {
         state = next;
         rootEl.setAttribute('data-kp-state', next);
+        // A failure, and an empty master-detail with nothing in its list, cover the whole master-detail, list included
+        // [states-two-1019]; an empty detail beside a list with items ("Pick an item on the left") stays in the detail pane, beside the
+        // list it points at.
+        const wide = next === 'error' || (next === 'empty' && !rootEl.querySelector('[data-kp-pane="list"] [data-kp-pane-key]'));
+        rootEl.toggleAttribute('data-kp-state-wide', wide);
+        for (const pane of rootEl.querySelectorAll(':scope > [data-kp-pane="list"], :scope > [data-kp-pane="aside"]')) pane.toggleAttribute('inert', wide);
         const loading = next === 'loading';
         bodyEl.toggleAttribute('inert', loading || next === 'empty' || next === 'error');
         if (loading) bodyEl.setAttribute('aria-busy', 'true');

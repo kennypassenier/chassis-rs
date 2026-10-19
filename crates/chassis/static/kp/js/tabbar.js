@@ -45,6 +45,27 @@
 // or null); `setTabbarCurrent(bar, id)` moves `aria-current` to the tab with
 // that `data-kp-tab`; `setTabbarBusy(tab, busy)` puts one tab to wait. Nothing runs on import; attachTabbars(root) returns a
 // detach.
+//
+// A count on a tab of the underline row [gap-tab-count; the admin dashboard's `sh-count` on a stack page, "Apps 7 · Logs 12"].
+// The bottom bar has had its badge since kpadopt-nav; the row of `.kp-tab` had none, so the dashboard drew a grey pill of its own
+// and a number that appeared late moved the tab. The count is a part of the tab, written from attributes (an attribute change
+// redraws it) or by `setTabCount(tab, count, options)`:
+//
+//   <button type="button" class="kp-tab" role="tab" aria-selected="false"
+//           data-kp-tab-count="12" data-kp-tab-count-tone="error" data-kp-tab-count-unit="error,errors">Logs</button>
+//
+//   data-kp-tab-count            the exact number (12 is 12 and 1534 is 1534, never `9+`); empty or absent: no count (not 0)
+//   data-kp-tab-count-tone       neutral (default), info, success, warning or error: the badge's own plates
+//   data-kp-tab-count-unit       "error,errors": the word after the number, singular then plural. A screen reader always hears it
+//                            ("Logs, 12 errors"); it is drawn too with `data-kp-tab-count-show-unit`
+//   data-kp-tab-count-state      loading: a skeleton the width of the last number (two digits at first), never a 0; error: a dash,
+//                            and the words "could not be counted" for a screen reader and the title
+//   data-kp-tab-count-zero       show: a 0 is information ("History 0 incidents"); otherwise 0 draws nothing
+//
+// The room of the digits is held (`--kp-tab-count-digits`, never fewer than two), so a number that arrives, grows a digit or
+// changes tone moves no tab. Nothing runs on import; attachTabCounts(root) returns a detach.
+
+import { getStrings } from './strings.js';
 
 /** A tab bar. */
 export const TABBAR = '.kp-tabbar';
@@ -64,6 +85,8 @@ export const TABBAR_HEIGHT_PROPERTY = '--kp-tabbar-height';
  * @returns {HTMLElement | null} the badge
  */
 export function setTabbarBadge(tab, count) {
+    // The same call on a tab of the underline row writes its count part instead (one function covers both bars).
+    if (tab.matches('.kp-tab') && !tab.matches('.kp-tabbar__tab')) return setTabCount(tab, count);
     let badge = /** @type {HTMLElement | null} */ (tab.querySelector('.kp-tabbar__badge'));
     const whole = count === null || !Number.isFinite(count) ? 0 : Math.trunc(count);
     const none = whole <= 0;
@@ -116,6 +139,205 @@ export function setTabbarBusy(tab, busy) {
         made.setAttribute('aria-hidden', 'true');
         icon.append(made);
     } else if (!busy) spinner?.remove();
+}
+
+/** A tab of the underline row. */
+export const TAB = '.kp-tab';
+
+/** The tones a count may carry; each is a plate the badge already has. */
+export const TAB_COUNT_TONES = /** @type {const} */ (['neutral', 'info', 'success', 'warning', 'error']);
+
+/** @typedef {'neutral' | 'info' | 'success' | 'warning' | 'error'} TabCountTone */
+
+/** Fired on a tab (bubbling) when what its count shows changed: `{ tab, count, state, tone }`. */
+export const TAB_COUNT_EVENT = 'kp-tab-count';
+
+/** The attributes a count is drawn from. */
+const COUNT_ATTRIBUTES = [
+    'data-kp-tab-count',
+    'data-kp-tab-count-tone',
+    'data-kp-tab-count-unit',
+    'data-kp-tab-count-state',
+    'data-kp-tab-count-zero',
+    'data-kp-tab-count-show-unit',
+];
+
+/** The badge class of each tone. @type {Record<string, string>} */
+const TONE_CLASS = { info: 'kp-badge--info', success: 'kp-badge--success', warning: 'kp-badge--warning', error: 'kp-badge--destructive' };
+
+/**
+ * What a tab's attributes ask for.
+ * @param {Element} tab
+ * @returns {{ state: 'none' | 'loading' | 'error' | 'ready', count: number | null, tone: TabCountTone, unit: string[], zero: boolean, showUnit: boolean }}
+ */
+function countOf(tab) {
+    const raw = tab.getAttribute('data-kp-tab-count');
+    const asked = tab.getAttribute('data-kp-tab-count-state');
+    const number = raw === null || raw.trim() === '' || Number.isNaN(Number(raw)) ? null : Math.max(0, Math.trunc(Number(raw)));
+    const state =
+        raw === 'loading' || asked === 'loading' ? 'loading' : raw === 'error' || asked === 'error' ? 'error' : number === null ? 'none' : 'ready';
+    const tone = /** @type {TabCountTone} */ (TAB_COUNT_TONES.find((t) => t === tab.getAttribute('data-kp-tab-count-tone')) ?? 'neutral');
+    const unit = (tab.getAttribute('data-kp-tab-count-unit') ?? '')
+        .split(',')
+        .map((word) => word.trim())
+        .filter(Boolean);
+    return {
+        state,
+        count: number,
+        tone,
+        unit,
+        zero: tab.getAttribute('data-kp-tab-count-zero') === 'show',
+        showUnit: tab.hasAttribute('data-kp-tab-count-show-unit'),
+    };
+}
+
+/** What each tab last drew, so a redraw of the same count says nothing and writes nothing. @type {WeakMap<Element, string>} */
+const DRAWN = new WeakMap();
+
+/**
+ * Draw the count part of one tab from its attributes. Made when missing, kept in place otherwise.
+ *
+ * @param {Element} tab a `.kp-tab`
+ * @returns {HTMLElement | null} the count part, null while the tab has none
+ */
+export function drawTabCount(tab) {
+    const doc = tab.ownerDocument;
+    const s = getStrings();
+    const { state, count, tone, unit, zero, showUnit } = countOf(tab);
+    let part = /** @type {HTMLElement | null} */ (tab.querySelector(':scope > .kp-tab__count'));
+    const shown = state === 'loading' || state === 'error' || (state === 'ready' && (zero || (count ?? 0) > 0));
+    if (!shown) {
+        part?.remove();
+        if (DRAWN.has(tab)) {
+            DRAWN.delete(tab);
+            tab.dispatchEvent(new CustomEvent(TAB_COUNT_EVENT, { bubbles: true, detail: { tab, count: null, state: 'none', tone } }));
+        }
+        return null;
+    }
+    if (!part) {
+        part = doc.createElement('span');
+        tab.append(part);
+    }
+    // The key of what is drawn: nothing below is touched when it is the same (a refresh that reads the same number).
+    const word = unit.length === 0 ? '' : count === 1 || unit.length === 1 ? unit[0] : unit[1];
+    const key = [state, count, tone, word, showUnit].join('|');
+    if (DRAWN.get(tab) === key && part.isConnected) return part;
+    DRAWN.set(tab, key);
+
+    part.className = `kp-badge kp-tab__count${TONE_CLASS[tone] ? ` ${TONE_CLASS[tone]}` : ''}`;
+    part.setAttribute('data-kp-tone', tone);
+    part.setAttribute('data-kp-state', state);
+    part.removeAttribute('title');
+    // The room of the digits, held: the last number's, two at least. Loading keeps what the last number had.
+    if (state === 'ready' && count !== null) part.style.setProperty('--kp-tab-count-digits', String(Math.max(2, String(count).length)));
+    else if (!part.style.getPropertyValue('--kp-tab-count-digits')) part.style.setProperty('--kp-tab-count-digits', '2');
+
+    /** @param {string} text @param {string} [className] */
+    const span = (text, className) => {
+        const node = doc.createElement('span');
+        if (className) node.className = className;
+        node.textContent = text;
+        return node;
+    };
+    // The tab's name reads "Logs, 12 errors": the comma is for the screen reader only.
+    const lead = span(', ', 'kp-sr-only');
+    if (state === 'loading') {
+        const bone = doc.createElement('span');
+        bone.className = 'kp-skeleton kp-tab__bone';
+        bone.setAttribute('role', 'img');
+        bone.setAttribute('aria-label', s.tabCountCounting);
+        part.replaceChildren(lead, bone);
+    } else if (state === 'error') {
+        const dash = span('–');
+        dash.setAttribute('aria-hidden', 'true');
+        part.replaceChildren(lead, dash, span(s.tabCountFailed, 'kp-sr-only'));
+        part.title = s.tabCountFailed;
+    } else {
+        const nodes = [lead, span(String(count))];
+        if (word) nodes.push(showUnit ? span(` ${word}`, 'kp-tab__unit') : span(` ${word}`, 'kp-sr-only'));
+        part.replaceChildren(...nodes);
+    }
+    tab.dispatchEvent(new CustomEvent(TAB_COUNT_EVENT, { bubbles: true, detail: { tab, count: state === 'ready' ? count : null, state, tone } }));
+    return part;
+}
+
+/**
+ * Write the count of a tab of the underline row: every digit of it (12 is 12 and 1534 is 1534, never `9+` or `1.5k`), nothing at
+ * `null` (a tab that has not been counted is not a tab with 0), nothing at 0 unless `zero: 'show'`. `'loading'` draws a skeleton
+ * the width of the last number, `'error'` a dash with the words "could not be counted" for a screen reader. An option left out keeps
+ * what the tab already says, so a refresh is `setTabCount(tab, 13)`; `null` as an option takes it away. The call writes the
+ * `data-kp-tab-count…` attributes and draws, so markup and call are one thing.
+ *
+ * @param {Element} tab a `.kp-tab`
+ * @param {number | null | 'loading' | 'error'} count
+ * @param {{ tone?: TabCountTone | null, unit?: string | null, zero?: 'show' | 'hide' | null, showUnit?: boolean | null }} [options]
+ *        `unit` is the singular and the plural, "error,errors"
+ * @returns {HTMLElement | null} the count part
+ */
+export function setTabCount(tab, count, options = {}) {
+    if (count === 'loading' || count === 'error') {
+        // The last number stays on the tab: the skeleton keeps its width, and the number comes back with the next call.
+        tab.setAttribute('data-kp-tab-count-state', count);
+    } else {
+        tab.removeAttribute('data-kp-tab-count-state');
+        const whole = count === null || !Number.isFinite(count) ? null : Math.max(0, Math.trunc(count));
+        if (whole === null) tab.removeAttribute('data-kp-tab-count');
+        else tab.setAttribute('data-kp-tab-count', String(whole));
+    }
+    /** @param {string} name @param {string | null | undefined} value */
+    const put = (name, value) => {
+        if (value === undefined) return;
+        if (value === null || value === '') tab.removeAttribute(name);
+        else tab.setAttribute(name, value);
+    };
+    put('data-kp-tab-count-tone', options.tone);
+    put('data-kp-tab-count-unit', options.unit);
+    put('data-kp-tab-count-zero', options.zero === 'hide' ? null : options.zero);
+    if (options.showUnit !== undefined) tab.toggleAttribute('data-kp-tab-count-show-unit', options.showUnit === true);
+    return drawTabCount(tab);
+}
+
+/**
+ * Keep the count of every tab under `root` drawn from its attributes: now, and whenever an attribute of the count changes or a
+ * tab comes. Idempotent.
+ *
+ * @param {ParentNode} [root]
+ * @returns {() => void} detach
+ */
+export function attachTabCounts(root = document) {
+    const doc = root instanceof Document ? root : (root.ownerDocument ?? document);
+    const view = doc.defaultView;
+    const asked = `${TAB}[data-kp-tab-count], ${TAB}[data-kp-tab-count-state]`;
+    const all = () => {
+        const found = /** @type {Element[]} */ ([]);
+        if (root instanceof Element && root.matches(asked)) found.push(root);
+        for (const tab of root.querySelectorAll(asked)) found.push(tab);
+        return found;
+    };
+    for (const tab of all()) drawTabCount(tab);
+    if (!view || typeof view.MutationObserver !== 'function') return () => {};
+    const watch = new view.MutationObserver((records) => {
+        /** @type {Set<Element>} */
+        const todo = new Set();
+        for (const record of records) {
+            if (record.type === 'attributes') {
+                if (record.target instanceof view.Element && record.target.matches(TAB)) todo.add(record.target);
+            } else
+                for (const node of record.addedNodes)
+                    if (node instanceof view.Element) {
+                        if (node.matches(asked)) todo.add(node);
+                        for (const tab of node.querySelectorAll(asked)) todo.add(tab);
+                    }
+        }
+        for (const tab of todo) drawTabCount(tab);
+    });
+    watch.observe(root instanceof Document ? root.documentElement : /** @type {Node} */ (root), {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: COUNT_ATTRIBUTES,
+    });
+    return () => watch.disconnect();
 }
 
 /** @param {HTMLElement} bar @returns {() => void} */

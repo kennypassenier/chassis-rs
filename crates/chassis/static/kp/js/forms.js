@@ -371,9 +371,20 @@ export function attachForms(
         const owner = button.closest('form');
         const busyText = button.dataset.kpBusy ?? getStrings().busy;
         const idleText = button.textContent ?? '';
+        // A flash button owns its faces (rest, busy, result) in
+        // `.kp-flash__stack`; replacing its children destroyed that stack
+        // [kyu 45]. It is checked at submit time, since the flash may be
+        // wired after this attach. The stack's own busy face is shown, and
+        // the button's words are never touched.
+        let ownsFaces = false;
         const onValid = () => {
             button.disabled = true;
             button.setAttribute('aria-busy', 'true');
+            ownsFaces = button.querySelector(':scope > .kp-flash__stack') !== null;
+            if (ownsFaces) {
+                button.setAttribute('data-kp-flash-state', 'busy');
+                return;
+            }
             // The busy words in their own `.kp-button__label`, the element
             // the React button already has, so a register can style the
             // words alone [scope-143].
@@ -388,6 +399,12 @@ export function attachForms(
         const onDone = () => {
             button.disabled = false;
             button.removeAttribute('aria-busy');
+            if (ownsFaces) {
+                ownsFaces = false;
+                // A result the page showed meanwhile stays; only our busy face is taken back.
+                if (button.getAttribute('data-kp-flash-state') === 'busy') button.setAttribute('data-kp-flash-state', 'rest');
+                return;
+            }
             button.textContent = idleText;
         };
         owner?.addEventListener(VALID_EVENT, onValid);
@@ -448,5 +465,66 @@ export function attachSwitches(root = document, { strings } = {}) {
     }
     return () => {
         for (const state of filled) state.replaceChildren();
+    };
+}
+
+/** The blocks of a form grid that give their rows to the grid in a row-sharing card (css: display: contents). */
+const FORMGRID_BLOCK = '.kp-formgrid__group, .kp-formrows, .kp-kv, form';
+
+/**
+ * The rows a row-sharing form grid lays on its stage: every shown child is a row, and a block (a key-value list, a
+ * group, a list of form rows) counts its own children, one level of blocks deep, as the stylesheet flattens them.
+ * @param {Element} grid
+ * @param {number} [depth]
+ * @returns {number}
+ */
+function formgridRows(grid, depth = 0) {
+    let rows = 0;
+    for (const child of grid.children) {
+        if (child instanceof HTMLElement && child.hidden) continue;
+        if (child.matches('template, script, style')) continue;
+        rows += depth < 2 && child.matches(FORMGRID_BLOCK) ? formgridRows(child, depth + 1) : 1;
+    }
+    return rows;
+}
+
+/**
+ * Form grids that share rows [gapform-1019; HTTPSwitchboard 31]. In a `[data-kp-formgrid-stage]`, a `.kp-formgrid` with
+ * `data-kp-formgrid-rows="subgrid"` takes its rows from the stage, so "Source" in one card stands beside "Source" in
+ * the next with one height. A subgrid has to say how many rows it spans, and a count kept by hand drifts the day a row
+ * is added: this writes `--kp-formgrid-rows` on each stage, the row count of its longest card, and writes it again when
+ * a card gains or loses a row or one is hidden.
+ *
+ *   <div data-kp-formgrid-stage>
+ *     <section class="kp-card kp-formgrid" data-kp-formgrid-rows="subgrid">…</section>
+ *     <section class="kp-card kp-formgrid" data-kp-formgrid-rows="subgrid">…</section>
+ *   </div>
+ *
+ * @param {ParentNode} [root]
+ * @returns {() => void} detach: stops watching and removes the counts it wrote
+ */
+export function attachFormgridStages(root = document) {
+    /** @type {Array<() => void>} */
+    const undo = [];
+    for (const stage of root.querySelectorAll('[data-kp-formgrid-stage]')) {
+        if (!(stage instanceof HTMLElement)) continue;
+        const count = () => {
+            let rows = 0;
+            for (const grid of stage.querySelectorAll(":scope > .kp-formgrid[data-kp-formgrid-rows='subgrid']")) {
+                rows = Math.max(rows, formgridRows(grid));
+            }
+            const value = String(Math.max(rows, 1));
+            if (stage.style.getPropertyValue('--kp-formgrid-rows') !== value) stage.style.setProperty('--kp-formgrid-rows', value);
+        };
+        count();
+        const watch = new MutationObserver(count);
+        watch.observe(stage, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'data-kp-formgrid-rows'] });
+        undo.push(() => {
+            watch.disconnect();
+            stage.style.removeProperty('--kp-formgrid-rows');
+        });
+    }
+    return () => {
+        for (const fn of undo) fn();
     };
 }

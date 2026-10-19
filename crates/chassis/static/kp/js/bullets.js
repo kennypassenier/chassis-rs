@@ -28,7 +28,7 @@
 // the card has gone. `empty` says why there is nothing (`emptyTitle`,
 // `emptyText`), `error` says what failed (`message`) with a Retry, a
 // normal-size kp-button, that fires `kp-bullets-retry` (`retry: false` leaves
-// it out). Both are the package's empty state (`.kp-empty`, each theme's own)
+// it out). Both are the package plate (`.kp-stateplate`, js/state-plate.js; each theme's own)
 // filling the list's whole footprint, the height it had with its rows, the
 // words and the button centred in it, so nothing under it moves (Kenny,
 // 2026-10-16: failed, empty and loading fill the component's full normal
@@ -38,6 +38,7 @@ import { getStrings } from './strings.js';
 import { setMeter } from './kpi.js';
 import { setIdmark } from './idmark.js';
 import { openBusyCard } from './busy-card.js';
+import { statePlate } from './state-plate.js';
 
 /** A bullet list the page fills with setBullets(). */
 export const BULLETS = '[data-kp-bullets]';
@@ -173,7 +174,8 @@ function drawLoading(el, spec, memory) {
     }
     memory.card = openBusyCard(el, {
         words: spec.loadingWords ?? getStrings().bulletsLoading,
-        area: () => [list],
+        // The list as it stands now: a second loading call draws a new list under the same card.
+        area: () => [el.querySelector(':scope > .kp-bullets__list') ?? list],
         className: 'kp-bullets__busy',
         arrive: memory.drawn,
     });
@@ -198,25 +200,20 @@ function draw(el, spec, memory) {
         memory.height = Math.max(was, memory.height);
         // A focused Retry that goes with its note leaves the focus on the list, so the keyboard keeps its place.
         const refocus = el.querySelector(':scope > .kp-bullets__note')?.contains(doc.activeElement) ?? false;
-        const note = make(doc, 'kp-empty kp-bullets__note', 'div');
+        // The package plate (js/state-plate.js) dressed by the part's own class; the Retry is the delegated
+        // `[data-kp-bullets-retry]` [states-check-1019].
+        const note = statePlate(doc, {
+            kind: failed ? 'error' : 'empty',
+            title: failed ? (spec.message ?? strings.bulletsError) : (spec.emptyTitle ?? strings.bulletsEmpty),
+            ...(failed ? { text: strings.stateFailedText } : spec.emptyText ? { text: spec.emptyText } : {}),
+            ...(failed && spec.retry !== false ? { actionLabel: strings.bulletsRetry, actionAttribute: 'data-kp-bullets-retry' } : {}),
+        });
+        note.classList.add('kp-bullets__note');
         if (memory.height > 0) note.style.minBlockSize = `${memory.height}px`;
         if (failed) note.setAttribute('data-kp-tone', 'error');
-        note.setAttribute('role', failed ? 'alert' : 'status');
-        const title = make(doc, 'kp-empty__title kp-bullets__note-title', 'p');
-        title.textContent = failed ? (spec.message ?? strings.bulletsError) : (spec.emptyTitle ?? strings.bulletsEmpty);
-        note.append(title);
-        if (!failed && spec.emptyText) {
-            const text = make(doc, 'kp-empty__body kp-bullets__note-text', 'p');
-            text.textContent = spec.emptyText;
-            note.append(text);
-        }
-        if (failed && spec.retry !== false) {
-            const retry = make(doc, 'kp-button kp-bullets__retry', 'button');
-            retry.setAttribute('type', 'button');
-            retry.setAttribute('data-kp-bullets-retry', '');
-            retry.textContent = strings.bulletsRetry;
-            note.append(retry);
-        }
+        note.querySelector('.kp-stateplate__title')?.classList.add('kp-bullets__note-title');
+        note.querySelector('.kp-stateplate__text')?.classList.add('kp-bullets__note-text');
+        note.querySelector('.kp-stateplate__action')?.classList.add('kp-bullets__retry');
         el.replaceChildren(note);
         if (refocus) {
             el.tabIndex = -1;

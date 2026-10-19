@@ -80,11 +80,12 @@
 // verb's subjects (`data-kp-verb`, `data-kp-subject-name`) when the palette sets `data-kp-nomatch="plate"`; the default stays the approved status line alone.
 // `handle.setState('loading' | 'error')` shows the busy card over the list, or the failed plate with Retry beside the
 // commands marked `data-kp-static`. `data-kp-match="substring"` (or `prefix`, `subsequence`) brings the older matchers
-// back for one palette. Other options: `data-kp-fold-diacritics`, `data-kp-split-hyphen`, `data-kp-typo="1"`,
+// back for one palette, and the attribute is read again when it changes (js/live-options.js). Other options: `data-kp-fold-diacritics`, `data-kp-split-hyphen`, `data-kp-typo="1"`,
 // `data-kp-highlight="off"`, `data-kp-group-order="Inbox, Do, Go to"`.
 
 import { createListbox, OPTION_SELECTOR, subsequence } from './listbox.js';
 import { getStrings } from './strings.js';
+import { watchOptions } from './live-options.js';
 import { INTENT_MAX_SHOWN, intentRanges, intentScore, intentWords, matchIntent, noMatchText, queryWords } from './intent.js';
 import { statePlate } from './state-plate.js';
 import { openBusyCard } from './busy-card.js';
@@ -697,10 +698,20 @@ export function attachPalettes(
         const key = dialog.dataset.kpHotkey === 'none' ? null : (dialog.dataset.kpHotkey ?? hotkey);
         const clears = dialog.dataset.kpClearOnClose === undefined ? clearOnClose : dialog.dataset.kpClearOnClose !== 'false';
         const closes = dialog.dataset.kpCloseOnRun === undefined ? closeOnRun : dialog.dataset.kpCloseOnRun !== 'false';
-        const matcher = typeof match === 'function' ? match : (MATCHERS[dialog.dataset.kpMatch ?? match] ?? MATCHERS.substring);
-        // Words in any order is the default [kpadopt6-ops]: the palette ranks, marks and caps itself.
-        const intent =
-            typeof match !== 'function' && (dialog.dataset.kpMatch ?? match) === 'intent' ? createIntentFilter(dialog, list, status) : null;
+        // `data-kp-match` is read again when it changes [live-options-1019]: the matcher and the intent filter are chosen by
+        // `chooseMatcher()` and swapped by the watcher below.
+        /** @type {Matcher} */
+        let matcher = MATCHERS.substring;
+        /** @type {ReturnType<typeof createIntentFilter> | null} */
+        let intent = null;
+        const chooseMatcher = () => {
+            matcher = typeof match === 'function' ? match : (MATCHERS[dialog.dataset.kpMatch ?? match] ?? MATCHERS.substring);
+            // Words in any order is the default [kpadopt6-ops]: the palette ranks, marks and caps itself.
+            intent = typeof match !== 'function' && (dialog.dataset.kpMatch ?? match) === 'intent' ? createIntentFilter(dialog, list, status) : null;
+        };
+        chooseMatcher();
+        /** The last state the page set, handed on when the matcher is swapped. @type {{ state: 'ready' | 'loading' | 'error', options?: { message?: string } } | null} */
+        let lastSet = null;
 
         // data-kp-keys, rendered: the documented attribute nothing read.
         for (const element of list.querySelectorAll(`${OPTION_SELECTOR}[data-kp-keys]`)) {
@@ -729,7 +740,8 @@ export function attachPalettes(
                     .filter((n) => !(n instanceof HTMLElement && n.tagName === 'KBD'))
                     .map((n) => n.textContent ?? '')
                     .join('');
-                const shown = matcher(text, query);
+                // The markup's own indentation is not part of the name: a start of the name starts at its first letter.
+                const shown = matcher(text.trim(), query);
                 option.hidden = !shown;
                 if (shown) visible += 1;
             }
@@ -860,6 +872,15 @@ export function attachPalettes(
         }
 
         filter();
+        const stopMatch = watchOptions(dialog, ['data-kp-match'], () => {
+            if (typeof match === 'function') return;
+            // The old filter gives the commands back (order, marks, hidden), then the new one draws the list.
+            const carried = lastSet;
+            intent?.destroy();
+            chooseMatcher();
+            if (intent !== null && carried !== null) intent.setState(carried.state, carried.options ?? {});
+            filter();
+        });
         /** @type {PaletteHandle} */
         const handle = {
             element: dialog,
@@ -867,6 +888,7 @@ export function attachPalettes(
             close: () => dialog.close(),
             refresh: filter,
             setState: (state, options) => {
+                lastSet = { state, ...(options ? { options } : {}) };
                 intent?.setState(state, options);
                 filter();
             },
@@ -874,6 +896,7 @@ export function attachPalettes(
         handles.set(dialog, handle);
         created.push(handle);
         cleanups.push(() => {
+            stopMatch();
             intent?.destroy();
             listbox.destroy();
             list.removeEventListener('click', onClickStart, true);

@@ -32,7 +32,12 @@
 //     the anchor's own value back after;
 //   - closes by itself when its anchor is removed (a rebuild) and opens
 //     again for the new anchor the next time the pointer or focus arrives;
-//   - ignores touch: a finger has no hover, and a tap must stay a tap.
+//   - on touch a finger has no hover, so a TAP on an anchor opens the card, a tap on the open anchor or anywhere outside
+//     the card closes it, and a tap inside the card keeps it [hover-wheel-1019; the AuDHD recipes app's ingredient
+//     notes were unreachable on a phone]. A tap on an anchor that is itself a control (a link, a button, an input)
+//     stays that control's tap and opens nothing, unless the anchor says `data-kp-touch="tap"` (the first tap then
+//     opens the card and does not follow the link, the second does). `data-kp-touch="off"` leaves one anchor to
+//     touch alone, `touch: false` the whole root. A touch never starts the hover timers; the keyboard is unchanged.
 //
 // The card's words come from the `data-kp-hovercard` attribute, or from the
 // `fill(anchor, card)` callback, which runs at the moment of opening and
@@ -63,6 +68,7 @@ const EDGE = 8;
  * @property {number} [openDelayMs]    Pointer only; keyboard focus opens at once. Default 300. Per anchor `data-kp-open-delay`.
  * @property {number} [closeDelayMs]   Default 100. Per anchor `data-kp-close-delay`.
  * @property {boolean} [closeOnEscape] Default true. Per anchor `data-kp-close-on-escape="false"`.
+ * @property {boolean} [touch]           A tap opens and closes the card. Default true; per anchor `data-kp-touch="off" | "tap"`.
  * @property {string} [cardClass]      A class added to the card, for a page's own measure (it lives in <body>).
  */
 
@@ -96,7 +102,7 @@ export function attachHoverCards(root = document, options = {}) {
         return held.handle;
     }
     /** @type {HoverCardOptions & { selector: string }} */
-    const cfg = { selector: `[${HOVERCARD_ATTRIBUTE}]`, openDelayMs: 300, closeDelayMs: 100, closeOnEscape: true, ...stripped(options) };
+    const cfg = { selector: `[${HOVERCARD_ATTRIBUTE}]`, openDelayMs: 300, closeDelayMs: 100, closeOnEscape: true, touch: true, ...stripped(options) };
     const doc = root instanceof Document ? root : root.ownerDocument;
     const card = doc.createElement('div');
     card.className = `kp-popover kp-tooltip${cfg.cardClass ? ` ${cfg.cardClass}` : ''}`;
@@ -113,6 +119,7 @@ export function attachHoverCards(root = document, options = {}) {
     /** @type {string | null} */
     let described = null; // the anchor's own aria-describedby, put back on close
     let timer = 0;
+    let openedAt = 0; // when the card last opened, so the tap that focus already answered is not taken twice
     let going = false;
     let overCard = false;
     /** @type {(() => void) | null} */
@@ -199,6 +206,7 @@ export function attachHoverCards(root = document, options = {}) {
             announce(false, was);
         }
         current = anchor;
+        openedAt = performance.now();
         describe(anchor);
         if (card.hidden) {
             card.hidden = false;
@@ -287,6 +295,8 @@ export function attachHoverCards(root = document, options = {}) {
     };
     /** @param {PointerEvent} event */
     const onCardLeave = (event) => {
+        // A finger lifting off the card is not the pointer leaving it.
+        if (event.pointerType === 'touch') return;
         overCard = false;
         const to = event.relatedTarget;
         if (current !== null && to instanceof Node && current.contains(to)) return;
@@ -308,6 +318,37 @@ export function attachHoverCards(root = document, options = {}) {
             wanted = null;
         }
     };
+    /** Whether a tap on this anchor is the anchor's own (a link, a button, a field). @param {HTMLElement} anchor */
+    const isControl = (anchor) => anchor.matches('a[href], button, input, select, textarea, summary, [role="button"], [role="link"]');
+    /** @param {HTMLElement} anchor */
+    const touchMode = (anchor) => {
+        const own = anchor.getAttribute('data-kp-touch');
+        if (cfg.touch === false || own === 'off') return 'off';
+        return own === 'tap' || !isControl(anchor) ? 'tap' : 'off';
+    };
+    /** A tap outside the card and its anchor closes it, before the tap does anything else. @param {PointerEvent} event */
+    const onTouchDown = (event) => {
+        if (event.pointerType !== 'touch' || current === null) return;
+        const target = event.target;
+        if (target instanceof Node && (card.contains(target) || current.contains(target))) return;
+        hide();
+    };
+    /** A tap on an anchor opens the card, or closes it when it is the open one. @param {MouseEvent} event */
+    const onTap = (event) => {
+        if (/** @type {PointerEvent} */ (event).pointerType !== 'touch') return;
+        const anchor = anchorOf(event);
+        if (anchor === null || touchMode(anchor) === 'off') return;
+        if (anchor === current) {
+            // Focus opened it a moment ago (a tap focuses a focusable anchor): that was this tap.
+            if (performance.now() - openedAt > 400) hide();
+            else if (isControl(anchor)) event.preventDefault();
+            return;
+        }
+        clearTimeout(timer);
+        open(anchor);
+        // Opened: a control's own action waits for the second tap.
+        if (current === anchor && isControl(anchor)) event.preventDefault();
+    };
     /** @param {KeyboardEvent} event */
     const onKey = (event) => {
         if (event.key !== 'Escape' || current === null) return;
@@ -322,6 +363,8 @@ export function attachHoverCards(root = document, options = {}) {
     card.addEventListener('pointerenter', onCardEnter);
     card.addEventListener('pointerleave', /** @type {EventListener} */ (onCardLeave));
     doc.addEventListener('keydown', onKey);
+    root.addEventListener('click', /** @type {EventListener} */ (onTap));
+    doc.addEventListener('pointerdown', /** @type {EventListener} */ (onTouchDown), true);
 
     const detach = () => {
         clearTimeout(timer);
@@ -330,6 +373,8 @@ export function attachHoverCards(root = document, options = {}) {
         root.removeEventListener('focusin', /** @type {EventListener} */ (onFocusIn));
         root.removeEventListener('focusout', /** @type {EventListener} */ (onFocusOut));
         doc.removeEventListener('keydown', onKey);
+        root.removeEventListener('click', /** @type {EventListener} */ (onTap));
+        doc.removeEventListener('pointerdown', /** @type {EventListener} */ (onTouchDown), true);
         watch?.disconnect();
         if (current?.isConnected) undescribe(current);
         current = null;

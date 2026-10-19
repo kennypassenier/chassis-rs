@@ -31,7 +31,8 @@
 //   data-kp-qr-label      the code's accessible name
 //   data-kp-qr-max        bytes above which a warning shows (default 512)
 //   data-kp-qr-narrow     `code` (default) or `link` (the link and Copy first on a narrow screen)
-//   data-kp-qr-retry      present: a code that could not be made offers Retry (`kp-qr-retry`) for an app that can give another link
+//   data-kp-qr-retry      present: a code that could not be made offers Retry (`kp-qr-retry`) for an app that can give another link;
+//                         adding or taking it away draws the code again, like every option here
 //
 // Events (bubbling, on the root): `kp-qr-copy` `{ value }`, `kp-qr-reveal` `{ shown }`, `kp-qr-expired`, `kp-qr-retry`.
 // Every word is in js/strings.js; nothing runs on import.
@@ -516,7 +517,7 @@ export function attachQr(root = document) {
         });
         watcher.observe(el_, {
             attributes: true,
-            attributeFilter: ['value', 'ecc', 'size', 'quiet', 'look', 'modules', 'render', 'caption', 'copy', 'download', 'reveal', 'expires', 'label', 'max', 'narrow'].map((n) => `data-kp-qr-${n}`),
+            attributeFilter: ['value', 'ecc', 'size', 'quiet', 'look', 'modules', 'render', 'caption', 'copy', 'download', 'reveal', 'expires', 'label', 'max', 'narrow', 'retry'].map((n) => `data-kp-qr-${n}`),
         });
         const stopKeys = registerShortcuts(
             el_,

@@ -67,6 +67,7 @@ import { CHART_TIME_ZONE, wallTime } from './chart.js';
 import { dayKey, shiftDay } from './calendar.js';
 import { resolveLocale } from './locale.js';
 import { resolveStrings } from './strings.js';
+import { hostStatePlate } from './state-plate.js';
 
 /** A week agenda: `section.kp-week[data-kp-week]`. */
 export const WEEK = '[data-kp-week]';
@@ -76,6 +77,8 @@ export const WEEK_OPEN_EVENT = 'kp-week-open';
 export const WEEK_RANGE_EVENT = 'kp-week-range';
 /** How often the now-line and the past marks move, in ms. */
 export const WEEK_TICK_MS = 30_000;
+/** Fired on the agenda, bubbling, when the Retry of its failed state is pressed [state-plates-1019]. */
+export const WEEK_RETRY_EVENT = 'kp-week-retry';
 
 /**
  * @typedef {'next' | 'off' | 'skipped' | 'reference'} WeekEventState
@@ -107,7 +110,7 @@ export const WEEK_TICK_MS = 30_000;
  *   more: HTMLElement | null, moreButton: HTMLButtonElement | null, hidden: WeekItem[] }} WeekDay
  * @typedef {{ el: HTMLElement, zone: string, locale: string, now: () => number, strings: Strings, decorate?: WeekOptions['decorate'],
  *   start: string, days: number, events: WeekEvent[], state: WeekState, active: string | null, grid: HTMLElement,
- *   axis: HTMLElement, cols: WeekDay[], frame: HTMLElement, busy: HTMLElement | null, leaving: Promise<unknown> | null, held: number[] | null, stateLine: HTMLElement, title: HTMLElement | null, today: HTMLButtonElement | null, legend: HTMLElement,
+ *   axis: HTMLElement, cols: WeekDay[], frame: HTMLElement, busy: HTMLElement | null, leaving: Promise<unknown> | null, held: number[] | null, stateLine: HTMLElement, plate: HTMLElement, plateKey: string, plateText: string, plateArt: Node | string | null, title: HTMLElement | null, today: HTMLButtonElement | null, legend: HTMLElement,
  *   motion: { gone: boolean, stop: (() => void) | null, asked: boolean },
  *   pills: Map<string, HTMLButtonElement>, timer: number, observer: ResizeObserver | null, mode: 'grid' | 'list',
  *   upcoming: { n: number, on: boolean, list: HTMLOListElement | null, rows: Map<string, HTMLLIElement>, items: WeekItem[] } }} WeekModel
@@ -304,7 +307,11 @@ function build(c) {
         c.upcoming.list = list;
         frame.append(list);
     }
-    frame.append(c.stateLine);
+    // Loading is read out by the line and drawn as the busy card; empty and failed are the package's state plate over the
+    // whole agenda, with a Retry on a failure [state-plates-1019].
+    c.plate = make(doc, 'div', 'kp-week__plate');
+    c.plate.hidden = true;
+    frame.append(c.stateLine, c.plate);
     c.legend = make(doc, 'ul', 'kp-week__legend');
     c.legend.hidden = true;
     parts.push(frame, c.legend);
@@ -614,16 +621,33 @@ function paint(c) {
     }
     c.el.dataset.kpState = c.state;
     c.grid.toggleAttribute('aria-busy', c.state === 'loading');
-    const words = c.state === 'loading' ? s.weekLoading : c.state === 'empty' ? s.weekEmpty : c.stateLine.dataset.kpWords || '';
-    // The words stand on a plate of the agenda's own ground, so no day's rule runs through them.
-    const said = c.state === 'ready' ? '' : words;
-    if ((c.stateLine.textContent ?? '') !== said) {
-        if (said) {
-            const plate = make(doc, 'span', 'kp-week__state-words', said);
-            c.stateLine.replaceChildren(plate);
-        } else c.stateLine.replaceChildren();
-    }
+    const words =
+        c.state === 'loading'
+            ? s.weekLoading
+            : c.state === 'empty'
+              ? c.stateLine.dataset.kpWords || s.weekEmpty
+              : c.stateLine.dataset.kpWords || s.heatFailed;
+    const said = c.state === 'loading' ? words : '';
+    if ((c.stateLine.textContent ?? '') !== said) c.stateLine.textContent = said;
     c.stateLine.dataset.kpState = c.state;
+    const plateKind = c.state === 'empty' || c.state === 'error' ? c.state : null;
+    // Rebuilt only when what it says changes, so the focus on its Retry survives a repaint.
+    const plateKey = plateKind ? `${plateKind}|${words}|${c.plateText}` : '';
+    if (c.plateKey !== plateKey) {
+        c.plateKey = plateKey;
+        c.plate.replaceChildren();
+        if (plateKind)
+            c.plate.append(
+                hostStatePlate(c.el, {
+                    kind: plateKind,
+                    title: words,
+                    ...(c.plateText ? { text: c.plateText } : {}),
+                    art: c.plateArt,
+                    retryEvent: WEEK_RETRY_EVENT,
+                }),
+            );
+    }
+    c.plate.hidden = plateKind === null;
     const was = c.upcoming.on;
     c.upcoming.on = upcomingOn(c);
     // The rows of the last mode let go of their hold: the other mode holds its own boxes.
@@ -848,6 +872,10 @@ export function attachWeeks(root = document, options = {}) {
             leaving: null,
             held: null,
             stateLine: el,
+            plate: el,
+            plateKey: '',
+            plateText: '',
+            plateArt: null,
             title: null,
             today: null,
             motion: { gone: false, stop: null, asked: false },
@@ -1006,18 +1034,21 @@ export function setWeekEvents(el, events) {
 
 /**
  * The agenda as a whole: `loading` (the data table's busy panel over the empty days), `ready`,
- * `empty` or `error` (`words` over the grid; an error says it in the page's
- * words).
+ * `empty` or `error`: the package's state plate over the whole agenda (`words` its heading, in the page's words; `text` its
+ * sentence; `art` a picture over the heading), an error with a Retry that fires `kp-week-retry` [state-plates-1019].
  * @param {Element} el
  * @param {WeekState} state
  * @param {string} [words]
+ * @param {{ text?: string, art?: Node | string | null }} [plate]
  */
-export function setWeekState(el, state, words = '') {
+export function setWeekState(el, state, words = '', { text = '', art = null } = {}) {
     const c = weeks.get(el);
     if (!c) return;
     if (state === 'loading') watchArrivals(c);
     c.state = state;
     c.stateLine.dataset.kpWords = words;
+    c.plateText = text;
+    c.plateArt = art;
     paint(c);
 }
 
