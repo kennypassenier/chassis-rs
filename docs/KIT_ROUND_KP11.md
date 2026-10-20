@@ -100,3 +100,16 @@ demos on the kp-themes Agenda (research/chassis-kit-*); the rest is API.
   palette, where kp-palette__label / __description edges differ per row
   (1.9 to 31.8 px at 1280, 7 to 19 px at 390). Package-side markup; not yet
   passed on (Kenny passes 3.9.0 news himself, 2026-10-19).
+
+## Queued for the next chassis-rs release (Kenny, 2026-10-20 03:04: first
+## finish every end product, then one kp-themes + one chassis-rs cycle)
+
+1. kyu gap 53: the clients page says "What a app is"; the kit always writes
+   "a" before the vocabulary word (needs "an" before a vowel sound).
+2. almanac: an html-only status section still renders an empty
+   dl[data-chassis-rows] under it.
+3. almanac: settleCards sets an html section back to ready; a hook so the
+   section keeps its own state.
+4. Command palette rows: kp-palette__label / __description edges differ per
+   row (up to 31.8 px at 1280, 19 px at 390); kp-themes is on hold, so fix
+   it kit-side and queue it in ~/Projects/kp-gaps/chassis-rs.md.
