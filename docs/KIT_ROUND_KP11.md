@@ -115,9 +115,3 @@ demos on the kp-themes Agenda (research/chassis-kit-*); the rest is API.
    it kit-side and queue it in ~/Projects/kp-gaps/chassis-rs.md.
 
 All four queued items shipped in 3.10.0 (2026-10-21); the palette needed no kit change (kp-themes 11.2.0 fixed it).
-
-## Queued for the next chassis-rs round (after 3.11.0)
-
-- CLAUDE.md: delete the "Scratch resource | CT 118 …" row. Kenny chose on
-  2026-10-21 to clean up CT 118 (the running inbox) and keep the code;
-  `examples/inbox` stays. Documentation only, no release of its own.
