@@ -32,8 +32,9 @@ scaffold writes. A breaking change in either is a major and carries a
   keys, so the page lists the rows and bytes of the preferences and a targeted
   delete (older than, key contains, login scope contains) goes through the
   existing preview and typed confirmation. The samples show key, scope and
-  size, never the value. Nothing is cleaned up on its own. The kind id
-  `preferences` is now taken. Additive.
+  size and when it was last updated (as a date), never the value. Nothing is
+  cleaned up on its own. The kind id `preferences` is now taken. Additive.
+  On a phone the sample cards wrap a long value instead of cutting it.
 
 - **The browser side of the preferences: `prefs-boot.js`** (`dashboard`): the
   server renders the login's values into every signed-in HTML page (the

@@ -355,3 +355,13 @@ fn budget_editor_keeps_its_ids_its_kit_parts_and_the_one_post() {
     let css = kit_file("static/chassis.css");
     assert!(css.contains(".storage-budget__edit { grid-column: 1 / -1; }"));
 }
+
+/// Measured 2026-10-21 at 390 px: a long preference key was cut without an
+/// ellipsis in the sample cards. As cards, a cell wraps instead.
+#[test]
+fn sample_cards_wrap_long_values() {
+    let css = kit_file("static/chassis.css");
+    assert!(css.contains(
+        ".storage-prev__table[data-kp-cards] td { max-inline-size: none; white-space: normal; overflow-wrap: anywhere; }"
+    ));
+}

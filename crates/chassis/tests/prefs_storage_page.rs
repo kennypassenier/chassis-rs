@@ -66,6 +66,9 @@ async fn the_overview_lists_preferences_with_rows_and_size() {
     assert!(k["bytes"].as_u64().unwrap() > 0);
     assert!(k["oldest"].as_str().unwrap().ends_with('Z'));
     assert_eq!(k["finished_automatically"], false, "never cleans itself");
+    // Measured 2026-10-21: the raw instant was clipped in the sample table.
+    // The update time is a date column, so it is formatted and "older than" works.
+    assert_eq!(k["supports_age"], true);
     let names: Vec<&str> = k["filters"]
         .as_array()
         .unwrap()
@@ -99,6 +102,7 @@ async fn a_targeted_delete_goes_through_preview_and_typed_confirmation() {
         "the page shows the key and its size, not the value"
     );
     assert_eq!(p["confirm_with"], "Preferences");
+    assert_eq!(p["time_column"], "updated", "the page formats it as a date");
 
     let mut body = sel.clone();
     body["token"] = p["token"].clone();

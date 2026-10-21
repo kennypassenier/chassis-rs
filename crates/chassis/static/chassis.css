@@ -959,6 +959,9 @@ pre.snippet {
 
 /* A sample row's long text is cut with an ellipsis; its full text is the cell's title. */
 .storage-prev__table td { max-inline-size: 24rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* As cards (phone width) a cell has the whole row: a long value wraps instead
+   of being cut without an ellipsis (a preference key at 390 px, 2026-10-21). */
+.storage-prev__table[data-kp-cards] td { max-inline-size: none; white-space: normal; overflow-wrap: anywhere; }
 
 /* --- the dialogs: the same frame --- */
 .storage-dialog {

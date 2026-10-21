@@ -21,8 +21,9 @@ pub(crate) const PREFS_KIND_ID: &str = "preferences";
 pub(crate) fn prefs_kind() -> DataKind {
     use super::kinds::Filter;
     DataKind::custom(PREFS_KIND_ID, "Preferences", Arc::new(PrefsOps))
-        .description("What the dashboard remembers per login across browsers: table sorting, filters, tour state. Deleting a row only resets that setting.")
+        .description("What is remembered per login across browsers: table sorting, filters, tour state. Deleting a row only resets that setting.")
         .unit("preferences")
+        .custom_time_key("updated")
         .filter(Filter::text("key", "Key contains", "key"))
         .filter(Filter::text("scope", "Login scope contains", "scope"))
 }

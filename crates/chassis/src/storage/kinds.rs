@@ -214,6 +214,9 @@ pub struct DataKind {
     shape: Shape,
     filters: Vec<Filter>,
     finished: Option<Finisher>,
+    /// For a custom kind: the sample key that holds an instant, so the page
+    /// formats it as a date and offers "older than".
+    custom_time: Option<String>,
 }
 
 impl std::fmt::Debug for DataKind {
@@ -246,6 +249,7 @@ impl DataKind {
             },
             filters: Vec::new(),
             finished: None,
+            custom_time: None,
         }
     }
 
@@ -254,6 +258,13 @@ impl DataKind {
         let mut k = DataKind::new(id, label);
         k.shape = Shape::Custom(ops);
         k
+    }
+
+    /// A custom kind whose samples carry an instant (RFC 3339) under `key`
+    /// and whose ops honour the selector's age cutoff.
+    pub(crate) fn custom_time_key(mut self, key: &str) -> Self {
+        self.custom_time = Some(key.into());
+        self
     }
 
     pub fn description(mut self, text: &str) -> Self {
@@ -353,7 +364,7 @@ impl DataKind {
     }
 
     pub(crate) fn has_time(&self) -> bool {
-        matches!(&self.shape, Shape::Table { time: Some(_), .. })
+        matches!(&self.shape, Shape::Table { time: Some(_), .. }) || self.custom_time.is_some()
     }
 
     /// Check the declaration against the real schema, so a typo is a start
@@ -647,7 +658,7 @@ impl DataKind {
     /// the page then reads the keys of its first sample.
     pub fn sample_layout(&self, conn: &Connection) -> Result<(Vec<String>, Option<String>), Error> {
         match &self.shape {
-            Shape::Custom(_) => Ok((Vec::new(), None)),
+            Shape::Custom(_) => Ok((Vec::new(), self.custom_time.clone())),
             Shape::Table { table, time } => {
                 let mut stmt = conn.prepare(&format!("PRAGMA table_info(\"{table}\")"))?;
                 // The integer primary key is the row's number in the file, not
