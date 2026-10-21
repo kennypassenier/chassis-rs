@@ -1,0 +1,81 @@
+# Storage on sqlite (3.11.0 design, draft)
+
+Kenny, 2026-10-21 (homelab thread): the kit gets a sqlite storage layer now,
+two files in the service's state dir (the kit's own data, the app's data),
+a budget of about 50 MB that only warns, targeted delete controls on a kit
+page "Storage", and a write pause for the backup. Automatic cleanup may
+only ever touch the app file. This document is the design; the open
+questions go to Kenny in one form before anything is built.
+
+## Facts it builds on
+
+- Today the kit keeps `clients.json.enc`, `sessions.json.enc` (or
+  `sessions.open.json.enc`) and `passkeys.json.enc` under the state root
+  (AR5, `shell/store.rs`): `{v, nonce, ciphertext}` with XChaCha20-Poly1305
+  under `<P>_SECRET_KEY`, written temp + fsync + rename, each write under a
+  `WriteTicket`; `rekey_dir` re-seals every `*.json.enc`.
+- `shell/backup.rs`: a global gate (writer count, paused flag, deadline,
+  `Mode::{Writes,Full}`); pausing waits up to 30 s for tickets, runs
+  `App::on_backup_pause` hooks, answers; a hook error falls back to stopping
+  the unit; a dead-man resumes at the `--for` deadline.
+- kyu uses rusqlite 0.40.2 `bundled` (its ADR T2): WAL, `synchronous=FULL`,
+  `busy_timeout` 5 s, one write connection plus a small read pool,
+  `spawn_blocking`, `BEGIN IMMEDIATE`, `wal_checkpoint(TRUNCATE)`, numbered
+  migrations. http-switchboard builds static musl; `bundled` compiles there
+  (a C compiler is already in the image for `ring`).
+- The homelab admin dashboard: 6 JSON stores, 730 KB live on CT 120; it
+  migrates them into the app file in one transaction after 3.11.0.
+
+## Design
+
+1. **Crate:** rusqlite 0.40.2 `bundled` (same as kyu), behind a cargo
+   feature `storage`, on by default. No SQLCipher (no musl story).
+2. **Files:** `<name>.db` (app) and `<name>-kit.db` (kit). Cleanup, VACUUM
+   and delete APIs take only an `AppDb` handle, which cannot be built for the
+   kit file. Both files are listed in the backup controller's paths.
+3. **Connections:** one writer behind a mutex plus 2 read-only readers;
+   pragmas WAL, `synchronous=FULL`, `busy_timeout=5000`, `foreign_keys=ON`;
+   every call under `spawn_blocking`; a write opens `BEGIN IMMEDIATE` and
+   holds a `WriteTicket`, so the existing pause gate covers sqlite writes.
+4. **App API (additive):** `App::app_db(AppDbSpec { migrations, import })`,
+   `App::storage_budget`, `App::storage_kind(DataKind)`,
+   `App::on_storage_warn`; `AppDb::{read, write, stats, vacuum_into}`.
+   Migrations are a numbered list, each atomic; a newer database than the
+   binary is refused. `DataKind::new(id, label)` with description, table,
+   time column, declared filters (choice, flag, text), and an escape hatch
+   for kinds that are not one table. Names are validated at start.
+5. **Import hook:** runs once after migrations in ONE transaction; on error
+   or a count mismatch it rolls back, the app keeps running on its old
+   files, a problem is raised and it retries at the next start; on success
+   the marker row is committed and the old files are renamed `*.migrated`.
+6. **Budget:** default 50 MB, warn at 40 MB, overridable in code and by
+   `<P>_STORAGE_BUDGET_MB` / `<P>_STORAGE_WARN_MB`. Size = page_count ×
+   page_size + WAL, per file and summed. Checked at start, every 10 minutes
+   and after each Storage action. Surfaces: a status-page problem, a Storage
+   page banner, metrics, the app hook. WARN ONLY: the kit never refuses a
+   write and never removes useful data.
+7. **Pause:** an internal pause hook per file runs
+   `wal_checkpoint(TRUNCATE)` after the tickets drained; busy for 5 s falls
+   back to the unit stop (existing path). Resume needs nothing new.
+   `backup_pause: chassis` in the homelab works as is.
+8. **Storage page** (`/storage`, kit page): budget bar with the split per
+   file (the kit file marked read-only), one row per kind (rows, bytes,
+   oldest, newest), per kind "older than" plus the declared filters, a
+   read-only preview (count, size, oldest/newest, a few sample rows), then a
+   typed confirmation and a single-transaction delete that re-counts first.
+   VACUUM of the app file on demand only, with the reclaimable size shown.
+   Stable control ids for the homelab Live view; JSON twins under
+   `/api/kit/storage`.
+
+## Open questions (to Kenny, one form)
+
+- Kit stores (clients, sessions, passkeys) into `<name>-kit.db` in 3.11.0
+  (import once, old files kept as `*.migrated`), or later.
+- Whether the kit may remove rows that are finished by their own definition
+  (expired sessions, ended snoozes) automatically.
+- The app file without whole-file encryption (secrets sealed per field).
+
+Decided as defaults (Kenny can still change them): warn at 40 of 50 MB;
+the budget counts both files with the kit part shown; the typed
+confirmation is the kind's name; feature `storage` on by default;
+service-prefixed file names; a busy checkpoint falls back to the unit stop.
