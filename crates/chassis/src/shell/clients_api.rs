@@ -27,6 +27,10 @@ use crate::shell::dashboard::Vocabulary;
 use crate::shell::store::Clients;
 use crate::shell::time::{now_rfc3339, random_hex};
 
+/// kit-r4: the article before the vocabulary's singular ("an app").
+#[derive(Clone)]
+pub(crate) struct VocabArticle(pub(crate) std::sync::Arc<str>);
+
 /// A client as the list shows it: everything except the token.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ClientView {
@@ -138,10 +142,32 @@ pub async fn list(State(api): State<ClientsApi>) -> Json<Vec<ClientView>> {
     Json(snap.clients.iter().map(ClientView::from).collect())
 }
 
+/// Issue a client, the article taken from the vocabulary's sound. The kit
+/// itself routes `issue_with_article`, which also honours the service's
+/// override (kit-r4); this signature is part of the recorded surface.
 pub async fn issue(
     State(api): State<ClientsApi>,
     Extension(vocab): Extension<Vocabulary>,
     Json(form): Json<IssueForm>,
+) -> Result<Response, Error> {
+    let article = crate::shell::dashboard::article_for(&vocab.singular).to_string();
+    issue_inner(api, vocab, &article, form).await
+}
+
+pub(crate) async fn issue_with_article(
+    State(api): State<ClientsApi>,
+    Extension(vocab): Extension<Vocabulary>,
+    Extension(article): Extension<VocabArticle>,
+    Json(form): Json<IssueForm>,
+) -> Result<Response, Error> {
+    issue_inner(api, vocab, &article.0, form).await
+}
+
+async fn issue_inner(
+    api: ClientsApi,
+    vocab: Vocabulary,
+    article: &str,
+    form: IssueForm,
 ) -> Result<Response, Error> {
     let id = uuid::Uuid::new_v4().to_string();
     let token = random_hex(TOKEN_BYTES)?;
@@ -164,7 +190,10 @@ pub async fn issue(
         .any(|c| c.name == name && c.token.is_some())
     {
         return Err(Error::invalid(
-            format!("a {} named `{name}` already has a token", vocab.singular),
+            format!(
+                "{} {} named `{name}` already has a token",
+                article, vocab.singular
+            ),
             format!(
                 "re-issue that {}'s token instead, or revoke it first to free the name",
                 vocab.singular

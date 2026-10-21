@@ -35,7 +35,7 @@ pub use shell::auth::Caller;
 pub use shell::dashboard::{
     Action, Check, CheckState, ClientAction, ClientColumn, Dashboard, FlashAction, JsonRender, Kpi,
     KpiTone, NavEntry, Problem, Section, SectionAction, SectionAssets, SectionBody, StatusSection,
-    Vocabulary,
+    Vocabulary, article_for,
 };
 pub use shell::health::{Subsystem, SubsystemStatus};
 pub use shell::metrics::{Counter, Gauge, ScrapeSource};

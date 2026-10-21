@@ -747,6 +747,10 @@ pub struct DashboardRegistry {
     pub clients_label: Option<String>,
     /// K28: what this service calls a client; `None` keeps `client`/`clients`.
     pub vocabulary: Option<crate::shell::dashboard::Vocabulary>,
+    /// kit-r4: the service's own article before the singular, when the
+    /// vowel-sound rule is wrong for its word. Not public: set through
+    /// `App::vocabulary_article`.
+    pub(crate) vocabulary_article: Option<String>,
     /// K29: the project's buttons on every active client row.
     pub client_actions: Vec<crate::shell::dashboard::ClientAction>,
 }
@@ -1731,6 +1735,17 @@ impl App {
     #[cfg(feature = "dashboard")]
     pub fn vocabulary(&mut self, singular: &str, plural: &str) -> &mut Self {
         self.dash.vocabulary = Some(crate::shell::dashboard::Vocabulary::new(singular, plural));
+        self
+    }
+
+    /// The article before the singular word, when the vowel-sound rule gets
+    /// it wrong (kit-r4). By default the kit writes "an app", "a source",
+    /// "an inbox" from the word's sound; a word the rule cannot know (an
+    /// acronym such as `sms`, said "an es-em-ess") is set here:
+    /// `vocabulary_article("an")`.
+    #[cfg(feature = "dashboard")]
+    pub fn vocabulary_article(&mut self, article: &str) -> &mut Self {
+        self.dash.vocabulary_article = Some(article.trim().to_string());
         self
     }
 

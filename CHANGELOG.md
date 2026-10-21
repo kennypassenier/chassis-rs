@@ -7,6 +7,15 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **`App::vocabulary_article` and `chassis::article_for`** (kit-r4, kyu gap
+  53): the kit now writes the right article before the vocabulary's word
+  ("What an app is", "Issue an app", "a source") by the word's vowel sound;
+  a service whose word the rule gets wrong sets it with
+  `vocabulary_article("an")`. Templates read `vocab_article` and
+  `vocab_article_cap`; the palette reads `data-chassis-article`. Additive.
+
 ### Changed
 
 - **kp-themes 11.2.0 vendored** (verified against the release SHA256SUMS; 212

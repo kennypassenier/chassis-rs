@@ -193,6 +193,32 @@ impl Default for Vocabulary {
     }
 }
 
+/// The indefinite article that reads right before `word`: `an` before a
+/// vowel sound, `a` otherwise (kit-r4, kyu gap 53: "What a app is").
+///
+/// It goes by sound, not by letter, for the cases a service is likely to
+/// name a client with: `user`, `unit`, `one` take `a`; `hour`, `honest`
+/// take `an`. A word the rule still gets wrong is fixed per service with
+/// `App::vocabulary_article`.
+pub fn article_for(word: &str) -> &'static str {
+    let w = word.trim().to_lowercase();
+    let starts = |prefixes: &[&str]| prefixes.iter().any(|p| w.starts_with(p));
+    // A vowel letter with a consonant sound: "uni…", "use…", "eu…", "one".
+    if starts(&[
+        "uni", "use", "usu", "uti", "ubi", "eu", "one", "once", "ura", "uri",
+    ]) {
+        return "a";
+    }
+    // A consonant letter with a vowel sound: a silent h.
+    if starts(&["hour", "honest", "honor", "honour", "heir"]) {
+        return "an";
+    }
+    match w.chars().next() {
+        Some('a' | 'e' | 'i' | 'o' | 'u') => "an",
+        _ => "a",
+    }
+}
+
 fn capitalise(word: &str) -> String {
     let mut chars = word.chars();
     match chars.next() {
@@ -605,6 +631,11 @@ impl Dashboard {
         env.add_global("clients_label", clients_label.clone());
         let vocab = Vocabulary::default();
         env.add_global("vocab", minijinja::Value::from_serialize(&vocab));
+        env.add_global("vocab_article", article_for(&vocab.singular));
+        env.add_global(
+            "vocab_article_cap",
+            capitalise(article_for(&vocab.singular)),
+        );
         Ok(Self {
             app_name,
             version,
@@ -706,7 +737,19 @@ impl Dashboard {
     /// mount, before any handler holds a clone.
     pub fn with_vocabulary(mut self, vocab: Vocabulary) -> Self {
         Arc::make_mut(&mut self.env).add_global("vocab", minijinja::Value::from_serialize(&vocab));
+        let article = article_for(&vocab.singular).to_string();
         self.vocab = vocab;
+        self.with_vocabulary_article(&article)
+    }
+
+    /// kit-r4: the article before the singular, as the templates
+    /// (`vocab_article`, `vocab_article_cap`) and the clients API's
+    /// messages write it. Call after `with_vocabulary`; the service's own
+    /// override wins over the vowel-sound rule.
+    pub(crate) fn with_vocabulary_article(mut self, article: &str) -> Self {
+        let env = Arc::make_mut(&mut self.env);
+        env.add_global("vocab_article", article.to_string());
+        env.add_global("vocab_article_cap", capitalise(article));
         self
     }
 
@@ -1280,6 +1323,45 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// kit-r4 (kyu gap 53): "an app", "a source", "an inbox", by sound.
+    #[test]
+    fn article_follows_the_vowel_sound() {
+        for (word, article) in [
+            ("app", "an"),
+            ("inbox", "an"),
+            ("source", "a"),
+            ("client", "a"),
+            ("user", "a"),
+            ("unit", "a"),
+            ("umbrella", "an"),
+            ("one", "a"),
+            ("hour", "an"),
+            ("Endpoint", "an"),
+            ("", "a"),
+        ] {
+            assert_eq!(article_for(word), article, "{word}");
+        }
+    }
+
+    /// kit-r4: no template or script writes a literal "a" in front of the
+    /// vocabulary word; the article comes from `vocab_article`.
+    #[test]
+    fn no_template_puts_a_literal_a_before_the_vocabulary() {
+        for (name, text) in [
+            ("clients.html", include_str!("../../templates/clients.html")),
+            ("layout.html", include_str!("../../templates/layout.html")),
+            ("chassis.js", include_str!("../../static/chassis.js")),
+        ] {
+            for bad in [
+                "a {{ vocab.singular",
+                "A {{ vocab.singular",
+                "a ${singular}",
+            ] {
+                assert!(!text.contains(bad), "{name} still writes `{bad}`");
+            }
+        }
+    }
 
     /// kit-kp11: one empty live toast region in the layout, and the ready
     /// signal in chassis.js (event plus promise).

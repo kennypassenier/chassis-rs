@@ -106,7 +106,7 @@
 <!-- kit-kp11 shell: the search palette, the shortcut sheet and, on a phone,
      the tab bar with its More drawer. Every page comes from the registry
      (`nav`, `pages`); chassis.js adds the chords, the clients and the counts. -->
-<dialog class="kp-palette" data-kp-palette data-kp-hotkey="k" id="chassis-palette" aria-label="Search and commands" data-chassis-singular="{{ vocab.singular }}" data-chassis-plural="{{ vocab.plural }}">
+<dialog class="kp-palette" data-kp-palette data-kp-hotkey="k" id="chassis-palette" aria-label="Search and commands" data-chassis-singular="{{ vocab.singular }}" data-chassis-article="{{ vocab_article }}" data-chassis-plural="{{ vocab.plural }}">
   <input class="kp-palette__input" type="text" role="combobox" aria-label="Search and commands" aria-expanded="false" aria-controls="chassis-palette-list" autocomplete="off" placeholder="Go to a page, or do something…">
   <ul class="kp-palette__list" id="chassis-palette-list" role="listbox" aria-label="Search and commands">
     <li role="presentation" class="kp-palette__group" data-kp-group data-chassis-group="go"><span class="kp-palette__group-label">Go to</span>

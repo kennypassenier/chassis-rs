@@ -1112,6 +1112,7 @@ import { attachForms } from './kp/js/forms.js';
     const go = (href) => location.assign(href);
     const singular = paletteEl.dataset.chassisSingular || 'client';
     const plural = paletteEl.dataset.chassisPlural || 'clients';
+    const article = paletteEl.dataset.chassisArticle || 'a';
 
     // ---- chords: "g" and the first letter of each page, in registry order;
     // a letter already taken leaves that page without one.
@@ -1145,7 +1146,7 @@ import { attachForms } from './kp/js/forms.js';
     const searchTarget = () => control('search') || $('[data-kp-datatable] input[type="search"]');
     const page = [];
     if (onClients) {
-      page.push({ keys: 'n', what: `Issue a ${singular}`, group: `On ${clientsName}`, when: () => !!issueTarget(), reason: 'Not offered on this page.', run: runIssue });
+      page.push({ keys: 'n', what: `Issue ${article} ${singular}`, group: `On ${clientsName}`, when: () => !!issueTarget(), reason: 'Not offered on this page.', run: runIssue });
       page.push({ keys: '/', what: 'Search the list', group: `On ${clientsName}`, when: () => !!searchTarget(), reason: 'This list has no search.', run: () => searchTarget()?.focus() });
     }
     // The sheet lists the chords, then Anywhere, then this page's own keys; its
@@ -1206,7 +1207,7 @@ import { attachForms } from './kp/js/forms.js';
     };
     const goGroup = $('[data-chassis-group="go"]', paletteEl);
     const hereCommands = [];
-    if (onClients && issueTarget()) hereCommands.push(option('issue', `Issue a ${singular}`, 'Give a new program its own token', 'n'));
+    if (onClients && issueTarget()) hereCommands.push(option('issue', `Issue ${article} ${singular}`, 'Give a new program its own token', 'n'));
     if (onClients && control('filter-idle')) hereCommands.push(option('filter-idle', `Show idle ${plural}`, 'Active, but not called for a while', '', 'unused stale old'));
     if (hereCommands.length) {
       const g = group('This page', 'page');

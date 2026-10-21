@@ -817,3 +817,46 @@ async fn the_test_it_field_sends_the_edited_body_to_the_test_route() {
     assert_eq!(seen.lock().unwrap().len(), 2);
     running.stop().await;
 }
+
+// kit-r4 (kyu gap 53): "What a app is" -> "What an app is". The article follows
+// the vocabulary's sound; a service overrides it where the rule is wrong; the
+// palette and the API's refusal write it too.
+#[tokio::test]
+async fn kit_r4_the_article_follows_the_vocabulary() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app(dir.path(), Router::new());
+    app.vocabulary("app", "apps");
+    let running = app.start().await.unwrap();
+    let addr = running.addr;
+    let cookie = login(addr).await;
+    let admin = [("Cookie", cookie.as_str())];
+
+    let (_, _, page) = http(addr, "GET", "/clients", &admin, "").await;
+    assert!(page.contains("What an app is"), "{page}");
+    assert!(page.contains("Issue an app"), "{page}");
+    assert!(page.contains("An app is one program"), "{page}");
+    assert!(!page.contains("a app"), "{page}");
+    assert!(page.contains("data-chassis-article=\"an\""), "{page}");
+
+    let (status, _) = issue(addr, &cookie, "twice").await;
+    assert_eq!(status, 201);
+    let (_, _, full) = http(addr, "GET", "/clients", &admin, "").await;
+    assert!(full.contains("Open an app to see"), "{full}");
+    let (status, body) = issue(addr, &cookie, "twice").await;
+    assert_eq!(status, 400, "{body}");
+    assert!(body.contains("an app named `twice`"), "{body}");
+}
+
+#[tokio::test]
+async fn kit_r4_a_service_can_override_the_article() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app(dir.path(), Router::new());
+    app.vocabulary("sms", "sms");
+    app.vocabulary_article("an");
+    let running = app.start().await.unwrap();
+    let addr = running.addr;
+    let cookie = login(addr).await;
+    let (_, _, page) = http(addr, "GET", "/clients", &[("Cookie", cookie.as_str())], "").await;
+    assert!(page.contains("What an sms is"), "{page}");
+    assert!(page.contains("Issue an sms"), "{page}");
+}

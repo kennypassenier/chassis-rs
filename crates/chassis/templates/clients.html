@@ -19,7 +19,7 @@
         {% endif %}
       </div>
       <div class="kp-page-header__actions">
-        {% if not open_dashboard %}<button type="button" class="kp-button kp-button--primary" data-chassis-command="issue" data-kp-dialog="issue-dialog">Issue a {{ vocab.singular }}</button>{% endif %}
+        {% if not open_dashboard %}<button type="button" class="kp-button kp-button--primary" data-chassis-command="issue" data-kp-dialog="issue-dialog">Issue {{ vocab_article }} {{ vocab.singular }}</button>{% endif %}
       </div>
     </div>
   </header>
@@ -45,7 +45,7 @@
       <h2 class="kp-card__title" id="clients-first-title">Wire up your first {{ vocab.singular }}</h2>
       <p class="kp-lede" data-kp-lede-measure="full">Three steps. The last one finishes by itself when the program calls.</p>
       <ol class="kp-steplist" aria-label="Wiring up the first {{ vocab.singular }}" data-clients-steps>
-        <li class="kp-steplist__item" data-state="{{ 'running' if step == 1 else 'done' }}" data-kp-step-id="s1"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Issue a {{ vocab.singular }}</span><span class="kp-steplist__note">A name for the program you want to connect{% for f in form_fields %}, and its {{ f.label|lower }}{% endfor %}.</span></span></li>
+        <li class="kp-steplist__item" data-state="{{ 'running' if step == 1 else 'done' }}" data-kp-step-id="s1"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Issue {{ vocab_article }} {{ vocab.singular }}</span><span class="kp-steplist__note">A name for the program you want to connect{% for f in form_fields %}, and its {{ f.label|lower }}{% endfor %}.</span></span></li>
         <li class="kp-steplist__item" data-state="{{ 'pending' if step == 1 else 'done' }}" data-kp-step-id="s2"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Give it the token</span><span class="kp-steplist__note">Copy the command or the token and run it where the program lives.</span></span></li>
         <li class="kp-steplist__item" data-state="{{ 'pending' if step == 1 else 'running' }}" data-kp-step-id="s3"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Wait for its first request</span><span class="kp-steplist__note" data-clients-wait-note>{% if step == 1 %}This page looks for the first call by itself.{% else %}Listening… this page looks every 5 seconds.{% endif %}</span></span></li>
       </ol>
@@ -54,13 +54,13 @@
       </div>
     </section>
     <section class="kp-card" data-kp-span="6" aria-labelledby="clients-what-title">
-      <h2 class="kp-card__title" id="clients-what-title">What a {{ vocab.singular }} is</h2>
+      <h2 class="kp-card__title" id="clients-what-title">What {{ vocab_article }} {{ vocab.singular }} is</h2>
       <p class="kp-lede" data-kp-lede-measure="full">The same token never goes to two programs.</p>
       {# The package's empty plate (js/state-plate.js draws the same markup); chassis.js turns it into "Connected" through statePlate(). #}
       <div class="kp-empty kp-stateplate kp-stateplate--empty" role="status" data-kp-art="nomatch" data-clients-what>
         {% if step == 1 %}
         <strong class="kp-stateplate__title">No {{ vocab.plural }} yet</strong>
-        <span class="kp-stateplate__text">A {{ vocab.singular }} is one program with its own token. Switch one off without touching the others.</span>
+        <span class="kp-stateplate__text">{{ vocab_article_cap }} {{ vocab.singular }} is one program with its own token. Switch one off without touching the others.</span>
         {% else %}
         <strong class="kp-stateplate__title">Waiting for a call</strong>
         <span class="kp-stateplate__text">The {{ vocab.singular }} exists. The list opens here as soon as its first request arrives.</span>
@@ -87,7 +87,7 @@
   <div class="kp-ops__body">
     <section class="kp-card" data-kp-span="12" aria-labelledby="clients-list-title">
       <h2 class="kp-card__title" id="clients-list-title">Registered {{ vocab.plural }} ({{ counts.all }})</h2>
-      <p class="kp-lede" data-kp-lede-measure="full">Open a {{ vocab.singular }} to see its token, copy a ready-made command, send a test and read what it sent.</p>
+      <p class="kp-lede" data-kp-lede-measure="full">Open {{ vocab_article }} {{ vocab.singular }} to see its token, copy a ready-made command, send a test and read what it sent.</p>
       <div data-kp-idmark-set>
         <div class="kp-datatable" data-kp-datatable data-kp-remember="clients-table" data-kp-page-size="10" data-kp-cards>
           <div class="kp-datatable__bar"><input class="kp-datatable__search" type="search" data-chassis-command="search" data-kp-datatable-search aria-label="Search the {{ vocab.plural }}" placeholder="Search by name{% for col in declared_columns %}{{ ' or ' if loop.last else ', ' }}{{ col.title|lower }}{% endfor %}"></div>
@@ -147,7 +147,7 @@
   <form id="issue" class="kp-form issue-frame" data-kp-form novalidate>
     <div class="issue-grid">
       <div class="kp-dialog__head issue-title">
-        <h2 class="kp-dialog__title" id="issue-dialog-title" data-issue-title data-issue-title-form="Issue a {{ vocab.singular }}">Issue a {{ vocab.singular }}</h2>
+        <h2 class="kp-dialog__title" id="issue-dialog-title" data-issue-title data-issue-title-form="Issue {{ vocab_article }} {{ vocab.singular }}">Issue {{ vocab_article }} {{ vocab.singular }}</h2>
         <span class="kp-badge kp-badge--success" data-issue-title-badge hidden>active</span>
         <p class="kp-dialog__description" data-issue-description>One {{ vocab.singular }} is one program with its own token, so you can switch it off without touching the rest.</p>
       </div>

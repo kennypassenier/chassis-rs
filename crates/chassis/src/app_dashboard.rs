@@ -220,6 +220,12 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
     // K28: an explicit label wins; otherwise the page is named after the
     // vocabulary ("Sources"), which is "Clients" by default.
     let vocab = registry.vocabulary.unwrap_or_default();
+    // kit-r4: "a"/"an" by the word's sound unless the service overrides it.
+    let vocab_article: Arc<str> = registry
+        .vocabulary_article
+        .filter(|a| !a.is_empty())
+        .map(Arc::from)
+        .unwrap_or_else(|| Arc::from(crate::shell::dashboard::article_for(&vocab.singular)));
     let clients_label = registry
         .clients_label
         .or_else(|| Some(vocab.plural_cap.clone()));
@@ -248,6 +254,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         open,
     )?
     .with_vocabulary(vocab.clone())
+    .with_vocabulary_article(&vocab_article)
     .with_client_actions(registry.client_actions)
     .with_update_check(registry.check_update)
     .with_repository(spec.repository)
@@ -355,7 +362,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         Router::new()
             .route(
                 "/api/clients",
-                get(clients_api::list).post(clients_api::issue),
+                get(clients_api::list).post(clients_api::issue_with_article),
             )
             .route("/api/clients/{id}", delete(clients_api::delete))
             .route("/api/clients/{id}/reissue", post(clients_api::reissue))
@@ -366,6 +373,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
             .with_state(api)
             // K28: the handlers word their refusals in the project's vocabulary.
             .layer(axum::Extension(vocab))
+            .layer(axum::Extension(clients_api::VocabArticle(vocab_article)))
             .layer(from_fn_with_state(auth.clone(), require_admin))
     };
 
