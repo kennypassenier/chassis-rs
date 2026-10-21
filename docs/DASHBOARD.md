@@ -814,9 +814,13 @@ app.sync_browser_keys(
 
 - **Only declared keys sync.** `BrowserKeys` is an allow-list (`exact`,
   `prefix`) minus exceptions (`except_exact`, `except_prefix`); an undeclared
-  key is refused by the API (400) and never leaves the browser. The empty
-  prefix, a key with characters outside `A-Z a-z 0-9 . _ : - @ + = ~ /` and
-  more than 128 bytes are refused at start. `--check` runs the same
+  key is refused by the API (400) and never leaves the browser. Names are the
+  app's own and **dynamic** (Kenny, 2026-10-21): no fixed list of settings, no
+  schema per key, values are opaque strings (JSON or not). A key is refused
+  only when it is truly unusable: empty (an empty prefix would sync every
+  key), over 256 bytes, a control character, or `.` / `..` whole, which a URL
+  path cannot carry; colons, slashes, spaces, `%`, `?`, `#` and non-ASCII are
+  fine. These are refused at start. `--check` runs the same
   validation. It needs `App::app_db` (the table lives in that file; it may
   have no tables of its own) or a store of your own with `App::prefs_store`.
 - **A secret must never be declared.** Values are plain text in the app
@@ -848,7 +852,7 @@ They exist only when the service declared keys.
 | Route | What |
 |---|---|
 | `GET /api/kit/prefs?prefix=` | `{v, scope, keys, session, synced, limits}`: the login's values whose key starts with `prefix` (default all), `keys` for the localStorage ones and `session` for the sessionStorage ones, `synced` the declaration, `limits`. A row whose key the service no longer declares is not served. |
-| `PUT /api/kit/prefs/{key}` | Body `{"value": "<string>"}`. The key may contain `/` and `:` (percent-encode each path segment). 200 `{key, stored}`; 400 for syntax, an undeclared key, a secret or an oversized value; 503 when the scope is full. |
+| `PUT /api/kit/prefs/{key}` | Body `{"value": "<string>"}`. Any valid key: percent-encode the WHOLE key as one path segment (`encodeURIComponent`, so `/` becomes `%2F`); raw slashes are accepted too. 200 `{key, stored}`; 400 for syntax, an undeclared key, a secret or an oversized value; 503 when the scope is full. |
 | `DELETE /api/kit/prefs/{key}` | 200 `{key, removed}` (`removed` is false when it was not there). |
 
 Proven by `tests/prefs_api.rs`.

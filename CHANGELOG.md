@@ -17,8 +17,9 @@ scaffold writes. A breaking change in either is a major and carries a
   `PUT /api/kit/prefs/{key}` and `DELETE /api/kit/prefs/{key}` behind the
   admin login and the same-origin rule, scoped to the login identity. The
   kit never syncs a key it was not told to; a declaration that names a
-  secret is a start error and `--check` failure; keys are validated (syntax,
-  128 bytes); a value over `prefs_max_value_bytes` (16384), a scope over
+  secret is a start error and `--check` failure; keys are only refused when unusable
+  (empty, over 256 bytes, a control character, `.` or `..`; any other name
+  works); a value over `prefs_max_value_bytes` (16384), a scope over
   `prefs_max_scope_bytes` (262144) or `prefs_max_keys` (512) is refused with
   a sentence; a PEM block, a JWT, a bearer credential, the service's own
   login token and a form draft with a secret-named field are refused as

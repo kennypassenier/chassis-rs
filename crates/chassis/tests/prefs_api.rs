@@ -125,12 +125,12 @@ async fn the_kit_refuses_what_it_was_not_told_to_sync_and_what_looks_like_a_secr
         ("homelab.theme-light", "x"),
         ("theme", "dark"),
         ("homelab.api-token", "x"),
-        ("homelab.bad key", "x"),
+        ("homelab.control%01char", "x"),
         ("homelab.v", "-----BEGIN PRIVATE KEY-----"),
         ("homelab.v", "Bearer abcdefghijklmnopqrstuvwxyz0123"),
         ("kp-unsaved:/s:s", r#"{"password":"x"}"#),
     ] {
-        let (s, body) = put(app, &key.replace(' ', "%20"), value).await;
+        let (s, body) = put(app, key, value).await;
         assert_eq!(s, 400, "{key}={value}: {body}");
     }
     // The service's own login token is never accepted as a value.
@@ -142,6 +142,81 @@ async fn the_kit_refuses_what_it_was_not_told_to_sync_and_what_looks_like_a_secr
                 .get::<_, i64>(0))?))
             .unwrap(),
         0
+    );
+    h.0.shutdown().await;
+}
+
+/// Percent-encode every byte but unreserved ones, the way
+/// `encodeURIComponent` does for the whole key.
+fn enc(key: &str) -> String {
+    key.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+/// Kenny, 2026-10-21: "elke app kan elke setting welke naam ook geven en het
+/// moet werken". Any name that is not truly unusable stores, lists, reads
+/// back and deletes, whole-key encoded or with raw slashes.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn any_key_name_works_and_values_are_opaque() {
+    let _one = SERIAL.lock().await;
+    let mut h = start("prefs13", &[]).await;
+    let app = &h.0;
+    let keys = [
+        "homelab.a b",
+        "homelab.slash/inside",
+        "homelab./leading",
+        "homelab.trailing/",
+        "homelab.//double",
+        "homelab.é ключ 名前",
+        "homelab.100%/? #&=+;,",
+        "homelab. ",
+        "homelab...",
+    ];
+    for (i, key) in keys.iter().enumerate() {
+        let value = if i % 2 == 0 {
+            format!("{{\"n\":{i}}}")
+        } else {
+            format!("plain {i} \u{e9}")
+        };
+        let (s, body) = put(app, &enc(key), &value).await;
+        assert_eq!(s, 200, "{key}: {body}");
+    }
+    let (_, body) = app.get_json("/api/kit/prefs").await;
+    let got = body["keys"].as_object().unwrap();
+    assert_eq!(got.len(), keys.len());
+    for (i, key) in keys.iter().enumerate() {
+        let want = if i % 2 == 0 {
+            format!("{{\"n\":{i}}}")
+        } else {
+            format!("plain {i} \u{e9}")
+        };
+        assert_eq!(got[*key], want, "{key}");
+    }
+    // A prefix with odd characters lists its keys.
+    let (_, body) = app
+        .get_json(&format!("/api/kit/prefs?prefix={}", enc("homelab.slash/")))
+        .await;
+    assert_eq!(body["keys"].as_object().unwrap().len(), 1);
+    // Raw slashes in the path find the same row.
+    let (s, b) = app.delete("/api/kit/prefs/homelab.slash/inside").await;
+    assert_eq!((s, &b["removed"]), (200, &json!(true)));
+    let (s, b) = app
+        .delete(&format!("/api/kit/prefs/{}", enc("homelab.a b")))
+        .await;
+    assert_eq!((s, &b["removed"]), (200, &json!(true)));
+    // Only the truly unusable is refused.
+    assert_eq!(put(app, &enc("homelab.\u{7}bell"), "x").await.0, 400);
+    assert_eq!(
+        put(app, &enc(&format!("homelab.{}", "k".repeat(300))), "x")
+            .await
+            .0,
+        400
     );
     h.0.shutdown().await;
 }

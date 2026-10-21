@@ -143,7 +143,10 @@
         }, ms);
     }
     function url(key) {
-        return API + "/" + key.split("/").map(encodeURIComponent).join("/");
+        // The whole key is one path segment ("/" becomes %2F), so any name
+        // travels; "." and ".." are refused by the server (a path cannot
+        // carry them).
+        return API + "/" + encodeURIComponent(key);
     }
     function send(key, entry, keepalive) {
         var init = {

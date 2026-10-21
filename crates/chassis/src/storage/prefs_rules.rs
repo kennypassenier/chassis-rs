@@ -28,7 +28,7 @@ impl PrefLimits {
     pub const DEFAULT_MAX_SCOPE_BYTES: u64 = 256 * 1024;
     pub const DEFAULT_MAX_KEYS: u64 = 512;
     /// The longest key, in bytes.
-    pub const MAX_KEY_BYTES: usize = 128;
+    pub const MAX_KEY_BYTES: usize = 256;
 
     pub(crate) fn quota(&self) -> Quota {
         Quota {
@@ -232,12 +232,10 @@ impl BrowserKeys {
                     "declare the prefix your app uses, such as \"myapp.\"",
                 ));
             }
-            if !key_chars_ok(p) {
+            if !key_ok(p) {
                 return Err(Error::config(
-                    format!(
-                        "the declared key or prefix `{p}` has characters a synced key may not have"
-                    ),
-                    "use letters, digits and . _ : - @ + = ~ / only, at most 128 bytes",
+                    format!("the declared key or prefix `{p}` cannot be a key"),
+                    "at most 256 bytes, no control characters, not `.` or `..`",
                 ));
             }
             if looks_secret_name(p) {
@@ -270,11 +268,17 @@ impl BrowserKeys {
     }
 }
 
-fn key_chars_ok(key: &str) -> bool {
-    key.len() <= PrefLimits::MAX_KEY_BYTES
-        && key
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b"._:-@+=~/".contains(&b))
+/// What makes a key unusable, and nothing else (Kenny, 2026-10-21: any app
+/// may give any setting any name): empty, longer than the limit, a control
+/// character, or `.` / `..` whole, which a URL path cannot carry. Colons,
+/// slashes, spaces, `%`, `?`, `#` and non-ASCII are all fine; the browser
+/// script encodes the key into the path.
+fn key_ok(key: &str) -> bool {
+    !key.is_empty()
+        && key.len() <= PrefLimits::MAX_KEY_BYTES
+        && !key.chars().any(char::is_control)
+        && key != "."
+        && key != ".."
 }
 
 // ---- the rules around the port -------------------------------------------
@@ -319,10 +323,10 @@ impl Prefs {
 
     /// A key of a request: syntax, then the declaration.
     pub fn check_key(&self, key: &str) -> Result<(), Error> {
-        if key.is_empty() || !key_chars_ok(key) {
+        if !key_ok(key) {
             return Err(Error::invalid(
-                format!("`{key}` is not a valid preference key"),
-                "1 to 128 bytes of letters, digits and . _ : - @ + = ~ /",
+                format!("`{key:.40}` is not a valid preference key"),
+                "1 to 256 bytes, no control characters, not `.` or `..`",
             ));
         }
         if looks_secret_name(key) {
@@ -593,7 +597,21 @@ mod tests {
             BrowserKeys::new().prefix("").validate().is_err(),
             "the empty prefix would sync everything"
         );
-        assert!(BrowserKeys::new().prefix("a b").validate().is_err());
+        assert!(BrowserKeys::new().prefix("a\nb").validate().is_err());
+        assert!(BrowserKeys::new().prefix("..").validate().is_err());
+        assert!(
+            BrowserKeys::new()
+                .prefix(&"k".repeat(257))
+                .validate()
+                .is_err(),
+            "over the length limit"
+        );
+        // Any other name is fine: spaces, slashes, colons, non-ASCII.
+        BrowserKeys::new()
+            .prefix("my app/ключ ")
+            .exact("nx-sort:Mijn tabel #1?")
+            .validate()
+            .unwrap();
         assert!(
             BrowserKeys::new()
                 .prefix("a.")
@@ -622,7 +640,8 @@ mod tests {
         let p = prefs(64, 1024, 10).forbid_values(vec!["hunter2-hunter2".into()]);
         p.put("admin", "app.a", "1").await.unwrap();
         assert!(p.put("admin", "other", "1").await.is_err(), "undeclared");
-        assert!(p.put("admin", "app.x y", "1").await.is_err(), "syntax");
+        assert!(p.put("admin", "app.x\ty", "1").await.is_err(), "control");
+        p.put("admin", "app.x y/é:%?#", "1").await.unwrap();
         assert!(p.put("admin", "app.token", "1").await.is_err(), "name");
         assert!(p.put("admin", "app.v", &"x".repeat(65)).await.is_err());
         for secret in [
@@ -637,6 +656,6 @@ mod tests {
         p.put("admin", "app.v", r#"{"sort":[["name","asc"]],"page":2}"#)
             .await
             .unwrap();
-        assert_eq!(p.list("admin", "").await.unwrap().len(), 2);
+        assert_eq!(p.list("admin", "").await.unwrap().len(), 3);
     }
 }

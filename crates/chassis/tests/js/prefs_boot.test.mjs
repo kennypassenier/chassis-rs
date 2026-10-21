@@ -110,6 +110,18 @@ test('declared writes go to the database, others never do (kp-remember included,
     assert.deepEqual(w.calls.find((c) => c.method === 'PUT').body, { value: '{"a":1}' });
 });
 
+test('any key name travels as one encoded path segment', async () => {
+    const w = world({ synced: { ...RULES.synced, prefix: ['nx-sort:', 'my app/'] } });
+    w.localStorage.setItem('nx-sort:Mijn tabel #1?%', 'v');
+    w.localStorage.setItem('my app/ключ', 'w');
+    await w.drain();
+    const urls = w.calls.map((c) => c.url).sort();
+    assert.deepEqual(urls, [
+        '/api/kit/prefs/my%20app%2F%D0%BA%D0%BB%D1%8E%D1%87',
+        '/api/kit/prefs/nx-sort%3AMijn%20tabel%20%231%3F%25',
+    ]);
+});
+
 test('clear() removes the declared keys in the database too', async () => {
     const w = world({ keys: { 'homelab-toured': '1', 'nx-sort:a': 'x' } });
     w.localStorage.clear();
@@ -168,7 +180,7 @@ test('kp\'s change, save and discard events mirror the draft, read back after kp
     w.sessionStorage.removeItem(DRAFT);
     await w.drain();
     assert.deepEqual(w.calls.map((c) => c.method), ['PUT', 'DELETE']);
-    assert.equal(w.calls[1].url, '/api/kit/prefs/kp-unsaved%3A/settings%3Asettings');
+    assert.equal(w.calls[1].url, '/api/kit/prefs/kp-unsaved%3A%2Fsettings%3Asettings');
 });
 
 test('other sessionStorage keys never leave the tab', async () => {
