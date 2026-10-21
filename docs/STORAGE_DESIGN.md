@@ -67,15 +67,19 @@ questions go to Kenny in one form before anything is built.
    Stable control ids for the homelab Live view; JSON twins under
    `/api/kit/storage`.
 
-## Open questions (to Kenny, one form)
+## Decided (Kenny, 2026-10-21 06:58, form chassis-rs-3-11-0-opslag)
 
-- Kit stores (clients, sessions, passkeys) into `<name>-kit.db` in 3.11.0
-  (import once, old files kept as `*.migrated`), or later.
-- Whether the kit may remove rows that are finished by their own definition
-  (expired sessions, ended snoozes) automatically.
-- The app file without whole-file encryption (secrets sealed per field).
+- kit-stores: **In 3.11.0.** Clients, sessions and passkeys move into
+  `<name>-kit.db` at the first start, one transaction; on failure nothing is
+  written and the app keeps the old files; on success the old files become
+  `*.migrated`. Secrets stay sealed per field with the same key.
+- auto-expired: **Only rows finished by their own definition** (expired
+  sessions, ended snoozes) are removed automatically, daily, counted in the
+  log. Everything else only through the Storage page with confirmation.
+- app-encryption: **Not encrypted**, like the JSON today; secrets belong in
+  the kit file.
 
-Decided as defaults (Kenny can still change them): warn at 40 of 50 MB;
-the budget counts both files with the kit part shown; the typed
-confirmation is the kind's name; feature `storage` on by default;
-service-prefixed file names; a busy checkpoint falls back to the unit stop.
+Defaults (Kenny can still change them): warn at 40 of 50 MB; the budget
+counts both files with the kit part shown; the typed confirmation is the
+kind's name; feature `storage` on by default; service-prefixed file names;
+a busy checkpoint falls back to the unit stop.
