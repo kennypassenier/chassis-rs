@@ -167,9 +167,7 @@ fn iso_timestamp_in(text: &str) -> Option<String> {
 /// (Kenny, 2026-09-10: the name is Clients everywhere, and a project renames
 /// it in one place or not at all).
 fn says_client(text: &str) -> Option<String> {
-    // `_` stays inside a word: `$CLIENT_TOKEN` is the shell variable of the
-    // copy-paste command (one identifier, not the prose word "client").
-    text.split(|c: char| !c.is_alphanumeric() && c != '_')
+    text.split(|c: char| !c.is_alphanumeric())
         .map(|w| w.to_ascii_lowercase())
         .find(|w| matches!(w.as_str(), "client" | "clients" | "caller" | "callers"))
 }
@@ -234,6 +232,23 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     let id = id_of(&body);
     let (_, _, full) = http(addr, "GET", "/clients", &admin, "").await;
     assert_eq!(says_client(&visible_text(&full)), None, "{full}");
+    // Kenny 2026-10-21: the copy-paste command's variable follows the
+    // vocabulary, and `CLIENT_TOKEN` is nowhere on the page.
+    assert!(full.contains("export SOURCE_TOKEN="), "{full}");
+    assert!(full.contains("Bearer $SOURCE_TOKEN"), "{full}");
+    assert!(!full.contains("CLIENT_TOKEN"), "{full}");
+    let (status, _, kit) = http(addr, "GET", "/api/kit/clients", &admin, "").await;
+    assert_eq!(status, 200, "{kit}");
+    let kit: serde_json::Value = serde_json::from_str(&kit).unwrap();
+    assert_eq!(kit["token_var"], "SOURCE_TOKEN", "{kit}");
+    assert!(
+        kit["command_template"]
+            .as_str()
+            .unwrap()
+            .contains("Bearer $SOURCE_TOKEN"),
+        "{kit}"
+    );
+    assert!(!kit.to_string().contains("CLIENT_TOKEN"), "{kit}");
     assert!(
         full.contains("Registered sources (1)"),
         "the list heading speaks the vocabulary and counts exactly: {full}"
@@ -345,6 +360,10 @@ async fn k28_without_vocabulary_the_pages_still_say_client() {
     assert!(page.contains("Issue a client"), "{page}");
     assert!(page.contains("No clients yet"), "{page}");
     assert!(says_client(&visible_text(&page)).is_some(), "{page}");
+    let (status, body) = issue(addr, &cookie, "job-tracker").await;
+    assert_eq!(status, 201, "{body}");
+    let (_, _, full) = http(addr, "GET", "/clients", &[("Cookie", &cookie)], "").await;
+    assert!(full.contains("export CLIENT_TOKEN="), "{full}");
     running.stop().await;
 }
 

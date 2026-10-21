@@ -187,6 +187,31 @@ impl Vocabulary {
     }
 }
 
+impl Vocabulary {
+    /// The shell variable the copy-paste command names its token with
+    /// (`SOURCE_TOKEN` for "source"): the singular word, upper-cased, every
+    /// run of characters outside A-Z and 0-9 collapsed to one `_`, and
+    /// prefixed `KIT_` when it would not start with a letter.
+    pub fn token_var(&self) -> String {
+        let mut name = String::new();
+        for c in self.singular.chars() {
+            if c.is_ascii_alphanumeric() {
+                name.push(c.to_ascii_uppercase());
+            } else if !name.ends_with('_') && !name.is_empty() {
+                name.push('_');
+            }
+        }
+        let name = name.trim_matches('_');
+        let name = if name.is_empty() { "CLIENT" } else { name };
+        let prefix = if name.starts_with(|c: char| c.is_ascii_uppercase()) {
+            ""
+        } else {
+            "KIT_"
+        };
+        format!("{prefix}{name}_TOKEN")
+    }
+}
+
 impl Default for Vocabulary {
     fn default() -> Self {
         Self::new("client", "clients")
@@ -509,7 +534,7 @@ pub struct Dashboard {
     pub auth: AuthState,
     /// The service opted in and runs without secrets: no door, a banner.
     pub open: bool,
-    /// kit-kp11: the curl line with `$CLIENT_TOKEN` where the token goes,
+    /// kit-kp11: the curl line with `$CLIENT_TOKEN` (or the vocabulary's own name) where the token goes,
     /// for `/api/kit/clients`. Private so the public surface stays as it was.
     command_template: Arc<str>,
     /// kit-kp11 (clients-manage): the test route's body, which the Test it
@@ -631,6 +656,7 @@ impl Dashboard {
         env.add_global("clients_label", clients_label.clone());
         let vocab = Vocabulary::default();
         env.add_global("vocab", minijinja::Value::from_serialize(&vocab));
+        env.add_global("token_var", vocab.token_var());
         env.add_global("vocab_article", article_for(&vocab.singular));
         env.add_global(
             "vocab_article_cap",
@@ -718,7 +744,7 @@ impl Dashboard {
     }
 
     /// kit-kp11: the command a program is wired up with, token as
-    /// `$CLIENT_TOKEN` (see `clients_api::command_template`).
+    /// the token variable (see `clients_api::command_template`).
     pub(crate) fn with_command_template(mut self, template: String) -> Self {
         self.command_template = Arc::from(template);
         self
@@ -736,7 +762,9 @@ impl Dashboard {
     /// `vocab.plural_cap`) and for the clients API's messages. Set once at
     /// mount, before any handler holds a clone.
     pub fn with_vocabulary(mut self, vocab: Vocabulary) -> Self {
-        Arc::make_mut(&mut self.env).add_global("vocab", minijinja::Value::from_serialize(&vocab));
+        let env = Arc::make_mut(&mut self.env);
+        env.add_global("vocab", minijinja::Value::from_serialize(&vocab));
+        env.add_global("token_var", vocab.token_var());
         let article = article_for(&vocab.singular).to_string();
         self.vocab = vocab;
         self.with_vocabulary_article(&article)
@@ -1301,6 +1329,7 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
         "counts": counts,
         "idle_after_days": client_list::IDLE_AFTER_DAYS,
         "command_template": &*d.command_template,
+        "token_var": d.vocab.token_var(),
         "calls_path": calls_path(&d.command_template),
         "form_usual": form_usual,
         "clients": rows,
@@ -1323,6 +1352,23 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// kit-r4 (Kenny 2026-10-21): the token variable follows the vocabulary.
+    #[test]
+    fn token_var_is_derived_from_the_singular_word() {
+        for (word, var) in [
+            ("client", "CLIENT_TOKEN"),
+            ("source", "SOURCE_TOKEN"),
+            ("app", "APP_TOKEN"),
+            ("hub client", "HUB_CLIENT_TOKEN"),
+            ("hub--client ", "HUB_CLIENT_TOKEN"),
+            ("3rd", "KIT_3RD_TOKEN"),
+            ("", "CLIENT_TOKEN"),
+        ] {
+            assert_eq!(Vocabulary::new(word, "x").token_var(), var, "{word:?}");
+        }
+        assert_eq!(Vocabulary::default().token_var(), "CLIENT_TOKEN");
+    }
 
     /// kit-r4 (kyu gap 53): "an app", "a source", "an inbox", by sound.
     #[test]

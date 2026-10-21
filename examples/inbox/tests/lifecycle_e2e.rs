@@ -626,7 +626,7 @@ fn dashboard_pages_render_with_layout_and_assets() {
         "the panel toggle is gone with feat-clients-4"
     );
     // K12: the page holds no token. Since kit-kp11 it does hold the command
-    // template, whose token is the `$CLIENT_TOKEN` placeholder: every
+    // template, whose token is the `$CLIENT_TOKEN` placeholder (this example keeps the default vocabulary): every
     // `Bearer ` in the page must be followed by that placeholder.
     for (i, _) in html.match_indices("Bearer ") {
         assert!(

@@ -278,17 +278,26 @@ pub struct TokenReveal {
     pub command: String,
 }
 
-/// What stands where the token goes in [`command_template`].
-pub(crate) const TOKEN_PLACEHOLDER: &str = "$CLIENT_TOKEN";
+/// What stands where the token goes in [`command_template`]: `$` and the
+/// vocabulary's [`Vocabulary::token_var`] (`$SOURCE_TOKEN`).
+pub(crate) fn token_placeholder(vocab: &Vocabulary) -> String {
+    format!("${}", vocab.token_var())
+}
 
 /// The curl line a program is wired up with, the token replaced by
-/// `$CLIENT_TOKEN` (kit-kp11): safe to paste in a chat, and it works as it
-/// stands once the shell has `CLIENT_TOKEN` set. The header is double-quoted
-/// so the shell expands the variable; the token is hex, so the revealed line
-/// (this template with the token in place) needs no escaping.
-pub(crate) fn command_template(base_url: &str, test_path: Option<&str>) -> String {
+/// `$<WORD>_TOKEN` (kit-kp11; `CLIENT_TOKEN` unless the service names its
+/// clients otherwise): safe to paste in a chat, and it works as it stands
+/// once the shell has that variable set. The header is double-quoted so the
+/// shell expands the variable; the token is hex, so the revealed line (this
+/// template with the token in place) needs no escaping.
+pub(crate) fn command_template(
+    base_url: &str,
+    test_path: Option<&str>,
+    vocab: &Vocabulary,
+) -> String {
+    let placeholder = token_placeholder(vocab);
     format!(
-        "curl -sS -H \"Authorization: Bearer {TOKEN_PLACEHOLDER}\" -H 'Content-Type: application/json' -d '{{}}' {base_url}{}",
+        "curl -sS -H \"Authorization: Bearer {placeholder}\" -H 'Content-Type: application/json' -d '{{}}' {base_url}{}",
         test_path.unwrap_or("/v1/")
     )
 }
@@ -304,8 +313,9 @@ pub async fn reveal(
     let command = command_template(
         &api.self_base_url,
         api.test_route.as_ref().map(|t| t.path.as_str()),
+        &vocab,
     )
-    .replace(TOKEN_PLACEHOLDER, &token);
+    .replace(&token_placeholder(&vocab), &token);
     Ok(Json(TokenReveal { token, command }))
 }
 

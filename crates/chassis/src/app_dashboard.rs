@@ -162,8 +162,11 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         .as_ref()
         .map(|t| (t.body.clone(), t.content_type.clone()))
         .unwrap_or_default();
-    let command_template =
-        clients_api::command_template(&self_base_url, test_route.as_ref().map(|t| t.path.as_str()));
+    let command_template = clients_api::command_template(
+        &self_base_url,
+        test_route.as_ref().map(|t| t.path.as_str()),
+        &registry.vocabulary.clone().unwrap_or_default(),
+    );
     let api = ClientsApi {
         clients: clients.clone(),
         captures: captures.clone(),

@@ -502,7 +502,7 @@ async function startIssueDialog(dialog, load, one) {
           .catch(() => null),
       ]);
       token = reveal.token;
-      const template = kit?.command_template || reveal.command.replaceAll(token, '$CLIENT_TOKEN');
+      const template = kit?.command_template || reveal.command.replaceAll(token, `$${kit?.token_var || document.querySelector('[data-clients-page]')?.dataset.clientsTokenVar}`);
       showIssued(issued, template, reveal.command);
       return 'Issued';
     });
@@ -528,7 +528,7 @@ async function startIssueDialog(dialog, load, one) {
     delete state.dataset.issueRefused;
     setText('[data-issue-fact-token]', `Made ${formatBrussels(new Date())}`);
     setText('[data-issue-fact-call]', 'Not yet: this page notices it');
-    // The command block is made from the template the API gave, with $CLIENT_TOKEN where the token goes.
+    // The command block is made from the template the API gave, with the token variable where the token goes.
     const host = $('[data-issue-command]');
     host.innerHTML = '<div class="kp-command" data-kp-command="bash" data-kp-command-where="the machine that will call this service"><pre class="kp-command__code"><code></code></pre></div>';
     host.querySelector('code').textContent = template;

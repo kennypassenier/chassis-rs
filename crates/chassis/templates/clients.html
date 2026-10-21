@@ -8,7 +8,7 @@
    review and the manage dialogs the approved clients-manage review (round 3,
    both on .kp-formgrid). #}
 {% set onboarding = counts.called == 0 %}
-<div class="kp-ops" data-kp-ops-sticky="none" data-clients-page data-clients-one="{{ vocab.singular }}" data-clients-many="{{ vocab.plural }}" data-clients-days="{{ idle_after_days }}"{% if onboarding %} data-clients-onboarding{% endif %}>
+<div class="kp-ops" data-kp-ops-sticky="none" data-clients-page data-clients-one="{{ vocab.singular }}" data-clients-many="{{ vocab.plural }}" data-clients-token-var="{{ token_var }}" data-clients-days="{{ idle_after_days }}"{% if onboarding %} data-clients-onboarding{% endif %}>
   <header class="kp-ops__head kp-page-header">
     <div class="kp-page-header__inner">
       <div>
@@ -286,7 +286,7 @@
       </section>
       <section class="kp-dialog__section manage-tool" aria-labelledby="{{ m }}-h-use">
         <h3 class="kp-dialog__heading" id="{{ m }}-h-use">Use it</h3>
-        <div class="kp-command" data-kp-command="bash" data-kp-command-where="the machine that calls this service"><pre class="kp-command__code"><code>export CLIENT_TOKEN='…'
+        <div class="kp-command" data-kp-command="bash" data-kp-command-where="the machine that calls this service"><pre class="kp-command__code"><code>export {{ token_var }}='…'
 {{ command_template }}</code></pre></div>
         <button type="button" class="kp-button" data-kp-flash-button data-kp-flash-words="Copied,Copy failed" data-kp-refusal="toast" data-manage-copy-full>Copy with the token filled in</button>
         <p class="kp-dialog__note">Safe to paste into a chat. The button copies it with the real token in.</p>

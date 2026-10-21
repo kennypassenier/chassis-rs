@@ -9,6 +9,14 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **The copy-paste command names its token after the vocabulary** (kit-r4,
+  Kenny 2026-10-21): with `vocabulary("source", "sources")` the "Use it"
+  command, the issue dialog's first command and the API's `command_template`
+  say `$SOURCE_TOKEN`; the default stays `$CLIENT_TOKEN`. One new method,
+  `Vocabulary::token_var()`, derives it (upper-cased, other characters `_`,
+  `KIT_` before a digit); `GET /api/kit/clients` also reports it as
+  `token_var`. Additive.
+
 - **`App::vocabulary_article` and `chassis::article_for`** (kit-r4, kyu gap
   53): the kit now writes the right article before the vocabulary's word
   ("What an app is", "Issue an app", "a source") by the word's vowel sound;
