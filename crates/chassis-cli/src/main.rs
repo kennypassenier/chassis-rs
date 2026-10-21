@@ -172,10 +172,17 @@ const RELEASE_PUBKEY: &str = "RWQWCzzUBquIHGkS3YERMkuqEm4C3vBArnlb9rySbr8z5ytgVY
 /// core + dashboard + self-update, kyu-runner core + self-update. A
 /// project that needs passkeys adds the feature and builds against glibc.
 fn scaffold_features() -> Vec<String> {
-    ["core", "dashboard", "assets", "self-update", "notify"]
-        .iter()
-        .map(|f| (*f).to_string())
-        .collect()
+    [
+        "core",
+        "storage",
+        "dashboard",
+        "assets",
+        "self-update",
+        "notify",
+    ]
+    .iter()
+    .map(|f| (*f).to_string())
+    .collect()
 }
 const TOOLCHAIN: &str = "1.97";
 const KP_THEMES: &str = "11.2.0";

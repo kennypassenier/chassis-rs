@@ -30,6 +30,32 @@ scaffold writes. A breaking change in either is a major and carries a
   `VACUUM INTO` (`Db::vacuum_into`, `chassis::storage::copy_db_files`),
   replacing a raw copy of a live file. Additive.
 
+- **`App::app_db`, the app's own database, with kinds, a budget and an
+  import** (`storage`): `<state_dir>/<name>.db`, opened at start (`--check`
+  and `--version` create nothing; `--check` inspects it read-only and refuses
+  one written by a newer build). `AppDbSpec { migrations, import }`; the
+  import hook runs once, after the migrations, in ONE transaction: an error
+  or a count that does not match rolls everything back, the service keeps
+  running on its old files (`AppDb::import_state`), a status-page problem is
+  raised and the next start retries; on success the marker commits with the
+  data and the old files are renamed `*.migrated`. `App::storage_kind(DataKind)`
+  declares a kind of data (table, time column in seconds, milliseconds or
+  RFC 3339, filters of choice, flag and text, `finished_by_definition`, or
+  `KindOps` for a kind that is not one table); declarations are checked
+  against the schema at start. Only rows finished by their own definition are
+  removed on their own: daily, per declared kind, logged with a count.
+  Budget: default 50 MB, warn at 40 (`<P>_STORAGE_BUDGET_MB`,
+  `<P>_STORAGE_WARN_MB`, or `App::storage_budget`; the environment wins),
+  size = `page_count * page_size` plus the log, checked at start, every ten
+  minutes and after Storage actions; past the warn line a status-page problem
+  appears, `/metrics` carries `<prefix>_storage_bytes{file}`, `_budget_bytes`,
+  `_warn_bytes` and `_level`, and `App::on_storage_warn` runs once. It warns
+  only: no write is ever refused for size. Two knobs (`storage_budget_mb`,
+  `storage_warn_mb`, feature `storage`); `chassis-cli` lists `storage` among
+  the kit features, implied by `dashboard` and by the default features.
+  `TestApp::try_start_with_env` returns the kit's refusal instead of
+  panicking. Additive.
+
 ## [3.10.0] - 2026-10-21
 
 ### Security

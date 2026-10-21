@@ -72,6 +72,10 @@ pub(crate) struct MountExtra {
     pub kit_in_webapp: bool,
     /// Kenny, 2026-10-02: every kit page is optional per app.
     pub disabled: Vec<String>,
+    /// 3.11.0: the budget monitor and the app database; its problems join
+    /// the status page.
+    #[cfg(feature = "storage")]
+    pub storage: Option<crate::storage::Storage>,
 }
 
 pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Result<Mounted, Error> {
@@ -208,8 +212,18 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
     });
 
     let project_problems = registry.problems.unwrap_or_else(|| Arc::new(Vec::new));
+    #[cfg(feature = "storage")]
+    let storage_for_problems = extra.storage.clone();
     let problems: Arc<dyn Fn() -> Vec<Problem> + Send + Sync> = Arc::new(move || {
         let mut v = project_problems();
+        #[cfg(feature = "storage")]
+        if let Some(st) = &storage_for_problems {
+            v.extend(st.problems().into_iter().map(|p| Problem {
+                what: p.what,
+                why: p.why,
+                remedy: p.remedy,
+            }));
+        }
         v.extend(kit_guards.problems().into_iter().map(|p| Problem {
             what: p.what,
             why: p.why,

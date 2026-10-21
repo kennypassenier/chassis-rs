@@ -138,6 +138,7 @@ impl AppSpec {
         const PASSKEYS: Option<&str> = Some("passkeys");
         const UPDATE: Option<&str> = Some("self-update");
         const NOTIFY: Option<&str> = Some("notify");
+        const STORAGE: Option<&str> = Some("storage");
         let k = |key: &'static str,
                  default: Option<&'static str>,
                  feature: Option<&'static str>,
@@ -489,6 +490,18 @@ impl AppSpec {
                 NOTIFY,
                 "Seconds between health samples for `health.degraded` and `health.recovered`.",
             ),
+            k(
+                "storage_budget_mb",
+                Some("50"),
+                STORAGE,
+                "Megabytes both database files may take together before the kit warns (status page, metrics, hook); it never refuses a write.",
+            ),
+            k(
+                "storage_warn_mb",
+                Some("40"),
+                STORAGE,
+                "Megabytes at which storage starts to warn; 80 % of the budget when the budget is changed in code and this is not set.",
+            ),
         ]
     }
 
@@ -564,6 +577,8 @@ pub fn compiled_features() -> &'static [&'static str] {
         "self-update",
         #[cfg(feature = "notify")]
         "notify",
+        #[cfg(feature = "storage")]
+        "storage",
     ]
 }
 
@@ -691,6 +706,15 @@ pub struct App {
     /// the pre-update copy snapshots (the kit's, the app's, registered ones).
     #[cfg(feature = "storage")]
     dbs: Vec<crate::storage::Db>,
+    /// 3.11.0: the app database the project asked for, opened at start.
+    #[cfg(feature = "storage")]
+    app_db: Option<(crate::storage::AppDb, crate::storage::AppDbSpec)>,
+    #[cfg(feature = "storage")]
+    storage_kinds: Vec<crate::storage::DataKind>,
+    #[cfg(feature = "storage")]
+    storage_budget: Option<(u64, Option<u64>)>,
+    #[cfg(feature = "storage")]
+    storage_warn_hook: Option<crate::storage::WarnHook>,
     /// feat-pages-1: the project's pages, edits of the kit's, the brand
     /// link and the home route.
     #[cfg(feature = "dashboard")]
@@ -768,6 +792,9 @@ pub struct Running {
     flushes: Vec<Box<dyn FnOnce() + Send>>,
     #[cfg(unix)]
     backup: Option<crate::shell::backup::server::Server>,
+    /// 3.11.0: the budget check and the daily removal of finished rows.
+    #[cfg(feature = "storage")]
+    storage_tasks: Vec<tokio::task::JoinHandle<()>>,
 }
 
 /// `true`/`false` (also `1`/`0`, `yes`/`no`); anything else is a config
@@ -848,6 +875,14 @@ impl App {
             backup_paths: Vec::new(),
             #[cfg(feature = "storage")]
             dbs: Vec::new(),
+            #[cfg(feature = "storage")]
+            app_db: None,
+            #[cfg(feature = "storage")]
+            storage_kinds: Vec::new(),
+            #[cfg(feature = "storage")]
+            storage_budget: None,
+            #[cfg(feature = "storage")]
+            storage_warn_hook: None,
             #[cfg(feature = "dashboard")]
             pages: Vec::new(),
             #[cfg(feature = "dashboard")]
@@ -1340,6 +1375,14 @@ impl App {
             backup_paths: Vec::new(),
             #[cfg(feature = "storage")]
             dbs: Vec::new(),
+            #[cfg(feature = "storage")]
+            app_db: None,
+            #[cfg(feature = "storage")]
+            storage_kinds: Vec::new(),
+            #[cfg(feature = "storage")]
+            storage_budget: None,
+            #[cfg(feature = "storage")]
+            storage_warn_hook: None,
             #[cfg(feature = "dashboard")]
             pages: Vec::new(),
             #[cfg(feature = "dashboard")]
@@ -1690,6 +1733,60 @@ impl App {
         self
     }
 
+    /// 3.11.0: the app's own database, `<state_dir>/<name>.db`. Returns a
+    /// handle at once; the file opens at start, so `--check` and
+    /// `--version` create nothing. The migrations are a numbered list, each
+    /// atomic; a database newer than this build is refused. The optional
+    /// import runs once in one transaction (see
+    /// [`crate::storage::AppDbSpec`]). The file is under the backup pause,
+    /// the pre-update copy and the storage budget without further ado.
+    /// Call it once.
+    #[cfg(feature = "storage")]
+    pub fn app_db(
+        &mut self,
+        spec: crate::storage::AppDbSpec,
+    ) -> Result<crate::storage::AppDb, Error> {
+        if self.app_db.is_some() {
+            return Err(Error::config(
+                "App::app_db was called twice",
+                "a service has one app database; keep the handle the first call returned",
+            ));
+        }
+        let handle = crate::storage::AppDb::unopened()?;
+        self.app_db = Some((handle.clone(), spec));
+        Ok(handle)
+    }
+
+    /// 3.11.0: declare a kind of data in the app database, for the Storage
+    /// page and the daily removal of rows finished by their own
+    /// definition. Validated against the schema at start.
+    #[cfg(feature = "storage")]
+    pub fn storage_kind(&mut self, kind: crate::storage::DataKind) -> &mut Self {
+        self.storage_kinds.push(kind);
+        self
+    }
+
+    /// 3.11.0: the storage budget in megabytes (default 50) and the line at
+    /// which it starts to warn (default 80 % of the budget, 40 of 50). A
+    /// `<P>_STORAGE_BUDGET_MB` / `<P>_STORAGE_WARN_MB` setting wins. The
+    /// budget only ever warns; a write is never refused for size.
+    #[cfg(feature = "storage")]
+    pub fn storage_budget(&mut self, budget_mb: u64, warn_mb: Option<u64>) -> &mut Self {
+        self.storage_budget = Some((budget_mb, warn_mb));
+        self
+    }
+
+    /// 3.11.0: run once when the storage files rise past the warn line (and
+    /// again past the budget), with the report the Storage page shows.
+    #[cfg(feature = "storage")]
+    pub fn on_storage_warn(
+        &mut self,
+        f: impl Fn(&crate::storage::StorageReport) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.storage_warn_hook = Some(Arc::new(f));
+        self
+    }
+
     /// A link in the dashboard's top navigation (K16): since 3.1.0 a
     /// visible project page in the page registry.
     #[cfg(feature = "dashboard")]
@@ -2002,6 +2099,17 @@ impl App {
         }
     }
 
+    /// The sqlite files `--check` looks at, with how many migrations this
+    /// build knows for each.
+    #[cfg(feature = "storage")]
+    fn storage_files_to_check(&self) -> Vec<(String, usize)> {
+        let mut out = Vec::new();
+        if let Some((_, spec)) = &self.app_db {
+            out.push((format!("{}.db", self.spec.name), spec.migrations.len()));
+        }
+        out
+    }
+
     /// The URL `--healthcheck` probes when none is given: the configured
     /// port on the loopback address (an unspecified bind cannot be dialled).
     pub fn healthcheck_url(&self) -> String {
@@ -2118,6 +2226,20 @@ impl App {
                 // thing --check touches is a zero-byte probe, removed at once.
                 let loaded = self.loaded.as_ref().expect("loaded");
                 crate::shell::store::probe_state_dir(&loaded.state_dir, false)?;
+                // 3.11.0: the sqlite files open read-only and are NOT
+                // migrated or created by a check.
+                #[cfg(feature = "storage")]
+                for (file, known) in self.storage_files_to_check() {
+                    let inspection =
+                        crate::storage::Db::inspect(&loaded.state_dir.join(file), known)?;
+                    println!("{}", inspection.describe());
+                    if inspection.is_newer() {
+                        return Err(Error::config(
+                            inspection.describe(),
+                            "run the build that wrote it, or restore the pre-update copy taken before the update",
+                        ));
+                    }
+                }
                 for warning in self.startup_warnings() {
                     eprintln!("warning: {warning}");
                 }
@@ -2333,6 +2455,21 @@ impl App {
         for warning in self.startup_warnings() {
             tracing::warn!("{warning}");
         }
+        // 3.11.0: the sqlite files open (and migrate) before anything reads
+        // or serves; a database newer than this build stops the start here.
+        #[cfg(feature = "storage")]
+        let storage = open_storage(
+            loaded,
+            self.spec.name,
+            self.app_db.take(),
+            std::mem::take(&mut self.storage_kinds),
+            self.storage_budget,
+            self.storage_warn_hook.take(),
+            &mut self.dbs,
+        )?;
+        #[cfg(feature = "storage")]
+        self.scrape_sources
+            .push(Arc::new(storage.metrics(self.spec.metric_prefix())));
         self.subsystems
             .push(Arc::new(crate::shell::store::StoreSubsystem));
         #[cfg(feature = "notify")]
@@ -2513,6 +2650,8 @@ impl App {
                     home: self.home.take(),
                     webapp_at_root,
                     kit_in_webapp: self.kit_pages_in_webapp,
+                    #[cfg(feature = "storage")]
+                    storage: Some(storage.clone()),
                 },
             )
             .await?;
@@ -2640,8 +2779,62 @@ impl App {
             flushes,
             #[cfg(unix)]
             backup,
+            #[cfg(feature = "storage")]
+            storage_tasks: storage.spawn(),
         })
     }
+}
+
+/// Open the sqlite files for `start` and build the budget monitor. The
+/// app's file is installed into the handle `App::app_db` returned; every
+/// file joins `dbs`, which the backup pause and the pre-update copy read.
+#[cfg(feature = "storage")]
+fn open_storage(
+    loaded: &Loaded,
+    name: &str,
+    app_db: Option<(crate::storage::AppDb, crate::storage::AppDbSpec)>,
+    kinds: Vec<crate::storage::DataKind>,
+    budget: Option<(u64, Option<u64>)>,
+    hook: Option<crate::storage::WarnHook>,
+    dbs: &mut Vec<crate::storage::Db>,
+) -> Result<crate::storage::Storage, Error> {
+    use crate::core::config::Source;
+    use crate::storage::{Storage, StorageConfig};
+    let default_budget = budget.map_or(StorageConfig::DEFAULT_BUDGET_MB, |b| b.0);
+    let budget_mb = if loaded.source("storage_budget_mb") == Some(Source::Default) {
+        default_budget
+    } else {
+        parse_u64(loaded, "storage_budget_mb", 1)?
+    };
+    let warn_mb = if loaded.source("storage_warn_mb") == Some(Source::Default) {
+        match budget {
+            Some((_, w)) => w,
+            None => Some(StorageConfig::DEFAULT_WARN_MB.min(budget_mb)),
+        }
+    } else {
+        Some(parse_u64(loaded, "storage_warn_mb", 1)?)
+    };
+    let cfg = StorageConfig::from_mb(budget_mb, warn_mb)?;
+    let app = match app_db {
+        Some((handle, spec)) => {
+            let path = loaded.state_dir.join(format!("{name}.db"));
+            handle.install(&path, spec, kinds)?;
+            dbs.push(handle.db()?.clone());
+            Some(handle)
+        }
+        None if kinds.is_empty() => None,
+        None => {
+            return Err(Error::config(
+                "App::storage_kind was called but the service has no app database",
+                "call App::app_db first; a kind describes data in that file",
+            ));
+        }
+    };
+    let storage = Storage::new(cfg, app, None, hook);
+    if let Err(e) = storage.check() {
+        tracing::warn!(error = %e, "storage: the first budget check failed");
+    }
+    Ok(storage)
 }
 
 impl Limits {
@@ -2713,8 +2906,14 @@ impl Running {
             flushes,
             #[cfg(unix)]
             backup,
+            #[cfg(feature = "storage")]
+            storage_tasks,
             ..
         } = self;
+        #[cfg(feature = "storage")]
+        for t in &storage_tasks {
+            t.abort();
+        }
         // A held write would outlast the drain; end any backup pause first.
         #[cfg(unix)]
         if let Some(backup) = backup {
@@ -2791,7 +2990,7 @@ mod tests {
     }
 
     /// Every feature a knob can name; `core` knobs carry `None`.
-    const ALL_FEATURES: [&str; 4] = ["dashboard", "passkeys", "self-update", "notify"];
+    const ALL_FEATURES: [&str; 5] = ["dashboard", "passkeys", "self-update", "notify", "storage"];
 
     /// K31: the table has one row per knob, in `knobs()` order, and the
     /// two secrets show `(secret)` where a default would be — never a
@@ -2911,7 +3110,10 @@ mod tests {
             );
             if let Some(f) = k.feature {
                 assert!(
-                    matches!(f, "dashboard" | "passkeys" | "self-update" | "notify"),
+                    matches!(
+                        f,
+                        "dashboard" | "passkeys" | "self-update" | "notify" | "storage"
+                    ),
                     "{}: unknown feature {f}",
                     k.key
                 );

@@ -123,6 +123,19 @@ impl TestApp {
         }
     }
 
+    /// [`TestApp::start_with_env`] that returns the kit's refusal instead of
+    /// panicking: the test that proves a bad configuration (a storage warn
+    /// line above the budget, a data kind that does not match the schema)
+    /// stops the start with the right message.
+    pub async fn try_start_with_env(
+        spec: AppSpec,
+        router: Router,
+        env: &[(&str, &str)],
+        configure: impl FnOnce(&mut App),
+    ) -> Result<TestApp, Error> {
+        Self::launch(spec, router, true, env, configure).await
+    }
+
     /// Start a service that opted in to an OPEN dashboard
     /// (`AppSpec::open_dashboard`): no `<PREFIX>_TOKEN`, no
     /// `<PREFIX>_SECRET_KEY`, every caller is the admin. [`TestApp::token`]

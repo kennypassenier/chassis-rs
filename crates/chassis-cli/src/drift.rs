@@ -91,8 +91,9 @@ fn chassis_dep(table: &toml::Table) -> Option<&toml::Value> {
 
 /// Every kit feature, in the order a document lists them. `assets` sits
 /// after `dashboard` because that is what pulls it in.
-pub const KIT_FEATURES: [&str; 6] = [
+pub const KIT_FEATURES: [&str; 7] = [
     "core",
+    "storage",
     "dashboard",
     "assets",
     "passkeys",
@@ -106,9 +107,9 @@ pub const KIT_FEATURES: [&str; 6] = [
 /// from it, so it resolves to nothing here.
 fn implied(feature: &str) -> &'static [&'static str] {
     match feature {
-        "dashboard" => &["core", "assets"],
-        "assets" => &["core"],
-        "passkeys" => &["dashboard", "assets", "core"],
+        "dashboard" => &["core", "assets", "storage"],
+        "assets" | "storage" => &["core"],
+        "passkeys" => &["dashboard", "assets", "storage", "core"],
         "self-update" | "notify" => &["core"],
         _ => &[],
     }
@@ -130,14 +131,15 @@ pub fn kit_features(cargo_toml: &str) -> Result<Option<Vec<String>>, Error> {
     let mut on: Vec<&str> = Vec::new();
     match dep {
         // `chassis = "1.8.0"`: default features, nothing added.
-        toml::Value::String(_) => on.push("core"),
+        // The kit's default features: core and (since 3.11.0) storage.
+        toml::Value::String(_) => on.extend(["core", "storage"]),
         toml::Value::Table(t) => {
             let defaults_on = t
                 .get("default-features")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(true);
             if defaults_on {
-                on.push("core");
+                on.extend(["core", "storage"]);
             }
             if let Some(list) = t.get("features").and_then(|v| v.as_array()) {
                 for f in list.iter().filter_map(|v| v.as_str()) {
@@ -607,11 +609,11 @@ mod tests {
             features(
                 r#"chassis = { git = "g", tag = "v1", features = ["dashboard", "self-update"] }"#
             ),
-            ["core", "dashboard", "assets", "self-update"],
+            ["core", "storage", "dashboard", "assets", "self-update"],
         );
         assert_eq!(
             features(r#"chassis = { git = "g", tag = "v1", features = ["passkeys"] }"#),
-            ["core", "dashboard", "assets", "passkeys"],
+            ["core", "storage", "dashboard", "assets", "passkeys"],
             "passkeys brings the dashboard it lives on"
         );
         assert_eq!(
@@ -623,7 +625,7 @@ mod tests {
         );
         assert_eq!(
             features(r#"chassis = "1.8.0""#),
-            ["core"],
+            ["core", "storage"],
             "a bare version string is the kit's default feature"
         );
     }

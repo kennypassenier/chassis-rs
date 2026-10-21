@@ -271,9 +271,23 @@ impl Db {
                 "check the state directory's permissions; the service user must own it",
             )
         })?;
-        pragmas(&writer, true)?;
-        writer.execute_batch(META_DDL)?;
-        let schema = migrate(&mut writer, migrations, &shown)?;
+        // Two processes starting on one file at the same moment can find
+        // the first WAL switch locked; the setup is idempotent, so retry.
+        let mut attempt = 0;
+        let schema = loop {
+            let setup = (|| {
+                pragmas(&writer, true)?;
+                writer.execute_batch(META_DDL)?;
+                migrate(&mut writer, migrations, &shown)
+            })();
+            match setup {
+                Err(e) if e.kind == Kind::Overloaded && attempt < 40 => {
+                    attempt += 1;
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+                other => break other?,
+            }
+        };
         let mut readers = Vec::with_capacity(READERS);
         for _ in 0..READERS {
             let r = Connection::open_with_flags(

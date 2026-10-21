@@ -7,9 +7,20 @@
 //! is the app's, opened through [`crate::App::app_db`]. The design and
 //! Kenny's decisions are in `docs/STORAGE_DESIGN.md`.
 
+mod app_db;
 mod db;
+mod kinds;
+mod runtime;
 
+pub use app_db::{
+    AppDb, AppDbSpec, CompactPreview, Deleted, ImportContext, ImportHook, ImportReport,
+    ImportState, KindOverview, Preview, StorageProblem,
+};
 pub use db::{Db, FileSizes, Inspection, Migration, meta_get, meta_set, wal_path};
+pub use kinds::{
+    DataKind, Filter, FilterKind, KindOps, KindStats, Now, ResolvedSelector, Selector, TimeFormat,
+};
+pub use runtime::{FileReport, Level, Storage, StorageConfig, StorageReport, WarnHook};
 
 /// The sqlite crate the handles are built on, re-exported so a project
 /// writes its queries against the very version the kit links.
