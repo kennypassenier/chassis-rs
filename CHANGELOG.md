@@ -7,6 +7,29 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **Three homelab gaps from adopting 3.11.0** (`storage`; gaps 139, 140, 141
+  of the homelab's list). All additive.
+  - A project can unit-test what it hangs on `App::on_storage_warn`:
+    `StorageReport::new`, `FileReport::new` and `FileSizes::new` build a
+    report by hand, and `AppDb::prune_finished_at(&Now)` is public, so a
+    `finished_by_definition` rule runs at a chosen instant instead of the
+    real clock.
+  - An import reports per store: `ImportReport::from_stores(vec![
+    ImportStore::new("sessions", expected, imported).moved(files), ..])`.
+    Each store's count is checked on its own and a mismatch names the store
+    in the rollback message; only the files of stores marked `moved` are
+    renamed `*.migrated`, so a store that is copied but still runs on its
+    JSON file is never renamed from under the running code. The rename is
+    also a step of its own: `storage::mark_migrated(&files)`, for a project
+    that moves a store in a later release. `ImportReport::new` is unchanged.
+  - A `DataKind` over a `WITHOUT ROWID` table works: its samples are ordered
+    by the time column and then by the primary key (an ordinary table still
+    by `rowid`), and the ordering is proven at registration with a dry run
+    of the very query, so a kind that cannot be previewed is a start error,
+    not a failure at the first click.
+
 ## [3.11.0] - 2026-10-21
 
 ### Added

@@ -45,6 +45,10 @@ pub struct ImportReport {
     /// The old files to rename to `<name>.migrated` once the import
     /// committed.
     pub files: Vec<PathBuf>,
+    /// The per-store figures when the hook reported them with
+    /// [`ImportReport::from_stores`]; each is checked on its own and a
+    /// mismatch names the store.
+    pub stores: Vec<ImportStore>,
 }
 
 impl ImportReport {
@@ -55,7 +59,59 @@ impl ImportReport {
             expected,
             imported,
             files,
+            stores: Vec::new(),
         }
+    }
+
+    /// A report per store (3.12.0): each store's `expected` must equal its
+    /// `imported` (a mismatch rolls the whole import back and names the
+    /// store), and only the files of stores marked
+    /// [`ImportStore::moved`] are renamed, so a store that is copied but
+    /// still runs on its JSON file is never renamed away from under the
+    /// running code.
+    pub fn from_stores(stores: Vec<ImportStore>) -> Self {
+        ImportReport {
+            expected: stores.iter().map(|s| s.expected).sum(),
+            imported: stores.iter().map(|s| s.imported).sum(),
+            files: stores.iter().flat_map(|s| s.files.clone()).collect(),
+            stores,
+        }
+    }
+}
+
+/// One store of an import (3.12.0, homelab gap 140): what it held, what the
+/// hook wrote, and the old files that go away ONLY if the project says the
+/// store now lives in the database.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct ImportStore {
+    pub name: String,
+    pub expected: u64,
+    pub imported: u64,
+    /// Renamed `*.migrated` after the commit, for a store reported as
+    /// moved; empty for a store that was copied but still runs on its old
+    /// file.
+    pub files: Vec<PathBuf>,
+}
+
+impl ImportStore {
+    /// A store copied in: its name, the records the old file held and the
+    /// rows written. Its files stay where they are until
+    /// [`ImportStore::moved`] says otherwise.
+    pub fn new(name: &str, expected: u64, imported: u64) -> Self {
+        ImportStore {
+            name: name.to_string(),
+            expected,
+            imported,
+            files: Vec::new(),
+        }
+    }
+
+    /// The store now lives in the database: rename these old files
+    /// `*.migrated` once the import committed.
+    pub fn moved(mut self, files: Vec<PathBuf>) -> Self {
+        self.files = files;
+        self
     }
 }
 
@@ -576,7 +632,10 @@ impl AppDb {
         self.prune_finished_at(&Now::current())
     }
 
-    pub(crate) fn prune_finished_at(&self, now: &Now) -> Result<Vec<(String, u64)>, Error> {
+    /// [`AppDb::prune_finished`] at a chosen instant, so a project can test
+    /// its `finished_by_definition` rules without waiting for the clock
+    /// (3.12.0, homelab gap 139).
+    pub fn prune_finished_at(&self, now: &Now) -> Result<Vec<(String, u64)>, Error> {
         if !self.kinds().iter().any(DataKind::has_finished_rule) {
             return Ok(Vec::new());
         }
@@ -701,6 +760,15 @@ fn run_import(db: &Db, hook: ImportHook, state_dir: &Path) -> Result<bool, Error
             return Ok(None);
         }
         let report = hook(tx, &ctx)?;
+        if let Some(bad) = report.stores.iter().find(|s| s.expected != s.imported) {
+            return Err(Error::dependency(
+                format!(
+                    "the import of `{}` wrote {} row(s) but the old file held {}",
+                    bad.name, bad.imported, bad.expected
+                ),
+                "nothing was imported; fix the import and restart",
+            ));
+        }
         if report.expected != report.imported {
             return Err(Error::dependency(
                 format!(
@@ -1224,6 +1292,7 @@ mod tests {
                     expected: report_expected,
                     imported: rows,
                     files,
+                    stores: Vec::new(),
                 })
             })),
         }

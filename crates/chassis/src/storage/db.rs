@@ -148,6 +148,16 @@ pub struct FileSizes {
 }
 
 impl FileSizes {
+    /// Sizes built by hand (3.12.0), for a test of code that reads a
+    /// [`super::StorageReport`].
+    pub fn new(db_bytes: u64, wal_bytes: u64, reclaimable_bytes: u64) -> Self {
+        FileSizes {
+            db_bytes,
+            wal_bytes,
+            reclaimable_bytes,
+        }
+    }
+
     pub fn total(&self) -> u64 {
         self.db_bytes + self.wal_bytes
     }

@@ -218,6 +218,43 @@ pub struct StorageReport {
     pub checked_at: u64,
 }
 
+impl FileReport {
+    /// A file's share, for a project's own test of what it hangs on
+    /// [`crate::App::on_storage_warn`] (3.12.0).
+    pub fn new(role: &'static str, file: &str, sizes: FileSizes, cleanable: bool) -> Self {
+        FileReport {
+            role,
+            file: file.to_string(),
+            total_bytes: sizes.total(),
+            sizes,
+            cleanable,
+        }
+    }
+}
+
+impl StorageReport {
+    /// A report built by hand, so a project can unit-test the code it hangs
+    /// on [`crate::App::on_storage_warn`] without a database near the
+    /// budget (3.12.0, homelab gap 139).
+    pub fn new(
+        files: Vec<FileReport>,
+        total_bytes: u64,
+        budget_bytes: u64,
+        warn_bytes: u64,
+        level: Level,
+        checked_at: u64,
+    ) -> Self {
+        StorageReport {
+            files,
+            total_bytes,
+            budget_bytes,
+            warn_bytes,
+            level,
+            checked_at,
+        }
+    }
+}
+
 /// Called once when the level rises (ok to warn, warn to over).
 pub type WarnHook = Arc<dyn Fn(&StorageReport) + Send + Sync>;
 

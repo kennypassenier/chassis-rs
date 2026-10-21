@@ -554,3 +554,19 @@ For 1.8.0, check your own documents for:
   The hook runs on the updater's task; keep it cheap (spawn if it does I/O).
   It fires for every event the kit emits, whichever loop or subcommand
   produced it, and the kit's own handling of the event is unchanged.
+
+## 3.12.0: preferences in the database (a minor, additive)
+
+Nothing has to change to take 3.12.0. What is new, in the order a service
+would adopt it:
+
+- **Gaps closed (homelab 139, 140, 141).** `StorageReport::new` /
+  `FileReport::new` / `FileSizes::new` and a public
+  `AppDb::prune_finished_at(&Now)` make code on `App::on_storage_warn` and
+  `finished_by_definition` rules testable. An import can report per store
+  (`ImportReport::from_stores`, `ImportStore::new(name, expected,
+  imported).moved(files)`): only the files of stores marked moved are
+  renamed, and `storage::mark_migrated(&files)` does the rename as a step of
+  your own. A `DataKind` over a `WITHOUT ROWID` table is previewed by its
+  primary key and checked at registration.
+

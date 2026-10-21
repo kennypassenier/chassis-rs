@@ -18,7 +18,7 @@ mod runtime;
 
 pub use app_db::{
     AppDb, AppDbSpec, CompactPreview, Deleted, ImportContext, ImportHook, ImportReport,
-    ImportState, KindOverview, Preview, StorageProblem,
+    ImportState, ImportStore, KindOverview, Preview, StorageProblem,
 };
 pub use db::{Db, FileSizes, Inspection, Migration, meta_get, meta_set, wal_path};
 pub use kinds::{
@@ -41,6 +41,14 @@ pub(crate) fn rekey_kit_file(
 }
 pub(crate) use runtime::BudgetSetup;
 pub use runtime::{FileReport, Fixed, Level, Storage, StorageConfig, StorageReport, WarnHook};
+
+/// Rename old files `x` to `x.migrated` (`x.migrated.2` when that exists).
+/// What the kit does itself for the files an import reports as moved; a
+/// project that moves a store later, in a step of its own, calls it after
+/// its own commit (3.12.0, homelab gap 140). A failed rename is a warning.
+pub fn mark_migrated(files: &[PathBuf]) {
+    app_db::rename_migrated(files);
+}
 
 /// The sqlite crate the handles are built on, re-exported so a project
 /// writes its queries against the very version the kit links.

@@ -722,7 +722,9 @@ are lowercase `[a-z][a-z0-9_]*` (32 at most), `compact` and `kit` are
 reserved, and the declaration is checked against the schema at start. A kind
 whose rows can end by their own definition adds
 `.finished_by_definition("expires_at < :now")`: those rows, and only those,
-are removed daily and the count is logged. Nothing of this reaches
+are removed daily and the count is logged. A kind over a `WITHOUT ROWID`
+table is fine (3.12.0): the samples are ordered by the time column, then the
+primary key, and the ordering is proven at start. Nothing of this reaches
 `<name>-kit.db`: it has no kind, no delete and no compact. Proven by
 `tests/storage_api.rs` (`the_kit_file_can_never_be_previewed_deleted_from_or_compacted`
 and the others) and `tests/storage_app.rs`.

@@ -418,6 +418,16 @@ impl DataKind {
         {
             return Err(bad(format!("`{table}` has no time column `{col}`")));
         }
+        // The samples' ordering must exist for this table (a WITHOUT ROWID
+        // table has no rowid): prove it now, not at the first preview.
+        let order = match time {
+            Some((c, _)) => format!("\"{c}\" ASC, {}", tiebreak(conn, table)?),
+            None => tiebreak(conn, table)?,
+        };
+        conn.prepare(&format!(
+            "SELECT * FROM \"{table}\" ORDER BY {order} LIMIT 0"
+        ))
+        .map_err(|e| bad(format!("the samples of `{table}` cannot be ordered: {e}")))?;
         for f in &self.filters {
             if !(ident_ok(&f.column) && has(&f.column)) {
                 return Err(bad(format!(
@@ -602,9 +612,10 @@ impl DataKind {
             Shape::Custom(ops) => ops.samples(conn, sel, limit),
             Shape::Table { table, time } => {
                 let (w, args) = self.where_sql(sel);
+                let tie = tiebreak(conn, table)?;
                 let order = match time {
-                    Some((c, _)) => format!("\"{c}\" ASC, rowid ASC"),
-                    None => "rowid ASC".into(),
+                    Some((c, _)) => format!("\"{c}\" ASC, {tie}"),
+                    None => tie,
                 };
                 let sql = format!("SELECT * FROM \"{table}\"{w} ORDER BY {order} LIMIT {limit}");
                 let mut stmt = conn.prepare(&sql)?;
@@ -679,8 +690,42 @@ impl DataKind {
     }
 }
 
+/// How samples of a table are put in a stable order after the time column:
+/// `rowid` for an ordinary table, the primary key for a `WITHOUT ROWID`
+/// one, which has no rowid (3.12.0, homelab gap 141).
+fn tiebreak(conn: &Connection, table: &str) -> Result<String, Error> {
+    let sql: String = conn
+        .query_row(
+            "SELECT COALESCE(sql, '') FROM sqlite_master WHERE type = 'table' AND name = ?1",
+            [table],
+            |r| r.get(0),
+        )
+        .unwrap_or_default();
+    if !sql.to_ascii_uppercase().contains("WITHOUT ROWID") {
+        return Ok("rowid ASC".into());
+    }
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info(\"{table}\")"))?;
+    let mut pk: Vec<(i64, String)> = Vec::new();
+    let mut rows = stmt.query([])?;
+    while let Some(r) = rows.next()? {
+        let (name, rank): (String, i64) = (r.get(1)?, r.get(5)?);
+        if rank > 0 {
+            pk.push((rank, name));
+        }
+    }
+    pk.sort();
+    if pk.is_empty() {
+        return Ok("1 ASC".into());
+    }
+    Ok(pk
+        .iter()
+        .map(|(_, n)| format!("\"{n}\" ASC"))
+        .collect::<Vec<_>>()
+        .join(", "))
+}
+
 /// Bytes the table's pages take (dbstat), 0 when the vtab is unavailable.
-fn table_bytes(conn: &Connection, table: &str) -> Option<u64> {
+pub(super) fn table_bytes(conn: &Connection, table: &str) -> Option<u64> {
     conn.query_row(
         "SELECT COALESCE(SUM(pgsize), 0) FROM dbstat WHERE name = ?1",
         [table],
