@@ -9,6 +9,16 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [3.10.0] - 2026-10-21
 
+### Security
+
+- **webpki-roots 1.0.9 → 1.0.10** in the kit's own lock file: cargo-deny
+  refused the release on RUSTSEC-2026-0381 (1.0.9 still trusts the emSign
+  ECC Root CA - G3, whose distrusted intermediates' private keys are now
+  known). A consumer runs `cargo update -p webpki-roots` in its own lock file.
+- **rustls-webpki 0.103.15 → 0.103.16** in the kit's own lock file: the same
+  distrusted emSign intermediates, on the verification side
+  (RUSTSEC-2026-0382). A consumer runs `cargo update -p rustls-webpki`.
+
 ### Added
 
 - **The copy-paste command names its token after the vocabulary** (kit-r4,
