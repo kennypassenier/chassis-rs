@@ -86,7 +86,7 @@ export const REMEMBER_PREFIX = 'kp-remember';
 /**
  * The kinds of state this package remembers.
  *
- * @typedef {'sidenav' | 'disclosure' | 'tree' | 'split' | 'datatable' | 'tour' | 'refresh' | 'notices' | 'claim' | 'availability' | 'time' | 'console' | 'focus-steps' | 'picker'} Remembered
+ * @typedef {'sidenav' | 'disclosure' | 'tree' | 'split' | 'datatable' | 'tour' | 'refresh' | 'notices' | 'claim' | 'availability' | 'time' | 'console' | 'focus-steps' | 'picker' | 'alert'} Remembered
  */
 
 /**
@@ -378,6 +378,11 @@ function paintDatatable(wrap, memory) {
     }
 }
 
+/** A dismissible alert that stayed closed [wish-1120, homelab 119]: hidden again, as the dismissal left it. @param {Element} element @param {Memory} memory */
+function paintAlert(element, memory) {
+    if (memory.read('dismissed', /** @type {boolean} */ (false)) === true) /** @type {HTMLElement} */ (element).hidden = true;
+}
+
 /** @type {Record<Remembered, (element: Element, memory: Memory) => void>} */
 const PAINTERS = {
     sidenav: paintSidenav,
@@ -398,6 +403,8 @@ const PAINTERS = {
     // The check-in's progress and the picker's folded list are read by their own modules [kpadopt6].
     'focus-steps': () => {},
     picker: () => {},
+    // A dismissible alert that stays closed, `data-kp-remember` on a `.kp-alert`; js/overlays.js writes it on a dismissal [wish-1120].
+    alert: paintAlert,
 };
 
 /**
@@ -423,6 +430,7 @@ const KINDS = [
     ['split', '[data-kp-split]'],
     ['datatable', '[data-kp-datatable]'],
     ['disclosure', 'details'],
+    ['alert', '.kp-alert'],
 ];
 
 /**

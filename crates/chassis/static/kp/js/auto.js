@@ -260,6 +260,14 @@ export const NEEDS = [
     { name: 'auto-refresh', when: '[data-kp-refresh]', load: () => import('./auto-refresh.js'), attach: (m, root) => [m.attachRefresh(root)] },
     // The offline and reconnecting banner [kpadopt5-ops].
     { name: 'connection', when: '[data-kp-connection]', load: () => import('./connection.js'), attach: (m, root) => [m.attachConnection(root)] },
+    // One sentence for a job with steps and bytes [wish-1120, homelab 98].
+    { name: 'job-line', when: '[data-kp-jobline]', load: () => import('./job-line.js'), attach: (m, root) => [m.attachJobLines(root)] },
+    // A text box that knows its place in a config file [wish-1120, homelab 94].
+    { name: 'code-field', when: 'textarea[data-kp-code-field]', load: () => import('./code-field.js'), attach: (m, root) => [m.attachCodeFields(root)] },
+    // An on-this-page list with scroll-spy [wish-1120, homelab 95].
+    { name: 'page-contents', when: '[data-kp-contents]', load: () => import('./page-contents.js'), attach: (m, root) => [m.attachContents(root)] },
+    // Quiet hours: from, to, days and the severities that break through [wish-1120, homelab 96].
+    { name: 'quiet-hours', when: '[data-kp-quiet]', load: () => import('./quiet-hours.js'), attach: (m, root) => [m.attachQuietHours(root)] },
     // A transfer with its speed and the time left [kpadopt5-ops].
     { name: 'transfer', when: '[data-kp-transfer]', load: () => import('./transfer.js'), attach: (m, root) => [m.attachTransfers(root)] },
     // The question card's region [kpadopt5-ops]; the cards are made with askQuestion().

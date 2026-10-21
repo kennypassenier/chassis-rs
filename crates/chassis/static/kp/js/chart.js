@@ -122,6 +122,8 @@ export const TREND_CHART = '[data-kp-chart="spark"][data-kp-spark-head="none"]';
  * @property {number} [step] ms
  * @property {number[]} [values]
  * @property {string} [colour] the consumer's own colour (`var(--…)`) instead of the next `--chart-n`
+ * @property {'line' | 'columns'} [shape] `columns` draws one column per reading (a histogram: a count per bucket) instead of the line and its area;
+ *   columns of a stacked chart stand on each other [wish-1120, homelab 104]. Default `line`
  * @property {number} [total] shown in the legend while no time is under the crosshair
  * @typedef {object} ChartEvent
  * @property {number} at ms since the epoch
@@ -172,7 +174,12 @@ export const TREND_CHART = '[data-kp-chart="spark"][data-kp-spark-head="none"]';
  * @property {number} [from] the window, when the group's range should not set it
  * @property {number} [to]
  * @property {number} [yMax] the top of the axis; else a round number above the highest value
- * @property {number} [threshold] a dashed line (an alarm level)
+ * @property {number | readonly number[]} [threshold] a dashed line (an alarm level), or several: the first is the main one, the others are
+ *   drawn finer and dotted (a warning level beside the alarm) [wish-1120, homelab 104]
+ * @property {ChartTimeUnit} [timeUnit] the unit of every time in this data (a point's time, a series' `start` and `step`, an event's `at` and
+ *   `until`, `from` and `to`): `ms` (default), `s`, `min`, `h`, `d` or `w` since the epoch (a step in the same unit), which the chart turns into
+ *   milliseconds itself. Months and years are not units: their length varies, so a month is given as the moment it starts. The element's
+ *   `data-kp-chart-time-unit` says the same for data given by markup [wish-1120, homelab 103]
  * @property {boolean} [stacked] sources on top of each other, as areas
  * @property {number} [height] px; else `--kp-chart-height` on the chart (px or rem), else 168
  * @typedef {{ from: number, to: number }} ChartWindow
@@ -748,6 +755,35 @@ const PAGES = new WeakMap();
  * @property {() => number} now
  */
 
+/** @typedef {'ms' | 's' | 'min' | 'h' | 'd' | 'w'} ChartTimeUnit */
+/** Milliseconds in one of each time unit a chart's data can be given in. @type {Record<ChartTimeUnit, number>} */
+export const CHART_TIME_UNITS = { ms: 1, s: 1000, min: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 };
+
+/**
+ * The data with every time in milliseconds: a copy, the page's own object is left alone. Data already in `ms` (or in no known unit) comes back as it is.
+ * @param {ChartData} data
+ * @param {string | null} [attribute] the element's `data-kp-chart-time-unit`
+ * @returns {ChartData}
+ */
+export function chartInMilliseconds(data, attribute) {
+    const named = data.timeUnit ?? attribute;
+    const factor = named && Object.hasOwn(CHART_TIME_UNITS, named) ? CHART_TIME_UNITS[/** @type {ChartTimeUnit} */ (named)] : 1;
+    if (factor === 1) return data;
+    const ms = (/** @type {number | undefined} */ t) => (typeof t === 'number' ? Math.round(t * factor) : t);
+    /** @type {ChartData} */
+    const out = { ...data, timeUnit: 'ms' };
+    if (data.from !== undefined) out.from = ms(data.from);
+    if (data.to !== undefined) out.to = ms(data.to);
+    out.series = (data.series ?? []).map((series) => ({
+        ...series,
+        ...(series.points ? { points: series.points.map((p) => /** @type {ChartPoint} */ ([ms(p[0]), p[1]])) } : {}),
+        ...(series.start !== undefined ? { start: ms(series.start) } : {}),
+        ...(series.step !== undefined ? { step: ms(series.step) } : {}),
+    }));
+    if (data.events) out.events = data.events.map((ev) => ({ ...ev, at: /** @type {number} */ (ms(ev.at)), ...(ev.until !== undefined ? { until: ms(ev.until) } : {}) }));
+    return out;
+}
+
 /**
  * Give a chart its sources and events (the page's own data). Before the chart
  * is attached the data waits for it; a `<script type="application/json"
@@ -759,6 +795,7 @@ const PAGES = new WeakMap();
  * @param {ChartData} data
  */
 export function setChartData(el, data) {
+    data = chartInMilliseconds(data, el.getAttribute('data-kp-chart-time-unit'));
     DATA.set(el, data);
     el.removeAttribute('data-kp-chart-loading');
     CHARTS.get(el)?.setData(data);
@@ -772,6 +809,7 @@ export function setChartData(el, data) {
  * @property {string} [text] one sentence under `error` (else the package's own), or under the empty plate
  * @property {Node | string | null} [art] a picture over the heading of the empty and failed plates
  * @property {number} [step] the points' spacing, ms (the axis says `now` while the last is at most two steps old)
+ * @property {ChartTimeUnit} [timeUnit] the unit of the points' times and `step`: `ms` (default), `s`, `min`, `h`, `d` or `w` [wish-1120]
  * @property {string} [unit]
  * @property {ChartUnitKind} [unitKind]
  * @property {number} [digits]
@@ -792,8 +830,9 @@ export function setTrendData(figure, data) {
         CHARTS.get(figure)?.draw();
         return;
     }
-    const { points = [], step, unit, unitKind, digits, error, text, art } = data;
+    const { points = [], step, unit, unitKind, digits, error, text, art, timeUnit } = data;
     setChartData(figure, {
+        ...(timeUnit ? { timeUnit } : {}),
         unit,
         unitKind,
         digits,
@@ -886,7 +925,7 @@ function dataInMarkup(el) {
     const script = el.querySelector(':scope > script[type="application/json"][data-kp-chart-data]');
     if (!script) return null;
     try {
-        return JSON.parse(script.textContent ?? '');
+        return chartInMilliseconds(JSON.parse(script.textContent ?? ''), el.getAttribute('data-kp-chart-time-unit'));
     } catch {
         return null;
     }
@@ -1624,6 +1663,7 @@ function plotChart(host, group, locale, ctx) {
         const vis = visible();
         const stacked = data.stacked ?? false;
         const kind = data.unitKind;
+        const thresholds = (Array.isArray(data.threshold) ? data.threshold : data.threshold != null ? [data.threshold] : []).filter(Number.isFinite);
         const inR = (/** @type {ChartPoint} */ p) => p[0] >= from && p[0] <= to;
         let hi = data.yMax ?? 0;
         if (data.yMax == null) {
@@ -1636,7 +1676,7 @@ function plotChart(host, group, locale, ctx) {
                         );
                 });
             } else for (const si of vis) for (const p of points[si]) if (inR(p)) hi = Math.max(hi, p[1]);
-            if (data.threshold != null) hi = Math.max(hi, data.threshold * 1.08);
+            for (const level of thresholds) hi = Math.max(hi, level * 1.08);
             hi = niceMax(hi, kind);
         }
         const ticksY = [0, hi / 2, hi].map((v) => fmt(v, 'axis'));
@@ -1673,8 +1713,17 @@ function plotChart(host, group, locale, ctx) {
         }
         const g = s(doc, 'g', { 'clip-path': `url(#${clip})` });
         svg.append(g);
-        if (data.threshold != null)
-            g.append(s(doc, 'line', { class: 'kp-chart__threshold', x1: P.l, x2: W - P.r, y1: y(data.threshold), y2: y(data.threshold) }));
+        thresholds.forEach((level, k) =>
+            g.append(
+                s(doc, 'line', {
+                    class: k === 0 ? 'kp-chart__threshold' : 'kp-chart__threshold kp-chart__threshold--more',
+                    x1: P.l,
+                    x2: W - P.r,
+                    y1: y(level),
+                    y2: y(level),
+                }),
+            ),
+        );
         const opt = option();
         /** The hatch patterns this drawing needs, one per tone. @type {Set<string>} */
         const hatches = new Set();
@@ -1742,6 +1791,27 @@ function plotChart(host, group, locale, ctx) {
             const sg = s(doc, 'g', { class: 'kp-chart__series' });
             paintSeries(sg, series, si);
             if (hot != null) sg.setAttribute('data-kp-state', hot === si ? 'hot' : 'dim');
+            if (series.shape === 'columns') {
+                // A histogram: one column per reading, 76 % of the room its neighbours leave, stood on the baseline (or on the
+                // columns below it when stacked) [wish-1120, homelab 104].
+                const gap = pts.length > 1 ? Math.min(...pts.slice(1).map((p, k) => p[0] - pts[k][0])) : (W - P.l - P.r) / 12;
+                const width = Math.max(1.5, Math.min(48, gap * 0.76));
+                pts.forEach((p, k) => {
+                    const bottom = y(stacked ? (base[k] ?? 0) : 0);
+                    sg.append(
+                        s(doc, 'rect', {
+                            class: 'kp-chart__column',
+                            x: (p[0] - width / 2).toFixed(1),
+                            y: Math.min(p[1], bottom).toFixed(1),
+                            width: width.toFixed(1),
+                            height: Math.max(0, bottom - p[1]).toFixed(1),
+                        }),
+                    );
+                });
+                if (stacked) points[si].forEach((p, k) => (base[k] = (base[k] ?? 0) + p[1]));
+                g.append(sg);
+                return;
+            }
             if (stacked) {
                 const back = points[si]
                     .map((p, k) => [x(p[0]), y(base[k] ?? 0)])

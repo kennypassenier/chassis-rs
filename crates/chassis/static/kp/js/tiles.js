@@ -53,6 +53,12 @@
 // first row fires `kp-tiles-exit` and focuses the element named by `data-kp-tiles-keys-exit` (an id or a selector: the search box
 // above the board). Every move fires `kp-tiles-move` `{ from, to, key }`. `data-kp-tiles-keys="off"` gives the tab order back;
 // writing the attribute again turns it on again. Under a right-to-left page Left and Right swap.
+//
+// An entity grid's tiles (`[data-kp-entity-grid]`, js/entity-card.js with `data-kp-entity-kind="tile"`) are tiles too, and
+// `data-kp-tiles-keys="letters"` adds type-ahead [wish-1120, homelab 120]: a letter jumps to the next tile whose name (`data-kp-tile-name`,
+// else `.kp-entity__name`) starts with it, more letters typed within 700 ms narrow the match, the same letter again steps on to the
+// next tile with that letter. A field keeps its letters. Under `letters` an entity tile's star key defaults to `.` (not `s`), so the
+// star never takes a letter away; an explicit `data-kp-entity-star-key` is kept.
 // attachTileKeys(root) returns a detach.
 
 import { sizeMotion } from './motion.js';
@@ -298,11 +304,44 @@ export function tileStop(tile) {
 
 /** @param {Element} board @returns {HTMLElement[]} every tile that can take the focus now, in document order */
 function keyTiles(board) {
-    const grids = [...(board.matches('.kp-tiles') ? [board] : []), ...board.querySelectorAll('.kp-tiles')];
+    // An entity grid's cards are tiles too (js/entity-card.js, `data-kp-entity-kind="tile"`) [wish-1120, homelab 120].
+    const GRIDS = '.kp-tiles, [data-kp-entity-grid]';
+    const grids = [...(board.matches(GRIDS) ? [board] : []), ...board.querySelectorAll(GRIDS)];
     return grids
-        .flatMap((grid) => [...grid.children])
+        .flatMap((grid) => [...grid.children].filter((tile) => !grid.matches('[data-kp-entity-grid]') || tile.matches('[data-kp-entity]')))
         .filter((tile) => tile instanceof HTMLElement && visible(tile) && tileStop(tile) !== null)
         .map((tile) => /** @type {HTMLElement} */ (tile));
+}
+
+/**
+ * The words a tile is found by when a letter is typed: `data-kp-tile-name`, else its name (`.kp-entity__name`), else its stop's text.
+ * @param {HTMLElement} tile
+ */
+function tileName(tile) {
+    const named = tile.querySelector('[data-kp-tile-name], .kp-entity__name') ?? tileStop(tile) ?? tile;
+    // The name without the hidden "(opens in a new tab)" the link carries.
+    const clone = /** @type {HTMLElement} */ (named.cloneNode(true));
+    clone.querySelectorAll('.kp-sr-only').forEach((n) => n.remove());
+    return (clone.textContent ?? '').trim().toLowerCase();
+}
+
+/**
+ * The next tile whose name starts with the letters typed, from the one after `from` and round again. A letter typed again and again
+ * (the whole buffer one repeated letter) steps through the tiles of that letter. Pure.
+ * @param {readonly string[]} names the tiles' names, lower case, in document order
+ * @param {number} from the index the focus is on
+ * @param {string} typed the buffer, lower case
+ * @returns {number | null}
+ */
+export function letterTile(names, from, typed) {
+    if (!typed || !names.length) return null;
+    const same = [...typed].every((c) => c === typed[0]);
+    const want = same ? typed[0] : typed;
+    for (let step = same ? 1 : 0; step <= names.length; step += 1) {
+        const i = (from + step + names.length) % names.length;
+        if (names[i].startsWith(want)) return i;
+    }
+    return null;
 }
 
 /**
@@ -439,7 +478,32 @@ function wireBoard(board, view) {
             sync();
         }
     };
+    /** The letters typed lately, and when they are forgotten. */
+    let typed = '';
+    let forget = 0;
+    const onLetter = (/** @type {KeyboardEvent} */ event) => {
+        if (!on() || board.getAttribute('data-kp-tiles-keys') !== 'letters' || event.defaultPrevented) return;
+        if (event.key.length !== 1 || event.key === ' ' || event.altKey || event.ctrlKey || event.metaKey) return;
+        const target = /** @type {Element} */ (event.target);
+        if (target.closest('input:not([type="checkbox"]):not([type="radio"]):not([type="button"]), textarea, select, [contenteditable=""], [contenteditable="true"], [role="slider"], [role="menu"], [role="listbox"], [data-kp-tiles-keys-ignore]')) return;
+        const tiles = keyTiles(board);
+        const from = tiles.findIndex((tile) => tile.contains(target));
+        if (from < 0) return;
+        typed += event.key.toLowerCase();
+        view.clearTimeout(forget);
+        forget = view.setTimeout(() => (typed = ''), 700);
+        const to = letterTile(tiles.map(tileName), from, typed);
+        if (to === null) return;
+        event.preventDefault();
+        const el = tileStop(tiles[to]);
+        if (!el) return;
+        stop = tiles[to];
+        sync();
+        el.focus();
+        board.dispatchEvent(new CustomEvent(TILES_MOVE_EVENT, { bubbles: true, detail: { from: tiles[from], to: tiles[to], key: event.key } }));
+    };
     const onKey = (/** @type {KeyboardEvent} */ event) => {
+        onLetter(event);
         if (!on() || !MOVES.has(event.key) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.defaultPrevented) return;
         const target = /** @type {Element} */ (event.target);
         // A field, a slider, a menu or an editable area keeps its own arrows.
@@ -528,6 +592,7 @@ function wireBoard(board, view) {
     sync();
     return () => {
         board.removeEventListener('keydown', onKey);
+        view.clearTimeout(forget);
         board.removeEventListener('focusin', onFocus);
         board.removeEventListener('toggle', queue, true);
         changes.disconnect();

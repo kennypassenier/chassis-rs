@@ -23,6 +23,7 @@
 // what attach changed.
 
 import { getStrings } from './strings.js';
+import { memoryFor, paintRemembered } from './remember.js';
 import { arriveShown, leave, leavesState, playEntranceBackwards, stopReversing } from './motion.js';
 
 /** How long a toast stays before it removes itself. An operational knob; per toast as `ms`. */
@@ -561,6 +562,10 @@ const dismissHandled = new WeakSet();
  * leaves the theme's way (js/motion.js leave()) and the same event is
  * dispatched on its region once it is gone.
  *
+ * `data-kp-remember="name"` on an alert [wish-1120, homelab 119]: a dismissal is kept (js/remember.js, component `alert`, slot
+ * `dismissed`), and the alert is hidden again on the next visit, before the first paint where js/auto.js restores. showAlertAgain(alert)
+ * forgets it and shows the alert, for a note whose reason came back.
+ *
  * @param {ParentNode} root
  * @param {{ ownedBy?: string }} [options] `ownedBy: ''` wires even the buttons another channel marked
  * @returns {() => void} detach
@@ -592,6 +597,8 @@ export function attachDismissals(root = document, { ownedBy = DISMISS_OWNED } = 
         const proceed = alert.dispatchEvent(new CustomEvent(ALERT_DISMISS_EVENT, { bubbles: true, cancelable: true, detail: { alert, button } }));
         // It leaves the theme's way, its space folding shut, then is hidden.
         if (!proceed) return;
+        // `data-kp-remember` on the alert: it stays closed on the next visit [wish-1120, homelab 119].
+        if (alert.hasAttribute('data-kp-remember')) memoryFor(alert, 'alert')?.write('dismissed', true);
         void leave(alert, { hide: true }).then(() => {
             // In a theme that lets states leave first (leavesState()), the
             // alert shown again (`hidden = false`) arrives as it leaves, played
@@ -606,7 +613,19 @@ export function attachDismissals(root = document, { ownedBy = DISMISS_OWNED } = 
         });
     };
     root.addEventListener('click', onClick);
+    // An alert that was dismissed and asked to be remembered stays closed [wish-1120, homelab 119].
+    for (const alert of root.querySelectorAll('.kp-alert[data-kp-remember]')) paintRemembered(alert, 'alert');
     return () => root.removeEventListener('click', onClick);
+}
+
+/**
+ * Open a remembered alert again: forget that it was dismissed and show it. For a page that has a reason to say it once more (a new
+ * version of the note it explained).
+ * @param {HTMLElement} alert a `.kp-alert[data-kp-remember]`
+ */
+export function showAlertAgain(alert) {
+    memoryFor(alert, 'alert')?.forget('dismissed');
+    alert.hidden = false;
 }
 
 /** Dispatched on a tooltip anchor, bubbling, when its tooltip opens or closes: `{ open, tooltip }`. */

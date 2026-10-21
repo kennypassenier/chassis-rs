@@ -76,6 +76,7 @@ export const SELECTION_SAY_MS = 350;
  * @property {boolean} matching
  * @property {boolean} namesOpen
  * @property {string} busy
+ * @property {{ done: number, total: number } | null} progress how far a running action is, "3 of 7 done" [wish-1120]
  * @property {Record<string, (items: SelectionItem[]) => string | null>} rules
  * @property {number} sayTimer
  * @property {() => void} refresh
@@ -217,6 +218,11 @@ function draw(bar, memory) {
         const words = make(bar.ownerDocument, 'kp-selection__busy', 'span');
         words.textContent = strings.selectionBusy(memory.busy);
         p.count.append(wheel, words);
+        if (memory.progress) {
+            const far = make(bar.ownerDocument, 'kp-selection__progress', 'span');
+            far.textContent = strings.selectionProgress(memory.progress.done, memory.progress.total);
+            p.count.append(far);
+        }
     } else {
         p.count.textContent = memory.matching ? strings.selectionMatchingOn(memory.matchingTotal) : strings.selectionCount(items.length);
     }
@@ -398,6 +404,7 @@ function attachOne(bar, options) {
         matching: false,
         namesOpen: false,
         busy: '',
+        progress: null,
         rules: {},
         sayTimer: 0,
         refresh: () => sync(bar, memory),
@@ -592,8 +599,31 @@ export function setSelectionBusy(bar, words = '') {
     const memory = MEMORY.get(bar);
     if (!memory) return;
     memory.busy = words ? words : '';
+    memory.progress = null;
     const live = bar.querySelector(':scope > .kp-selection__live');
     if (live && memory.busy) live.textContent = memory.busy;
+    draw(bar, memory);
+}
+
+/**
+ * Say how far a running action is, between its start and its end: "3 of 7 done" beside the busy words [wish-1120, homelab 112].
+ * Call it after setSelectionBusy(); on a bar that is not busy it starts the busy state with the package's own words. The end is
+ * still setSelectionBusy(bar, '') or setSelectionResult(), which take the progress away. A screen reader hears every quarter
+ * (and the last) from the polite region, not every row. `done` is clamped to 0..`total`.
+ * @param {HTMLElement} bar
+ * @param {{ done: number, total: number }} progress
+ */
+export function setSelectionProgress(bar, progress) {
+    const memory = MEMORY.get(bar);
+    if (!memory) return;
+    const total = Math.max(0, Math.floor(progress.total));
+    const done = Math.min(total, Math.max(0, Math.floor(progress.done)));
+    const before = memory.progress;
+    if (!memory.busy) memory.busy = getStrings().selectionBusy('');
+    memory.progress = { done, total };
+    const quarter = (/** @type {number} */ n) => (total > 0 ? Math.floor((n / total) * 4) : 0);
+    const live = bar.querySelector(':scope > .kp-selection__live');
+    if (live && (!before || quarter(done) > quarter(before.done) || done === total)) live.textContent = getStrings().selectionProgress(done, total);
     draw(bar, memory);
 }
 
@@ -607,6 +637,7 @@ export function setSelectionResult(bar, result) {
     if (!memory) return;
     const strings = getStrings();
     memory.busy = '';
+    memory.progress = null;
     draw(bar, memory);
     const p = parts(bar, memory);
     const why = [...new Set(result.refused.map((r) => r.reason))].join('; ');

@@ -22,7 +22,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 /// The kp-themes version the kit vendors (C3: one place).
-pub const KP_THEMES_VERSION: &str = "11.1.1";
+pub const KP_THEMES_VERSION: &str = "11.2.0";
 
 /// name → (content type, bytes). Explicit list, no path joining (kyu's
 /// traversal-proof shape).
@@ -451,6 +451,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/code.js"),
     ),
     (
+        "kp/js/code-field.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/code-field.js"),
+    ),
+    (
         "kp/js/colorpicker.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/colorpicker.js"),
@@ -606,6 +611,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/intent.js"),
     ),
     (
+        "kp/js/job-line.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/job-line.js"),
+    ),
+    (
         "kp/js/json-field.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/json-field.js"),
@@ -661,6 +671,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/kp/js/logviewer.js"),
     ),
     (
+        "kp/js/markdown.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/markdown.js"),
+    ),
+    (
         "kp/js/master-detail.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/master-detail.js"),
@@ -694,6 +709,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/overlays.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/overlays.js"),
+    ),
+    (
+        "kp/js/page-contents.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/page-contents.js"),
     ),
     (
         "kp/js/palette.js",
@@ -749,6 +769,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/question-card.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/question-card.js"),
+    ),
+    (
+        "kp/js/quiet-hours.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/quiet-hours.js"),
     ),
     (
         "kp/js/quote.js",

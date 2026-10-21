@@ -28,6 +28,8 @@
 //                             controls (a moment does not wait). A moment that has passed reads "Time is up".
 //   data-kp-countdown-timezone "Europe/Brussels" (on the timer or an ancestor): the zone a "14:30" or a date and time without an
 //                             offset is given in; a date and time with its own offset ("+02:00", "Z") is read in that one
+//   data-kp-countdown-days="off"  keep digits past 24 hours ("167:59:59"); by default 24 hours or more is read with a days
+//                             unit, "6 d 22 h" (under 24 hours nothing changes) [wish-1120, homelab 124]
 //   data-kp-countdown-controls="none"  display only: no Start, +1 min or Reset is built (not in the tab order either); the
 //                             page drives the clock with countdownOf(el).start() / .pause() / .reset()
 //
@@ -232,9 +234,16 @@ export function untilLabel(ms, nowMs, zone = null) {
  * The digits of a time left, rounded up to the second: "25:00", "0:08", "1:02:03".
  * @param {number} ms the time left
  * @param {boolean} hours whether the timer shows hours (it holds an hour or more)
+ * @param {boolean} [days] whether 24 hours or more is written with a days unit ("6 d 22 h"); off, it reads "167:59:59"
  */
-export function formatCountdown(ms, hours) {
+export function formatCountdown(ms, hours, days = false) {
     const total = Math.max(0, Math.ceil(ms / 1000 - 1e-9));
+    // Past 24 hours a length is read in days, "6 d 22 h"; under 24 hours nothing changes [wish-1120, homelab 124].
+    // Rounded up to the hour, as the digits are rounded up to the second: 6 d 21 h 59 min 59 s reads 6 d 22 h.
+    if (days && total >= 86400) {
+        const hoursUp = Math.ceil(total / 3600);
+        return getStrings().countdownDays(Math.floor(hoursUp / 24), hoursUp % 24);
+    }
     const h = Math.floor(total / 3600);
     const m = Math.floor((total % 3600) / 60);
     const s = total % 60;
@@ -382,6 +391,7 @@ export function attachCountdowns(root = document, { now, wall } = {}) {
         let name = '';
         let disabled = false;
         let bare = false;
+        let daysOn = true;
         /** The moment the timer counts down to, epoch ms, when the `until` option names one. @type {number | null} */
         let until = null;
         const read = () => {
@@ -391,6 +401,7 @@ export function attachCountdowns(root = document, { now, wall } = {}) {
             step = parseDuration(el.dataset.kpCountdownStep) || COUNTDOWN_STEP;
             name = el.dataset.kpCountdownName ?? '';
             disabled = el.hasAttribute('data-kp-countdown-disabled');
+            daysOn = el.dataset.kpCountdownDays !== 'off';
             // A moment does not wait: counting down to one has no Start, no minute more and no Reset.
             bare = until !== null || el.dataset.kpCountdownControls === 'none';
         };
@@ -435,11 +446,12 @@ export function attachCountdowns(root = document, { now, wall } = {}) {
         const paint = (text) => {
             if (text === shown) return;
             // Rebuild the cells only when the format changes; else write only the digits that changed.
-            if (text.length !== shown.length) {
+            const kindOf = (/** @type {string} */ ch) => (ch === ':' ? 'colon' : /\d/.test(ch) ? 'digit' : 'unit');
+            if (text.length !== shown.length || [...text].some((ch, i) => kindOf(ch) !== kindOf(shown[i]))) {
                 digits.replaceChildren(
                     ...[...text].map((ch) => {
                         const cell = doc.createElement('span');
-                        cell.className = ch === ':' ? 'kp-countdown__colon' : 'kp-countdown__digit';
+                        cell.className = `kp-countdown__${kindOf(ch)}`;
                         cell.textContent = ch;
                         return cell;
                     }),
@@ -459,7 +471,7 @@ export function attachCountdowns(root = document, { now, wall } = {}) {
             el.dataset.kpCountdownState = state;
             // A reset (a press, or a script's `reset(seconds)`) that brings the timer back to its start sets the format again.
             if (state === 'idle') hours = clock.total() >= 3600000;
-            paint(formatCountdown(clock.remaining(), hours));
+            paint(formatCountdown(clock.remaining(), hours, daysOn));
             title.textContent = name;
             title.hidden = name === '';
             if (go) {
@@ -473,7 +485,7 @@ export function attachCountdowns(root = document, { now, wall } = {}) {
         const loop = () => {
             cancelAnimationFrame(frame);
             if (clock.state() !== 'running') return;
-            paint(formatCountdown(clock.remaining(), hours));
+            paint(formatCountdown(clock.remaining(), hours, daysOn));
             frame = requestAnimationFrame(loop);
         };
         /** @param {CountdownState} state */
@@ -515,7 +527,7 @@ export function attachCountdowns(root = document, { now, wall } = {}) {
             // A minute more past the hour shows the hours from now on; this is a press, not the clock.
             if (!hours && clock.total() >= 3600000) {
                 hours = true;
-                paint(formatCountdown(clock.remaining(), hours));
+                paint(formatCountdown(clock.remaining(), hours, daysOn));
             }
             show();
         };
@@ -574,6 +586,7 @@ export function attachCountdowns(root = document, { now, wall } = {}) {
                 'data-kp-countdown-name',
                 'data-kp-countdown-step',
                 'data-kp-countdown-controls',
+                'data-kp-countdown-days',
                 'data-kp-countdown-disabled',
             ],
             (names) => {

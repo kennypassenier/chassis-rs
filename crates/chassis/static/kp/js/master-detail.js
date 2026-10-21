@@ -43,6 +43,13 @@
 // busy card over the detail pane only; the list stays usable; where the detail is a closed sheet on a phone, over the list), `error` (the
 // destructive plate over the whole master-detail with Retry) and `ready`. The consumer reacts to the events and draws the detail itself.
 //
+// Which failed plate wins [kyugaps-1020, kyu gap 52]: the innermost component's own, for its own failure. A data component in the
+// detail (a code block, a table, a chart) that already shows its failed plate (`data-kp-state="error"` or a `.kp-stateplate--error`
+// inside `.kp-pane__body`, on screen) is not covered: `setPaneState(root, 'error')` then draws no plate of its own, the list stays usable, the body
+// stays reachable and the component's own Retry (its own event) is the one to press. The root still reads `data-kp-state="error"` and
+// also `data-kp-error-own`, so a page can tell the two apart. The master-detail's plate (and `kp-pane-retry`) is for a failure no
+// component in the detail owns: the list or the detail could not be read at all.
+//
 // Events (bubbling, on the root):
 //   kp-pane-select  { key, item }       the selection moved (arrow keys, a click)
 //   kp-pane-open    { key, item }       the detail was opened: a click or Enter; the page loads it, its router writes ?item=
@@ -321,14 +328,20 @@ function wire(rootEl, historyOption) {
         // A failure, and an empty master-detail with nothing in its list, cover the whole master-detail, list included
         // [states-two-1019]; an empty detail beside a list with items ("Pick an item on the left") stays in the detail pane, beside the
         // list it points at.
-        const wide = next === 'error' || (next === 'empty' && !rootEl.querySelector('[data-kp-pane="list"] [data-kp-pane-key]'));
+        // A component of the detail that shows its own failure keeps its plate: the master-detail draws none over it.
+        // (on screen: where the detail is a closed sheet on a phone its plate is 0 x 0, and the master-detail's plate is the one to read).
+        const own =
+            next === 'error' &&
+            [...bodyEl.querySelectorAll(":is([data-kp-state='error'], .kp-stateplate--error)")].some((el) => el.getBoundingClientRect().width > 0);
+        rootEl.toggleAttribute('data-kp-error-own', own);
+        const wide = (next === 'error' && !own) || (next === 'empty' && !rootEl.querySelector('[data-kp-pane="list"] [data-kp-pane-key]'));
         rootEl.toggleAttribute('data-kp-state-wide', wide);
         for (const pane of rootEl.querySelectorAll(':scope > [data-kp-pane="list"], :scope > [data-kp-pane="aside"]')) pane.toggleAttribute('inert', wide);
         const loading = next === 'loading';
-        bodyEl.toggleAttribute('inert', loading || next === 'empty' || next === 'error');
+        bodyEl.toggleAttribute('inert', loading || next === 'empty' || (next === 'error' && !own));
         if (loading) bodyEl.setAttribute('aria-busy', 'true');
         else bodyEl.removeAttribute('aria-busy');
-        if (next === 'empty' || next === 'error') {
+        if (next === 'empty' || (next === 'error' && !own)) {
             const s = strings();
             const plate =
                 next === 'empty'

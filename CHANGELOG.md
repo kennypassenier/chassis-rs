@@ -7,6 +7,17 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed
+
+- **kp-themes 11.2.0 vendored** (verified against the release SHA256SUMS; 212
+  vendored files, 31 changed; new modules `code-field`, `job-line`,
+  `markdown`, `page-contents`, `quiet-hours`). What a consumer's own pages
+  notice: a data table's header press now cycles ascending, descending,
+  unsorted (`sortCycle: 'two'` keeps the old two-step cycle); a secret field
+  clears the clipboard 30 s after a copy (`data-kp-secret-clear`, `0`/`off`
+  disables); chart `timeUnit` takes ms/s/min/h/d/w; the network graph gains
+  its full option set; `data-kp-subgrid="rows"` on attention/problems.
+
 ## [3.9.0] - 2026-10-19
 
 ### Changed

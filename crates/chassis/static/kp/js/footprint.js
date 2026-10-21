@@ -174,6 +174,9 @@ export function holdFootprint(host) {
     const states = new MutationObserver(sync);
     sizes.observe(host);
     states.observe(host, { attributes: true, attributeFilter: ['data-kp-state', 'data-kp-state-covered'] });
+    // A host that is already in a holding state when it is attached (a table whose first read was empty or failed, drawn before
+    // this module loaded) raised no mutation for the observer to hear: hold it now [dtempty-1020, almanac 27].
+    sync();
 
     function detach() {
         sizes.disconnect();

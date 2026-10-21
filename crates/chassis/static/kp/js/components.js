@@ -108,13 +108,19 @@ let typeSeq = 0;
  * Used by openConfirmation() for `data-kp-confirm-type`, and by
  * attachTypeConfirms() for a block a page puts in its own dialog.
  *
+ * `id` is the typed field's own id (a page whose steps address it by a stable name, `act-confirm`); the label points at it and the rule
+ * and status lines take `<id>-rule` and `<id>-status`. Without it the id is generated (`kp-type-confirm-N-input`). `fieldName` is the
+ * field's `name` for a form. (`name` stays what has to be typed.) [wish-1120, homelab 123]
+ *
  * @param {Document} doc
- * @param {{ name: string, anyCase?: boolean, loses?: Node | readonly string[] | null, strings?: Partial<import('./strings.js').Strings>, onChange?: (matched: boolean, value: string) => void, block?: HTMLElement }} options
+ * @param {{ name: string, id?: string, fieldName?: string, anyCase?: boolean, loses?: Node | readonly string[] | null, strings?: Partial<import('./strings.js').Strings>, onChange?: (matched: boolean, value: string) => void, block?: HTMLElement }} options
  * @returns {{ block: HTMLElement, input: HTMLInputElement, matched: () => boolean }}
  */
-export function buildTypeConfirm(doc, { name, anyCase = false, loses = null, strings, onChange, block: given }) {
+export function buildTypeConfirm(doc, { name, id: fieldId, fieldName, anyCase = false, loses = null, strings, onChange, block: given }) {
     const s = { ...getStrings(), ...strings };
-    const id = `kp-type-confirm-${++typeSeq}`;
+    const base = fieldId ? fieldId : `kp-type-confirm-${++typeSeq}`;
+    const id = base;
+    const inputId = fieldId ? fieldId : `${base}-input`;
     const block = given ?? doc.createElement('div');
     block.classList.add('kp-type-confirm', 'kp-field');
     block.replaceChildren();
@@ -144,7 +150,7 @@ export function buildTypeConfirm(doc, { name, anyCase = false, loses = null, str
     // The label is the dictionary's sentence with the name set in as code, wherever the language puts it.
     const label = doc.createElement('label');
     label.className = 'kp-field__label kp-type-confirm__label';
-    label.htmlFor = `${id}-input`;
+    label.htmlFor = inputId;
     const [before, after = ''] = s.typeConfirmLabel('\u0000').split('\u0000');
     const code = doc.createElement('code');
     code.className = 'kp-type-confirm__name';
@@ -154,7 +160,8 @@ export function buildTypeConfirm(doc, { name, anyCase = false, loses = null, str
     const input = doc.createElement('input');
     input.type = 'text';
     input.className = 'kp-field__input kp-type-confirm__input';
-    input.id = `${id}-input`;
+    input.id = inputId;
+    if (fieldName) input.name = fieldName;
     input.autocomplete = 'off';
     input.spellcheck = false;
     input.setAttribute('autocapitalize', 'off');

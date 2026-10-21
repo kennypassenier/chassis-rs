@@ -33,6 +33,11 @@
 // line of keys; the grid names it in `aria-describedby`. A calm grid (`data-kp-tones="calm"`) draws Logged, Nothing logged and
 // Paused by itself (only the tones its cells have; `data-kp-legend="all"` lists all three), `data-kp-legend="hide"` leaves it out (setHeat also takes `legend` and `legendKeys`).
 //
+// Paging [wish-1120, homelab 100]: `setHeat(el, { paging: { offset, label, min, max } })` (or `setHeatPaging(el, …)`) draws an Earlier /
+// Today / Later bar before the grid; the offset counts pages back from today (`data-kp-heat-offset`), Today is off at 0, Later at `min`
+// (0), Earlier at `max`; the buttons and Page Up / Page Down fire `kp-heat-page` with the new `offset`, and the page draws that window.
+// `decorate` [wish-1120, homelab 65, 114]: `setHeat(el, spec, { decorate })` marks every row label button, cell button and paging button.
+//
 // Calm tones [kpadopt6]: `data-kp-tones="calm"` on a heat grid swaps ok, warn and bad for `logged`, `quiet` and `paused`
 // (js/calm-tones.js): a cell with nothing logged is quiet, never failed, and its words never say "missed".
 //
@@ -72,7 +77,8 @@
 // only hears them:
 //   kp-heat-pick     { rowKey, colKey, cell, picked }    a column was picked or dropped (picked false)
 //   kp-heat-row      { key, pressed, keys }               a row label was pressed
-//   kp-heat-page     { direction: 'earlier' | 'later' | 'latest' }   Page Up, Page Down; End or Home towards the latest
+//   kp-heat-page     { direction: 'earlier' | 'later' | 'latest' | 'today', offset?, source? }   Page Up, Page Down; End or Home towards the latest;
+//                    with a paging bar (below) also its buttons, and `offset` is the page asked for (0 today, 1 the page before)
 //   kp-matrix-pick   { rowKey, colKey, cell, source }     a cell was pinned
 //   kp-matrix-light  { keys }                             the headers that are lit changed
 //
@@ -88,6 +94,9 @@ import { hostStatePlate } from './state-plate.js';
 import { drawUsesMap, leaveUsesMap, rememberView, rememberedView } from './uses-map.js';
 import { calmLegendEntries, calmTone, calmWord, isCalmTones } from './calm-tones.js';
 import { setKeys } from './keys.js';
+
+/** The `decorate` each grid was given, kept for the redraws that wait for the busy card. @type {WeakMap<Element, (part: HTMLElement, info: HeatDecorateInfo) => void>} */
+const DECORATE = new WeakMap();
 
 /** A heat grid. */
 export const HEAT = '[data-kp-heat]';
@@ -153,6 +162,22 @@ const TONES = ['ok', 'warn', 'bad', 'muted', 'future', 'before', 'none', 'level'
  * @property {string} [label]  the grid's accessible name, when the element has none
  * @property {readonly HeatLegendEntry[] | false} [legend]  the legend under the grid (setHeatLegend); `false` takes it away
  * @property {HeatLegendOptions['keys']} [legendKeys]  the key line at the end of the legend
+ * @property {HeatPaging | false} [paging]  the Earlier / Today / Later bar before the grid (setHeatPaging); `false` takes it away [wish-1120]
+ */
+
+/**
+ * What `decorate` is told about the control it is handed: the same shape every kp module's `decorate` takes. `kind` is `row-label`
+ * (a row's toggle button; `value` is the row key) or `cell` (a cell button; `value` is `rowKey/colKey`, `index` the column); `host`
+ * is the grid and `key` its `data-kp-key` [wish-1120, homelab 65, 114].
+ * @typedef {{ kind: 'row-label' | 'cell' | 'pager-earlier' | 'pager-today' | 'pager-later', host: HTMLElement, key?: string, index?: number, value?: string, label?: string }} HeatDecorateInfo
+ */
+
+/**
+ * @typedef {object} HeatPaging
+ * @property {number} [offset]  how many pages back from today: 0 is now, 1 is the page before (default: the grid's `data-kp-heat-offset`, else 0)
+ * @property {string} [label]  the words between the buttons: the window the grid shows ("13 to 19 October")
+ * @property {number} [min]  the lowest offset: Later stops here (default 0, nothing after today; a negative one lets a plan read into the future)
+ * @property {number} [max]  the highest offset: Earlier stops here (default none, Earlier never ends)
  */
 
 /**
@@ -353,10 +378,27 @@ const HEAT_CELL = '.kp-heat__cell[data-c]:not(.kp-skeleton)';
  *
  * @param {HTMLElement} el
  * @param {HeatSpec} spec
+ * @param {{ decorate?: (part: HTMLElement, info: HeatDecorateInfo) => void }} [options]  `decorate`: called with every row label button and
+ *   every cell button the grid builds (and the paging buttons), each time it builds one, the same shape gantt and the data table have;
+ *   kept for later redraws until another is given [wish-1120, homelab 65, 114]
  */
-export function setHeat(el, spec) {
+export function setHeat(el, spec, options) {
     const doc = el.ownerDocument;
     const s = getStrings();
+    if (options && 'decorate' in options) {
+        if (options.decorate) DECORATE.set(el, options.decorate);
+        else DECORATE.delete(el);
+    }
+    const decorate = DECORATE.get(el);
+    /** @param {HTMLElement} part @param {Omit<HeatDecorateInfo, 'host' | 'key'>} info */
+    const mark = (part, info) => {
+        if (!decorate) return;
+        const key = el.getAttribute('data-kp-key');
+        decorate(part, { ...info, host: el, ...(key === null ? {} : { key }) });
+    };
+    // The Earlier / Today / Later bar belongs to the grid, not to one drawing of it.
+    if (spec.paging === false) removeHeatPaging(el);
+    else if (spec.paging) setHeatPaging(el, spec.paging);
     const state = spec.state ?? 'ready';
     const loading = state === 'loading';
     // The legend does not wait for the busy card: it keeps its place while the grid loads.
@@ -469,6 +511,7 @@ export function setHeat(el, spec) {
             text.title = row.label;
             inner.append(text);
             if (inner !== label) label.append(inner);
+            if (inner !== label) mark(inner, { kind: 'row-label', value: row.key, label: row.label });
         }
         const cells = make(doc, 'div', 'kp-heat__cells', { role: 'none' });
         columns.forEach((col, c) => {
@@ -513,6 +556,7 @@ export function setHeat(el, spec) {
                 button.setAttribute('data-kp-picked', '');
                 button.setAttribute('aria-selected', 'true');
             }
+            mark(button, { kind: 'cell', value: `${row.key}/${col.key}`, index: c, label: button.getAttribute('aria-label') ?? '' });
             cells.append(button);
         });
         node.append(label, cells);
@@ -600,6 +644,109 @@ export function setHeatRows(el, keys) {
     for (const button of /** @type {NodeListOf<HTMLElement>} */ (el.querySelectorAll('.kp-heat__label-button'))) {
         button.setAttribute('aria-pressed', String(set.has(button.dataset.key ?? '')));
     }
+}
+
+
+/* ---------------------------------------------------------------- the paging bar */
+
+/** The paging buttons `decorate` has been handed. @type {WeakSet<Element>} */
+const MARKED = new WeakSet();
+
+/** The bar each grid has. @type {WeakMap<Element, HTMLElement>} */
+const PAGERS = new WeakMap();
+
+/** @param {HTMLElement} el @returns {HTMLElement | null} the bar before the grid */
+function pagerOf(el) {
+    const kept = PAGERS.get(el);
+    if (kept?.isConnected) return kept;
+    const before = el.previousElementSibling;
+    return before instanceof HTMLElement && before.matches('.kp-heat__pager') ? before : null;
+}
+
+/** @param {HTMLElement} el @returns {number} the page the grid shows now: 0 is today, 1 the page before */
+export function heatOffset(el) {
+    const n = Number(el.getAttribute('data-kp-heat-offset'));
+    return Number.isFinite(n) ? Math.trunc(n) : 0;
+}
+
+/**
+ * The Earlier / Today / Later bar before a heat grid [wish-1120, homelab 100]: three buttons and the words of the window between
+ * them. A press fires `kp-heat-page` on the grid (the event Page Up and Page Down already send) with `{ direction: 'earlier' | 'later'
+ * | 'today', offset, source: 'pager' }`, where `offset` is the page it asks for (0 is today, 1 the page before); a grid that is not
+ * `data-kp-heat-owned` also moves its `data-kp-heat-offset` and the bar's disabled buttons itself, an owned one waits for the page to
+ * call this again with the new `offset` and `label`. Today is off at offset 0, Later at `min` (0), Earlier at `max` (none). Called
+ * again it rewrites in place. The page draws the window's columns with `setHeat` as it always did.
+ * @param {HTMLElement} el the heat grid
+ * @param {HeatPaging} [paging]
+ * @returns {HTMLElement | null} the bar, null for a grid that is not in a page
+ */
+export function setHeatPaging(el, paging = {}) {
+    const doc = el.ownerDocument;
+    const s = getStrings();
+    let bar = pagerOf(el);
+    if (!bar) {
+        if (!el.parentNode) return null;
+        bar = make(doc, 'div', 'kp-heat__pager', { role: 'group' });
+        const button = (/** @type {string} */ part) => make(doc, 'button', `kp-button kp-button--ghost kp-button--sm kp-heat__pager-${part}`, { type: 'button', 'data-kp-heat-page': part });
+        const words = make(doc, 'span', 'kp-heat__pager-label');
+        words.setAttribute('aria-live', 'polite');
+        bar.append(button('earlier'), button('today'), button('later'), words);
+        el.before(bar);
+        /** @param {MouseEvent} event */
+        bar.addEventListener('click', (event) => {
+            const target = event.target instanceof Element ? event.target.closest('[data-kp-heat-page]') : null;
+            if (!target || !(target instanceof HTMLButtonElement) || target.disabled) return;
+            const direction = /** @type {'earlier' | 'later' | 'today'} */ (target.getAttribute('data-kp-heat-page'));
+            const now = heatOffset(el);
+            const offset = direction === 'today' ? 0 : direction === 'earlier' ? now + 1 : now - 1;
+            if (!el.hasAttribute('data-kp-heat-owned')) {
+                el.setAttribute('data-kp-heat-offset', String(offset));
+                setHeatPaging(el, { ...(PAGING.get(el) ?? {}), offset });
+            }
+            el.dispatchEvent(new CustomEvent(HEAT_PAGE_EVENT, { bubbles: true, detail: { direction, offset, source: 'pager' } }));
+        });
+    }
+    PAGERS.set(el, bar);
+    const given = { ...(PAGING.get(el) ?? {}), ...paging };
+    PAGING.set(el, given);
+    const offset = paging.offset ?? heatOffset(el);
+    el.setAttribute('data-kp-heat-offset', String(offset));
+    const min = given.min ?? 0;
+    const text = [
+        ['earlier', s.heatEarlier, given.max !== undefined && offset >= given.max],
+        ['today', s.heatToday, offset === 0],
+        ['later', s.heatLater, offset <= min],
+    ];
+    bar.setAttribute('aria-label', s.heatPagerLabel);
+    for (const [part, words, off] of /** @type {[string, string, boolean][]} */ (text)) {
+        const b = /** @type {HTMLButtonElement} */ (bar.querySelector(`[data-kp-heat-page="${part}"]`));
+        if (b.textContent !== words) b.textContent = words;
+        b.disabled = off;
+        const decorate = DECORATE.get(el);
+        if (decorate && !MARKED.has(b)) {
+            MARKED.add(b);
+            const key = el.getAttribute('data-kp-key');
+            decorate(b, { kind: /** @type {'pager-earlier' | 'pager-today' | 'pager-later'} */ (`pager-${part}`), host: el, ...(key === null ? {} : { key }), label: words });
+        }
+    }
+    const label = /** @type {HTMLElement} */ (bar.querySelector('.kp-heat__pager-label'));
+    const wanted = given.label ?? '';
+    if (label.textContent !== wanted) label.textContent = wanted;
+    return bar;
+}
+
+/** The paging each grid was last given. @type {WeakMap<Element, HeatPaging>} */
+const PAGING = new WeakMap();
+
+/**
+ * Take the paging bar away.
+ * @param {HTMLElement} el the heat grid
+ */
+export function removeHeatPaging(el) {
+    pagerOf(el)?.remove();
+    PAGERS.delete(el);
+    PAGING.delete(el);
+    el.removeAttribute('data-kp-heat-offset');
 }
 
 /* ---------------------------------------------------------------- the legend */
@@ -784,7 +931,18 @@ function wireHeat(el) {
             askLatest = latest !== null && key === (latest === 'start' ? 'Home' : 'End');
         } else if (key === 'PageUp' || key === 'PageDown') {
             event.preventDefault();
-            el.dispatchEvent(new CustomEvent(HEAT_PAGE_EVENT, { bubbles: true, detail: { direction: key === 'PageUp' ? 'earlier' : 'later' } }));
+            const earlier = key === 'PageUp';
+            /** @type {{ direction: string, offset?: number }} */
+            const detail = { direction: earlier ? 'earlier' : 'later' };
+            // A grid with a paging bar pages by it, so the keys and the buttons agree [wish-1120].
+            if (PAGING.has(el)) {
+                const bound = PAGING.get(el) ?? {};
+                const next = heatOffset(el) + (earlier ? 1 : -1);
+                if ((bound.max !== undefined && next > bound.max) || next < (bound.min ?? 0)) return;
+                detail.offset = next;
+                if (!el.hasAttribute('data-kp-heat-owned')) setHeatPaging(el, { offset: next });
+            }
+            el.dispatchEvent(new CustomEvent(HEAT_PAGE_EVENT, { bubbles: true, detail }));
             return;
         } else if (key === 'Escape') {
             if (el.getAttribute('data-kp-heat-picked') == null) return;

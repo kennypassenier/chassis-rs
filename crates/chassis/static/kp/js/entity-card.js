@@ -35,7 +35,8 @@
 //                              `on` (always) or `off`. A card with fewer than two readings keeps the row and says "no line yet"
 //   data-kp-entity-kind        `stack` (default) or `tile`: an app or link tile, see below
 //   data-kp-entity-star        a favourite star at the end of the identity row: `on` or `off` (default `on` on a tile, `off` on a stack)
-//   data-kp-entity-star-key    the key that stars the card while the focus is inside it (default `s`; `off` for none)
+//   data-kp-entity-star-key    the key that stars the card while the focus is inside it (default `s`; `.` when the tiles jump by their first
+//                              letter, `data-kp-tiles-keys="letters"`; `off` for none) [wish-1120]
 //
 // The tile (`data-kp-entity-kind="tile"`, homelab's Apps page `tileEl`): the whole card is one link to `href` (the name is the real
 // anchor, stretched over the card; one tab stop), with the mark made from the name, the state as a dot and a word, a description that
@@ -45,6 +46,9 @@
 //   { key: 'jellyfin', name: 'Jellyfin', href: 'https://jellyfin.example.net', external: true, starred: true,
 //     description: 'Movies, series and music for the house', state: { label: 'up', tone: 'success' },
 //     lines: ['5 items, 3 playing', '03:12:44 Info Playback: Kenny started Dune'] }
+//
+// `match: 'jelly'` on a tile's data marks what a search typed: the first occurrence in the name (any case) is wrapped in a
+// `<mark class="kp-entity__match">` inside the name's link, built as a node, never parsed from the text [wish-1120, homelab 121].
 //
 // A tile in `error` shows "reading failed" and a Retry in place of its description and lines; `loading` is bones in the same rows;
 // `empty` says "not measured" in the lines row. A tile has no actions row: one click opens it.
@@ -99,6 +103,7 @@ export const ENTITY_GRID_RETRY_EVENT = 'kp-entity-grid-retry';
  * @property {boolean} [external] the link opens a new tab (a glyph shows, and a screen reader is told)
  * @property {string} [description] a tile's description; it wraps whole
  * @property {string[]} [lines] a tile's small facts, one per line, at the foot
+ * @property {string} [match] a tile's typed search: its first occurrence in the name (any case) is wrapped in a `<mark class="kp-entity__match">`; the rest is plain text, and nothing is parsed as HTML [wish-1120]
  * @property {boolean} [starred] the favourite star is on; a refill with it changes the star in place
  * @property {'ready' | 'loading' | 'empty' | 'error'} [status]
  * @property {string} [error] why a card in `error` failed
@@ -118,6 +123,30 @@ const DRAWN = new WeakMap();
 
 /** @param {Element} el @param {string} name @returns {string | null} */
 const opt = (el, name) => el.getAttribute(name) ?? el.closest(ENTITY_GRID)?.getAttribute(name) ?? null;
+
+/**
+ * The key that stars a card: its own or its grid's `data-kp-entity-star-key`; with none, `s` - and `.` under a board whose tiles
+ * jump by their first letter (`data-kp-tiles-keys="letters"`, js/tiles.js), so the star never takes a letter away from the search [wish-1120].
+ * @param {Element} card
+ */
+const starKeyOf = (card) => (opt(card, 'data-kp-entity-star-key') ?? (card.closest('[data-kp-tiles-keys="letters"]') ? '.' : 's')).toLowerCase();
+
+/**
+ * Write a name into an element, the part that matches `match` (first occurrence, any case) wrapped in a `<mark>`. Text nodes and an
+ * element only: nothing is parsed as HTML [wish-1120, homelab 121].
+ * @param {HTMLElement} el @param {string} name @param {string | undefined} match
+ */
+function writeName(el, name, match) {
+    const at = match ? name.toLowerCase().indexOf(match.toLowerCase()) : -1;
+    if (!match || at < 0) {
+        el.textContent = name;
+        return;
+    }
+    const mark = el.ownerDocument.createElement('mark');
+    mark.className = 'kp-entity__match';
+    mark.textContent = name.slice(at, at + match.length);
+    el.replaceChildren(name.slice(0, at), mark, name.slice(at + match.length));
+}
 
 /** @param {Document} doc @param {string} tag @param {string} className */
 const made = (doc, tag, className) => {
@@ -291,7 +320,7 @@ function listenForStarKey(card) {
     if (KEYED.has(card)) return;
     KEYED.add(card);
     card.addEventListener('keydown', (event) => {
-        const wanted = (opt(card, 'data-kp-entity-star-key') ?? 's').toLowerCase();
+        const wanted = starKeyOf(card);
         if (wanted === 'off' || event.key.toLowerCase() !== wanted || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
         const target = /** @type {Element} */ (event.target);
         if (target.closest('input, textarea, select, [contenteditable], .kp-menu')) return;
@@ -398,10 +427,10 @@ function drawTile({ card, data, doc, s, slot, status, key, link, selectable, mar
     holdFootprint(card);
     const href = data.href ?? (link ? link.replace('{key}', encodeURIComponent(key)) : null);
     const external = data.external === true && href !== null;
-    slot('id', { n: data.name, href, external, selectable, markKind, status, starOn, starKey }, (el) => {
+    slot('id', { n: data.name, m: data.match, href, external, selectable, markKind, status, starOn, starKey }, (el) => {
         tickAndMark(card, el, data, selectable, markKind);
         const name = href ? made(doc, 'a', 'kp-entity__name') : made(doc, 'span', 'kp-entity__name');
-        name.textContent = data.name;
+        writeName(name, data.name, data.match);
         if (name instanceof HTMLAnchorElement && href) {
             name.href = href;
             if (external) {
@@ -538,7 +567,7 @@ export function setEntity(card, data) {
     const selectable = opt(card, 'data-kp-selectable') !== null;
     const markKind = opt(card, 'data-kp-entity-mark') ?? 'idmark';
     const starOn = (opt(card, 'data-kp-entity-star') ?? (kind === 'tile' ? 'on' : 'off')) !== 'off';
-    const starKey = (opt(card, 'data-kp-entity-star-key') ?? 's').toLowerCase();
+    const starKey = starKeyOf(card);
 
     if (kind === 'tile') {
         drawTile({ card, data, doc, s, slot, status, key, link, selectable, markKind, starOn, starKey, star });

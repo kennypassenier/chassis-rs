@@ -1443,7 +1443,7 @@ mod tests {
         assert_eq!(
             t.len(),
             12,
-            "kp-themes 11.1.1 ships exactly 12 themes (10.0.0 removed lapis, shade-light and shade-dark; 10.1.0 removed high-contrast, sepia and retro; 11.0.0 removed terminal, phantom, light and grotesk); the vendored registry is pinned"
+            "kp-themes 11.2.0 ships exactly 12 themes (10.0.0 removed lapis, shade-light and shade-dark; 10.1.0 removed high-contrast, sepia and retro; 11.0.0 removed terminal, phantom, light and grotesk); the vendored registry is pinned"
         );
         assert_eq!(t[0].name, "formal");
         assert_eq!(t[0].label, "Formal");

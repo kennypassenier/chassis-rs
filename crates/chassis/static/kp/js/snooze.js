@@ -22,6 +22,9 @@
 //   data-kp-time-zone       an IANA zone                                                   Europe/Brussels
 //   data-kp-snoozed-until   an ISO moment: shows "Snoozed until …" with End snooze         none
 //   data-kp-now             an ISO moment: a fixed clock for a demo or a test              the real clock
+//   data-kp-snooze-words    the name of a set of words, `pause` ("Pause until…", "Paused until", "Resume now") built in, more with
+//                           registerSnoozeWords(name, words); `data-kp-snooze-trigger`, `-change`, `-none`, `-end`, `-apply`, `-saving`
+//                           and `-until` (with `{when}`) word one picker alone [wish-1120, homelab 125]            the reminder words
 //
 // A choice fires `kp-snooze` on the element: `{ until, choice }` (until is an ISO string); End snooze fires
 // `kp-snooze-end`. The page stores the moment and tells the picker back with setSnoozedUntil(el, iso | null) (no
@@ -59,6 +62,65 @@ function clock(text, fallback) {
     return parseTime(text ?? '') ?? /** @type {{ hour: number, minute: number }} */ (parseTime(fallback));
 }
 
+/** The word sets a picker can choose with `data-kp-snooze-words`. `pause` is built in [wish-1120, homelab 125]. @type {Map<string, Partial<import('./strings.js').Strings>>} */
+const WORD_SETS = new Map([
+    [
+        'pause',
+        {
+            snoozeTrigger: 'Pause until…',
+            snoozeChange: 'Pause again',
+            snoozeChoicesLabel: 'Pause for',
+            snoozePickTitle: 'Pause until',
+            snoozeApply: 'Pause',
+            snoozeUntil: (moment) => `Paused until ${moment}`,
+            snoozeNone: 'Not paused',
+            snoozeEnd: 'Resume now',
+            snoozeSaving: 'Saving the pause',
+            snoozeErrorMax: (days) => `A pause can be at most ${days} days long.`,
+        },
+    ],
+]);
+
+/**
+ * Name a set of words a picker can choose with `data-kp-snooze-words="<name>"`: any of the dictionary's `snooze…` words. The page that uses
+ * the picker as a pause says "Pause until…" and "Resume now" in its pickers and the page that uses it as a reminder keeps "Remind me later",
+ * with no `setStrings()` on mount and none on unmount [wish-1120, homelab 125].
+ * @param {string} name
+ * @param {Partial<import('./strings.js').Strings>} words
+ */
+export function registerSnoozeWords(name, words) {
+    WORD_SETS.set(name, words);
+}
+
+/** The attributes that word one picker alone, each the dictionary's word of the same name. */
+const WORD_ATTRIBUTES = /** @type {const} */ ([
+    ['data-kp-snooze-trigger', 'snoozeTrigger'],
+    ['data-kp-snooze-change', 'snoozeChange'],
+    ['data-kp-snooze-none', 'snoozeNone'],
+    ['data-kp-snooze-end', 'snoozeEnd'],
+    ['data-kp-snooze-apply', 'snoozeApply'],
+    ['data-kp-snooze-saving', 'snoozeSaving'],
+]);
+
+/**
+ * The words one picker speaks: the dictionary's, over them the set its `data-kp-snooze-words` names, over them its own attributes
+ * (`data-kp-snooze-trigger`, `-change`, `-none`, `-end`, `-apply`, `-saving`, and `-until` with `{when}` for the moment) [wish-1120, homelab 125].
+ * @param {Element} el
+ * @returns {import('./strings.js').Strings}
+ */
+export function snoozeWords(el) {
+    const set = WORD_SETS.get(el.getAttribute('data-kp-snooze-words') ?? '') ?? {};
+    /** @type {Record<string, unknown>} */
+    const own = {};
+    for (const [attribute, key] of WORD_ATTRIBUTES) {
+        const text = el.getAttribute(attribute);
+        if (text) own[key] = text;
+    }
+    const until = el.getAttribute('data-kp-snooze-until');
+    if (until) own.snoozeUntil = (/** @type {string} */ moment) => until.replace('{when}', moment);
+    return { ...getStrings(), ...set, ...own };
+}
+
 /**
  * @typedef {object} SnoozeChoice
  * @property {string} key `1h`, `tonight`, `last`, `pick` …
@@ -76,6 +138,7 @@ function clock(text, fallback) {
  * @property {string} [zone]
  * @property {number | null} [last] the last custom moment, ms
  * @property {string} [locale]
+ * @property {import('./strings.js').Strings} [strings] the words (a picker's own set, see snoozeWords()); the dictionary's when absent
  */
 
 /**
@@ -104,8 +167,9 @@ export function snoozeChoices({
     zone = CHART_TIME_ZONE,
     last = null,
     locale,
+    strings,
 }) {
-    const s = getStrings();
+    const s = strings ?? getStrings();
     const am = clock(morning, '09:00');
     const pm = clock(evening, '18:00');
     const limit = presetMs(max) || presetMs('7d');
@@ -201,7 +265,7 @@ export function attachSnoozes(root = document, { now: nowOption } = {}) {
     ]);
     for (const el of found) {
         if (HANDLES.has(el)) continue;
-        const s = getStrings();
+        const s = snoozeWords(el);
         const doc = el.ownerDocument;
         const id = `kp-snooze-${++seq}`;
         const zone = el.dataset.kpTimeZone || CHART_TIME_ZONE;
@@ -338,7 +402,7 @@ export function attachSnoozes(root = document, { now: nowOption } = {}) {
         const detachPickers = attachDatePickers(panel);
         const detachMenu = wrapper ? attachMenuButtons(el) : () => undefined;
 
-        const rules = () => ({ now: now(), choices, morning, evening, max, zone, last, locale });
+        const rules = () => ({ now: now(), choices, morning, evening, max, zone, last, locale, strings: s });
         const offered = () => snoozeChoices(rules());
 
         /** The words on the trigger and under the bar, in step with what is snoozed. */

@@ -25,16 +25,28 @@
 //   data-kp-ack-focus        a press on the off control takes the focus to the first open tick (default on; `off`)
 //   data-kp-ack-key          names the item for the event and the announcement
 //   data-kp-ack-retry        a failed lookup offers a Retry button (`kp-ack-retry`)
-//   data-kp-state            `loading` (skeleton lines, the alert keeps its height, the tick off), `error` (no notes link
+//   data-kp-state            `loading` (the busy card of a loading table, centred over the alert, which keeps its height; the tick off), `error` (no notes link
 //                            found, the tick stays) or `empty` (no gate at all: hidden, the control simply enabled)
 //   data-kp-ack-locked       the tick is locked while the job runs
+//   data-kp-ack-notes-open   the release notes (below) stand open; default closed
+//   data-kp-ack-notes-label  the notes' accessible name, "Release notes of 12.1" (default "Release notes")
+//   data-kp-ack-notes-headings  the level a `#` heading in the notes is written at, 1 to 6 (default 3: a `##` is an h4)
+//   data-kp-ack-require-notes  the tick stays off until the notes were opened once
+//
+// The notes in the gate [wish-1120, homelab 113]: the host fetches the markdown (the gate never goes to the network) and hands it over,
+// `setAckNotes(gate, markdown)` or `ackGate(gate).setNotes(markdown)`; `null` or an empty text takes them away. They stand in a fold
+// under the alert, "Release notes", in a box that scrolls (tab stop, named region), built by js/markdown.js as DOM: headings, lists,
+// links, code and quotes; raw HTML is text and an unsafe link is only its words. The gate's own states stand in for a slow or failed fetch
+// (`data-kp-state` loading, error).
 //
 // `kp-ack-change` `{ key, checked, remaining, at }` is fired on the gate. The control carries `aria-disabled` (so the press
 // can answer) and the reason as `data-kp-disabled-reason` (js/reason.js); the change is announced once, politely. Nothing
 // runs on import.
 
+import { openBusyCard } from './busy-card.js';
 import { attachDisabledReasons } from './reason.js';
 import { getStrings } from './strings.js';
+import { markdownFragment } from './markdown.js';
 
 /** The gates this module drives. */
 export const ACK_GATE = '[data-kp-ack]';
@@ -49,6 +61,7 @@ export const ACK_RETRY_EVENT = 'kp-ack-retry';
  * @property {() => boolean} checked
  * @property {(checked: boolean) => void} set
  * @property {(state: 'ready' | 'loading' | 'error' | 'empty') => void} setState
+ * @property {(markdown: string | null) => void} setNotes the release notes as markdown, drawn safely in a fold of the gate; null takes them away
  * @property {(locked: boolean) => void} setLocked
  * @property {() => number} remaining how many gates of this gate's controls are still unticked
  */
@@ -75,6 +88,15 @@ const targetsOf = (gate) => {
         return [];
     }
 };
+
+/**
+ * Give a gate its release notes as markdown (the host fetched them), drawn safely in a fold under the alert; null takes them away.
+ * @param {Element} gate an attached `[data-kp-ack]`
+ * @param {string | null} markdown
+ */
+export function setAckNotes(gate, markdown) {
+    HANDLES.get(gate)?.setNotes(markdown);
+}
 
 /** The gates that guard the same control as `gate`, itself included. @param {Element} gate @returns {HTMLElement[]} */
 const siblingsOf = (gate) => {
@@ -144,10 +166,8 @@ function attachOne(gate) {
     const live = make('kp-sr-only', 'span');
     live.setAttribute('role', 'status');
     live.setAttribute('aria-live', 'polite');
-    const wait = make('kp-ack__wait');
-    wait.setAttribute('aria-hidden', 'true');
-    wait.hidden = true;
-    for (let i = 0; i < 2; i++) wait.append(make('kp-skeleton kp-ack__bone', 'span'));
+    /** The busy card over the gate while the notes are looked up: the card a loading data table lays over its rows [wish-1120]. @type {import('./busy-card.js').BusyCard | null} */
+    let busy = null;
     const problem = make('kp-ack__problem');
     problem.hidden = true;
     const problemText = make('kp-ack__problem-text', 'span');
@@ -161,11 +181,12 @@ function attachOne(gate) {
     const authored = [...gate.childNodes];
     side.prepend(problem);
     frame.append(...authored, side);
-    gate.append(frame, wait, live);
+    gate.append(frame, live);
     undo.push(() => {
         gate.prepend(...authored);
         frame.remove();
-        wait.remove();
+        busy?.remove();
+        busy = null;
         live.remove();
     });
     const labelText = () => gate.getAttribute('data-kp-ack-label') ?? s.ackLabel;
@@ -175,6 +196,8 @@ function attachOne(gate) {
     const startedAt = performance.now();
     const minMs = () => Number(gate.getAttribute('data-kp-ack-min-ms')) || 0;
     const needsLink = () => gate.hasAttribute('data-kp-ack-require-link');
+    const needsNotes = () => gate.hasAttribute('data-kp-ack-require-notes');
+    let notesOpened = false;
 
     /** Why the tick cannot be set now, or ''. */
     const tickBlock = () => {
@@ -182,7 +205,8 @@ function attachOne(gate) {
         if (state === 'loading') return s.ackLooking;
         if (locked) return s.ackLocked;
         if (needsLink() && !linkOpened) return s.ackOpenFirst;
-        if (minMs() > 0 && !linkOpened && performance.now() - startedAt < minMs()) return s.ackOpenFirst;
+        if (needsNotes() && notes !== null && !notesOpened) return s.ackOpenNotes;
+        if (minMs() > 0 && !linkOpened && !notesOpened && performance.now() - startedAt < minMs()) return s.ackOpenFirst;
         return '';
     };
 
@@ -255,7 +279,14 @@ function attachOne(gate) {
         else tick.removeAttribute('data-kp-reason');
         tick.title = block;
         const state = gate.getAttribute('data-kp-state');
-        wait.hidden = state !== 'loading';
+        if (state === 'loading') {
+            busy ??= openBusyCard(gate, { words: s.ackLooking, area: () => [gate], className: 'kp-ack__busy', arrive: true });
+        } else if (busy !== null) {
+            // It leaves the way the theme's busy table's card leaves.
+            const leaving = busy;
+            busy = null;
+            void leaving.close();
+        }
         gate.toggleAttribute('aria-busy', state === 'loading');
         if (state === 'empty') {
             if (!gate.hidden) gate.setAttribute('data-kp-ack-hid', '');
@@ -298,11 +329,52 @@ function attachOne(gate) {
         }
     };
 
+    /** The fold with the release notes, made when notes arrive. @type {HTMLDetailsElement | null} */
+    let notes = null;
+    /** @param {string | null} markdown */
+    const setNotes = (markdown) => {
+        const text = markdown === null ? '' : String(markdown);
+        if (text.trim() === '') {
+            notes?.remove();
+            notes = null;
+            paint();
+            return;
+        }
+        if (notes === null) {
+            notes = /** @type {HTMLDetailsElement} */ (make('kp-ack__notes', 'details'));
+            const summary = make('kp-ack__notes-summary', 'summary');
+            summary.textContent = s.ackNotes;
+            const body = make('kp-ack__notes-body kp-markdown');
+            body.tabIndex = 0;
+            body.setAttribute('role', 'region');
+            notes.append(summary, body);
+            notes.addEventListener('toggle', () => {
+                if (notes?.open) notesOpened = true;
+                paint();
+            });
+            gate.insertBefore(notes, live);
+            if (gate.hasAttribute('data-kp-ack-notes-open')) {
+                notes.open = true;
+                notesOpened = true;
+            }
+        }
+        const body = /** @type {HTMLElement} */ (notes.querySelector('.kp-ack__notes-body'));
+        body.setAttribute('aria-label', gate.getAttribute('data-kp-ack-notes-label') ?? s.ackNotes);
+        const levels = Number(gate.getAttribute('data-kp-ack-notes-headings'));
+        body.replaceChildren(markdownFragment(doc, text, { headings: levels >= 1 ? levels : 3 }));
+        paint();
+    };
+    undo.push(() => {
+        notes?.remove();
+        notes = null;
+    });
+
     /** @type {AckHandle} */
     const handle = {
         element: gate,
         checked: () => box.checked,
         set: (checked) => set(checked, true),
+        setNotes,
         setState(state) {
             if (state === 'ready') gate.removeAttribute('data-kp-state');
             else gate.setAttribute('data-kp-state', state);

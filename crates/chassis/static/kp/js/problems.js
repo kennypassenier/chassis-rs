@@ -284,7 +284,10 @@ function paint(container, items, options) {
         const shown = new Map();
         for (const el of /** @type {HTMLElement[]} */ ([...host.children])) {
             const key = el.getAttribute('data-kp-key');
-            if (el.classList.contains('kp-problem') && key !== null && !el.hasAttribute('data-kp-leaving')) shown.set(key, el);
+            // A row that is leaving is gone; one that is arriving the theme's way (formal: its leave played backwards) carries
+            // `data-kp-leaving` as well, and is on show [homelab 89]: skipping it drew another copy at every repaint.
+            const leaving = el.hasAttribute('data-kp-leaving') && !el.hasAttribute('data-kp-arriving');
+            if (el.classList.contains('kp-problem') && key !== null && !leaving) shown.set(key, el);
         }
         const wanted = list.map((p) => paintAlert(shown.get(p.key), p, doc, remedyLabel, host));
         for (const [key, el] of shown) if (!list.some((p) => p.key === key)) void leave(el).then(() => el.remove());

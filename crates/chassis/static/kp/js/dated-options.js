@@ -6,9 +6,11 @@
 //   <div class="kp-dated" data-kp-dated aria-label="Snapshot to restore"></div>
 //   setDatedOptions(el, [{ value: 'a1', when: '2026-10-15T04:00:00+02:00', meta: '4.1 GB' }, …]);
 //
-// An option is `{ value, label?, when?, meta?, disabled? }`: `label` is its name (the date, in rule 52, stands in when it
+// An option is `{ value, label?, when?, meta?, disabled? }` (`when` is optional: an option without a date, a "latest" entry,
+// shows its name alone, no age line and no gap where it would be): `label` is its name (the date, in rule 52, stands in when it
 // has none), `when` the moment it was made (ISO, ms or Date: the component writes "3 days ago" and the date), `meta` a
-// short text the page has formatted (a size from `formatBytes`, a count of files), `disabled` the sentence that says why
+// short text the page has formatted (a size from `formatBytes`, a count of files; a list of texts puts several side by side),
+// `disabled` the sentence that says why
 // it cannot be chosen now. Up to `data-kp-picker-inline-max` options (7) the options are radio rows, one group, the
 // meta values in one column so they line up from row to row; with more, a searchable combobox whose list shows the same
 // two lines, because a list longer than a screen is better searched. `data-kp-picker="radio"` or `"combobox"` forces one.
@@ -53,7 +55,7 @@ export const DATED_STATES = /** @type {const} */ (['ready', 'empty', 'loading', 
  * @property {string} value what the page gets back
  * @property {string} [label] the option's name; the date when absent
  * @property {number | string | Date} [when] the moment it was made
- * @property {string} [meta] a short text, a size or a kind, in the column at the end
+ * @property {string | readonly string[]} [meta] a short text, a size or a kind, in the column at the end; several texts (a size and a count of files) sit side by side in that column [wish-1120]
  * @property {string} [disabled] why it cannot be chosen now; the option stays and says so
  * @typedef {'ready' | 'empty' | 'loading' | 'error'} DatedState
  * @typedef {object} DatedStateOptions
@@ -218,6 +220,23 @@ export function attachDatedOptions(root = document, { now: nowOption } = {}) {
             return dated.length ? dated.reduce((a, b) => (stamp(b) > stamp(a) ? b : a)) : null;
         };
 
+        /** The meta column's node: one text is one span, several are one box of spans; none is nothing [wish-1120, homelab 101]. @param {DatedOption} o */
+        const metaOf = (o) => {
+            const texts = (Array.isArray(o.meta) ? o.meta : [o.meta]).filter((t) => typeof t === 'string' && t !== '');
+            if (!texts.length) return null;
+            const one = (/** @type {string} */ text) => {
+                const span = doc.createElement('span');
+                span.className = 'kp-dated__meta';
+                span.textContent = text;
+                return span;
+            };
+            if (texts.length === 1) return one(texts[0]);
+            const box = doc.createElement('span');
+            box.className = 'kp-dated__meta kp-dated__metas';
+            box.append(...texts.map((t) => one(t)));
+            return box;
+        };
+
         /** @param {HTMLElement} parent @param {DatedOption} o */
         const nameLine = (parent, o) => {
             const text = doc.createElement('span');
@@ -256,17 +275,18 @@ export function attachDatedOptions(root = document, { now: nowOption } = {}) {
                 const title = doc.createElement('span');
                 title.className = 'kp-field__option-title';
                 nameLine(title, o);
-                const hint = doc.createElement('span');
-                hint.className = 'kp-field__option-hint kp-dated__hint';
-                hint.id = `${id}-hint-${i}`;
-                hint.textContent = hintOf(o);
-                row.append(input, title, hint);
-                if (o.meta) {
-                    const meta = doc.createElement('span');
-                    meta.className = 'kp-dated__meta';
-                    meta.textContent = o.meta;
-                    row.append(meta);
-                }
+                const hintText = hintOf(o);
+                row.append(input, title);
+                // No date, no age line, and no empty row left under the name [wish-1120, homelab 101].
+                if (hintText) {
+                    const hint = doc.createElement('span');
+                    hint.className = 'kp-field__option-hint kp-dated__hint';
+                    hint.id = `${id}-hint-${i}`;
+                    hint.textContent = hintText;
+                    row.append(hint);
+                } else row.dataset.kpNoHint = '';
+                const meta = metaOf(o);
+                if (meta) row.append(meta);
                 group.append(row);
             }
             body.replaceChildren(group);
@@ -304,16 +324,16 @@ export function attachDatedOptions(root = document, { now: nowOption } = {}) {
                 const first = doc.createElement('span');
                 first.className = 'kp-dated__item-name';
                 nameLine(first, o);
-                const sub = doc.createElement('span');
-                sub.className = 'kp-dated__item-hint';
-                sub.textContent = hintOf(o);
-                li.append(first, sub);
-                if (o.meta) {
-                    const meta = doc.createElement('span');
-                    meta.className = 'kp-dated__meta';
-                    meta.textContent = o.meta;
-                    li.append(meta);
-                }
+                li.append(first);
+                const subText = hintOf(o);
+                if (subText) {
+                    const sub = doc.createElement('span');
+                    sub.className = 'kp-dated__item-hint';
+                    sub.textContent = subText;
+                    li.append(sub);
+                } else li.dataset.kpNoHint = '';
+                const meta = metaOf(o);
+                if (meta) li.append(meta);
                 list.append(li);
             }
             const status = doc.createElement('p');

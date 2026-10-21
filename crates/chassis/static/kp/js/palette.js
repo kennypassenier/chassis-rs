@@ -465,7 +465,7 @@ function createIntentFilter(dialog, list, status) {
             // nodes ("new" + "est"), and a description reads its nodes apart, so "newest" typed letter by letter
             // found nothing once "new" was marked [kpadopt6-r2: Kenny, 2026-10-18 "sometimes an empty list"].
             clearMarks(option);
-            if (dialog.dataset.kpHighlight !== 'off' && !option.querySelector(':scope > .kp-palette__label')) wrapLabel(option);
+            if (!option.querySelector(':scope > .kp-palette__label')) wrapLabel(option);
             const { label, hint } = textsOf(option);
             const value = valueOf(option);
             const inContext = context !== null && option.dataset.kpContextOf === context;

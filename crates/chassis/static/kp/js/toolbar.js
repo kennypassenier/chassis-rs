@@ -69,15 +69,29 @@ export function toolbarSearch(toolbar) {
 }
 
 /**
+ * What `decorate` is told about the control it is handed: `kind` is `tag-remove` (a tag's cross; `value` is the filter's id) or
+ * `clear-all`; `host` is the toolbar and `key` its `data-kp-key`.
+ * @typedef {{ kind: 'tag-remove' | 'clear-all', host: HTMLElement, key?: string, value?: string, label?: string }} ToolbarDecorateInfo
+ */
+
+/**
  * Draw the filters that are on under the toolbar: one removable tag each and
  * Clear all, or nothing (the row is hidden) when there are none. The Clear all
  * button and the word before the tags are made once and kept, so a press that
  * is still in flight never meets a button replaced under it.
  * @param {Element} toolbar
  * @param {readonly ToolbarFilter[]} filters
- * @param {{ clearAll?: boolean, removeGlyph?: string }} [options]  clearAll: show Clear all (default true)
+ * @param {{ clearAll?: boolean, removeGlyph?: string, decorate?: (part: HTMLElement, info: ToolbarDecorateInfo) => void }} [options]
+ *   clearAll: show Clear all (default true); decorate: called with every tag's cross (`tag-remove`) and with Clear all (`clear-all`),
+ *   each time they are built, the same shape every kp module's `decorate` takes [wish-1120, homelab 66, 114]
  */
-export function setToolbarActive(toolbar, filters, { clearAll = true, removeGlyph = '×' } = {}) {
+export function setToolbarActive(toolbar, filters, { clearAll = true, removeGlyph = '×', decorate } = {}) {
+    /** @param {HTMLElement} part @param {Omit<ToolbarDecorateInfo, 'host' | 'key'>} info */
+    const mark = (part, info) => {
+        if (!decorate) return;
+        const key = toolbar.getAttribute('data-kp-key');
+        decorate(part, { ...info, host: /** @type {HTMLElement} */ (toolbar), ...(key === null ? {} : { key }) });
+    };
     const strings = getStrings();
     let row = /** @type {HTMLElement | null} */ (toolbar.querySelector(ACTIVE));
     if (!row) {
@@ -113,10 +127,12 @@ export function setToolbarActive(toolbar, filters, { clearAll = true, removeGlyp
             remove.setAttribute('aria-label', strings.tableRemoveFilter(filter.label));
             remove.textContent = removeGlyph;
             item.append(filter.label, remove);
+            mark(remove, { kind: 'tag-remove', value: filter.id ?? filter.label, label: filter.label });
             return item;
         }),
     );
     button.textContent = strings.toolbarClearAll;
+    mark(button, { kind: 'clear-all', label: strings.toolbarClearAll });
     button.hidden = !clearAll;
     row.hidden = filters.length === 0;
 }

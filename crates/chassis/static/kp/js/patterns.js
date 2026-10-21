@@ -34,6 +34,8 @@ export const SECRET = '[data-kp-secret]';
 export const SECRET_TTL = 30;
 /** The mask's length, in characters. Per element as `data-kp-secret-mask`. */
 export const SECRET_MASK = 12;
+/** Fired on the field, bubbling, when the clipboard was emptied after a copy (`data-kp-secret-clear`) or left alone: `{ cleared, reason }`. */
+export const SECRET_CLIPBOARD_EVENT = 'kp-secret-clipboard';
 /** Fired on the field, bubbling, when a secret is shown or hidden: `{ shown, reason }`, reason `press` | `hold` | `timer` | `away` | `call`. */
 export const SECRET_EVENT = 'kp-secret';
 /** Fired on the field, bubbling and cancelable, when it needs the value: `{ respond(value), fail(reason), purpose }`; call preventDefault() to answer. */
@@ -50,6 +52,23 @@ export const COPIED_MS = 1500;
 export const COMMIT_EVENT = 'kp-action-commit';
 /** Fired on the row when it is undone instead. Detail: ActionDetail. */
 export const UNDO_EVENT = 'kp-action-undo';
+/** How long after a Copy the clipboard is emptied again, in ms [wish-1120, homelab 108]. */
+export const CLEAR_AFTER_MS = 30_000;
+const CLEAR_UNITS = /** @type {Record<string, number>} */ ({ ms: 1, s: 1000, sec: 1000, min: 60_000, m: 60_000, h: 3_600_000 });
+/**
+ * The clear delay of a field in ms: its attribute (a number of seconds, or a number with ms, s, min or h; 0, off, never,
+ * false: none) or the option's value. 0 means never.
+ * @param {string | undefined} attribute
+ * @param {number | false} fallback
+ */
+function clearDelay(attribute, fallback) {
+    const text = (attribute ?? '').trim().toLowerCase();
+    if (text === '') return fallback || 0;
+    if (['off', 'never', 'false', 'none'].includes(text)) return 0;
+    const match = /^(\d*\.?\d+)\s*(ms|sec|s|min|m|h)?$/.exec(text);
+    if (!match) return fallback || 0;
+    return Number.parseFloat(/** @type {string} */ (match[1])) * (CLEAR_UNITS[match[2] ?? 's'] ?? 1000);
+}
 /** Fired on the copy button after a successful copy: `{ text }`. */
 export const COPY_EVENT = 'kp-copy';
 /** Fired on the copy button when the clipboard refused: `{ text, error }`. */
@@ -62,17 +81,20 @@ export const COPY_FAILED_EVENT = 'kp-copy-failed';
  * value is in the page only while it is shown; without it a field asks through `kp-secret-request`, and last reads its
  * own `data-kp-secret-value`.
  *
+ * `clearAfterMs` is how long after a Copy the clipboard is emptied again (default 30 000 ms; 0 or false: never), for every
+ * secret field without its own `data-kp-secret-clear`.
+ *
  * @param {ParentNode} root
- * @param {{ copiedMs?: number, undoMs?: number, toastOnCopyFailure?: boolean, undoClassName?: string, secretLoad?: SecretLoad }} [options]
+ * @param {{ copiedMs?: number, undoMs?: number, clearAfterMs?: number | false, toastOnCopyFailure?: boolean, undoClassName?: string, secretLoad?: SecretLoad }} [options]
  * @returns {() => void} detach
  */
 export function attachPatterns(
     root = document,
-    { copiedMs = COPIED_MS, undoMs = UNDO_MS, toastOnCopyFailure = true, undoClassName = 'kp-button kp-button--ghost', secretLoad } = {},
+    { copiedMs = COPIED_MS, undoMs = UNDO_MS, clearAfterMs = CLEAR_AFTER_MS, toastOnCopyFailure = true, undoClassName = 'kp-button kp-button--ghost', secretLoad } = {},
 ) {
     /** @type {(() => void)[]} */
     const cleanups = [];
-    cleanups.push(attachSecrets(root, { copiedMs, ...(secretLoad ? { load: secretLoad } : {}) }));
+    cleanups.push(attachSecrets(root, { copiedMs, clearAfterMs, ...(secretLoad ? { load: secretLoad } : {}) }));
 
     for (const element of root.querySelectorAll(COPY)) {
         const button = /** @type {HTMLButtonElement} */ (element);
@@ -234,6 +256,15 @@ export function attachPatterns(
 //   data-kp-secret-mask="12"       the mask's length (`data-kp-secret-mask-char`, default •)
 //   data-kp-secret-reveal-on="hold" shown only while the button is held (pointer, or Space / Enter held)
 //   data-kp-secret-copy="false"    no Copy button
+//   data-kp-secret-clear="30"      how long after a Copy the clipboard is emptied again [wish-1120, homelab 108]; absent: 30 s (the
+//                                  `clearAfterMs` option of attachPatterns / attachSecrets, 30 000). Any duration: `45` (seconds),
+//                                  `500ms`, `90s`, `5min`, `1h`; `0`, `off`, `never` or `false`: never. Where the browser lets the page read the clipboard (`readText`), it is emptied only if
+//                                  it still holds the copied secret (something copied since stays); where reading is refused it is
+//                                  emptied anyway, as soon as the page can write (it needs the focus and, in Firefox, a press or a key
+//                                  of the person's, so it may wait for the next one). A polite "Clipboard cleared"
+//                                  is announced and `kp-secret-clipboard` fires on the field: `{ cleared, reason }`, reason
+//                                  `timer`, `changed` (the clipboard held something else) or `unavailable`. The value is
+//                                  never in the event
 //   data-kp-secret-wrap="wrap"     a long value wraps (the box keeps `data-kp-secret-lines`, 2, lines of room);
 //                                  by default it stays on one line and scrolls inside its box
 //   data-kp-secret-disabled="why"  both buttons off, and the sentence under them says why
@@ -273,10 +304,10 @@ export function hideSecret(field) {
 /**
  * Attach every secret field under `root`.
  * @param {ParentNode} [root]
- * @param {{ load?: SecretLoad, copiedMs?: number }} [options]
+ * @param {{ load?: SecretLoad, copiedMs?: number, clearAfterMs?: number | false }} [options]
  * @returns {() => void} detach
  */
-export function attachSecrets(root = document, { load, copiedMs = COPIED_MS } = {}) {
+export function attachSecrets(root = document, { load, copiedMs = COPIED_MS, clearAfterMs = CLEAR_AFTER_MS } = {}) {
     /** @type {(() => void)[]} */
     const cleanups = [];
     const fields = /** @type {HTMLElement[]} */ ([
@@ -372,6 +403,9 @@ export function attachSecrets(root = document, { load, copiedMs = COPIED_MS } = 
         let paused = false;
         let ticket = 0;
         let copiedTimer = 0;
+        let clearTimer = 0;
+        /** @type {(() => void) | null} */
+        let dropClearFocus = null;
         /** @param {string} text */
         const say = (text) => {
             spoken.textContent = '';
@@ -562,6 +596,50 @@ export function attachSecrets(root = document, { load, copiedMs = COPIED_MS } = 
                 copy.textContent = idle;
                 delete copy.dataset.kpCopied;
             }, copiedMs);
+            scheduleClear(text);
+        };
+        /** Empty the clipboard again some seconds after a copy [wish-1120, homelab 108]. @param {string} secret */
+        const scheduleClear = (secret) => {
+            window.clearTimeout(clearTimer);
+            dropClearFocus?.();
+            const wait = clearDelay(field.dataset.kpSecretClear, clearAfterMs);
+            if (!(wait > 0)) return;
+            /** @param {boolean} cleared @param {string} reason */
+            const done = (cleared, reason) => {
+                if (cleared) say(s.secretClipboardCleared);
+                field.dispatchEvent(new CustomEvent(SECRET_CLIPBOARD_EVENT, { bubbles: true, detail: { cleared, reason } }));
+            };
+            const clear = async () => {
+                let reason = 'timer';
+                try {
+                    // Only if the clipboard still holds what was copied; a refusal to read does not stop the clearing.
+                    const now = await navigator.clipboard.readText();
+                    if (now !== secret) return done(false, 'changed');
+                } catch {
+                    reason = 'unavailable';
+                }
+                try {
+                    await navigator.clipboard.writeText('');
+                    done(true, reason);
+                } catch {
+                    // A write needs the page in focus and, in some browsers, a press or a key of the person's (Firefox): try
+                    // again at the next one, or when the page gets the focus back.
+                    const events = ['pointerdown', 'keydown'];
+                    const again = () => {
+                        for (const name of events) document.removeEventListener(name, again, true);
+                        window.removeEventListener('focus', again);
+                        dropClearFocus = null;
+                        void clear();
+                    };
+                    for (const name of events) document.addEventListener(name, again, true);
+                    window.addEventListener('focus', again);
+                    dropClearFocus = () => {
+                        for (const name of events) document.removeEventListener(name, again, true);
+                        window.removeEventListener('focus', again);
+                    };
+                }
+            };
+            clearTimer = window.setTimeout(() => void clear(), wait);
         };
         const onFocusIn = (/** @type {FocusEvent} */ event) => {
             if (event.target === value) pause(true);

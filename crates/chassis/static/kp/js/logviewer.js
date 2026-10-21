@@ -33,6 +33,7 @@
 //   data-kp-log-filename     the name a download gets, without `.txt` (`log`)
 //   data-kp-log-hint         the empty plate's sentence
 //   data-kp-log-focus-key    the key that jumps to the search from anywhere (`/`; `false` for none)
+//   data-kp-log-error        the failed plate's sentence, the host's own reason (`setLogViewer(el, { state: 'error', message })`); `-error-title` its heading [wish-1120]
 //   data-kp-state            `ready` (default), `loading` (the busy card over the viewer) or `error` (the failed plate with Retry);
 //                            the lines already kept stay in the buffer and return with `ready`
 //
@@ -73,6 +74,9 @@ export const LOG_LEVELS = Object.freeze(['debug', 'info', 'notice', 'warning', '
  * @typedef {object} LogViewerSpec
  * @property {LogLine[]} [lines] replaces the buffer
  * @property {'ready' | 'loading' | 'error'} [state]
+ * @property {string} [message] the failed plate's sentence: the host's own reason ("Loki did not answer: connection refused"), in place of the package's;
+ *   an empty string takes it back (`data-kp-log-error`) [wish-1120, homelab 115]
+ * @property {string} [errorTitle] the failed plate's heading, in place of "Could not read the log" (`data-kp-log-error-title`)
  * @property {number} [max]
  * @property {boolean} [wrap]
  * @property {'time' | 'datetime' | 'off'} [time]
@@ -171,7 +175,7 @@ function toolsOf(root) {
 
 /** The options as one string, to know whether the rows must be drawn again. @param {HTMLElement} root */
 const signature = (root) =>
-    ['max', 'wrap', 'time', 'level', 'search', 'search-only', 'tools'].map((n) => attr(root, n, '')).join('\u0001') +
+    ['max', 'wrap', 'time', 'level', 'search', 'search-only', 'tools', 'error', 'error-title'].map((n) => attr(root, n, '')).join('\u0001') +
     `\u0001${root.getAttribute('data-kp-state') ?? ''}`;
 
 /** @param {HTMLElement} root @returns {HTMLElement} */
@@ -313,8 +317,8 @@ function refresh(root) {
         plate = 'error';
         const p = statePlate(document, {
             kind: 'error',
-            title: s.logviewerFailed,
-            text: s.logviewerFailedText,
+            title: attr(root, 'error-title', '') || s.logviewerFailed,
+            text: attr(root, 'error', '') || s.logviewerFailedText,
             actionLabel: s.logviewerRetry,
             actionAttribute: 'data-kp-logviewer-retry',
         });
@@ -704,6 +708,14 @@ export function setLogViewer(el, spec) {
     }
     if (spec.searchOnly !== undefined) root.setAttribute('data-kp-log-search-only', spec.searchOnly ? 'on' : 'off');
     if (spec.state !== undefined) root.setAttribute('data-kp-state', spec.state);
+    if (spec.message !== undefined) {
+        if (spec.message) root.setAttribute('data-kp-log-error', spec.message);
+        else root.removeAttribute('data-kp-log-error');
+    }
+    if (spec.errorTitle !== undefined) {
+        if (spec.errorTitle) root.setAttribute('data-kp-log-error-title', spec.errorTitle);
+        else root.removeAttribute('data-kp-log-error-title');
+    }
     if (spec.lines) {
         clearLogViewer(root);
         appendLogLines(root, spec.lines);

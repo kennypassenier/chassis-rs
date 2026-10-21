@@ -162,6 +162,8 @@ const SORT_RESET = '[data-kp-datatable-sort-reset]';
 const EXPAND_ALL = '[data-kp-datatable-expand-all]';
 const COLLAPSE_ALL = '[data-kp-datatable-collapse-all]';
 const EXPAND_COLUMN = '[data-kp-expand-column]';
+const REORDER_COLUMN = '[data-kp-reorder-column]';
+const REORDER_HANDLE = '[data-kp-reorder-handle]';
 const ROW_TOGGLE = '[data-kp-row-toggle]';
 /** A heading row that folds the rows of its group [J2]. */
 export const GROUP_ROW = '[data-kp-row-group]';
@@ -237,6 +239,8 @@ export const REQUEST_EVENT = 'kp-datatable-request';
 export const EDIT_EVENT = 'kp-datatable-edit';
 /** Fired when a group row folds or unfolds [J2]: `{ key, row, open, members, folded }`; `members` are the group's rows, `folded` every folded key. */
 export const GROUP_EVENT = 'kp-datatable-group';
+/** Fired on the table when a row was moved by its handle: `{ order, key, from, to }` (the row keys in the new order, the moved row's key, its old and new place, counted from 0) [wish-1120, homelab 93]. */
+export const REORDER_EVENT = 'kp-datatable-reorder';
 
 /** Rows per page when the consumer does not say [Kenny, 2026-09-13]. Per table as `data-kp-page-size`. */
 export const PAGE_SIZE = 25;
@@ -303,8 +307,10 @@ export function compareByOrder(order, a, b, fallback) {
 /**
  * The next sort keys after a header press [Kenny, 2026-09-13, #multi-sort].
  *
- * A plain press sorts on that column alone, turning it round when it already
- * was the only key. With `add` (Shift) the column joins the keys as the
+ * A plain press sorts on that column alone, ascending, then descending, then (cycle
+ * 'three', the default since wish-1120 / homelab 93) off again: the rows go back to their own
+ * order and the header says aria-sort none. Cycle 'two' keeps turning between the two
+ * directions and never leaves the sort. With `add` (Shift) the column joins the keys as the
  * last one, turns round when it is a key already, and leaves the keys on
  * its third press. Both channels call this, so they cannot disagree on
  * what a press does.
@@ -315,7 +321,7 @@ export function compareByOrder(order, a, b, fallback) {
  * @param {{ add?: boolean, cycle?: 'two' | 'three' }} [options]
  * @returns {{ column: K, direction: 'ascending' | 'descending' }[]}
  */
-export function nextSorts(keys, column, { add = false, cycle = 'two' } = {}) {
+export function nextSorts(keys, column, { add = false, cycle = 'three' } = {}) {
     const current = keys.find((key) => key.column === column);
     if (add) {
         if (current === undefined) return [...keys, { column, direction: 'ascending' }];
@@ -779,7 +785,7 @@ let instances = 0;
  * @property {Compare} [compare]
  * @property {Filter} [filter]
  * @property {number} [debounceMs]  Default 0, and 300 for a server-backed table.
- * @property {'two' | 'three'} [sortCycle]
+ * @property {'two' | 'three'} [sortCycle]  What a plain header press does after descending: 'three' (default) removes the sort again (aria-sort none, the rows in their own order), 'two' turns back to ascending. Per table `data-kp-sort-cycle`.
  * @property {boolean | 'click'} [multiSort]  Shift + click adds a sort key; 'click': a plain click adds it and Shift + click sorts on the column alone. Default false; per table `data-kp-sort-multi` (`="click"`).
  * @property {boolean} [sortExternal]  The page sorts: the table draws and announces the sort, the rows keep the order the page renders [kpadopt4]. Default false; per table `data-kp-sort-external`.
  * @property {'panel' | 'add'} [filterMode]  How the header-declared filters are set: a panel of every filter, or "+ Add filter" with one pill per filter. Default panel; per table `data-kp-filter-mode`.
@@ -796,15 +802,17 @@ let instances = 0;
  * @property {string} [collapseGlyph] Default ▾.
  * @property {number} [gridPageRows]  Default 5.
  * @property {boolean} [expandSingle]  Opening a row closes the one that was open. Default false; per table `data-kp-expand-single`.
- * @property {(part: HTMLElement, info: DataTableDecorateInfo) => void} [decorate]  Called with every row toggle and group toggle the
- *   table builds, each time it builds one, so the consumer can mark it (homelab's Live view marks what it can press) [J2, R-DRIVE].
+ * @property {(part: HTMLElement, info: DataTableDecorateInfo) => void} [decorate]  Called with every row toggle, group toggle, "+ Add filter",
+ *   "Clear the search and filters" button, search box and reorder handle the table builds, each time it builds one, so the consumer can mark it (homelab's Live view marks what it can press) [J2, R-DRIVE].
  */
 
 /**
  * What `decorate` is told about the control it is handed: the same shape every kp module's `decorate` takes.
  * `kind` is `row-toggle` (a row's expand button; `value` is the row key) or `row-group-toggle` (a group row's fold button;
- * `value` is the group key). `host` is the data table's wrapper and `key` its `data-kp-key`.
- * @typedef {{ kind: 'row-toggle' | 'row-group-toggle', host: HTMLElement, key?: string, index?: number, label?: string, value?: string }} DataTableDecorateInfo
+ * `value` is the group key); and, since wish-1120 (homelab 66), `add-filter` (the "+ Add filter" button), `clear-filters` ("Clear the
+ * search and filters") and `search` (the search box) and `reorder-handle` (a row's drag handle, `value` is the row key).
+ * `host` is the data table's wrapper and `key` its `data-kp-key`.
+ * @typedef {{ kind: 'row-toggle' | 'row-group-toggle' | 'add-filter' | 'clear-filters' | 'search' | 'reorder-handle', host: HTMLElement, key?: string, index?: number, label?: string, value?: string }} DataTableDecorateInfo
  */
 
 /**
@@ -824,7 +832,7 @@ export function attachDataTables(
         compare: compareFn = compare,
         filter: filterFn = defaultFilter,
         debounceMs,
-        sortCycle = 'two',
+        sortCycle = 'three',
         multiSort = false,
         sortExternal = false,
         filterMode = 'panel',
@@ -917,7 +925,7 @@ export function attachDataTables(
         const externalSort = wrap.dataset.kpSortExternal === undefined ? sortExternal : wrap.dataset.kpSortExternal !== 'false';
         const debounce = Number.parseInt(wrap.dataset.kpDebounce ?? '', 10) || debounceMs || (serverMode ? SERVER_DEBOUNCE_MS : 0);
         const cycle = wrap.dataset.kpSortCycle ?? sortCycle;
-        const cycleName = cycle === 'three' ? 'three' : 'two';
+        const cycleName = cycle === 'two' ? 'two' : 'three';
         const multi = sortsSeveral(wrap);
         // `data-kp-sort-multi="click"` [kpadopt]: every plain press adds the
         // column as a key (ascending, descending, out); Shift flips to the
@@ -977,6 +985,8 @@ export function attachDataTables(
             if (wrap.dataset.kpKey !== undefined) full.key = wrap.dataset.kpKey;
             decorate(part, full);
         };
+        // The search box the page placed is a control the consumer may mark too [wish-1120, homelab 66, 114].
+        if (search !== null) decoratePart(search, { kind: 'search' });
         /** Rows open for their details, by key. @type {Set<string>} */
         const expanded = new Set();
         if (expandable && headRow !== undefined && headRow.querySelector(EXPAND_COLUMN) === null) {
@@ -988,6 +998,42 @@ export function attachDataTables(
             th.append(label);
             headRow.prepend(th);
         }
+        // Row reorder [wish-1120, homelab 93]: `data-kp-rows-reorder` adds a column of drag handles, first in the row.
+        const reorderable = wrap.dataset.kpRowsReorder !== undefined && headRow !== undefined;
+        if (reorderable && headRow !== undefined && headRow.querySelector(REORDER_COLUMN) === null) {
+            const th = add(make('th'));
+            th.setAttribute('scope', 'col');
+            th.dataset.kpReorderColumn = '';
+            const label = make('span', 'kp-sr-only');
+            label.textContent = s0.tableReorderColumn;
+            th.append(label);
+            headRow.prepend(th);
+        }
+        /** The handle's cell, first in the row (before the expand toggle). @param {HTMLTableRowElement} row */
+        const insertReorderCell = (row) => {
+            if (
+                !reorderable ||
+                row.matches(DETAIL) ||
+                row.matches(SKELETON_ROW) ||
+                row.matches(GROUP_ROW) ||
+                row.querySelector('[data-kp-reorder-cell]') !== null
+            )
+                return;
+            const cell = /** @type {HTMLTableCellElement} */ (make('td'));
+            cell.dataset.kpReorderCell = '';
+            cell.dataset.label = '';
+            const button = /** @type {HTMLButtonElement} */ (make('button', 'kp-button kp-button--ghost kp-button--sm kp-datatable__handle'));
+            button.type = 'button';
+            button.dataset.kpReorderHandle = '';
+            button.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
+            const grip = make('span', 'kp-datatable__grip');
+            grip.setAttribute('aria-hidden', 'true');
+            button.append(grip);
+            cell.append(button);
+            row.prepend(cell);
+            const rowKey = row.dataset.kpRowKey ?? row.id ?? '';
+            decoratePart(button, { kind: 'reorder-handle', value: rowKey, label: rowKey });
+        };
         /** The toggle's cell, first in the row, so the row's cells line up with the headers. @param {HTMLTableRowElement} row */
         const insertExpandCell = (row) => {
             if (
@@ -1018,7 +1064,10 @@ export function attachDataTables(
                 decoratePart(button, { kind: 'row-toggle', value: rowKey, label: s0.tableRowDetails(rowKey) });
             }
         };
-        for (const row of body.rows) insertExpandCell(row);
+        for (const row of body.rows) {
+            insertExpandCell(row);
+            insertReorderCell(row);
+        }
 
         const headers = /** @type {HTMLTableCellElement[]} */ ([...(headRow?.cells ?? [])]);
         const headerSort = headers.map((h) => h.getAttribute('aria-sort'));
@@ -1042,7 +1091,7 @@ export function attachDataTables(
         /** A column of controls — the selection boxes, the expand buttons — rather than of values. @param {number} at */
         const controlColumn = (at) => {
             const header = headers[at];
-            return header === undefined || header.querySelector(SELECT_ALL) !== null || header.matches(EXPAND_COLUMN);
+            return header === undefined || header.querySelector(SELECT_ALL) !== null || header.matches(EXPAND_COLUMN) || header.matches(REORDER_COLUMN);
         };
         /** The column that names a row: the first that is not a column of controls. */
         const keyColumn = headers.findIndex((_, at) => !controlColumn(at));
@@ -1401,6 +1450,7 @@ export function attachDataTables(
                     node.textContent = text;
                 });
             }
+            decoratePart(addButton, { kind: 'add-filter', label: s.tableAddFilter(0) });
             addButton.setAttribute('aria-haspopup', 'true');
             addButton.setAttribute('aria-expanded', 'false');
             addButton.setAttribute('aria-controls', popId);
@@ -1843,6 +1893,7 @@ export function attachDataTables(
             if (prepared.has(row)) return;
             prepared.add(row);
             insertExpandCell(row);
+            insertReorderCell(row);
             editKinds.forEach((kind, at) => {
                 const cell = row.cells[at];
                 if (kind === null || cell === undefined || cell.querySelector(EDIT_CELL) !== null) return;
@@ -1861,6 +1912,7 @@ export function attachDataTables(
         /** Take back what prepareRow put in a row. @param {HTMLTableRowElement} row */
         const unprepareRow = (row) => {
             row.querySelector('[data-kp-expand-cell]')?.remove();
+            row.querySelector('[data-kp-reorder-cell]')?.remove();
             for (const button of row.querySelectorAll(EDIT_CELL)) {
                 const value = button.querySelector(EDIT_VALUE);
                 if (value !== null) button.replaceWith(...value.childNodes);
@@ -1885,7 +1937,108 @@ export function attachDataTables(
                 const cell = /** @type {HTMLTableCellElement} */ (button.closest('td, th'));
                 button.setAttribute('aria-label', s.tableEdit(labelOf(cell.cellIndex), key, cellText(row, cell.cellIndex)));
             }
+            const grip = row.querySelector(REORDER_HANDLE);
+            if (grip !== null) {
+                const can = canReorder();
+                grip.setAttribute('aria-label', s.tableReorderRow(reorderName(row)));
+                if (can) {
+                    grip.removeAttribute('aria-disabled');
+                    grip.removeAttribute('title');
+                } else {
+                    grip.setAttribute('aria-disabled', 'true');
+                    grip.setAttribute('title', s.tableReorderOff);
+                }
+            }
         };
+
+        // ── Row reorder [wish-1120, homelab 93] ─────────────────────────
+        // The order is the table's own while no sort, filter or search is on and the rows come from the page (not a server): the
+        // handle, Alt+Up and Alt+Down move a row in the rendered order and `kp-datatable-reorder` carries the new order of the
+        // keys. With a sort or filter on, the handles are off with the reason in their title.
+        const canReorder = () => reorderable && !serverMode && !externalSort && sorts.length === 0 && filters.size === 0 && query.trim() === '' && groups.size === 0;
+        /** @param {HTMLTableRowElement} row */
+        const reorderName = (row) => (keyColumn >= 0 ? cellText(row, keyColumn) : '') || keyOf(row);
+        /** A polite line only a screen reader hears: where the row went. @type {HTMLElement | null} */
+        let reorderLive = null;
+        /**
+         * Put a row at a place in the order (0 is the first) and say so.
+         * @param {HTMLTableRowElement} row @param {number} to
+         * @returns {boolean} whether the row moved
+         */
+        const moveRow = (row, to) => {
+            if (!canReorder()) return false;
+            const from = all.indexOf(row);
+            const target = Math.max(0, Math.min(all.length - 1, to));
+            if (from < 0 || from === target) return false;
+            all.splice(from, 1);
+            all.splice(target, 0, row);
+            rendered.splice(0, rendered.length, ...all, ...rendered.filter((r) => !all.includes(r)));
+            shownRows = [...all];
+            if (pager !== null) page = Math.floor(target / size);
+            render();
+            // The focus follows the row, not the place: losing it after every move is what makes keyboard reordering unusable.
+            /** @type {HTMLElement | null} */ (row.querySelector(REORDER_HANDLE))?.focus({ preventScroll: true });
+            if (reorderLive === null) {
+                reorderLive = make('span', 'kp-sr-only');
+                reorderLive.setAttribute('role', 'status');
+                reorderLive.setAttribute('aria-live', 'polite');
+                wrap.append(reorderLive);
+                undo.push(() => reorderLive?.remove());
+            }
+            reorderLive.textContent = getStrings().reorderMoved(reorderName(row), target + 1, all.length);
+            wrap.dispatchEvent(new CustomEvent(REORDER_EVENT, { bubbles: true, detail: { order: all.map(keyOf), key: keyOf(row), from, to: target } }));
+            return true;
+        };
+        /** Alt+Up and Alt+Down on a row's handle, or on the row itself. @param {KeyboardEvent} event */
+        const onReorderKey = (event) => {
+            if (!reorderable || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+            if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+            const target = /** @type {HTMLElement} */ (event.target);
+            if (target.matches('input, textarea, select, [contenteditable]')) return;
+            const row = /** @type {HTMLTableRowElement | null} */ (target.closest('tr'));
+            if (row === null || row.parentElement !== body || !all.includes(row)) return;
+            event.preventDefault();
+            moveRow(row, all.indexOf(row) + (event.key === 'ArrowUp' ? -1 : 1));
+        };
+        /** Drag by the handle: the row follows the pointer over its neighbours. @param {PointerEvent} event */
+        const onReorderPointer = (event) => {
+            if (event.button !== 0) return;
+            const handle = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (event.target).closest(REORDER_HANDLE));
+            const row = /** @type {HTMLTableRowElement | null} */ (handle?.closest('tr') ?? null);
+            if (handle === null || row === null || !canReorder()) return;
+            event.preventDefault();
+            handle.focus({ preventScroll: true });
+            row.dataset.kpDragging = '';
+            const id = event.pointerId;
+            /** @param {PointerEvent} move */
+            const onMove = (move) => {
+                if (move.pointerId !== id) return;
+                const over = pageRows.find((r) => {
+                    const box = r.getBoundingClientRect();
+                    return move.clientY >= box.top && move.clientY <= box.bottom;
+                });
+                if (over !== undefined && over !== row) moveRow(row, all.indexOf(over));
+            };
+            /** @param {PointerEvent} up */
+            const onUp = (up) => {
+                if (up.pointerId !== id) return;
+                delete row.dataset.kpDragging;
+                window.removeEventListener('pointermove', onMove);
+                window.removeEventListener('pointerup', onUp);
+                window.removeEventListener('pointercancel', onUp);
+            };
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+            window.addEventListener('pointercancel', onUp);
+        };
+        if (reorderable) {
+            body.addEventListener('keydown', onReorderKey);
+            body.addEventListener('pointerdown', onReorderPointer);
+            undo.push(() => {
+                body.removeEventListener('keydown', onReorderKey);
+                body.removeEventListener('pointerdown', onReorderPointer);
+            });
+        }
 
         for (const row of all) {
             if (row.dataset.kpExpanded !== undefined) expanded.add(keyOf(row));
@@ -2483,6 +2636,7 @@ export function attachDataTables(
             add(make('button', `kp-button kp-button--ghost kp-datatable__clear-filters${addMode ? ' kp-button--sm' : ''}`))
         );
         clearButton.type = 'button';
+        decoratePart(clearButton, { kind: 'clear-filters' });
         clearButton.addEventListener('click', () => {
             clearFilters();
             (toggle ?? addButton)?.focus();
@@ -2941,7 +3095,7 @@ export function attachDataTables(
             const field = wrap.dataset.kpRowKeyField ?? headers[keyColumn]?.dataset.kpField;
             row.dataset.kpRowKey = rowKeyFn ? rowKeyFn(item) : String((field === undefined ? undefined : item[field]) ?? item.key ?? item.id ?? '');
             headers.forEach((header, at) => {
-                if (header.matches(EXPAND_COLUMN)) return;
+                if (header.matches(EXPAND_COLUMN) || header.matches(REORDER_COLUMN)) return;
                 const cell = make('td');
                 if (header.querySelector(SELECT_ALL) !== null) {
                     const box = /** @type {HTMLInputElement} */ (make('input', CHECK_CLASS));

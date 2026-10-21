@@ -12,7 +12,8 @@
 //   <dialog class="kp-shortcuts" data-kp-shortcuts data-kp-shortcuts-live aria-labelledby="sheet-title">…</dialog>
 //
 // `keys` is a chord of steps separated by spaces ("g s"), each step the key alone ("j", "?", "ArrowDown") or modifiers
-// then the key ("Mod K", "Shift L"); `Mod` is Ctrl or ⌘. A letter never fires while a person types in a field; a step
+// then the key ("Mod K", "Shift L", "Space"); `Mod` is Ctrl or ⌘. A letter never fires while a person types in a field (`inFields: true` on
+// a shortcut lets it: "Esc closes the change form" [wish-1120, homelab 122]); a step
 // with `Mod` still does. The scope is a name (a page's keys) or an element (keys that only live while that element is on
 // screen, such as a table's j/k/x). Kenny, 2026-10-17: a key that needs AltGr on his AZERTY keyboard (`[`, `]`, `{`, `@`)
 // is warned about at registration, not refused (`layoutGuard`, default `warn`). Two registrations of one key in one
@@ -61,6 +62,8 @@ const RESERVED = ['mod+k', '?'];
  * @property {(event: KeyboardEvent) => unknown} run called when the keys are pressed; returning `false` leaves the browser's own handling alone
  * @property {() => boolean} [when] false: the key does nothing now and the sheet shows it dimmed
  * @property {string} [reason] the sheet's sentence for why it is not available now
+ * @property {boolean} [inFields] true: the keys also fire while the focus is in a field (an input, a textarea, a select), where a plain key
+ *   is the typing's own and does nothing by default; for a key that means the same there ("Esc closes the change form") [wish-1120, homelab 122]
  */
 
 /**
@@ -117,6 +120,12 @@ function warn(message) {
  */
 
 /**
+ * Whether a typed-in field lets this entry's step through: a chord with Mod always, and a shortcut that said `inFields`.
+ * @param {Entry} entry @param {number} index
+ */
+const inFieldsToo = (entry, index) => entry.steps[index].mods.includes('mod') || entry.shortcut.inFields === true;
+
+/**
  * Read "g s" or "Mod K" into steps.
  * @param {string} keys
  * @returns {Step[]}
@@ -133,7 +142,8 @@ export function parseShortcutKeys(keys) {
             mods.add(lower === 'ctrl' || lower === 'control' || lower === 'meta' || lower === 'cmd' ? 'mod' : lower);
             continue;
         }
-        steps.push({ mods: [...mods].sort(), key: token });
+        // "Space" is the Space key, which `KeyboardEvent.key` spells " " [wish-1120, homelab 122].
+        steps.push({ mods: [...mods].sort(), key: lower === 'space' ? ' ' : token });
         mods = new Set();
     }
     if (mods.size > 0) throw new RangeError(`The keys "${keys}" end on a modifier.`);
@@ -142,7 +152,7 @@ export function parseShortcutKeys(keys) {
 }
 
 /** @param {Step[]} steps */
-const normal = (steps) => steps.map((s) => [...s.mods, s.key.toLowerCase()].join('+')).join(' ');
+const normal = (steps) => steps.map((s) => [...s.mods, s.key === ' ' ? 'space' : s.key.toLowerCase()].join('+')).join(' ');
 
 /** Whether this is a Mac, where `Mod` is ⌘. */
 function isMac() {
@@ -264,7 +274,7 @@ export function shortcutClaims(event) {
     if (pending && now - pending.at <= config.chordMs) return true;
     const hits = [...entries].filter(scopeActive).filter((entry) => entry.steps[0] && matches(entry.steps[0], event));
     if (hits.length === 0) return false;
-    return !typing(event.target) || hits.every((entry) => entry.steps[0].mods.includes('mod'));
+    return !typing(event.target) || hits.every((entry) => inFieldsToo(entry, 0));
 }
 
 function hideHint() {
@@ -333,7 +343,7 @@ function handleKey(event) {
     const hits = pool
         .filter((entry) => entry.steps[index] && matches(entry.steps[index], event))
         .sort((a, b) => Number(typeof a.scope === 'string') - Number(typeof b.scope === 'string') || a.order - b.order);
-    const needsMod = hits.length > 0 && hits.every((e) => e.steps[index].mods.includes('mod'));
+    const needsMod = hits.length > 0 && hits.every((e) => inFieldsToo(e, index));
     if (typing(event.target) && !needsMod) {
         pending = null;
         hideHint();
@@ -379,7 +389,7 @@ function handleKey(event) {
 function onKeyFresh(event, now) {
     pending = null;
     const pool = [...entries].filter(scopeActive).filter((entry) => entry.steps[0] && matches(entry.steps[0], event));
-    if (pool.length === 0 || typing(event.target)) return;
+    if (pool.length === 0 || (typing(event.target) && !pool.every((entry) => inFieldsToo(entry, 0)))) return;
     const more = pool.filter((entry) => entry.steps.length > 1);
     if (more.length > 0 && pool.every((entry) => entry.steps.length > 1)) {
         pending = { candidates: more, index: 1, at: now, shown: event.key };
