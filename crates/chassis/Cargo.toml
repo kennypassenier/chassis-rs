@@ -13,12 +13,17 @@ publish = false
 # `core` is always on; the others are opt-in (T2). `passkeys` implies
 # `dashboard` because a passkey without a login page has nowhere to live,
 # and it is separate because it pulls OpenSSL through webauthn-rs (T8).
-default = ["core"]
+default = ["core", "storage"]
 core = []
+# 3.11.0: sqlite storage layer (`chassis::storage`): the kit file with the
+# clients, sessions and passkeys, and the app file with a budget and the
+# Storage API. On by default; `dashboard` implies it because the kit's own
+# stores live in the kit file.
+storage = ["core", "dep:rusqlite"]
 # The vendored kp-themes files and fonts, for a project that keeps its own
 # dashboard under the kit's CSP (kyu, Almanac); `dashboard` implies it.
 assets = ["core"]
-dashboard = ["core", "assets"]
+dashboard = ["core", "assets", "storage"]
 passkeys = ["dashboard", "dep:webauthn-rs"]
 self-update = ["core", "dep:minisign-verify", "dep:backon"]
 notify = ["core", "dep:backon"]
@@ -79,6 +84,10 @@ minijinja = { version = "2", features = ["json"] }
 # `danger-allow-state-serialisation` lets the ceremony state live in the
 # kit's own bounded map with a TTL instead of an opaque in-memory type.
 webauthn-rs = { version = "0.5", optional = true }
+
+# 3.11.0: sqlite, bundled like kyu's (same version), so a static musl
+# build needs no system library.
+rusqlite = { version = "0.40.2", features = ["bundled"], optional = true }
 
 # L5: signed self-update (K18–K21) and the notifier (K22)
 minisign-verify = { version = "0.2", optional = true }

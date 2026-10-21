@@ -7,6 +7,18 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **`chassis::storage`, a sqlite layer behind the new `storage` feature**
+  (on by default; `dashboard` implies it; rusqlite 0.40.2 `bundled`, the
+  version kyu uses): `Db` with one write connection and two read-only
+  connections, WAL, `synchronous=FULL`, `busy_timeout=5000`,
+  `foreign_keys=ON`, an async `read` / `write` API under `spawn_blocking`
+  (a write is `BEGIN IMMEDIATE` and holds a backup `WriteTicket`), numbered
+  migrations that each run atomically with the `user_version` bump, a
+  database newer than the binary refused with a restore remedy,
+  `Db::open_in_memory` for tests and `Db::inspect` for `--check`. Additive.
+
 ## [3.10.0] - 2026-10-21
 
 ### Security

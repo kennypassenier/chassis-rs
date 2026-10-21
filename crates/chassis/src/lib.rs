@@ -22,6 +22,8 @@ pub mod app;
 pub mod app_dashboard;
 pub mod core;
 pub mod shell;
+#[cfg(feature = "storage")]
+pub mod storage;
 /// K25: the test harness. Also compiled for the kit's own unit tests, so
 /// the update suite reaches `FakeReleaseServer` without the feature.
 #[cfg(any(test, feature = "testing"))]
