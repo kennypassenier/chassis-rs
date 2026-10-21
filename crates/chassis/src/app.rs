@@ -2494,6 +2494,7 @@ impl App {
         let storage = open_storage(
             loaded,
             self.spec.name,
+            &self.spec.prefix(),
             kit_db,
             StorageSetup {
                 app_db: self.app_db.take(),
@@ -2836,6 +2837,7 @@ struct StorageSetup {
 fn open_storage(
     loaded: &Loaded,
     name: &str,
+    prefix: &str,
     kit_db: Option<crate::storage::Db>,
     setup: StorageSetup,
     dbs: &mut Vec<crate::storage::Db>,
@@ -2848,21 +2850,35 @@ fn open_storage(
         budget,
         hook,
     } = setup;
-    let default_budget = budget.map_or(StorageConfig::DEFAULT_BUDGET_MB, |b| b.0);
-    let budget_mb = if loaded.source("storage_budget_mb") == Some(Source::Default) {
-        default_budget
-    } else {
-        parse_u64(loaded, "storage_budget_mb", 1)?
+    // Precedence: environment / flag / file, then the page setting (read by
+    // `Storage::new`), then App::storage_budget, then the default.
+    let fixed = |key: &str| -> Result<Option<crate::storage::Fixed>, Error> {
+        let by = match loaded.source(key) {
+            Some(Source::Flag) => "flag",
+            Some(Source::Env) => "env",
+            Some(Source::File) => "file",
+            _ => return Ok(None),
+        };
+        let name = match by {
+            "flag" => format!("--{}", key.replace('_', "-")),
+            "env" => format!("{prefix}_{}", key.to_ascii_uppercase()),
+            _ => key.to_string(),
+        };
+        Ok(Some(crate::storage::Fixed {
+            mb: parse_u64(loaded, key, 1)?,
+            by,
+            name,
+        }))
     };
-    let warn_mb = if loaded.source("storage_warn_mb") == Some(Source::Default) {
-        match budget {
-            Some((_, w)) => w,
-            None => Some(StorageConfig::DEFAULT_WARN_MB.min(budget_mb)),
-        }
-    } else {
-        Some(parse_u64(loaded, "storage_warn_mb", 1)?)
+    let setup = crate::storage::BudgetSetup {
+        fixed_budget: fixed("storage_budget_mb")?,
+        fixed_warn: fixed("storage_warn_mb")?,
+        code_budget_mb: budget.map_or(StorageConfig::DEFAULT_BUDGET_MB, |b| b.0),
+        code_warn_mb: budget.and_then(|b| b.1),
+        code_budget_set: budget.is_some(),
     };
-    let cfg = StorageConfig::from_mb(budget_mb, warn_mb)?;
+    // A budget and warn line that cannot hold together still stop the start.
+    setup.validate_start()?;
     let app = match app_db {
         Some((handle, spec)) => {
             let path = loaded.state_dir.join(format!("{name}.db"));
@@ -2881,7 +2897,7 @@ fn open_storage(
     if let Some(kit) = &kit_db {
         dbs.push(kit.clone());
     }
-    let storage = Storage::new(cfg, app, kit_db, hook);
+    let storage = Storage::new(setup, app, kit_db, hook);
     if let Err(e) = storage.check() {
         tracing::warn!(error = %e, "storage: the first budget check failed");
     }

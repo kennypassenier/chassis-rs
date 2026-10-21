@@ -53,7 +53,19 @@ questions go to Kenny in one form before anything is built.
    page_size + WAL, per file and summed. Checked at start, every 10 minutes
    and after each Storage action. Surfaces: a status-page problem, a Storage
    page banner, metrics, the app hook. WARN ONLY: the kit never refuses a
-   write and never removes useful data.
+   write and never removes useful data. **Changeable on the Storage page**
+   (Kenny, 2026-10-21 17:34: "kan die ook aangepast worden"): the budget and
+   the warn line are kept as two rows (`storage_budget_mb`,
+   `storage_warn_mb`) in `chassis_meta` of the app file (the kit file when
+   there is no app file), set by `POST /api/kit/storage/budget`. Precedence,
+   highest first: environment, flag or file setting; the page setting;
+   `App::storage_budget`; the default (50 / 40, or 80 % of a budget at or
+   under 40 MB). A value the configuration fixes is shown as fixed with its
+   reason and refused by the API; "Reset to default" deletes the stored rows.
+   Whole MB, budget 1 to 100 000, warn line at least 1 and below the budget
+   (a 1 MB budget warns at 1 MB). A change is one audit line and the budget
+   is checked again at once. Stored values that no longer fit (the budget
+   was fixed lower since) are ignored with a log line, never a start error.
 7. **Pause:** an internal pause hook per file runs
    `wal_checkpoint(TRUNCATE)` after the tickets drained; busy for 5 s falls
    back to the unit stop (existing path). Resume needs nothing new.

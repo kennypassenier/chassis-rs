@@ -2157,7 +2157,7 @@ if (storageRoot) {
 
 async function startStorage(root) {
   const kp = (name) => import(`./kp/js/${name}.js`);
-  const [stackbar, cardState, datatable, flash] = await Promise.all([kp('stackbar'), kp('card-state'), kp('datatable'), kp('flash')]);
+  const [stackbar, cardState, datatable, flash, overlays] = await Promise.all([kp('stackbar'), kp('card-state'), kp('datatable'), kp('flash'), kp('overlays')]);
   const { setStackbar } = stackbar;
   const { setCardState } = cardState;
   const { dataTable } = datatable;
@@ -2176,6 +2176,7 @@ async function startStorage(root) {
     ['segmented', '[data-kp-segmented]', (m, r) => m.attachSegmented(r)],
     ['steplist', '.kp-steplist', (m, r) => m.attachSteplists(r)],
     ['kpi', '.kp-kpis[data-kp-kpis-columns]', (m, r) => m.attachKpiStrips(r)],
+    ['quantity', '[data-kp-quantity]', (m, r) => m.attachQuantities(r)],
     ['lede', '.kp-lede', (m, r) => m.attachLedes(r)],
     ['attention', '.kp-attention', (m, r) => m.attachAttention(r)],
     ['flash', '[data-kp-flash-button]', (m, r) => m.attachFlashButtons(r)],
@@ -2309,21 +2310,32 @@ async function startStorage(root) {
       <div class="kp-attention__text"><strong><span class="kp-sr-only">${over ? 'Critical' : 'Warning'}: </span>${esc(what)}</strong><span>${esc(why)}</span><span><b>What now:</b> ${esc(fix)}</span></div>${action}</div></div>`;
   }
 
-  function budgetHtml(t) {
+  // The big figure: its tone, its value and the words under it.
+  function figureOf(t) {
     const pct = Math.round(t.share * 100);
     const left = t.budget - t.total;
-    const tone = t.level === 'over' ? ' data-kp-tone="destructive"' : t.level === 'warn' ? ' data-kp-tone="warning"' : '';
-    const trend = t.level === 'over' ? `${size(-left)} over the budget of ${size(t.budget)}` : `${size(left)} left; ${pct} % of the budget of ${size(t.budget)}`;
+    return {
+      tone: t.level === 'over' ? 'destructive' : t.level === 'warn' ? 'warning' : '',
+      value: `${size(t.total)}<small>of ${size(t.budget)}</small>`,
+      trend: t.level === 'over' ? `${size(-left)} over the budget of ${size(t.budget)}` : `${size(left)} left; ${pct} % of the budget of ${size(t.budget)}`,
+    };
+  }
+
+  function budgetHtml(t) {
+    const fig = figureOf(t);
+    const tone = fig.tone ? ` data-kp-tone="${fig.tone}"` : '';
+    const trend = fig.trend;
     const row = (label, value, note, tag = '') =>
       `<div class="storage-files__row"><span class="storage-files__label">${label}</span><strong class="storage-files__size">${value}</strong><p class="storage-files__note">${note}</p><span class="storage-files__tag">${tag}</span></div>`;
     return `<div class="storage-budget">
-      <div class="kp-kpis storage-budget__figure" role="group" aria-label="Space used" data-kp-kpis-columns="all 1"><div class="kp-kpi"${tone}><span class="kp-kpi__label">Used</span><span class="kp-kpi__value">${size(t.total)}<small>of ${size(t.budget)}</small></span><span class="kp-kpi__trend">${trend}</span></div></div>
+      <div class="kp-kpis storage-budget__figure" role="group" aria-label="Space used" data-kp-kpis-columns="all 1"><div class="kp-kpi"${tone}><span class="kp-kpi__label">Used</span><span class="kp-kpi__value">${fig.value}</span><span class="kp-kpi__trend">${trend}</span></div></div>
       <figure class="kp-stackbar storage-budget__bar" data-kp-stackbar data-storage-stackbar></figure>
       <div class="storage-files" role="group" aria-label="The three parts of the storage">
         ${row('Application data', size(t.app), `Everything this service stores. Cleaned up here, kind by kind${t.free ? `; ${size(t.free)} of it is empty space` : ''}.`)}
         ${row('Sign-in data', size(t.kit), 'Used for sign-in, never cleaned up here.', '<span class="kp-badge">Read-only</span>')}
         ${row('Pending writes', size(t.wal), 'Recent changes not yet folded into the data; it empties itself.')}
-      </div></div>`;
+      </div>
+      <div class="storage-budget__edit" data-storage-budget-edit></div></div>`;
   }
 
   const stackSpec = (t) => ({
@@ -2339,6 +2351,139 @@ async function startStorage(root) {
       { key: 'wal', label: 'Pending writes', value: t.wal },
     ],
   });
+
+  /* --------------------------------------------- the budget editor -- */
+  // The saved setting comes from the API; `draft` is what the two fields say
+  // now. Everything derived (the figure, the bar, the warn mark, the words
+  // under the fields, the buttons) is drawn from the draft, live.
+  const MAX_MB = (d) => d.budget.setting.max_mb;
+  let draft = null; // { budget, warn } as typed; null when nothing differs from the saved setting
+  let formSignature = '';
+  const settingOf = () => data.budget.setting;
+  const savedPair = () => ({ budget: settingOf().budget_mb, warn: settingOf().warn_mb });
+  const levelFor = (total, budget, warn) => (total > budget ? 'over' : total >= warn ? 'warn' : 'ok');
+  const mbBytes = (mb) => mb * 1e6;
+
+  // What the server refuses, in the server's words (see storage/runtime.rs validate_mb).
+  function problemWith(pair) {
+    const { budget, warn } = pair;
+    if (!Number.isInteger(budget)) return ['budget', 'The budget must be a whole number of megabytes.'];
+    if (!Number.isInteger(warn)) return ['warn', 'The warn line must be a whole number of megabytes.'];
+    if (budget < 1 || budget > MAX_MB(data)) return ['budget', `The budget must be from 1 to ${num(MAX_MB(data))} MB.`];
+    if (warn < 1 || (warn >= budget && budget !== 1)) return ['warn', warn < 1 ? 'The warn line must be at least 1 MB.' : `The warn line must be below the budget of ${num(budget)} MB.`];
+    return null;
+  }
+
+  // The short reason a value cannot be edited here; the API's own sentence says more.
+  const fixedBy = (f) => `Fixed by ${f.by === 'flag' ? 'the flag' : f.by === 'env' ? 'the variable' : 'the file setting'} ${f.name}.`;
+
+  function editHtml() {
+    const s = settingOf();
+    const pair = draft ?? savedPair();
+    const bFix = s.budget_fixed;
+    const wFix = s.warn_fixed;
+    const field = (key, id, label, value, fixed, min, max, noteId) =>
+      `<div class="kp-formgrid__row"><label class="kp-formgrid__label" for="${id}">${label}</label>
+        <div class="kp-formgrid__control kp-formgrid__short"><div class="kp-quantity" data-kp-quantity data-kp-quantity-min="${min}" data-kp-quantity-max="${max}" data-kp-quantity-unit="MB" data-kp-quantity-label="${label}"${fixed ? ' data-kp-quantity-disabled' : ''}><input class="kp-quantity__input" id="${id}" value="${value}" inputmode="numeric" autocomplete="off" aria-describedby="${noteId}"${fixed ? ' disabled' : ''} data-storage-field="${key}" /></div></div>
+        <p class="kp-formgrid__value" id="${noteId}" data-storage-note="${key}"></p></div>`;
+    return `<fieldset class="kp-formgrid storage-form storage-budget-form" data-kp-formgrid-stack="auto" aria-describedby="storage-budget-explain"><legend class="kp-sr-only">Budget</legend>
+      <p class="kp-dialog__note" id="storage-budget-explain" data-kp-formgrid-span="all">Only a warning: nothing is deleted when the budget is reached. Raise the budget to give the data more room, lower it to be told sooner.</p>
+      ${field('budget', 'storage-budget-mb', 'Budget', pair.budget, bFix, 1, MAX_MB(data), 'storage-budget-mb-note')}
+      ${field('warn', 'storage-warn-mb', 'Warn line', pair.warn, wFix, 1, MAX_MB(data), 'storage-warn-mb-note')}
+      <div class="kp-formgrid__row kp-formgrid__row--buttons"><div class="kp-formgrid__control"><div class="kp-formgrid__buttons">
+        ${flashButton('Reset to default', { words: 'Reset,Refused', attrs: `id="storage-budget-reset" data-storage-budget-reset aria-describedby="storage-budget-state"` })}
+        ${flashButton('Save', { words: 'Saved,Refused', kind: 'primary', attrs: `id="storage-budget-save" data-storage-budget-save aria-describedby="storage-budget-state"` })}
+      </div></div><p class="kp-formgrid__value kp-dialog__note" id="storage-budget-state" data-storage-budget-state role="status"></p></div>
+    </fieldset>`;
+  }
+
+  // Redraw everything that follows from the draft; never touches the fields' own text.
+  function liveBudget() {
+    const form = budgetCard.querySelector('.storage-budget-form');
+    if (!form || !data) return;
+    const s = settingOf();
+    const saved = savedPair();
+    const raw = (key) => form.querySelector(`[data-storage-field="${key}"]`).value.trim().replace(',', '.');
+    const typed = { budget: raw('budget') === '' ? NaN : Number(raw('budget')), warn: raw('warn') === '' ? NaN : Number(raw('warn')) };
+    const differs = typed.budget !== saved.budget || typed.warn !== saved.warn;
+    draft = differs ? typed : null;
+    const bad = problemWith(typed);
+    const total = data.budget.total_bytes;
+    const shown = bad ? saved : typed; // an invalid draft shows the saved figures, not nonsense
+    const level = levelFor(total, mbBytes(shown.budget), mbBytes(shown.warn));
+    const t = { ...totals(data), budget: mbBytes(shown.budget), warn: mbBytes(shown.warn), level, share: total / mbBytes(shown.budget) };
+    // The figure, the bar with its warn mark, the level badge.
+    const kpi = budgetCard.querySelector('.storage-budget__figure .kp-kpi');
+    const fig = figureOf(t);
+    kpi.querySelector('.kp-kpi__value').innerHTML = fig.value;
+    kpi.querySelector('.kp-kpi__trend').textContent = fig.trend;
+    if (fig.tone) kpi.setAttribute('data-kp-tone', fig.tone);
+    else kpi.removeAttribute('data-kp-tone');
+    const bar = budgetCard.querySelector('[data-storage-stackbar]');
+    if (bar) setStackbar(bar, stackSpec(t));
+    budgetCard.querySelector('[data-storage-level]').innerHTML = levelBadge(level);
+    // The words under each field.
+    const pct = (b) => `${num(Math.round((total / mbBytes(b)) * 100))} %`;
+    const note = (key, text, invalid) => {
+      const el = form.querySelector(`[data-storage-note="${key}"]`);
+      el.textContent = text;
+      el.classList.toggle('kp-text-destructive', Boolean(invalid));
+      form.querySelector(`[data-storage-field="${key}"]`).toggleAttribute('aria-invalid', Boolean(invalid));
+      if (invalid) form.querySelector(`[data-storage-field="${key}"]`).setAttribute('aria-invalid', 'true');
+    };
+    const badField = bad?.[0];
+    note('budget', badField === 'budget' ? bad[1] : `${size(total)} used of ${size(mbBytes(shown.budget))} (${pct(shown.budget)}).${s.budget_fixed ? ` ${fixedBy(s.budget_fixed)}` : ''}`, badField === 'budget');
+    note('warn', badField === 'warn' ? bad[1] : `Warns from ${size(mbBytes(shown.warn))}, ${Math.round((shown.warn / shown.budget) * 100)} % of the budget; ${size(Math.max(0, mbBytes(shown.warn) - total))} to go.${s.warn_fixed ? ` ${fixedBy(s.warn_fixed)}` : ''}`, badField === 'warn');
+    // The buttons say why they are off.
+    const save = form.querySelector('#storage-budget-save');
+    const reset = form.querySelector('#storage-budget-reset');
+    const bothFixed = Boolean(s.budget_fixed && s.warn_fixed);
+    const saveOff = bothFixed || !draft || Boolean(bad);
+    const resetOff = bothFixed || (!s.stored && !differs);
+    save.disabled = saveOff;
+    reset.disabled = resetOff;
+    form.querySelector('[data-storage-budget-state]').textContent = bothFixed
+      ? 'Both values are fixed by configuration, so nothing can be saved here.'
+      : bad ? 'Fix the marked field to save.' : !draft ? (s.stored ? 'This is the saved setting. Reset goes back to the default.' : 'This is the default setting. Change a value to save it.') : 'Not saved yet.';
+  }
+
+  function paintBudgetForm() {
+    const host = budgetCard.querySelector('[data-storage-budget-edit]');
+    if (!host) return Promise.resolve();
+    const s = settingOf();
+    const signature = JSON.stringify([s.budget_mb, s.warn_mb, s.stored, s.budget_fixed, s.warn_fixed, s.max_mb]);
+    if (host.firstElementChild && (signature === formSignature || draft)) {
+      liveBudget();
+      return Promise.resolve();
+    }
+    formSignature = signature;
+    draft = null;
+    host.innerHTML = editHtml();
+    return attachParts(host).then(liveBudget);
+  }
+
+  async function saveBudget(button, body, word) {
+    let answer = null;
+    await runFlashButton(button, async () => {
+      try {
+        answer = await api('/api/kit/storage/budget', body);
+        return word;
+      } catch (error) {
+        return { error: error.message.replace(/\.+$/, ''), word: 'Refused', remedy: error.body?.remedy };
+      }
+    });
+    if (!answer) return;
+    draft = null;
+    formSignature = '';
+    const b = answer.budget;
+    overlays.toast(
+      body.reset
+        ? `Budget back to the default: ${size(b.budget_bytes)}, warning from ${size(b.warn_bytes)}.`
+        : `Budget saved: ${size(b.budget_bytes)}, warning from ${size(b.warn_bytes)}.`,
+      { ms: 4000 },
+    );
+    await load({ quiet: true });
+  }
 
   function compactHtml(t) {
     const none = t.free <= 0 && t.wal <= 0;
@@ -2419,9 +2564,13 @@ async function startStorage(root) {
     budgetCard.querySelector('[data-storage-budget-about]').textContent =
       `Everything this service keeps on disk, against a budget of ${size(t.budget)}. The budget only warns: nothing is ever deleted for you.`;
     const budgetData = budgetCard.querySelector('[data-storage-budget]');
+    // The editor outlives a redraw: a refresh must not eat what is being typed.
+    const keptEditor = budgetData.querySelector('[data-storage-budget-edit]');
     budgetData.innerHTML = budgetHtml(t);
+    if (keptEditor?.firstElementChild) budgetData.querySelector('[data-storage-budget-edit]').replaceWith(keptEditor);
     await attachParts(budgetData);
     setStackbar(budgetData.querySelector('[data-storage-stackbar]'), stackSpec(t));
+    await paintBudgetForm();
     const compactData = compactCard.querySelector('[data-storage-compact]');
     compactData.innerHTML = compactHtml(t);
     await attachParts(compactData);
@@ -2895,6 +3044,28 @@ async function startStorage(root) {
     } else if (dlg.kind === 'compact' && t.closest('[data-storage-run]')) {
       await runCompact(t.closest('[data-storage-run]'), c);
     }
+  });
+
+  // The budget editor: typing and the stepper change the draft; Save and Reset post.
+  for (const type of ['input', 'change', 'kp-quantity-change']) {
+    root.addEventListener(type, (event) => {
+      if (event.target instanceof Element && event.target.closest('.storage-budget-form')) liveBudget();
+    });
+  }
+  root.addEventListener('click', async (event) => {
+    const t = event.target instanceof Element ? event.target : null;
+    const save = t?.closest('[data-storage-budget-save]');
+    const reset = t?.closest('[data-storage-budget-reset]');
+    if (!save && !reset) return;
+    event.preventDefault();
+    if ((save ?? reset).disabled) return;
+    if (save) {
+      const s = settingOf();
+      const body = {};
+      if (!s.budget_fixed) body.budget_mb = draft.budget;
+      if (!s.warn_fixed) body.warn_mb = draft.warn;
+      await saveBudget(save, body, 'Saved');
+    } else await saveBudget(reset, { reset: true }, 'Reset');
   });
 
   // A card or a table that failed asks again through the package's own retry event.

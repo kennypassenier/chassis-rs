@@ -72,6 +72,7 @@ pub(crate) async fn overview(State(st): State<Storage>) -> Result<Response, Erro
                 "used_percent": (pct * 10.0).round() / 10.0,
                 "level": report.level,
                 "checked_at": report.checked_at,
+                "setting": st.setting(),
             },
             "files": report.files,
             "reclaimable_bytes": reclaimable,
@@ -157,11 +158,55 @@ pub(crate) async fn compact(State(st): State<Storage>) -> Result<Response, Error
     })))
 }
 
+/// The page setting: whole megabytes, or `reset`. Numbers arrive as JSON
+/// values so a fraction or a word gets a sentence, not a parser's complaint.
+#[derive(Deserialize)]
+pub(crate) struct BudgetBody {
+    budget_mb: Option<serde_json::Value>,
+    warn_mb: Option<serde_json::Value>,
+    #[serde(default)]
+    reset: bool,
+}
+
+fn whole_mb(name: &str, v: Option<serde_json::Value>) -> Result<Option<u64>, Error> {
+    match v {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::Number(n)) if n.is_u64() => Ok(n.as_u64()),
+        Some(other) => Err(Error::invalid(
+            format!("the {name} must be a whole number of megabytes, not {other}"),
+            "type a whole number such as 50, without decimals or units",
+        )),
+    }
+}
+
+/// `POST /api/kit/storage/budget`: `{budget_mb?, warn_mb?}` or `{reset: true}`.
+/// Answers the new `budget` (with its `setting`) after the check ran again.
+pub(crate) async fn set_budget(
+    State(st): State<Storage>,
+    Json(body): Json<BudgetBody>,
+) -> Result<Response, Error> {
+    let budget = whole_mb("budget", body.budget_mb)?;
+    let warn = whole_mb("warn line", body.warn_mb)?;
+    let reset = body.reset;
+    let st2 = st.clone();
+    let report = blocking(move || st2.set_budget(budget, warn, reset)).await?;
+    Ok(no_store(json!({
+        "budget": {
+            "budget_bytes": report.budget_bytes,
+            "warn_bytes": report.warn_bytes,
+            "total_bytes": report.total_bytes,
+            "level": report.level,
+            "setting": st.setting(),
+        },
+    })))
+}
+
 /// The routes, to be layered with the admin login by the caller.
 pub(crate) fn routes(st: Storage) -> axum::Router {
     use axum::routing::{get, post};
     axum::Router::new()
         .route("/api/kit/storage", get(overview))
+        .route("/api/kit/storage/budget", post(set_budget))
         .route("/api/kit/storage/compact/preview", post(compact_preview))
         .route("/api/kit/storage/compact", post(compact))
         .route("/api/kit/storage/{kind}/preview", post(preview))

@@ -901,6 +901,10 @@ pre.snippet {
 .storage-budget__figure { grid-column: 1; margin: 0; }
 .storage-budget__bar { grid-column: 2; margin: 0; align-self: center; }
 .storage-budget .storage-files { grid-column: 1 / -1; }
+/* The budget editor: the card's own grid, across both columns, under the three parts. */
+.storage-budget__edit { grid-column: 1 / -1; }
+.storage-budget__edit:empty { display: none; }
+.storage-budget-form { --kp-formgrid-label-min: 6.8rem; --kp-formgrid-label-max: 6.8rem; }
 
 @container storagec (max-width: 34rem) {
   .storage-budget { grid-template-columns: minmax(0, 1fr); }

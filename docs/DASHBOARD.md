@@ -39,7 +39,7 @@ navigation is `Status` (`/`), the clients label (`/clients`, default
 | `GET /clients` | admin | The clients table with the row controls below. |
 | `GET/POST /api/clients`, `/api/clients/{id}/{reissue,revoke,token,requests,test}`, `DELETE /api/clients/{id}` | admin | The JSON the buttons call. |
 | `GET /storage` | admin | The Storage page (3.11.0), below. |
-| `GET /api/kit/storage`, `POST /api/kit/storage/{kind}/{preview,delete}`, `POST /api/kit/storage/compact{,/preview}` | admin | The Storage page's JSON (3.11.0), below. |
+| `GET /api/kit/storage`, `POST /api/kit/storage/{kind}/{preview,delete}`, `POST /api/kit/storage/compact{,/preview}`, `POST /api/kit/storage/budget` | admin | The Storage page's JSON (3.11.0), below. |
 | `GET /passkeys`, `/passkeys/*`, `/api/passkeys*` | admin (login/start+finish: anyone) | Only over HTTPS via a trusted proxy; else 404 with a remedy. |
 | `GET /static/{*name}` | anyone | Embedded assets: `Cache-Control: public, max-age=31536000, immutable` when the URL carries the `?v=<hash>` the layout adds, `no-cache` with a strong `ETag` (304 when unchanged) for a URL without it, such as a font reached from `fonts.css` or a module a project's app imports (fix-13). |
 
@@ -706,10 +706,11 @@ request is a 403). Errors are the kit's `{"error", "remedy"}`.
 
 | Route | What |
 |---|---|
-| `GET /api/kit/storage` | `budget` (`budget_bytes`, `warn_bytes`, `total_bytes`, `used_percent`, `level` = `ok`/`warn`/`over`, `checked_at`), `files` (one per file: `role` `app`/`kit`, `file`, `db_bytes`, `wal_bytes`, `total_bytes`, `reclaimable_bytes`, `cleanable`; the kit file is `cleanable: false`), `reclaimable_bytes` (app), `last_compacted_at` (RFC 3339 or `null`; kept in the app file), `has_app_db`, `paused`, `import` (`state` `not_requested`/`done`/`failed` + `why`), `kinds` (one per declared kind: `id`, `label`, `description`, `unit` (what its rows are called: `rows`, `cells`, …), `rows`, `bytes` (estimated), `oldest`, `newest`, `filters`, `supports_age`, `finished_automatically`). A filter is `{name, label, type: choice\|flag\|text, values?}`. |
+| `GET /api/kit/storage` | `budget` (`budget_bytes`, `warn_bytes`, `total_bytes`, `used_percent`, `level` = `ok`/`warn`/`over`, `checked_at`, `setting`: `budget_mb`, `warn_mb`, `default_budget_mb`, `default_warn_mb` (what Reset gives), `stored`, `budget_fixed` / `warn_fixed` (`null`, or `{by: env|flag|file, name, reason}`), `min_mb`, `max_mb`, `can_store`), `files` (one per file: `role` `app`/`kit`, `file`, `db_bytes`, `wal_bytes`, `total_bytes`, `reclaimable_bytes`, `cleanable`; the kit file is `cleanable: false`), `reclaimable_bytes` (app), `last_compacted_at` (RFC 3339 or `null`; kept in the app file), `has_app_db`, `paused`, `import` (`state` `not_requested`/`done`/`failed` + `why`), `kinds` (one per declared kind: `id`, `label`, `description`, `unit` (what its rows are called: `rows`, `cells`, …), `rows`, `bytes` (estimated), `oldest`, `newest`, `filters`, `supports_age`, `finished_automatically`). A filter is `{name, label, type: choice\|flag\|text, values?}`. |
 | `POST /api/kit/storage/{kind}/preview` | Body `{"older_than_secs"?: n, "filters"?: {name: value}}`. Read-only: `rows`, `bytes`, `oldest`, `newest`, `samples` (five rows, oldest first; the time column is an RFC 3339 string), `columns` (a sample row's columns in the table's order, the integer primary key left out) and `time_column`, `confirm_with` (the kind's name as the page shows it, its `label`: what a person types), `token`. |
 | `POST /api/kit/storage/{kind}/delete` | Body: the same selection plus `token` and `confirm` (the kind's `label`, exactly as `confirm_with` gave it; the id is refused). The token binds the selection, the instant (an age is fixed at the preview) and the count; it is valid 15 minutes and until a restart. Recounts inside the transaction: if the number of rows moved it deletes nothing and says so (400). One transaction, one audit log line (`audit=true`), then the budget is rechecked. Answers `deleted` (`deleted`, `remaining`, `reclaimable_bytes`) and the new `budget`. |
 | `POST /api/kit/storage/compact/preview` | `file_bytes`, `reclaimable_bytes`, `free_space_needed_bytes`, `paused`. |
+| `POST /api/kit/storage/budget` | Body `{"budget_mb"?: n, "warn_mb"?: n}` (whole MB; budget 1 to 100 000, warn line 1 or more and below the budget) or `{"reset": true}`. Stores the setting in the app file (`chassis_meta`), checks the budget again at once and answers `budget` (`budget_bytes`, `warn_bytes`, `total_bytes`, `level`, `setting`). A refusal is a 400 with a plain sentence and a remedy: not a whole number, out of range, warn line not below the budget, or a value the configuration fixes. One audit line (`audit=true`, `the budget was changed`) with before and after. |
 | `POST /api/kit/storage/compact` | `VACUUM` of the app file. 503 with `Retry-After` while a backup pause holds the state. |
 
 A project declares its kinds with `App::storage_kind(DataKind::new("events",
@@ -752,7 +753,22 @@ dialog `storage-clean-dialog` with `storage-clean-older`,
 (the block the name is typed into; the field is its `input`),
 `storage-clean-back`, `storage-clean-delete`, `storage-clean-close`,
 `storage-clean-done`; the compact dialog `storage-compact-dialog` with
-`storage-compact-run`, `storage-compact-cancel`, `storage-compact-done`.
+`storage-compact-run`, `storage-compact-cancel`, `storage-compact-done`; the
+budget editor in the Space used card: `storage-budget-mb` and `storage-warn-mb`
+(the two number fields, in megabytes), `storage-budget-save`,
+`storage-budget-reset`.
+
+**The budget editor** (Space used card, on a `.kp-formgrid` across both of the
+card's columns): a budget and a warn line as `kp-quantity` fields (type, step
+or hold the buttons), the sentence "Only a warning: nothing is deleted when
+the budget is reached", Save (a flash button: spinner, then Saved or the
+refusal in a line beneath it, and a toast with the new numbers) and Reset to
+default. What the fields say drives the figure, the share bar with its warn
+mark, the level badge and the words under each field live, before anything is
+saved; an invalid value is marked with the reason and Save stays off. A value
+fixed by the environment, a flag or the file is shown disabled with "Fixed by
+the variable `<P>_STORAGE_BUDGET_MB`"; when both are fixed Save and Reset are
+off and say why. A refresh never overwrites what is being typed.
 
 The budget shows up elsewhere too: past the warn line the status page's
 Problems card says so (nothing is refused), `/metrics` carries

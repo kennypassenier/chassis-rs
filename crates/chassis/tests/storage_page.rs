@@ -316,3 +316,42 @@ async fn the_api_feeds_the_page_what_the_demo_showed() {
         "the compact is remembered in the file: {o}"
     );
 }
+
+#[test]
+fn budget_editor_keeps_its_ids_its_kit_parts_and_the_one_post() {
+    let js = kit_file("static/chassis.js");
+    let block = js
+        .split("storage (kit-storage, 3.11.0)")
+        .nth(1)
+        .expect("the storage block");
+    // Stable control ids for the homelab Live view.
+    for id in [
+        "storage-budget-mb",
+        "storage-warn-mb",
+        "storage-budget-save",
+        "storage-budget-reset",
+    ] {
+        assert!(block.contains(id), "the stable control id {id} is gone");
+    }
+    // Only kit parts: the quantity field, the form grid, the flash button and a toast.
+    for part in [
+        "data-kp-quantity",
+        "kp-formgrid__row",
+        "data-kp-formgrid-stack",
+        "data-kp-flash-button",
+        "overlays.toast",
+        "/api/kit/storage/budget",
+        "Only a warning: nothing is deleted when the budget is reached",
+        "Reset to default",
+        "data-kp-quantity-disabled",
+    ] {
+        assert!(block.contains(part), "the budget editor lost {part}");
+    }
+    // Fixed by configuration: disabled with the reason, never hidden.
+    assert!(
+        block.contains("fixedBy") && block.contains("budget_fixed") && block.contains("warn_fixed")
+    );
+    // The editor shares the card's grid, across both of its columns.
+    let css = kit_file("static/chassis.css");
+    assert!(css.contains(".storage-budget__edit { grid-column: 1 / -1; }"));
+}

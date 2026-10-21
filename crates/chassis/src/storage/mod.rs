@@ -39,7 +39,8 @@ pub(crate) fn rekey_kit_file(
 ) -> Result<usize, Error> {
     KitDb::rekey(path, old, new)
 }
-pub use runtime::{FileReport, Level, Storage, StorageConfig, StorageReport, WarnHook};
+pub(crate) use runtime::BudgetSetup;
+pub use runtime::{FileReport, Fixed, Level, Storage, StorageConfig, StorageReport, WarnHook};
 
 /// The sqlite crate the handles are built on, re-exported so a project
 /// writes its queries against the very version the kit links.

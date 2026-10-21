@@ -59,6 +59,22 @@ scaffold writes. A breaking change in either is a major and carries a
   `ImportReport::new(expected, imported, files)` and
   `Selector::all().older_than(secs).with_filter(name, value)`. Additive.
 
+- **The budget can be changed on the Storage page** (`storage`; Kenny,
+  2026-10-21 17:34): the Space used card gets a budget and a warn line
+  (whole MB, ids `storage-budget-mb`, `storage-warn-mb`), Save
+  (`storage-budget-save`) and Reset to default (`storage-budget-reset`),
+  with the figure, the bar's warn mark and the words under the fields
+  following the draft live. New `POST /api/kit/storage/budget`
+  (`{budget_mb?, warn_mb?}` or `{reset: true}`; budget 1 to 100 000 MB, warn
+  line below it; a plain-language 400 otherwise; one audit line) keeps the
+  setting in `chassis_meta` of the app file and checks the budget again at
+  once. Precedence: `<P>_STORAGE_BUDGET_MB` / `_WARN_MB` (or flag, or file)
+  over the page setting over `App::storage_budget` over the default; a value
+  the configuration fixes is shown as fixed, with the reason, and refused by
+  the API; Reset removes the stored setting. `GET /api/kit/storage` gains
+  `budget.setting`. New `Storage::set_budget`, `Storage::setting` and the
+  `#[non_exhaustive]` `storage::Fixed`. Additive.
+
 - **The kit's clients, sessions and passkeys move into `<name>-kit.db`**
   (`dashboard`, which implies `storage`; Kenny, 2026-10-21): one table each,
   the secrets sealed FIELD BY FIELD with the same crypto and the same

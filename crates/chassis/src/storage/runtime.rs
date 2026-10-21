@@ -14,7 +14,7 @@ use std::time::Duration;
 use serde::Serialize;
 
 use super::app_db::{AppDb, StorageProblem};
-use super::db::{Db, FileSizes};
+use super::db::{Db, FileSizes, meta_get, meta_set};
 use crate::core::error::Error;
 
 /// A megabyte is 1 000 000 bytes, the unit the Storage page writes sizes in,
@@ -55,6 +55,126 @@ impl Default for StorageConfig {
     fn default() -> Self {
         StorageConfig::from_mb(Self::DEFAULT_BUDGET_MB, Some(Self::DEFAULT_WARN_MB))
             .expect("defaults are valid")
+    }
+}
+
+/// The largest budget the Storage page accepts, in MB (100 GB).
+pub const MAX_BUDGET_MB: u64 = 100_000;
+
+/// `chassis_meta` keys of the page setting, in the file that holds it.
+const META_BUDGET: &str = "storage_budget_mb";
+const META_WARN: &str = "storage_warn_mb";
+
+/// A value that the environment or a flag fixes, and why.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct Fixed {
+    pub mb: u64,
+    /// `env` or `flag`.
+    pub by: &'static str,
+    /// The variable or flag name.
+    pub name: String,
+}
+
+impl Fixed {
+    fn reason(&self) -> String {
+        match self.by {
+            "flag" => format!(
+                "it is set by the flag {} when the service starts",
+                self.name
+            ),
+            _ => format!(
+                "it is set by the environment variable {} when the service starts",
+                self.name
+            ),
+        }
+    }
+}
+
+/// Everything below the page setting in the precedence: what the
+/// environment or a flag fixed, then the code's value, then the default.
+#[derive(Debug, Clone)]
+pub(crate) struct BudgetSetup {
+    pub fixed_budget: Option<Fixed>,
+    pub fixed_warn: Option<Fixed>,
+    /// `App::storage_budget` (or the default 50 MB).
+    pub code_budget_mb: u64,
+    /// `App::storage_budget`'s warn line, or none (40 MB, capped to the budget).
+    pub code_warn_mb: Option<u64>,
+    /// `App::storage_budget` was called.
+    pub code_budget_set: bool,
+}
+
+impl Default for BudgetSetup {
+    fn default() -> Self {
+        BudgetSetup {
+            fixed_budget: None,
+            fixed_warn: None,
+            code_budget_mb: StorageConfig::DEFAULT_BUDGET_MB,
+            code_warn_mb: None,
+            code_budget_set: false,
+        }
+    }
+}
+
+/// The page setting as kept in the file.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct Stored {
+    pub budget_mb: Option<u64>,
+    pub warn_mb: Option<u64>,
+}
+
+impl BudgetSetup {
+    fn default_warn(&self, budget_mb: u64) -> u64 {
+        // Code said a budget and no warn line: 80 % of the budget. Nothing said: the
+        // default 40 MB when the budget leaves room for it, else 80 %.
+        self.code_warn_mb.unwrap_or_else(|| {
+            if budget_mb > StorageConfig::DEFAULT_WARN_MB && !self.code_budget_set {
+                StorageConfig::DEFAULT_WARN_MB
+            } else {
+                eighty_percent(budget_mb)
+            }
+        })
+    }
+
+    /// The start refuses a configured budget and warn line that cannot hold together.
+    pub(crate) fn validate_start(&self) -> Result<(), Error> {
+        let (b, w) = self.defaults();
+        StorageConfig::from_mb(b, Some(w)).map(|_| ())
+    }
+
+    /// What "reset to default" gives: the fixed values, else the code's.
+    fn defaults(&self) -> (u64, u64) {
+        let budget = self
+            .fixed_budget
+            .as_ref()
+            .map_or(self.code_budget_mb, |f| f.mb);
+        let warn = self
+            .fixed_warn
+            .as_ref()
+            .map_or_else(|| self.default_warn(budget), |f| f.mb);
+        (budget, warn)
+    }
+
+    /// Precedence: environment or flag, then the page setting, then code,
+    /// then the default. A stored value that no longer fits (the budget was
+    /// fixed lower since) is ignored, never an error at start.
+    fn effective(&self, stored: Stored) -> (u64, u64, bool) {
+        let budget = self
+            .fixed_budget
+            .as_ref()
+            .map(|f| f.mb)
+            .or(stored.budget_mb)
+            .unwrap_or(self.code_budget_mb);
+        let fits = |w: u64| warn_fits(budget, w);
+        let warn = match (&self.fixed_warn, stored.warn_mb) {
+            (Some(f), _) => (f.mb, false),
+            (None, Some(w)) if fits(w) => (w, false),
+            (None, Some(_)) => (self.default_warn(budget), true),
+            (None, None) => (self.default_warn(budget), false),
+        };
+        // A warn line the budget cannot hold (code said 60 of 50 after a lower stored budget).
+        (budget, warn.0.min(budget).max(1), warn.1)
     }
 }
 
@@ -110,7 +230,9 @@ pub const CHECK_EVERY: Duration = Duration::from_secs(600);
 pub const PRUNE_EVERY: Duration = Duration::from_secs(24 * 3600);
 
 struct Inner {
-    cfg: StorageConfig,
+    cfg: Mutex<StorageConfig>,
+    setup: BudgetSetup,
+    stored: Mutex<Stored>,
     app: Option<AppDb>,
     kit: Option<Db>,
     kit_problems: Mutex<Vec<StorageProblem>>,
@@ -134,14 +256,20 @@ fn name_of(db: &Db) -> String {
 
 impl Storage {
     pub(crate) fn new(
-        cfg: StorageConfig,
+        setup: BudgetSetup,
         app: Option<AppDb>,
         kit: Option<Db>,
         hook: Option<WarnHook>,
     ) -> Self {
-        Storage {
+        let cfg = {
+            let (b, w, _) = setup.effective(Stored::default());
+            StorageConfig::from_mb(b, Some(w)).unwrap_or_default()
+        };
+        let storage = Storage {
             inner: Arc::new(Inner {
-                cfg,
+                cfg: Mutex::new(cfg),
+                setup,
+                stored: Mutex::new(Stored::default()),
                 app,
                 kit,
                 kit_problems: Mutex::new(Vec::new()),
@@ -149,7 +277,176 @@ impl Storage {
                 report: Mutex::new(None),
                 hook,
             }),
+        };
+        if let Err(e) = storage.load_setting() {
+            tracing::warn!(error = %e, "storage: the budget setting could not be read; using the configured budget");
         }
+        storage
+    }
+
+    /// The file that keeps the page setting: the app's, else the kit's.
+    fn settings_db(&self) -> Option<Db> {
+        self.inner
+            .app
+            .as_ref()
+            .and_then(|a| a.db().ok().cloned())
+            .or_else(|| self.inner.kit.clone())
+    }
+
+    /// Read the page setting from its file and apply the precedence.
+    fn load_setting(&self) -> Result<(), Error> {
+        let Some(db) = self.settings_db() else {
+            return Ok(());
+        };
+        let read = |c: &rusqlite::Connection, key: &str| -> Result<Option<u64>, Error> {
+            Ok(meta_get(c, key)?.and_then(|v| v.trim().parse().ok()))
+        };
+        let stored = db.read_blocking(|c| {
+            Ok(Stored {
+                budget_mb: read(c, META_BUDGET)?,
+                warn_mb: read(c, META_WARN)?,
+            })
+        })?;
+        self.apply(stored);
+        Ok(())
+    }
+
+    fn apply(&self, stored: Stored) {
+        let (b, w, ignored) = self.inner.setup.effective(stored);
+        if ignored {
+            tracing::warn!(
+                warn_mb = stored.warn_mb,
+                "storage: the stored warn line does not fit the budget now in force; it is ignored"
+            );
+        }
+        if let Ok(cfg) = StorageConfig::from_mb(b, Some(w)) {
+            *self.inner.cfg.lock().expect("cfg lock") = cfg;
+        }
+        *self.inner.stored.lock().expect("stored lock") = stored;
+    }
+
+    /// The setting as the Storage API shows it.
+    pub fn setting(&self) -> serde_json::Value {
+        let cfg = self.config();
+        let stored = *self.inner.stored.lock().expect("stored lock");
+        let setup = &self.inner.setup;
+        let (dbud, dwarn) = setup.defaults();
+        let fixed = |f: &Option<Fixed>| match f {
+            Some(f) => serde_json::json!({"by": f.by, "name": f.name, "reason": f.reason()}),
+            None => serde_json::Value::Null,
+        };
+        serde_json::json!({
+            "budget_mb": cfg.budget_bytes / MB,
+            "warn_mb": cfg.warn_bytes / MB,
+            "default_budget_mb": dbud,
+            "default_warn_mb": dwarn,
+            "stored": stored.budget_mb.is_some() || stored.warn_mb.is_some(),
+            "budget_fixed": fixed(&setup.fixed_budget),
+            "warn_fixed": fixed(&setup.fixed_warn),
+            "min_mb": 1,
+            "max_mb": MAX_BUDGET_MB,
+            "can_store": self.settings_db().is_some(),
+        })
+    }
+
+    /// Store a new budget and/or warn line (whole MB), or with `reset` remove
+    /// the page setting. A value the environment or a flag fixes is refused;
+    /// the budget is checked again at once. Returns the new report.
+    pub fn set_budget(
+        &self,
+        budget_mb: Option<u64>,
+        warn_mb: Option<u64>,
+        reset: bool,
+    ) -> Result<StorageReport, Error> {
+        let db = self.settings_db().ok_or_else(|| {
+            Error::config(
+                "this service has no database to keep the budget in",
+                "the setting is kept in the application's or the sign-in database; neither is open",
+            )
+        })?;
+        let setup = &self.inner.setup;
+        let before = self.config();
+        let stored = if reset {
+            Stored::default()
+        } else {
+            let mut next = *self.inner.stored.lock().expect("stored lock");
+            if budget_mb.is_none() && warn_mb.is_none() {
+                return Err(Error::invalid(
+                    "nothing to change: give a budget, a warn line or reset",
+                    "send budget_mb and/or warn_mb in whole megabytes, or {\"reset\": true}",
+                ));
+            }
+            for (name, want, fixed) in [
+                ("budget", budget_mb, &setup.fixed_budget),
+                ("warn line", warn_mb, &setup.fixed_warn),
+            ] {
+                if let (Some(want), Some(f)) = (want, fixed)
+                    && want != f.mb
+                {
+                    return Err(Error::invalid(
+                        format!("the {name} is fixed at {} MB: {}", f.mb, f.reason()),
+                        "change it where it is set and restart the service; this page cannot override it",
+                    ));
+                }
+            }
+            if let Some(b) = budget_mb.filter(|_| setup.fixed_budget.is_none()) {
+                next.budget_mb = Some(b);
+            }
+            if let Some(w) = warn_mb.filter(|_| setup.fixed_warn.is_none()) {
+                next.warn_mb = Some(w);
+            }
+            let budget = setup
+                .fixed_budget
+                .as_ref()
+                .map(|f| f.mb)
+                .or(next.budget_mb)
+                .unwrap_or(setup.code_budget_mb);
+            let warn = setup
+                .fixed_warn
+                .as_ref()
+                .map(|f| f.mb)
+                .or(next.warn_mb)
+                .unwrap_or_else(|| setup.default_warn(budget));
+            // A budget given alone keeps the warn line at 80 % when the old one no longer fits.
+            if warn_mb.is_none()
+                && setup.fixed_warn.is_none()
+                && !warn_fits(budget, warn)
+                && let Some(_) = budget_mb
+            {
+                next.warn_mb = Some(eighty_percent(budget));
+            }
+            let warn = setup
+                .fixed_warn
+                .as_ref()
+                .map(|f| f.mb)
+                .or(next.warn_mb)
+                .unwrap_or_else(|| setup.default_warn(budget));
+            validate_mb(budget, warn)?;
+            next
+        };
+        db.write_blocking(move |tx| {
+            for (key, value) in [(META_BUDGET, stored.budget_mb), (META_WARN, stored.warn_mb)] {
+                match value {
+                    Some(v) => meta_set(tx, key, &v.to_string())?,
+                    None => {
+                        tx.execute("DELETE FROM chassis_meta WHERE key = ?1", [key])?;
+                    }
+                }
+            }
+            Ok(())
+        })?;
+        self.apply(stored);
+        let after = self.config();
+        tracing::info!(
+            audit = true,
+            action = if reset { "reset" } else { "set" },
+            budget_mb_before = before.budget_bytes / MB,
+            warn_mb_before = before.warn_bytes / MB,
+            budget_mb = after.budget_bytes / MB,
+            warn_mb = after.warn_bytes / MB,
+            "storage: the budget was changed from the Storage page"
+        );
+        self.check()
     }
 
     #[cfg(feature = "dashboard")]
@@ -174,7 +471,7 @@ impl Storage {
     }
 
     pub fn config(&self) -> StorageConfig {
-        self.inner.cfg
+        *self.inner.cfg.lock().expect("cfg lock")
     }
 
     pub fn app(&self) -> Option<&AppDb> {
@@ -206,7 +503,7 @@ impl Storage {
             });
         }
         let total: u64 = files.iter().map(|f| f.total_bytes).sum();
-        let cfg = self.inner.cfg;
+        let cfg = self.config();
         let level = if total > cfg.budget_bytes {
             Level::Over
         } else if total >= cfg.warn_bytes {
@@ -381,4 +678,35 @@ impl crate::shell::metrics::ScrapeSource for StorageMetrics {
         ));
         out
     }
+}
+
+/// The page's rules for a budget and its warn line, in whole megabytes.
+fn validate_mb(budget_mb: u64, warn_mb: u64) -> Result<(), Error> {
+    if !(1..=MAX_BUDGET_MB).contains(&budget_mb) {
+        return Err(Error::invalid(
+            format!(
+                "a budget of {budget_mb} MB is not allowed: use a whole number from 1 to {MAX_BUDGET_MB} MB"
+            ),
+            "type a whole number of megabytes between 1 and 100 000",
+        ));
+    }
+    if !warn_fits(budget_mb, warn_mb) {
+        return Err(Error::invalid(
+            format!(
+                "the warn line ({warn_mb} MB) must be at least 1 MB and below the budget ({budget_mb} MB)"
+            ),
+            "lower the warn line, or raise the budget first",
+        ));
+    }
+    Ok(())
+}
+
+/// A warn line fits when it is 1 MB or more and below the budget (a 1 MB
+/// budget can only warn at 1 MB).
+fn warn_fits(budget_mb: u64, warn_mb: u64) -> bool {
+    warn_mb >= 1 && (warn_mb < budget_mb || budget_mb == 1)
+}
+
+fn eighty_percent(budget_mb: u64) -> u64 {
+    ((budget_mb * 4).div_ceil(5)).min(budget_mb.saturating_sub(1).max(1))
 }
