@@ -19,6 +19,7 @@ mod prefs;
 pub(crate) mod prefs_api;
 #[cfg(feature = "dashboard")]
 pub(crate) mod prefs_inject;
+mod prefs_kind;
 mod prefs_rules;
 mod runtime;
 
@@ -48,6 +49,7 @@ pub(crate) fn rekey_kit_file(
 pub use prefs::{
     ADMIN_SCOPE, MemoryPrefStore, PrefFuture, PrefStore, Quota, SetOutcome, SqlitePrefStore,
 };
+pub(crate) use prefs_kind::prefs_kind;
 pub use prefs_rules::{BrowserKeys, PrefLimits, Prefs};
 pub(crate) use runtime::BudgetSetup;
 pub use runtime::{FileReport, Fixed, Level, Storage, StorageConfig, StorageReport, WarnHook};

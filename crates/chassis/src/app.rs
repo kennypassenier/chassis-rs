@@ -2565,6 +2565,12 @@ impl App {
         let kit_db: Option<crate::storage::Db> = None;
         #[cfg(feature = "dashboard")]
         self.validate_browser_keys()?;
+        // 3.12.0: the Storage page lists the preferences table as a kind of
+        // the app database, unless the project keeps them elsewhere.
+        #[cfg(feature = "dashboard")]
+        if self.browser_keys.is_some() && self.prefs_store.is_none() {
+            self.storage_kinds.push(crate::storage::prefs_kind());
+        }
         #[cfg(feature = "storage")]
         let storage = open_storage(
             loaded,

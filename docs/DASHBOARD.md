@@ -729,6 +729,20 @@ primary key, and the ordering is proven at start. Nothing of this reaches
 `tests/storage_api.rs` (`the_kit_file_can_never_be_previewed_deleted_from_or_compacted`
 and the others) and `tests/storage_app.rs`.
 
+**Preferences on the Storage page (3.12.0).** A service that declares synced
+keys gets a kit-registered kind, **Preferences** (`id` `preferences`, so the
+id is taken), for the `chassis_prefs` table of the app file: rows, size,
+oldest and newest like any kind, and a Clean up that can narrow by age, by
+part of a key (`key`) or by part of a login scope (`scope`). The preview's
+samples show the key, the scope, its size in bytes and when it changed — never
+the value. The delete is the ordinary preview, token and typed confirmation
+(`Preferences`) and removes only those rows; the browser starts from its own
+copy of the choice again and writes it back at the next change. The kind has
+no finished-by-definition rule: **nothing is cleaned up automatically.** A
+service with `App::prefs_store` keeps its preferences elsewhere and gets no
+kind. Stable ids follow the rule above: `storage-open-clean-preferences`.
+Proven by `tests/prefs_storage_page.rs`.
+
 ### The Storage page (`/storage`, 3.11.0)
 
 A kit page like Status, Clients and Passkeys: in the registry (`id` `storage`,
