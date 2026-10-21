@@ -19,6 +19,17 @@ scaffold writes. A breaking change in either is a major and carries a
   database newer than the binary refused with a restore remedy,
   `Db::open_in_memory` for tests and `Db::inspect` for `--check`. Additive.
 
+- **The backup pause settles sqlite files** (`storage`): after the write
+  tickets drained, the pause runs `wal_checkpoint(TRUNCATE)` on every
+  registered database (`chassis::storage::pause_hook`); a checkpoint that
+  stays busy past the 5 s timeout refuses the in-process pause, so
+  `backup-pause` falls back to stopping the unit as before. New
+  `App::backup_db(&Db)` registers a database the project opened itself; its
+  directory joins the paths `backup-pause` lists when it lies outside the
+  state root. The pre-update state copy snapshots every sqlite file with
+  `VACUUM INTO` (`Db::vacuum_into`, `chassis::storage::copy_db_files`),
+  replacing a raw copy of a live file. Additive.
+
 ## [3.10.0] - 2026-10-21
 
 ### Security

@@ -362,6 +362,14 @@ impl Db {
         })
     }
 
+    /// Change how long the write connection waits for a lock. The default
+    /// is [`BUSY_TIMEOUT`]; a test of a refused checkpoint lowers it so it
+    /// does not wait five seconds on the clock.
+    pub fn set_busy_timeout(&self, wait: Duration) -> Result<(), Error> {
+        lock(&self.inner.writer).busy_timeout(wait)?;
+        Ok(())
+    }
+
     /// The file, `None` for a memory database.
     pub fn path(&self) -> Option<&Path> {
         self.inner.path.as_deref()

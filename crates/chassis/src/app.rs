@@ -687,6 +687,10 @@ pub struct App {
     backup_resume_hooks: Vec<crate::shell::backup::ResumeHook>,
     backup_mode: crate::shell::backup::Mode,
     backup_paths: Vec<PathBuf>,
+    /// 3.11.0: the sqlite files whose log the backup pause checkpoints and
+    /// the pre-update copy snapshots (the kit's, the app's, registered ones).
+    #[cfg(feature = "storage")]
+    dbs: Vec<crate::storage::Db>,
     /// feat-pages-1: the project's pages, edits of the kit's, the brand
     /// link and the home route.
     #[cfg(feature = "dashboard")]
@@ -842,6 +846,8 @@ impl App {
             backup_resume_hooks: Vec::new(),
             backup_mode: crate::shell::backup::Mode::Writes,
             backup_paths: Vec::new(),
+            #[cfg(feature = "storage")]
+            dbs: Vec::new(),
             #[cfg(feature = "dashboard")]
             pages: Vec::new(),
             #[cfg(feature = "dashboard")]
@@ -1332,6 +1338,8 @@ impl App {
             backup_resume_hooks: Vec::new(),
             backup_mode: crate::shell::backup::Mode::Writes,
             backup_paths: Vec::new(),
+            #[cfg(feature = "storage")]
+            dbs: Vec::new(),
             #[cfg(feature = "dashboard")]
             pages: Vec::new(),
             #[cfg(feature = "dashboard")]
@@ -1464,6 +1472,39 @@ impl App {
             |e: crate::shell::update::Event| tracing::info!(event = e.kind, version = %e.version, detail = %e.detail, "event"),
         );
         let sink = crate::shell::update::compose_sink(sink, self.update_hook.clone());
+        // 3.11.0: the sqlite files are snapshotted into the pre-update copy
+        // with VACUUM INTO after the project's own copy ran, replacing any
+        // raw copy of a live file it made.
+        #[cfg(feature = "storage")]
+        let state_copy: Option<crate::shell::update::StateCopy> = {
+            let mut paths: Vec<PathBuf> = self
+                .dbs
+                .iter()
+                .filter_map(|d| d.path().map(std::path::Path::to_path_buf))
+                .collect();
+            for file in [
+                format!("{}.db", self.spec.name),
+                format!("{}-kit.db", self.spec.name),
+            ] {
+                let p = loaded.state_dir.join(file);
+                if !paths.contains(&p) {
+                    paths.push(p);
+                }
+            }
+            let user = self.state_copy.clone();
+            // No copy directory is made for a service with neither a hook
+            // nor a database file, as before 3.11.0.
+            (user.is_some() || paths.iter().any(|p| p.exists())).then(|| {
+                Arc::new(move |dest: &std::path::Path| {
+                    if let Some(user) = &user {
+                        user(dest)?;
+                    }
+                    crate::storage::copy_db_files(&paths, dest)
+                }) as crate::shell::update::StateCopy
+            })
+        };
+        #[cfg(not(feature = "storage"))]
+        let state_copy = self.state_copy.clone();
         let updater = Updater::new(
             UpdateConfig {
                 mode,
@@ -1501,7 +1542,7 @@ impl App {
             loaded.state_dir.clone(),
             Version::parse(self.spec.version)?,
             sink,
-            self.state_copy.clone(),
+            state_copy,
         )?;
         Ok(Arc::new(updater))
     }
@@ -1633,6 +1674,19 @@ impl App {
     /// elsewhere).
     pub fn backup_path(&mut self, path: impl Into<PathBuf>) -> &mut Self {
         self.backup_paths.push(path.into());
+        self
+    }
+
+    /// 3.11.0: put a sqlite database the project opened itself
+    /// ([`crate::storage::Db::open`]) under the backup pause and the
+    /// pre-update copy. The pause checkpoints its log once the writes
+    /// drained (a busy checkpoint falls back to stopping the unit), the copy
+    /// snapshots it with `VACUUM INTO`, and its directory joins the paths
+    /// `backup-pause` lists when it lies outside the state root. The kit's
+    /// own files and [`App::app_db`] are registered by themselves.
+    #[cfg(feature = "storage")]
+    pub fn backup_db(&mut self, db: &crate::storage::Db) -> &mut Self {
+        self.dbs.push(db.clone());
         self
     }
 
@@ -2545,13 +2599,33 @@ impl App {
         let backup = crate::shell::backup::server::Server::start(
             crate::shell::backup::server_socket_path(self.spec.name),
             crate::shell::backup::Controller::new(
-                std::mem::take(&mut self.backup_pause_hooks),
+                {
+                    // 3.11.0: the sqlite logs are settled first, by the kit,
+                    // then the project's own hooks run.
+                    #[allow(unused_mut)]
+                    let mut hooks: Vec<crate::shell::backup::PauseHook> = Vec::new();
+                    #[cfg(feature = "storage")]
+                    if !self.dbs.is_empty() {
+                        hooks.push(crate::storage::pause_hook(self.dbs.clone()));
+                    }
+                    hooks.extend(std::mem::take(&mut self.backup_pause_hooks));
+                    hooks
+                },
                 std::mem::take(&mut self.backup_resume_hooks),
             )
             .with_mode(self.backup_mode)
             .with_paths({
                 let mut paths = vec![loaded.state_dir.clone()];
                 paths.extend(std::mem::take(&mut self.backup_paths));
+                // A database outside the state root still stands still.
+                #[cfg(feature = "storage")]
+                for db in &self.dbs {
+                    if let Some(dir) = db.path().and_then(|p| p.parent())
+                        && !paths.iter().any(|p| dir.starts_with(p))
+                    {
+                        paths.push(dir.to_path_buf());
+                    }
+                }
                 paths
             }),
         );
