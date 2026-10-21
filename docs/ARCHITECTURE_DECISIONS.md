@@ -541,6 +541,40 @@ Alternatives considered: a second JSON-per-store layer with an index
 (rejected above); one file for kit and app (rejected: the kit's data must be
 out of reach of every cleanup path by construction, not by a flag).
 
+### arch-22 · Ports and adapters for storage (3.12.0, extends arch-21)
+Kenny, 2026-10-21: it must stay easy to switch storage later. The rule: **new
+state the kit keeps goes behind a port (a trait the rest of the kit talks
+to) with a sqlite adapter and an in-memory adapter; the sqlite adapter is
+the only code that knows SQL for it.** First use: user preferences,
+`storage::PrefStore` (get, set, remove, list by prefix, every call scoped) with
+`SqlitePrefStore` over the app database and `MemoryPrefStore` for tests;
+`App::prefs_store` swaps in a project's own adapter.
+
+What already sits behind a port, and what does not, as checked for 3.12.0:
+
+| Thing | Behind a port? | Decision |
+|---|---|---|
+| Clients | **yes**: `ClientStore` (file, sqlite and memory adapters) | unchanged |
+| Preferences | **yes**, new: `PrefStore` | this decision |
+| Sessions (`SessionStore`) and passkeys | no: concrete types over the kit file, with in-memory state | left as they are: they are the kit's own and never leave the kit file; a trait here would change the public type of `SessionStore` (a major). Revisit at the next major |
+| `AppDb` / `Db` (`read`, `write` with closures over `rusqlite`) | **no, by design** | see below |
+
+An arbitrary-SQL handle cannot reasonably be a port: its argument IS a
+`rusqlite::Connection`, so any trait over it would either expose rusqlite (no
+port at all) or have to enumerate every query an app will ever write. The
+port belongs one level up, where the app knows its questions. What an app
+does instead: **declare a repository trait of its own** ("save this
+snapshot", "list the samples since t") with a sqlite adapter built on
+`AppDb` and a memory adapter for its tests, as the homelab does; the app
+then switches database by writing one adapter. The kit's part is to offer
+`AppDb::open_in_memory` and the schema/migration machinery, which it does.
+Additive only: nothing public of 3.11.0 changed for this decision.
+
+Alternatives considered: a generic `KeyValue` port used for preferences and
+every other small store (rejected: it would pull sessions and clients through
+a lowest-common-denominator API and their invariants differ); making `Db` a
+trait object (rejected above).
+
 ---
 
 ## Freeze

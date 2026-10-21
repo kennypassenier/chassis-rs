@@ -569,4 +569,9 @@ would adopt it:
   renamed, and `storage::mark_migrated(&files)` does the rename as a step of
   your own. A `DataKind` over a `WITHOUT ROWID` table is previewed by its
   primary key and checked at registration.
+- **Preference port.** `storage::PrefStore` (+ `SqlitePrefStore`,
+  `MemoryPrefStore`) is the seam for user preferences. If your service keeps
+  per-user settings of its own, write them against `PrefStore` or a
+  repository trait of your own (arch-22); an app database now carries a
+  `chassis_prefs` table, so do not name a table of yours that.
 

@@ -315,6 +315,8 @@ impl AppDb {
         kinds: Vec<DataKind>,
         state_dir: &Path,
     ) -> Result<(), Error> {
+        // The kit's preferences table sits beside the app's own schema.
+        db.write_blocking(|tx| Ok(tx.execute_batch(super::prefs::PREFS_DDL)?))?;
         let mut seen = std::collections::BTreeSet::new();
         db.read_blocking(|c| {
             for k in &kinds {

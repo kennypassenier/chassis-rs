@@ -95,3 +95,44 @@ Defaults (Kenny can still change them): warn at 40 of 50 MB; the budget
 counts both files with the kit part shown; the typed confirmation is the
 kind's name; feature `storage` on by default; service-prefixed file names;
 a busy checkpoint falls back to the unit stop.
+
+# Preferences in the database (3.12.0)
+
+Kenny, 2026-10-21: **app state belongs in the database, not the browser,
+unless the webapp truly needs it to work.** kp-themes stays a pure browser
+package and is not responsible for anything outside the browser. And it must
+stay easy to switch storage later: ports and adapters (arch-22).
+
+## The port and its two adapters
+
+`storage::PrefStore` is the port: `get`, `set`, `remove`, `list(prefix)`, all
+async-friendly (boxed futures, so it is object-safe and adds no dependency)
+and all taking a **scope**. Adapters:
+
+| Adapter | Where | For |
+|---|---|---|
+| `SqlitePrefStore` | table `chassis_prefs` of the APP database (`<name>.db`) | production |
+| `MemoryPrefStore` | a map in the process | tests of code that takes a `PrefStore` |
+
+The table is created beside the app's own schema when the app database
+opens (outside its numbered migrations, like `chassis_meta`; the `chassis_`
+prefix is reserved to the kit so it cannot clash). It lives in the app file,
+never the kit file: the Storage page's targeted delete reaches it, and the
+kit file stays out of reach of every cleanup path. It is `STRICT, WITHOUT
+ROWID`, primary key `(scope, key)`; a row is `value TEXT` and `updated_at`.
+Another database later is one more `PrefStore` (`App::prefs_store` takes it).
+
+`set` carries the quota (bytes and keys of one scope) because only the store
+can check it in the same atomic step as the write.
+
+## Scope: the login identity
+
+The dashboard has one admin today, who signs in with the token or with a
+passkey. **A preference belongs to the login identity, not to the device and
+not to the passkey**, so it follows the admin from the phone to the PC. The
+scope is `ADMIN_SCOPE` (`"admin"`) for every admin session, bearer included.
+The port takes the scope as a plain string on every call and
+`shell`-side code gets it from one function, `login_scope(&Caller)`; a future
+multi-user kit returns the user's id there and nothing else changes: the
+table, the port, the routes and the browser script already carry it.
+

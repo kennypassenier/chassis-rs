@@ -14,6 +14,7 @@ mod db;
 mod kinds;
 #[cfg(feature = "dashboard")]
 mod kit_db;
+mod prefs;
 mod runtime;
 
 pub use app_db::{
@@ -39,6 +40,9 @@ pub(crate) fn rekey_kit_file(
 ) -> Result<usize, Error> {
     KitDb::rekey(path, old, new)
 }
+pub use prefs::{
+    ADMIN_SCOPE, MemoryPrefStore, PrefFuture, PrefStore, Quota, SetOutcome, SqlitePrefStore,
+};
 pub(crate) use runtime::BudgetSetup;
 pub use runtime::{FileReport, Fixed, Level, Storage, StorageConfig, StorageReport, WarnHook};
 

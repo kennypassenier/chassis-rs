@@ -9,6 +9,18 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **The preference port and its adapters** (`storage`): `PrefStore`, a
+  trait for user preferences (get, set, remove, list by prefix, async-
+  friendly, every call scoped), with `SqlitePrefStore` (the new table
+  `chassis_prefs` in the APP database, created when it opens, never in the
+  kit file) and `MemoryPrefStore` for tests. The scope is a value the port
+  takes on every call: the login identity (`ADMIN_SCOPE`, `"admin"`, for
+  the dashboard's one admin whatever the device or passkey), so a future
+  multi-user kit passes another one. `Quota` is checked inside the store's
+  own write. Another database later is one more adapter. The decision and
+  what is and is not behind a port: `docs/ARCHITECTURE_DECISIONS.md` arch-22.
+  Additive.
+
 - **Three homelab gaps from adopting 3.11.0** (`storage`; gaps 139, 140, 141
   of the homelab's list). All additive.
   - A project can unit-test what it hangs on `App::on_storage_warn`:
