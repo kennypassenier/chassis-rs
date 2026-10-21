@@ -776,6 +776,69 @@ The budget shows up elsewhere too: past the warn line the status page's
 Problems card says so (nothing is refused), `/metrics` carries
 `<prefix>_storage_bytes{file}`, `_budget_bytes`, `_warn_bytes` and `_level`.
 
+## Preferences in the database (3.12.0)
+
+Kenny, 2026-10-21: app state belongs in the database, not the browser, unless
+the web app needs it to work. A service names the `localStorage` keys that
+sync; the kit keeps them per login in the app database (table
+`chassis_prefs`, see `docs/STORAGE_DESIGN.md`) so a person's choices follow
+them from the phone to the PC. kp-themes is not changed and is not asked to
+do anything outside the browser.
+
+```rust
+let db = app.app_db(AppDbSpec::new(vec![/* your tables, or none */]))?;
+app.sync_browser_keys(
+    BrowserKeys::new()
+        .prefix("homelab.")            // every key starting with it
+        .prefix("kp-remember:")        // kp-themes' data-kp-remember keys
+        .exact("nx-sort")              // one exact key
+        .session_prefix("kp-unsaved:") // sessionStorage, see below
+        .except_exact("homelab.theme-light") // the exceptions win
+        .except_prefix("homelab.drive."),
+);
+```
+
+- **Only declared keys sync.** `BrowserKeys` is an allow-list (`exact`,
+  `prefix`) minus exceptions (`except_exact`, `except_prefix`); an undeclared
+  key is refused by the API (400) and never leaves the browser. The empty
+  prefix, a key with characters outside `A-Z a-z 0-9 . _ : - @ + = ~ /` and
+  more than 128 bytes are refused at start. `--check` runs the same
+  validation. It needs `App::app_db` (the table lives in that file; it may
+  have no tables of its own) or a store of your own with `App::prefs_store`.
+- **A secret must never be declared.** Values are plain text in the app
+  database and in every page. A declaration that names one (`token`,
+  `secret`, `password`, `credential`, `api-key`, `bearer`, `private-key`) is
+  a start error; the API also refuses such a key name, a value that holds a
+  PEM block, a JWT, a bearer credential, this service's own login token or
+  `SECRET_KEY`, and a JSON object with a field named like a secret (a form
+  draft with a password field). That is a safety net, not a scanner: keep
+  secrets out of `localStorage` altogether.
+- **Limits** (knobs with code defaults; a flag, environment or file setting
+  wins over `BrowserKeys::max_value_bytes` / `max_scope_bytes` /
+  `max_keys`): `prefs_max_value_bytes` 16384, `prefs_max_scope_bytes`
+  262144 (keys plus values of one login), `prefs_max_keys` 512. A value over
+  the first is a 400; a scope that would pass either of the others is a 503
+  that says which and what to do (delete on the Storage page, or raise the
+  knob). Replacing a value counts the room it frees.
+- **Scope = the login identity**, not the device and not the passkey. The
+  dashboard has one admin (token or passkeys, cookie session or bearer);
+  they all share the scope `admin`. A future multi-user kit changes
+  `shell`-side `login_scope()` and nothing else.
+
+### The routes
+
+Behind the admin login and the same-origin rule of the other kit POSTs (a
+cross-site `PUT` or `DELETE` is a 403). Errors are `{"error", "remedy"}`.
+They exist only when the service declared keys.
+
+| Route | What |
+|---|---|
+| `GET /api/kit/prefs?prefix=` | `{v, scope, keys, session, synced, limits}`: the login's values whose key starts with `prefix` (default all), `keys` for the localStorage ones and `session` for the sessionStorage ones, `synced` the declaration, `limits`. A row whose key the service no longer declares is not served. |
+| `PUT /api/kit/prefs/{key}` | Body `{"value": "<string>"}`. The key may contain `/` and `:` (percent-encode each path segment). 200 `{key, stored}`; 400 for syntax, an undeclared key, a secret or an oversized value; 503 when the scope is full. |
+| `DELETE /api/kit/prefs/{key}` | 200 `{key, removed}` (`removed` is false when it was not there). |
+
+Proven by `tests/prefs_api.rs`.
+
 ## An open dashboard (opt-in, 1.5.0)
 
 A service that sets `AppSpec { open_dashboard: true, .. }` may run without

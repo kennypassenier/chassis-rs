@@ -9,6 +9,23 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **`App::sync_browser_keys` and the preferences API** (`dashboard`): the
+  service declares which `localStorage` keys sync (`BrowserKeys`: exact keys
+  and prefixes, minus exceptions, plus `session_exact` / `session_prefix`
+  for the one case of a tab's `sessionStorage` that may sync, kp-themes'
+  unsaved-changes draft), and the kit serves `GET /api/kit/prefs?prefix=`,
+  `PUT /api/kit/prefs/{key}` and `DELETE /api/kit/prefs/{key}` behind the
+  admin login and the same-origin rule, scoped to the login identity. The
+  kit never syncs a key it was not told to; a declaration that names a
+  secret is a start error and `--check` failure; keys are validated (syntax,
+  128 bytes); a value over `prefs_max_value_bytes` (16384), a scope over
+  `prefs_max_scope_bytes` (262144) or `prefs_max_keys` (512) is refused with
+  a sentence; a PEM block, a JWT, a bearer credential, the service's own
+  login token and a form draft with a secret-named field are refused as
+  values. `App::prefs_store` takes an adapter of the project's own. New
+  knobs `prefs_max_value_bytes`, `prefs_max_scope_bytes`, `prefs_max_keys`.
+  **Never declare a secret.** Additive.
+
 - **The preference port and its adapters** (`storage`): `PrefStore`, a
   trait for user preferences (get, set, remove, list by prefix, async-
   friendly, every call scoped), with `SqlitePrefStore` (the new table

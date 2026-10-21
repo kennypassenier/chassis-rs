@@ -502,6 +502,24 @@ impl AppSpec {
                 STORAGE,
                 "Megabytes at which storage starts to warn; 80 % of the budget when the budget is changed in code and this is not set.",
             ),
+            k(
+                "prefs_max_value_bytes",
+                Some("16384"),
+                STORAGE,
+                "Largest synced browser preference (one localStorage value), in bytes; only used by a service that declares App::sync_browser_keys.",
+            ),
+            k(
+                "prefs_max_scope_bytes",
+                Some("262144"),
+                STORAGE,
+                "Most bytes (keys plus values) the synced preferences of one login may take in total.",
+            ),
+            k(
+                "prefs_max_keys",
+                Some("512"),
+                STORAGE,
+                "Most synced preferences one login may hold.",
+            ),
         ]
     }
 
@@ -715,6 +733,12 @@ pub struct App {
     storage_budget: Option<(u64, Option<u64>)>,
     #[cfg(feature = "storage")]
     storage_warn_hook: Option<crate::storage::WarnHook>,
+    /// 3.12.0: the localStorage keys that sync to the database, and an
+    /// optional store other than the app database.
+    #[cfg(feature = "dashboard")]
+    browser_keys: Option<crate::storage::BrowserKeys>,
+    #[cfg(feature = "dashboard")]
+    prefs_store: Option<Arc<dyn crate::storage::PrefStore>>,
     /// feat-pages-1: the project's pages, edits of the kit's, the brand
     /// link and the home route.
     #[cfg(feature = "dashboard")]
@@ -883,6 +907,10 @@ impl App {
             storage_budget: None,
             #[cfg(feature = "storage")]
             storage_warn_hook: None,
+            #[cfg(feature = "dashboard")]
+            browser_keys: None,
+            #[cfg(feature = "dashboard")]
+            prefs_store: None,
             #[cfg(feature = "dashboard")]
             pages: Vec::new(),
             #[cfg(feature = "dashboard")]
@@ -1384,6 +1412,10 @@ impl App {
             #[cfg(feature = "storage")]
             storage_warn_hook: None,
             #[cfg(feature = "dashboard")]
+            browser_keys: None,
+            #[cfg(feature = "dashboard")]
+            prefs_store: None,
+            #[cfg(feature = "dashboard")]
             pages: Vec::new(),
             #[cfg(feature = "dashboard")]
             kit_page_edits: Vec::new(),
@@ -1788,6 +1820,28 @@ impl App {
         self
     }
 
+    /// 3.12.0: sync these `localStorage` keys of the browser to the app
+    /// database, per login, so a person's preferences follow them across
+    /// devices. Only the declared keys sync, and **a secret must never be
+    /// declared**: values are plain text in the database and in the page. The
+    /// declaration also refuses names that look like secrets. Needs
+    /// [`App::app_db`] (the preferences are a table of it) unless a store is
+    /// given with [`App::prefs_store`]. See `docs/DASHBOARD.md`.
+    #[cfg(feature = "dashboard")]
+    pub fn sync_browser_keys(&mut self, keys: crate::storage::BrowserKeys) -> &mut Self {
+        self.browser_keys = Some(keys);
+        self
+    }
+
+    /// 3.12.0: keep the synced preferences in a store of the project's own
+    /// (another adapter of [`crate::storage::PrefStore`]) instead of the
+    /// app database. The Storage page then lists no Preferences kind.
+    #[cfg(feature = "dashboard")]
+    pub fn prefs_store(&mut self, store: Arc<dyn crate::storage::PrefStore>) -> &mut Self {
+        self.prefs_store = Some(store);
+        self
+    }
+
     /// A link in the dashboard's top navigation (K16): since 3.1.0 a
     /// visible project page in the page registry.
     #[cfg(feature = "dashboard")]
@@ -2100,6 +2154,23 @@ impl App {
         }
     }
 
+    /// 3.12.0: the synced keys are well formed, name no secret, and have a
+    /// place to live. Run by `--check` and at start.
+    #[cfg(feature = "dashboard")]
+    fn validate_browser_keys(&self) -> Result<(), Error> {
+        let Some(keys) = &self.browser_keys else {
+            return Ok(());
+        };
+        keys.validate()?;
+        if self.prefs_store.is_none() && self.app_db.is_none() {
+            return Err(Error::config(
+                "App::sync_browser_keys needs somewhere to keep the preferences",
+                "call App::app_db first (the preferences are a table of the app database, which can start with no tables of its own), or give App::prefs_store",
+            ));
+        }
+        Ok(())
+    }
+
     /// The sqlite files `--check` looks at, with how many migrations this
     /// build knows for each.
     #[cfg(feature = "storage")]
@@ -2245,6 +2316,8 @@ impl App {
                 if let Some(w) = &self.webapp {
                     w.validate()?;
                 }
+                #[cfg(feature = "dashboard")]
+                self.validate_browser_keys()?;
                 // H11 (rule 12, fail-closed): the state directory must exist
                 // and take a write NOW, not at the first login. The only
                 // thing --check touches is a zero-byte probe, removed at once.
@@ -2490,6 +2563,8 @@ impl App {
         )?);
         #[cfg(all(feature = "storage", not(feature = "dashboard")))]
         let kit_db: Option<crate::storage::Db> = None;
+        #[cfg(feature = "dashboard")]
+        self.validate_browser_keys()?;
         #[cfg(feature = "storage")]
         let storage = open_storage(
             loaded,
@@ -2504,6 +2579,16 @@ impl App {
             },
             &mut self.dbs,
         )?;
+        #[cfg(feature = "dashboard")]
+        let prefs = match self.browser_keys.take() {
+            None => None,
+            Some(keys) => Some(build_prefs(
+                loaded,
+                keys,
+                self.prefs_store.take(),
+                storage.app(),
+            )?),
+        };
         #[cfg(feature = "storage")]
         self.scrape_sources
             .push(Arc::new(storage.metrics(self.spec.metric_prefix())));
@@ -2689,6 +2774,7 @@ impl App {
                     kit_in_webapp: self.kit_pages_in_webapp,
                     #[cfg(feature = "storage")]
                     storage: Some(storage.clone()),
+                    prefs: prefs.clone(),
                 },
             )
             .await?;
@@ -2820,6 +2906,54 @@ impl App {
             storage_tasks: storage.spawn(),
         })
     }
+}
+
+/// 3.12.0: the preferences service. The limits come from the knobs when
+/// one is set by flag, environment or file, else from the declaration,
+/// else the kit's defaults; the service's own login token and key can
+/// never be stored as a value.
+#[cfg(feature = "dashboard")]
+fn build_prefs(
+    loaded: &Loaded,
+    keys: crate::storage::BrowserKeys,
+    store: Option<Arc<dyn crate::storage::PrefStore>>,
+    app: Option<&crate::storage::AppDb>,
+) -> Result<crate::storage::Prefs, Error> {
+    use crate::core::config::Source;
+    let mut limits = keys.code_limits();
+    let fixed = |key: &str, min: u64, into: &mut u64| -> Result<(), Error> {
+        if matches!(
+            loaded.source(key),
+            Some(Source::Flag) | Some(Source::Env) | Some(Source::File)
+        ) {
+            *into = parse_u64(loaded, key, min)?;
+        }
+        Ok(())
+    };
+    fixed("prefs_max_value_bytes", 1, &mut limits.max_value_bytes)?;
+    fixed("prefs_max_scope_bytes", 1, &mut limits.max_scope_bytes)?;
+    fixed("prefs_max_keys", 1, &mut limits.max_keys)?;
+    if limits.max_scope_bytes < limits.max_value_bytes {
+        return Err(Error::config(
+            "the preference scope limit is below the value limit",
+            "raise prefs_max_scope_bytes or lower prefs_max_value_bytes",
+        ));
+    }
+    let store: Arc<dyn crate::storage::PrefStore> = match (store, app) {
+        (Some(s), _) => s,
+        (None, Some(app)) => Arc::new(crate::storage::SqlitePrefStore::new(app.clone())),
+        (None, None) => {
+            return Err(Error::config(
+                "the preferences have no store",
+                "call App::app_db or App::prefs_store",
+            ));
+        }
+    };
+    let own: Vec<String> = ["token", "secret_key"]
+        .iter()
+        .filter_map(|k| loaded.get(k).map(str::to_string))
+        .collect();
+    Ok(crate::storage::Prefs::new(store, keys, limits).forbid_values(own))
 }
 
 /// Open the sqlite files for `start` and build the budget monitor. The

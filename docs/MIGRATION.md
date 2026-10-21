@@ -574,4 +574,11 @@ would adopt it:
   per-user settings of its own, write them against `PrefStore` or a
   repository trait of your own (arch-22); an app database now carries a
   `chassis_prefs` table, so do not name a table of yours that.
+- **Sync browser keys.** To keep a person's browser choices across devices,
+  call `app.sync_browser_keys(BrowserKeys::new().prefix("myapp."))` after
+  `app.app_db(..)`. List every key family your front end writes to
+  `localStorage`; leave out anything that must work before login (the theme
+  boot key) and anything secret. Nothing else in your front end changes (the
+  browser side comes with the page; see DASHBOARD.md). New knobs
+  `prefs_max_value_bytes`, `prefs_max_scope_bytes`, `prefs_max_keys`.
 

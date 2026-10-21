@@ -1,0 +1,27 @@
+{
+  "comment": "Homelab's declaration (coordinator, 2026-10-21) and what must come out of it. Read by prefs::tests (Rust) and by js/prefs_boot.test.mjs (the browser script): both sides apply one rule.",
+  "synced": {
+    "exact": [],
+    "prefix": ["homelab.", "homelab-", "nx-sort:", "kp-remember:"],
+    "session_exact": [],
+    "session_prefix": ["kp-unsaved:"],
+    "except_exact": ["homelab.theme-follow-system", "homelab.theme-light", "homelab.theme-dark"],
+    "except_prefix": []
+  },
+  "cases": [
+    {"key": "homelab.log-levels", "local": true, "session": false},
+    {"key": "homelab-toured", "local": true, "session": false},
+    {"key": "homelab-update-jobs", "local": true, "session": false},
+    {"key": "nx-sort:stacks", "local": true, "session": false},
+    {"key": "kp-remember:datatable:status:sort", "local": true, "session": false},
+    {"key": "kp-unsaved:/settings:settings", "local": false, "session": true},
+    {"key": "homelab.theme-follow-system", "local": false, "session": false},
+    {"key": "homelab.theme-light", "local": false, "session": false},
+    {"key": "homelab.theme-dark", "local": false, "session": false},
+    {"key": "theme", "local": false, "session": false},
+    {"key": "homelab.drive.tab", "local": true, "session": false},
+    {"key": "homelab", "local": false, "session": false},
+    {"key": "chassis-prefs:synced", "local": false, "session": false},
+    {"key": "other", "local": false, "session": false}
+  ]
+}

@@ -15,6 +15,9 @@ mod kinds;
 #[cfg(feature = "dashboard")]
 mod kit_db;
 mod prefs;
+#[cfg(feature = "dashboard")]
+pub(crate) mod prefs_api;
+mod prefs_rules;
 mod runtime;
 
 pub use app_db::{
@@ -43,6 +46,7 @@ pub(crate) fn rekey_kit_file(
 pub use prefs::{
     ADMIN_SCOPE, MemoryPrefStore, PrefFuture, PrefStore, Quota, SetOutcome, SqlitePrefStore,
 };
+pub use prefs_rules::{BrowserKeys, PrefLimits, Prefs};
 pub(crate) use runtime::BudgetSetup;
 pub use runtime::{FileReport, Fixed, Level, Storage, StorageConfig, StorageReport, WarnHook};
 

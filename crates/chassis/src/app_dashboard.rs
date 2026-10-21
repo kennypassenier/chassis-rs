@@ -76,6 +76,9 @@ pub(crate) struct MountExtra {
     /// the status page.
     #[cfg(feature = "storage")]
     pub storage: Option<crate::storage::Storage>,
+    /// 3.12.0: the synced browser preferences; their routes join the admin
+    /// API and every signed-in HTML page carries them.
+    pub prefs: Option<crate::storage::Prefs>,
 }
 
 pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Result<Mounted, Error> {
@@ -422,6 +425,11 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
             .layer(from_fn_with_state(auth.clone(), require_admin)),
         None => Router::new(),
     };
+    let prefs_api = match extra.prefs.as_ref() {
+        Some(p) => crate::storage::prefs_api::routes(p.clone())
+            .layer(from_fn_with_state(auth.clone(), require_admin)),
+        None => Router::new(),
+    };
     let set_for_json = page_set.clone();
     let pages_admin = pages_admin
         .with_state(dash.clone())
@@ -584,6 +592,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         .merge(pages_admin)
         .merge(clients_api)
         .merge(storage_api)
+        .merge(prefs_api)
         .merge(project_pages)
         .merge(api_routes);
     #[cfg(feature = "passkeys")]
