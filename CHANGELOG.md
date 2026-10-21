@@ -7,6 +7,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [3.11.0] - 2026-10-21
+
 ### Added
 
 - **`chassis::storage`, a sqlite layer behind the new `storage` feature**
