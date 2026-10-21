@@ -50,13 +50,14 @@ fn no_store(body: serde_json::Value) -> Response {
 pub(crate) async fn overview(State(st): State<Storage>) -> Result<Response, Error> {
     let body = blocking(move || {
         let report = st.check()?;
-        let (kinds, import, reclaimable) = match st.app() {
+        let (kinds, import, reclaimable, last_compacted) = match st.app() {
             Some(app) => (
                 app.overview()?,
                 serde_json::to_value(app.import_state()).unwrap_or_default(),
                 app.sizes()?.reclaimable_bytes,
+                app.last_compacted_at()?,
             ),
-            None => (Vec::new(), json!({"state": "not_requested"}), 0),
+            None => (Vec::new(), json!({"state": "not_requested"}), 0, None),
         };
         let pct = if report.budget_bytes == 0 {
             0.0
@@ -74,6 +75,7 @@ pub(crate) async fn overview(State(st): State<Storage>) -> Result<Response, Erro
             },
             "files": report.files,
             "reclaimable_bytes": reclaimable,
+            "last_compacted_at": last_compacted,
             "has_app_db": st.app().is_some(),
             "paused": crate::shell::backup::is_paused(),
             "import": import,

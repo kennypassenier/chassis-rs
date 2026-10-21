@@ -353,6 +353,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
             spec.name,
             &dash.clients_label,
             dash.passkeys_enabled,
+            cfg!(feature = "storage") && !extra.disabled.iter().any(|d| d == "storage"),
             extra.webapp_at_root,
             extra.kit_in_webapp,
         ),
@@ -377,6 +378,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
     // has no route, no data endpoint and no entry in the navigation.
     let on = |id: &str| !extra.disabled.iter().any(|d| d == id);
     let (status_on, clients_on) = (on("status"), on("clients"));
+    let storage_on = cfg!(feature = "storage") && on("storage");
     let mut pages_admin = Router::new();
     if status_on {
         pages_admin = pages_admin
@@ -395,6 +397,11 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
     if kit_renders && clients_on {
         pages_admin = pages_admin.route("/clients", get(dashboard::clients_page));
     }
+    // 3.11.0: the Storage page. Its data is `/api/kit/storage` (below), so
+    // the page and a project's own web app draw from one source.
+    if kit_renders && storage_on {
+        pages_admin = pages_admin.route("/storage", get(dashboard::storage_page));
+    }
     // `/`: the web app's when it sits at the root; else the home route,
     // which is the status page itself unless the project named another.
     if !extra.webapp_at_root {
@@ -410,7 +417,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
     }
     // 3.11.0: the Storage page's JSON API, behind the admin login and the
     // same-origin rule; the page itself is drawn from it.
-    let storage_api = match &extra.storage {
+    let storage_api = match extra.storage.as_ref().filter(|_| storage_on) {
         Some(st) => crate::storage::api::routes(st.clone())
             .layer(from_fn_with_state(auth.clone(), require_admin)),
         None => Router::new(),

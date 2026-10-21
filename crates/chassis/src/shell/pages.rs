@@ -6,7 +6,7 @@
 //! `nav_entry` links, and a project's browser app (feat-webapp-1) kept a
 //! second, hand-written list that did not know the kit's pages existed.
 //! Two lists drift. Now there is one: the kit registers `status`,
-//! `clients` and `passkeys`, the project registers its pages with
+//! `clients`, `passkeys` and `storage`, the project registers its pages with
 //! [`crate::App::page`], and both the kit's layout and the app (through
 //! `GET /api/kit/pages`) render the same list. A page registered later
 //! shows up everywhere without touching either navigation.
@@ -18,7 +18,7 @@ use serde::Serialize;
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum PageSource {
-    /// The kit's own pages: `status`, `clients`, `passkeys`.
+    /// The kit's own pages: `status`, `clients`, `passkeys`, `storage`.
     Kit,
     /// Registered by the project.
     App,
@@ -52,6 +52,9 @@ pub struct Page {
     pub order: i32,
     /// `false`: routable, but not listed in the navigation.
     pub nav: bool,
+    /// One line that says what the page is for; the palette and the phone's
+    /// More drawer print it under the title. The kit's pages carry one.
+    pub hint: Option<String>,
     pub source: PageSource,
     pub render: PageRender,
 }
@@ -66,6 +69,7 @@ impl Page {
             group: None,
             order: 0,
             nav: true,
+            hint: None,
             source: PageSource::App,
             render: PageRender::App,
         }
@@ -96,6 +100,12 @@ impl Page {
 
     pub fn title(mut self, title: &str) -> Page {
         self.title = title.to_string();
+        self
+    }
+
+    /// The line under the title in the palette and the More drawer.
+    pub fn hint(mut self, hint: &str) -> Page {
+        self.hint = Some(hint.to_string());
         self
     }
 
@@ -149,15 +159,23 @@ impl Registry {
         app: &str,
         clients_label: &str,
         passkeys: bool,
+        storage: bool,
         webapp_at_root: bool,
         kit_in_webapp: bool,
     ) -> PageSet {
         let mut pages = vec![
-            Page::kit("status", "Status", "/status", 1000),
-            Page::kit("clients", clients_label, "/clients", 1010),
+            Page::kit("status", "Status", "/status", 1000).hint("Version, health and updates"),
+            Page::kit("clients", clients_label, "/clients", 1010)
+                .hint("The programs that call this service"),
         ];
         if passkeys {
-            pages.push(Page::kit("passkeys", "Passkeys", "/passkeys", 1020));
+            pages
+                .push(Page::kit("passkeys", "Passkeys", "/passkeys", 1020).hint("Ways to sign in"));
+        }
+        if storage {
+            pages.push(
+                Page::kit("storage", "Storage", "/storage", 1030).hint("What the service stores"),
+            );
         }
         for (id, edit) in &self.kit_edits {
             if let Some(i) = pages.iter().position(|p| &p.id == id) {
@@ -208,7 +226,7 @@ impl Registry {
 }
 
 /// The kit's own pages, by id, the ones `App::disable_kit_page` accepts.
-pub const KIT_PAGES: &[&str] = &["status", "clients", "passkeys"];
+pub const KIT_PAGES: &[&str] = &["status", "clients", "passkeys", "storage"];
 
 /// Refuse a registry that would break at the first click: a path that is
 /// not absolute, two pages with one id, a project page on a kit path.
@@ -224,7 +242,7 @@ pub(crate) fn validate(app_pages: &[Page]) -> Result<(), crate::Error> {
                 "give every page a path that starts with `/`, e.g. Page::new(\"overview\", \"Overview\", \"/overview\")",
             ));
         }
-        if matches!(p.id.as_str(), "status" | "clients" | "passkeys") {
+        if KIT_PAGES.contains(&p.id.as_str()) {
             return Err(crate::Error::config(
                 format!("page id `{}` belongs to the kit", p.id),
                 "pick another id, or change the kit's page with App::kit_page",
@@ -262,11 +280,13 @@ mod tests {
             Page::new("stacks", "Stacks", "/stacks"),
             Page::new("logs", "Logs", "/logs").order(2000),
         ])
-        .build("admin", "Clients", true, true, false);
+        .build("admin", "Clients", true, true, true, false);
         let ids: Vec<&str> = set.pages.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(
             ids,
-            ["home", "stacks", "status", "clients", "passkeys", "logs"]
+            [
+                "home", "stacks", "status", "clients", "passkeys", "storage", "logs"
+            ]
         );
         assert_eq!(set.home, "/", "a web app at the root is the home");
         assert_eq!(set.brand.href, "/");
@@ -296,7 +316,7 @@ mod tests {
         ));
         r.brand = Some("/overview".into());
         r.brand_title = Some("Homelab".into());
-        let set = r.build("admin", "Clients", true, false, false);
+        let set = r.build("admin", "Clients", true, true, false, false);
         let clients = &set.pages[0];
         assert_eq!(
             (
@@ -326,9 +346,9 @@ mod tests {
 
     #[test]
     fn kit_pages_drawn_by_the_web_app_say_so() {
-        let set = registry(Vec::new()).build("admin", "Clients", true, true, true);
+        let set = registry(Vec::new()).build("admin", "Clients", true, true, true, true);
         assert!(set.pages.iter().all(|p| p.render == PageRender::App));
-        let set = registry(Vec::new()).build("kyu", "Clients", false, false, false);
+        let set = registry(Vec::new()).build("kyu", "Clients", false, false, false, false);
         assert!(set.pages.iter().all(|p| p.render == PageRender::Kit));
     }
 
@@ -336,13 +356,28 @@ mod tests {
     fn a_registry_that_would_break_is_refused() {
         assert!(validate(&[Page::new("a", "A", "a")]).is_err());
         assert!(validate(&[Page::new("status", "S", "/s")]).is_err());
+        assert!(validate(&[Page::new("storage", "S", "/s")]).is_err());
         assert!(validate(&[Page::new("a", "A", "/a"), Page::new("a", "B", "/b")]).is_err());
         assert!(validate(&[Page::new("a", "A", "/a"), Page::new("b", "B", "/b")]).is_ok());
     }
 
     #[test]
+    fn storage_is_a_kit_page_with_a_hint_and_goes_when_it_is_switched_off() {
+        let set = registry(Vec::new()).build("kyu", "Clients", false, true, false, false);
+        let storage = set.pages.iter().find(|p| p.id == "storage").unwrap();
+        assert_eq!(storage.path, "/storage");
+        assert_eq!(storage.hint.as_deref(), Some("What the service stores"));
+        assert!(
+            set.pages.iter().all(|p| p.hint.is_some()),
+            "every kit page says what it is for, so the palette and the drawer can"
+        );
+        let set = registry(Vec::new()).build("kyu", "Clients", false, false, false, false);
+        assert!(set.pages.iter().all(|p| p.id != "storage"));
+    }
+
+    #[test]
     fn passkeys_are_listed_only_when_they_are_on() {
-        let set = registry(Vec::new()).build("kyu", "Sources", false, false, false);
+        let set = registry(Vec::new()).build("kyu", "Sources", false, false, false, false);
         let ids: Vec<&str> = set.pages.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(ids, ["status", "clients"]);
         assert_eq!(set.pages[1].title, "Sources");

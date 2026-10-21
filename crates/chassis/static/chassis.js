@@ -1119,7 +1119,7 @@ import { attachForms } from './kp/js/forms.js';
     const used = new Set();
     const chords = [];
     for (const a of $$('[data-chassis-go]')) {
-      const letter = label(a).charAt(0).toLowerCase();
+      const letter = (a.dataset.chassisChord || label(a)).charAt(0).toLowerCase();
       if (!/^[a-z0-9]$/.test(letter) || used.has(letter)) continue;
       used.add(letter);
       const keys = `g ${letter}`;
@@ -2126,4 +2126,818 @@ async function startStatus(root) {
   for (const card of root.querySelectorAll('[data-chassis-json]')) loadJson(card);
   // The page is as fresh as the moment it was drawn.
   refreshOf(refreshEl)?.now?.('now');
+}
+
+/* ======================================================================
+   storage (kit-storage, 3.11.0)
+   The Storage page, built as Kenny approved it in the demo
+   research/chassis-storage (formal, 21/10/2026 07:42: the kinds as a
+   table, the kind's name typed to confirm). The server draws the frame with
+   every card waiting; this block reads /api/kit/storage, fills the budget,
+   the empty space and the kinds, and opens two modal dialogs:
+     - clean up one kind: choose, read-only preview, typed confirmation,
+       one transaction (the server counts again before it deletes);
+     - compact the application file (VACUUM), on demand only.
+   The figures are never in the page's source: they are read. Sizes are
+   decimal and human (1 MB = 1 000 000 bytes), counts keep every digit,
+   dates are dd/mm/yyyy HH:mm in Europe/Brussels (UI principles, rule 52).
+   Stable control ids for the homelab Live view (docs/DASHBOARD.md):
+     storage-open-clean-<kind>  a row's Clean up      storage-band-clean   the warning's button
+     storage-open-compact       the card's Compact…
+     storage-clean-dialog, -older, -filter-<name>, -reset, -preview,
+     -continue, -confirm (the block; the field is inside), -back, -delete,
+     -close, -done
+     storage-compact-dialog, -run, -cancel, -done
+   Starts only where [data-chassis-storage] is.
+   ====================================================================== */
+const storageRoot = document.querySelector('[data-chassis-storage]');
+if (storageRoot) {
+  startStorage(storageRoot).catch((error) => console.error('chassis storage page', error));
+}
+
+async function startStorage(root) {
+  const kp = (name) => import(`./kp/js/${name}.js`);
+  const [stackbar, cardState, datatable, flash] = await Promise.all([kp('stackbar'), kp('card-state'), kp('datatable'), kp('flash')]);
+  const { setStackbar } = stackbar;
+  const { setCardState } = cardState;
+  const { dataTable } = datatable;
+  const { runFlashButton } = flash;
+
+  // What a fragment carries is attached by its own module, fetched when the
+  // fragment asks for it (kp-themes' auto.js does the same for a document;
+  // importing that file would attach the whole shell a second time).
+  const PARTS = [
+    ['remember', '[data-kp-remember]', (m, r) => { m.restoreRemembered(r); m.attachRemembered(r); }],
+    ['overlays', 'dialog, [data-kp-dialog-close]', (m, r) => m.attachDialogs(r)],
+    ['components', '[data-kp-type-confirm]', (m, r) => m.attachTypeConfirms(r)],
+    ['combobox', 'select', (m, r) => m.attachSelects(r)],
+    ['forms', '.kp-switch, [data-kp-formgrid-stage], .kp-formgrid', (m, r) => { m.attachSwitches(r); m.attachFormgridStages(r); m.attachFormgridColumns(r); }],
+    ['datepicker', '[data-kp-datepicker]', (m, r) => m.attachDatePickers(r)],
+    ['segmented', '[data-kp-segmented]', (m, r) => m.attachSegmented(r)],
+    ['steplist', '.kp-steplist', (m, r) => m.attachSteplists(r)],
+    ['kpi', '.kp-kpis[data-kp-kpis-columns]', (m, r) => m.attachKpiStrips(r)],
+    ['lede', '.kp-lede', (m, r) => m.attachLedes(r)],
+    ['attention', '.kp-attention', (m, r) => m.attachAttention(r)],
+    ['flash', '[data-kp-flash-button]', (m, r) => m.attachFlashButtons(r)],
+    ['tables', '.kp-table-wrap', (m, r) => m.attachTableRegions(r)],
+    ['datatable', '[data-kp-datatable]', (m, r) => m.attachDataTables(r)],
+    ['card-state', '.kp-card[data-kp-state]', (m, r) => m.attachCardStates(r)],
+    ['auto-refresh', '[data-kp-refresh]', (m, r) => m.attachRefresh(r)],
+    ['loading-pieces', '.kp-meter, .kp-kpi, .kp-card, [data-kp-datatable]', (m, r) => m.attachLoadingPieces(r)],
+    ['motion', 'dialog.kp-dialog, .kp-datatable, .kp-field', (m, r) => m.attachMotion(r)],
+    ['footprint', '.kp-ops, [data-kp-datatable]', (m, r) => m.attachFootprints(r)],
+  ];
+  const attachParts = (scope) =>
+    Promise.all(
+      PARTS.filter(([, when]) => scope.matches?.(when) || scope.querySelector(when)).map(async ([name, , attach]) => {
+        try {
+          attach(await kp(name), scope);
+        } catch (e) {
+          console.warn(`chassis storage: ${name} did not attach`, e);
+        }
+      }),
+    );
+
+  const esc = escapeHtml;
+
+  /* ------------------------------------------------------- formatting -- */
+  // KB under a megabyte, MB with one decimal, GB above; decimal units.
+  const size = (bytes) => {
+    if (bytes < 1e6) return `${bytes <= 0 ? 0 : Math.max(1, Math.round(bytes / 1e3))} KB`;
+    if (bytes < 1e9) return `${(bytes / 1e6).toFixed(1)} MB`;
+    return `${(bytes / 1e9).toFixed(1)} GB`;
+  };
+  // An exact count; a no-break space between thousands (2 418, 648 000).
+  const num = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  const unitOf = (k) => k.unit || 'rows';
+  const oneOf = (k) => (unitOf(k).endsWith('s') ? unitOf(k).slice(0, -1) : unitOf(k));
+  const count = (n, k) => `${num(n)} ${n === 1 ? oneOf(k) : unitOf(k)}`;
+  const when = (iso) => {
+    const t = new Date(iso);
+    return Number.isNaN(t.getTime()) ? String(iso) : formatBrussels(t);
+  };
+  const BRUSSELS_DAY = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Brussels', day: '2-digit', month: '2-digit', year: 'numeric' });
+  const dmy = (ms) => {
+    const p = Object.fromEntries(BRUSSELS_DAY.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+    return `${p.day}/${p.month}/${p.year}`;
+  };
+  const BRUSSELS_CLOCK = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Brussels', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23',
+  });
+  // The offset of Brussels from UTC at an instant, in ms.
+  const brusselsOffset = (ms) => {
+    const p = Object.fromEntries(BRUSSELS_CLOCK.formatToParts(new Date(ms)).map((x) => [x.type, Number(x.value)]));
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(ms / 1000) * 1000;
+  };
+  // dd/mm/yyyy to the first instant of that day in Brussels; null when it is no day.
+  const startOfDay = (text) => {
+    const m = /^\s*(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\s*$/.exec(text);
+    if (!m) return null;
+    const [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    const wall = Date.UTC(y, mo - 1, d);
+    if (new Date(wall).getUTCDate() !== d || new Date(wall).getUTCMonth() !== mo - 1) return null;
+    let t = wall - brusselsOffset(wall);
+    t = wall - brusselsOffset(t);
+    return t;
+  };
+  // "created_at" is a column's name; the page says "Created at".
+  const humane = (name) => {
+    const s = String(name).replace(/[_-]+/g, ' ').trim();
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  };
+  const levelWord = (level) => (level === 'over' ? 'Over budget' : level === 'warn' ? 'Getting full' : 'Within budget');
+  const levelBadge = (level) =>
+    `<span class="kp-badge ${level === 'over' ? 'kp-badge--destructive' : level === 'warn' ? 'kp-badge--warning' : 'kp-badge--success'}">${levelWord(level)}</span>`;
+
+  /* ------------------------------------------------------------ the API -- */
+  // A failed read says the service's own sentence, or that it did not answer.
+  const upFirst = (text) => String(text).replace(/^\w/, (c) => c.toUpperCase());
+  const sentenceOf = (body, status) =>
+    body && body.error ? `${upFirst(String(body.error).replace(/\.+$/, ''))}.${body.remedy ? ` ${upFirst(String(body.remedy).replace(/\.*$/, ''))}.` : ''}` : `The service answered ${status}.`;
+  async function api(path, body) {
+    let res;
+    try {
+      res = await fetch(path, {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: body === undefined ? { accept: 'application/json' } : { accept: 'application/json', 'content-type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        credentials: 'same-origin',
+      });
+    } catch (_) {
+      throw Object.assign(new Error('The service did not answer.'), { silent: true });
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(sentenceOf(data, res.status)), { status: res.status, body: data });
+    return data;
+  }
+
+  /* ---------------------------------------------------------- the data -- */
+  let data = null; // the last GET /api/kit/storage
+  const totals = (d) => {
+    const file = (role) => d.files.find((f) => f.role === role);
+    const wal = d.files.reduce((a, f) => a + f.wal_bytes, 0);
+    return {
+      app: file('app')?.db_bytes ?? 0,
+      kit: file('kit')?.db_bytes ?? 0,
+      wal,
+      total: d.budget.total_bytes,
+      budget: d.budget.budget_bytes,
+      warn: d.budget.warn_bytes,
+      free: d.reclaimable_bytes,
+      level: d.budget.level,
+      share: d.budget.total_bytes / d.budget.budget_bytes,
+    };
+  };
+  const kindById = (id) => data?.kinds.find((k) => k.id === id);
+
+  /* ------------------------------------------------------- page markup -- */
+  function attentionBand(t) {
+    if (t.level === 'ok') return '';
+    const biggest = [...data.kinds].sort((a, b) => b.bytes - a.bytes)[0];
+    const over = t.level === 'over';
+    const what = `Storage is ${over ? 'over its budget' : 'getting full'}: ${size(t.total)} of ${size(t.budget)}`;
+    const why = over
+      ? 'The budget only warns. Nothing was deleted, and the service keeps working and keeps saving.'
+      : `You are warned from ${size(t.warn)}. Nothing is deleted for you, and the service keeps working and keeps saving.`;
+    const fix = biggest && biggest.rows > 0
+      ? `Clean up the biggest kind, ${biggest.label} (${size(biggest.bytes)}), then compact the file to give the space back.`
+      : 'Compact the file to give the space back.';
+    const action = biggest && biggest.rows > 0
+      ? `<div class="kp-attention__actions"><button type="button" class="kp-button" id="storage-band-clean" data-storage-cleanup="${esc(biggest.id)}">Clean up ${esc(biggest.label)}…</button></div>`
+      : '';
+    return `<div class="kp-ops__attention kp-attention" data-storage-band><div class="kp-alert kp-alert--${over ? 'destructive' : 'warning'} kp-attention__item" role="alert" data-kp-severity="${over ? 'critical' : 'warning'}"><span class="kp-attention__icon" aria-hidden="true">!</span>
+      <div class="kp-attention__text"><strong><span class="kp-sr-only">${over ? 'Critical' : 'Warning'}: </span>${esc(what)}</strong><span>${esc(why)}</span><span><b>What now:</b> ${esc(fix)}</span></div>${action}</div></div>`;
+  }
+
+  function budgetHtml(t) {
+    const pct = Math.round(t.share * 100);
+    const left = t.budget - t.total;
+    const tone = t.level === 'over' ? ' data-kp-tone="destructive"' : t.level === 'warn' ? ' data-kp-tone="warning"' : '';
+    const trend = t.level === 'over' ? `${size(-left)} over the budget of ${size(t.budget)}` : `${size(left)} left; ${pct} % of the budget of ${size(t.budget)}`;
+    const row = (label, value, note, tag = '') =>
+      `<div class="storage-files__row"><span class="storage-files__label">${label}</span><strong class="storage-files__size">${value}</strong><p class="storage-files__note">${note}</p><span class="storage-files__tag">${tag}</span></div>`;
+    return `<div class="storage-budget">
+      <div class="kp-kpis storage-budget__figure" role="group" aria-label="Space used" data-kp-kpis-columns="all 1"><div class="kp-kpi"${tone}><span class="kp-kpi__label">Used</span><span class="kp-kpi__value">${size(t.total)}<small>of ${size(t.budget)}</small></span><span class="kp-kpi__trend">${trend}</span></div></div>
+      <figure class="kp-stackbar storage-budget__bar" data-kp-stackbar data-storage-stackbar></figure>
+      <div class="storage-files" role="group" aria-label="The three parts of the storage">
+        ${row('Application data', size(t.app), `Everything this service stores. Cleaned up here, kind by kind${t.free ? `; ${size(t.free)} of it is empty space` : ''}.`)}
+        ${row('Sign-in data', size(t.kit), 'Used for sign-in, never cleaned up here.', '<span class="kp-badge">Read-only</span>')}
+        ${row('Pending writes', size(t.wal), 'Recent changes not yet folded into the data; it empties itself.')}
+      </div></div>`;
+  }
+
+  const stackSpec = (t) => ({
+    title: 'Where the space goes',
+    total: t.budget,
+    format: size,
+    summary: `${size(t.total)} / ${size(t.budget)}`,
+    marks: [{ at: t.warn / t.budget, label: `Warns from ${size(t.warn)}` }],
+    label: `Storage used: ${size(t.total)} of ${size(t.budget)}`,
+    parts: [
+      { key: 'app', label: 'Application data', value: t.app, tone: t.level === 'over' ? 'destructive' : t.level === 'warn' ? 'warning' : undefined },
+      { key: 'kit', label: 'Sign-in data (read-only)', value: t.kit },
+      { key: 'wal', label: 'Pending writes', value: t.wal },
+    ],
+  });
+
+  function compactHtml(t) {
+    const none = t.free <= 0 && t.wal <= 0;
+    const off = none || data.paused || !data.has_app_db;
+    const why = !data.has_app_db
+      ? 'This application keeps no data of its own, so there is nothing to compact.'
+      : data.paused
+        ? 'Writes are paused for a backup. Compacting can start again in a minute.'
+        : none
+          ? 'Nothing to give back yet: deleted rows leave empty space to reclaim.'
+          : 'Writes pause for a few seconds. It never runs by itself.';
+    const note = none ? 'The file has no empty space' : 'Empty space deleted rows left behind';
+    return `<div class="storage-compact-card">
+      <div class="kp-kpis" role="group" aria-label="Space that can be given back" data-kp-kpis-columns="all 1"><div class="kp-kpi"><span class="kp-kpi__label">Can be given back</span><span class="kp-kpi__value">${size(t.free)}</span><span class="kp-kpi__trend">${note}</span></div></div>
+      <dl class="kp-kv kp-kv--lines"><div class="kp-kv__row"><dt>File now</dt><dd>${size(t.app)}</dd></div><div class="kp-kv__row"><dt>After compacting</dt><dd>about ${size(t.app - t.free)}</dd></div><div class="kp-kv__row"><dt>Last compacted</dt><dd>${data.last_compacted_at ? when(data.last_compacted_at) : 'never'}</dd></div></dl>
+      <div class="storage-compact-card__act"><button type="button" class="kp-button kp-button--primary" id="storage-open-compact" data-storage-compact${off ? ' disabled aria-describedby="storage-open-compact-why"' : ''}>Compact…</button><p class="kp-dialog__note" id="storage-open-compact-why">${esc(why)}</p></div></div>`;
+  }
+
+  function kindRow(k, budget) {
+    const share = k.bytes / budget;
+    const pct = share < 0.01 ? '<1' : Math.round(share * 100);
+    const line = `${k.description ? `<span class="storage-kind__about">${esc(k.description)}</span>` : ''}${k.finished_automatically ? '<span class="storage-kind__self"><span class="kp-badge">Cleans itself</span> Finished rows are removed automatically.</span>' : ''}`;
+    return `<tr data-kp-row-key="${esc(k.id)}">
+      <td data-label="Kind"><span class="storage-kind"><strong class="storage-kind__name">${esc(k.label)}</strong>${line}</span></td>
+      <td class="kp-numeric" data-label="Amount" data-kp-sort-value="${k.rows}">${count(k.rows, k)}</td>
+      <td class="kp-numeric" data-label="Size" data-kp-sort-value="${k.bytes}">${size(k.bytes)}</td>
+      <td data-label="Share of the budget" data-kp-sort-value="${k.bytes}"><span class="storage-share"><span class="kp-meter" role="meter" aria-label="${esc(k.label)} share of the budget" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(share * 100)}" aria-valuetext="${share < 0.01 ? 'less than 1' : Math.round(share * 100)} % of the budget" style="--kp-value: ${share.toFixed(4)}"></span><span class="storage-share__n">${pct} %</span></span></td>
+      <td class="kp-timestamp" data-label="Oldest" data-kp-sort-value="${k.oldest ? Date.parse(k.oldest) : 0}">${k.oldest ? when(k.oldest) : '<span class="kp-text-muted">none</span>'}</td>
+      <td class="kp-timestamp" data-label="Newest" data-kp-sort-value="${k.newest ? Date.parse(k.newest) : 0}">${k.newest ? when(k.newest) : '<span class="kp-text-muted">none</span>'}</td>
+      <td class="text-end storage-fit"><button type="button" class="kp-button" id="storage-open-clean-${esc(k.id)}" data-storage-cleanup="${esc(k.id)}" aria-label="Clean up ${esc(k.label)}"${k.rows ? '' : ' disabled'}>Clean up…</button></td></tr>`;
+  }
+
+  /* --------------------------------------------------------- the cards -- */
+  const card = (key) => root.querySelector(`[data-storage-card="${key}"]`);
+  const budgetCard = card('budget');
+  const compactCard = card('compact');
+  const kindsCard = card('kinds');
+  const tableSkeleton = kindsCard.querySelector('.kp-datatable').outerHTML;
+  const narrow = matchMedia('(max-width: 639px)');
+  let table = null; // the kinds table's handle
+
+  // The table is drawn once per width class: data-kp-cards makes its rows
+  // cards, and the package reads it when the table attaches.
+  async function mountTable() {
+    const old = kindsCard.querySelector('.kp-datatable');
+    const fresh = Object.assign(document.createElement('div'), { innerHTML: tableSkeleton }).firstElementChild;
+    if (narrow.matches) fresh.setAttribute('data-kp-cards', '');
+    old.replaceWith(fresh);
+    await attachParts(fresh.parentElement);
+    table = dataTable(fresh);
+    return fresh;
+  }
+
+  function cardsReading() {
+    setCardState(budgetCard, 'loading', { words: 'Reading the storage…' });
+    setCardState(compactCard, 'loading', { words: 'Reading the storage…' });
+    table?.busy({ text: 'Reading what is stored…', overlay: true });
+    table?.state('loading');
+  }
+
+  function cardsFailed(error) {
+    const text = `${error.message.replace(/\.*$/, '.')} Nothing was changed.`;
+    setCardState(budgetCard, 'error', { title: 'The storage could not be read', text, action: 'Try again' });
+    setCardState(compactCard, 'error', { title: 'The storage could not be read', text, action: 'Try again' });
+    table?.fail(text);
+  }
+
+  async function paint() {
+    const t = totals(data);
+    // The warning: one band, the worst fact first, with its fix.
+    root.querySelector('[data-storage-band]')?.remove();
+    const band = attentionBand(t);
+    if (band) {
+      root.querySelector('.kp-ops__head').insertAdjacentHTML('afterend', band);
+      await attachParts(root);
+    }
+    budgetCard.querySelector('[data-storage-level]').innerHTML = levelBadge(t.level);
+    budgetCard.querySelector('[data-storage-budget-about]').textContent =
+      `Everything this service keeps on disk, against a budget of ${size(t.budget)}. The budget only warns: nothing is ever deleted for you.`;
+    const budgetData = budgetCard.querySelector('[data-storage-budget]');
+    budgetData.innerHTML = budgetHtml(t);
+    await attachParts(budgetData);
+    setStackbar(budgetData.querySelector('[data-storage-stackbar]'), stackSpec(t));
+    const compactData = compactCard.querySelector('[data-storage-compact]');
+    compactData.innerHTML = compactHtml(t);
+    await attachParts(compactData);
+    kindsCard.querySelector('[data-storage-kinds-title]').textContent = `What is stored (${data.kinds.length} ${data.kinds.length === 1 ? 'kind' : 'kinds'})`;
+    const sorted = [...data.kinds].sort((a, b) => b.bytes - a.bytes);
+    root.querySelector('[data-storage-kinds]').innerHTML = sorted.map((k) => kindRow(k, t.budget)).join('');
+    setCardState(budgetCard, 'ready');
+    setCardState(compactCard, 'ready');
+    table?.state('ready');
+    table?.refresh();
+  }
+
+  // Read the storage. The first read (and a retry) shows the waiting states;
+  // a refresh reads quietly and keeps what is on screen if it fails.
+  let reading = null;
+  async function load({ quiet = false } = {}) {
+    if (reading) return reading;
+    reading = (async () => {
+      if (!quiet || !data) cardsReading();
+      try {
+        data = await api('/api/kit/storage');
+      } catch (error) {
+        if (!quiet || !data) cardsFailed(error);
+        return false;
+      }
+      await paint();
+      return true;
+    })().finally(() => {
+      reading = null;
+    });
+    return reading;
+  }
+
+  /* ------------------------------------------------------- the dialogs -- */
+  let dialog = null; // { host, dlg, kind: 'clean' | 'compact', state }
+
+  async function openModal(html, state, kind, extra) {
+    dialog?.dlg.close();
+    const host = document.createElement('div');
+    host.setAttribute('data-storage-modal', '');
+    host.innerHTML = html;
+    document.body.append(host);
+    const dlg = host.querySelector('dialog');
+    // The page behind may be drawn again while the dialog is open; the key
+    // goes back to the control that opened it, by its stable id.
+    const opener = document.activeElement?.id || '';
+    dialog = { host, dlg, kind, state };
+    await hydrate(host);
+    await attachParts(host);
+    dlg.addEventListener('close', () => {
+      host.remove();
+      if (dialog?.host === host) dialog = null;
+      if (opener && (!document.activeElement || document.activeElement === document.body)) document.getElementById(opener)?.focus();
+    });
+    dlg.addEventListener('cancel', (event) => {
+      if (dialog?.kind === 'compact' && dialog.state.state === 'running') event.preventDefault();
+    });
+    dlg.showModal();
+    return extra ? extra(dlg) : dlg;
+  }
+
+  // The package's states on the cards of a drawn dialog.
+  async function hydrate(scope) {
+    for (const el of scope.querySelectorAll('[data-storage-card="preview"]')) {
+      const asked = el.dataset.storagePstate;
+      if (asked === 'loading') setCardState(el, 'loading', { words: 'Counting the rows…' });
+      else if (asked === 'idle') setCardState(el, 'empty', { title: 'Nothing to preview yet', text: 'Choose what to remove, then press Preview. Nothing is deleted by looking.' });
+      else if (asked === 'empty') setCardState(el, 'empty', { title: 'Nothing matches', text: 'No row fits these choices, so there is nothing to delete. Change the date or a choice and preview again.' });
+      else if (asked === 'invalid') setCardState(el, 'empty', { title: 'That is not a date', text: 'Type the day as dd/mm/yyyy, for example 30/06/2026, then press Preview.' });
+      else if (asked === 'error') setCardState(el, 'error', { title: 'The preview could not be made', text: dialog?.state.error || 'The service did not answer.', action: 'Try again' });
+    }
+    for (const el of scope.querySelectorAll('[data-storage-card="steps"]')) {
+      const asked = el.dataset.storageSstate;
+      if (asked === 'checking') setCardState(el, 'loading', { words: 'Reading the file…' });
+      else if (asked === 'failed') setCardState(el, 'error', { title: 'Compacting did not finish', text: dialog?.state.error || 'The file could not be compacted. Nothing was changed.', action: 'Try again' });
+      else if (asked === 'unreadable') setCardState(el, 'error', { title: 'The file could not be read', text: dialog?.state.error || 'The service did not answer.', action: 'Try again' });
+    }
+  }
+
+  // Draw the inside of the open dialog again, keeping it open and the focus where it was.
+  async function redraw() {
+    if (!dialog) return;
+    const { dlg, kind, state } = dialog;
+    const keep = document.activeElement && dlg.contains(document.activeElement) ? document.activeElement : null;
+    const key = keep ? keep.id || keep.getAttribute('data-storage-filter') || '' : '';
+    dlg.innerHTML = kind === 'clean' ? cleanInner(state) : compactInner(state);
+    // The states first, in the same frame as the markup, so a card never stands
+    // for a moment in a state it has no plate for; then the parts attach.
+    await hydrate(dlg);
+    await attachParts(dlg);
+    if (key) dlg.querySelector(`#${CSS.escape(key)}, [data-storage-filter="${CSS.escape(key)}"]`)?.focus();
+  }
+
+  const note = (text, extra = '') => `<p class="kp-dialog__note"${extra}>${esc(text)}</p>`;
+
+  /* ----------------------------------------------------- the clean-up -- */
+  const DEFAULT_AGE_DAYS = 30;
+  // The value of "Any" in a choice: a word of its own, so an empty value never stands for it.
+  const ANY = '__any';
+
+  function defaultForm(k) {
+    const values = {};
+    for (const f of k.filters) values[f.name] = f.type === 'flag' ? false : f.type === 'text' ? '' : ANY;
+    return { older: dmy(Date.now() - DEFAULT_AGE_DAYS * 86_400_000), values };
+  }
+
+  // What the form asks, as the API's selection; null when the date is no date.
+  function selectionOf(k, form) {
+    const sel = { filters: {} };
+    if (k.supports_age) {
+      const start = startOfDay(form.older);
+      if (start === null) return null;
+      sel.older_than_secs = Math.max(0, Math.floor((Date.now() - start) / 1000));
+    }
+    for (const f of k.filters) {
+      const v = form.values[f.name];
+      if (f.type === 'flag') {
+        if (v) sel.filters[f.name] = 'true';
+      } else if (typeof v === 'string' && v.trim() !== '' && v !== ANY) sel.filters[f.name] = v.trim();
+    }
+    return sel;
+  }
+
+  const stepItem = (id, title, noteText, state) =>
+    `<li class="kp-steplist__item" data-state="${state}" data-kp-step-id="${id}"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">${title}</span><span class="kp-steplist__note">${noteText}</span></span></li>`;
+  const figure = (label, value, noteText) =>
+    `<div class="kp-kpi"><span class="kp-kpi__label">${label}</span><span class="kp-kpi__value">${value}</span><span class="kp-kpi__trend">${noteText}</span></div>`;
+  const flashButton = (label, { words, kind = '', attrs = '' }) =>
+    `<button type="button" class="kp-button${kind ? ` kp-button--${kind}` : ''}" data-kp-flash-button data-kp-flash-words="${esc(words)}" ${attrs}>${esc(label)}</button>`;
+
+  function filterControl(k, f, v) {
+    const id = `storage-clean-filter-${f.name}`;
+    if (f.type === 'choice') {
+      const options = [[ANY, 'Any'], ...(f.values ?? []).map((x) => [x, humane(x)])];
+      if (options.length > 5) {
+        return `<select class="kp-field__input" id="${esc(id)}" data-storage-filter="${esc(f.name)}">${options.map(([val, label]) => `<option value="${esc(val)}"${v === val ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select>`;
+      }
+      const items = options
+        .map(([val, label]) => `<button type="button" class="kp-segmented__item" data-value="${esc(val)}" role="radio" aria-checked="${v === val}"><span class="kp-segmented__label">${esc(label)}</span></button>`)
+        .join('');
+      return `<div class="kp-segmented" data-kp-segmented="single" id="${esc(id)}" data-storage-filter="${esc(f.name)}" role="radiogroup" aria-labelledby="${esc(id)}-l">${items}</div>`;
+    }
+    if (f.type === 'flag') {
+      return `<label class="kp-switch"><input class="kp-switch__input" type="checkbox" role="switch" id="${esc(id)}" data-storage-filter="${esc(f.name)}"${v ? ' checked' : ''} /><span class="kp-switch__state" aria-hidden="true"></span><span class="kp-sr-only">${esc(f.label)}</span></label>`;
+    }
+    return `<input class="kp-field__input" type="text" id="${esc(id)}" data-storage-filter="${esc(f.name)}" value="${esc(v)}" autocomplete="off" />`;
+  }
+
+  const FILTER_NOTES = {
+    choice: 'Leave it on Any to ignore it.',
+    flag: 'Off means every row counts.',
+    text: 'Part of the value is enough. Empty means every row counts.',
+  };
+
+  function filtersCard(k, c) {
+    const locked = c.step !== 'choose';
+    const rows = k.filters
+      .map(
+        (f) =>
+          `<div class="kp-formgrid__row"><label class="kp-formgrid__label" id="storage-clean-filter-${esc(f.name)}-l" for="storage-clean-filter-${esc(f.name)}">${esc(f.label)}</label><div class="kp-formgrid__control">${filterControl(k, f, c.form.values[f.name])}</div><p class="kp-formgrid__value">${FILTER_NOTES[f.type] ?? ''}</p></div>`,
+      )
+      .join('');
+    const older = k.supports_age
+      ? `<div class="kp-formgrid__row"><label class="kp-formgrid__label" for="storage-clean-older">Older than</label>
+          <div class="kp-formgrid__control kp-formgrid__short"><div class="kp-datepicker" data-kp-datepicker lang="en-GB" data-kp-date-format="rule52"><input class="kp-field__input" id="storage-clean-older" type="text" inputmode="numeric" data-kp-date-input data-storage-older value="${esc(c.form.older)}" /><button type="button" class="kp-button" data-kp-date-open aria-label="Open the calendar"><span aria-hidden="true">▦</span></button><div class="kp-datepicker__panel" data-kp-date-panel hidden></div></div></div>
+          <p class="kp-formgrid__value">Rows from before this day. Dates are dd/mm/yyyy.</p></div>`
+      : '';
+    const none = !k.supports_age && !k.filters.length
+      ? `<p class="kp-dialog__note storage-nofilters" data-kp-formgrid-span="all">${esc(k.label)} has no date and declares no filter, so everything in it goes.</p>`
+      : !k.supports_age
+        ? `<p class="kp-dialog__note storage-nofilters" data-kp-formgrid-span="all">${esc(k.label)} has no date, so only the choices below decide.</p>`
+        : !k.filters.length
+          ? `<p class="kp-dialog__note storage-nofilters" data-kp-formgrid-span="all">${esc(k.label)} declares no other filter: only the date decides.</p>`
+          : '';
+    return `<section class="kp-card storage-clean__filters" aria-labelledby="storage-clean-h-filters">
+      <div class="storage-card-head"><h3 class="kp-dialog__heading" id="storage-clean-h-filters">1 · Choose what to remove</h3><p class="kp-lede" data-kp-lede-measure="full">Only rows that match every choice are counted. Leave a choice on Any to ignore it.</p></div>
+      <fieldset class="kp-formgrid storage-form" data-kp-formgrid-stack="auto"${locked ? ' disabled' : ''}><legend class="kp-sr-only">What to remove</legend>
+        ${older}${rows}${none}
+        <div class="kp-formgrid__row kp-formgrid__row--buttons"><div class="kp-formgrid__control"><div class="kp-formgrid__buttons"><button type="button" class="kp-button" id="storage-clean-reset" data-storage-reset>Reset choices</button><button type="button" class="kp-button kp-button--primary" id="storage-clean-preview" data-storage-preview>Preview</button></div></div></div>
+      </fieldset></section>`;
+  }
+
+  function sampleTable(k, p) {
+    const columns = p.columns?.length ? p.columns : Object.keys(p.samples[0] ?? {}).filter((c) => c !== 'id');
+    const cell = (col, v) => {
+      if (v === null || v === undefined) return '<span class="kp-text-muted">—</span>';
+      if (col === p.time_column && typeof v === 'string') return esc(when(v));
+      return esc(typeof v === 'boolean' ? (v ? 'yes' : 'no') : v);
+    };
+    const rows = p.samples
+      .map(
+        (r) =>
+          `<tr>${columns.map((col) => `<td data-label="${esc(humane(col))}"${col === p.time_column ? ' class="kp-timestamp"' : ''} title="${esc(r[col] ?? '')}">${cell(col, r[col])}</td>`).join('')}</tr>`,
+      )
+      .join('');
+    return `<div class="kp-datatable storage-prev__table" data-kp-datatable${narrow.matches ? ' data-kp-cards' : ''} data-kp-page-size="5"><div class="kp-table-wrap"><table class="kp-table"><caption>${p.samples.length === 1 ? 'The row' : `The ${p.samples.length} oldest rows`} that match, of ${count(p.rows, k)}</caption>
+      <thead><tr>${columns.map((col) => `<th scope="col">${esc(humane(col))}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  }
+
+  function previewCard(k, c) {
+    const p = c.p;
+    const done = c.step === 'done' && c.done;
+    let asked = c.preview;
+    if (done) asked = 'ready';
+    else if (c.step === 'confirm') asked = p && p.rows ? 'ready' : 'empty';
+    else if (asked === 'ready' && p && !p.rows) asked = 'empty';
+    const state = asked === 'idle' || asked === 'invalid' ? 'empty' : asked;
+    let body = '';
+    if (done) {
+      const d = c.done;
+      body = `<div class="kp-kpis storage-prev__kpis" role="group" aria-label="What was removed" data-kp-kpis-columns="all 2">${figure('Removed', count(d.count, k), `from ${esc(k.label)}`)}${figure('Empty space in the file', size(d.free), 'until it is compacted')}</div>
+        <div class="kp-attention storage-prev__note" data-storage-band><div class="kp-alert kp-alert--success kp-attention__item" role="status"><span class="kp-attention__icon" aria-hidden="true">✓</span><div class="kp-attention__text"><strong>${esc(count(d.count, k))} removed from ${esc(k.label)}</strong><span>The file keeps its size until you compact it, so the budget reading does not drop yet.</span><span><b>What now:</b> Compact the application data to give ${size(d.free)} back.</span></div><div class="kp-attention__actions"><button type="button" class="kp-button" data-storage-compact>Compact…</button></div></div></div>`;
+    } else if (asked === 'ready' && p) {
+      body = `<div class="kp-kpis storage-prev__kpis" role="group" aria-label="What would be removed" data-kp-kpis-columns="all 4 2">${figure('To remove', num(p.rows), unitOf(k))}${figure('Frees about', size(p.bytes), 'inside the file')}${figure('Oldest', `<span class="storage-when">${p.oldest ? when(p.oldest) : '—'}</span>`, 'of the rows to go')}${figure('Newest', `<span class="storage-when">${p.newest ? when(p.newest) : '—'}</span>`, 'of the rows to go')}</div>${sampleTable(k, p)}`;
+    }
+    const lede = done ? 'Done. This is what was removed.' : 'A read-only count. Nothing is deleted before you confirm.';
+    return `<section class="kp-card storage-clean__preview" data-kp-state="${state}" data-storage-card="preview" data-storage-pstate="${asked}" aria-labelledby="storage-clean-h-prev">
+      <div class="storage-card-head"><h3 class="kp-dialog__heading" id="storage-clean-h-prev">${done ? '3 · Removed' : '2 · What would be removed'}</h3><p class="kp-lede" data-kp-lede-measure="full">${lede}</p></div>
+      <div class="kp-card__stage"><div class="kp-card__data">${body}</div></div></section>`;
+  }
+
+  function confirmBand(k, c) {
+    const p = c.p;
+    const ready = Boolean(p && p.rows > 0) && (c.preview === 'ready' || c.step !== 'choose');
+    if (c.step === 'done') {
+      return `<section class="storage-clean__confirm storage-clean__confirm--done" aria-label="Finished"><div class="storage-clean__confirm-words"><h3 class="kp-dialog__heading">Finished</h3><p class="kp-dialog__note">The lists and the budget have been read again.</p></div><div class="storage-clean__confirm-body"></div><div class="storage-clean__confirm-acts"><button type="button" class="kp-button kp-button--primary" id="storage-clean-done" data-kp-dialog-close>Done</button></div></section>`;
+    }
+    if (c.step === 'confirm' && p) {
+      return `<section class="storage-clean__confirm kp-dialog__section--danger" aria-labelledby="storage-clean-h-confirm">
+      <div class="storage-clean__confirm-words"><h3 class="kp-dialog__heading" id="storage-clean-h-confirm">Delete for good</h3><p class="kp-dialog__note">Type the name of the kind to confirm; the field below shows exactly what. This cannot be undone.</p></div>
+      <div class="storage-clean__confirm-body"><div id="storage-clean-confirm" data-kp-type-confirm="${esc(p.confirm_with)}" data-kp-type-confirm-for="storage-clean-delete" data-kp-type-confirm-loses="storage-clean-lost"></div>
+        <template id="storage-clean-lost"><ul class="kp-type-confirm__list"><li>${esc(count(p.rows, k))} of ${esc(k.label)}${p.oldest ? `, from ${esc(when(p.oldest))} to ${esc(when(p.newest))}` : ''} (about ${size(p.bytes)})</li><li>Nothing else: the other kinds and the sign-in data stay.</li></ul></template></div>
+      <div class="storage-clean__confirm-acts"><button type="button" class="kp-button" id="storage-clean-back" data-storage-back>Back</button>${flashButton('Delete for good', { kind: 'destructive', words: 'Deleted,Refused', attrs: 'id="storage-clean-delete" data-storage-delete' })}</div></section>`;
+    }
+    const reason = !ready
+      ? c.preview === 'idle'
+        ? 'Press Preview first: you see what would go before you decide.'
+        : c.preview === 'loading'
+          ? 'Counting the rows…'
+          : c.preview === 'error'
+            ? 'The preview failed, so there is nothing to confirm yet.'
+            : c.preview === 'invalid'
+              ? 'The date is not a date, so there is nothing to confirm yet.'
+              : 'Nothing matches, so there is nothing to delete.'
+      : 'Next you type the name of the kind.';
+    return `<section class="storage-clean__confirm" aria-labelledby="storage-clean-h-confirm">
+      <div class="storage-clean__confirm-words"><h3 class="kp-dialog__heading" id="storage-clean-h-confirm">Delete for good</h3><p class="kp-dialog__note">Step 2 asks you to type before anything is removed.</p></div>
+      <div class="storage-clean__confirm-body"><p class="kp-dialog__note" id="storage-clean-why">${esc(reason)}</p></div>
+      <div class="storage-clean__confirm-acts"><button type="button" class="kp-button kp-button--primary" id="storage-clean-continue" data-storage-continue${ready ? '' : ' disabled aria-describedby="storage-clean-why"'}>Continue to confirm</button></div></section>`;
+  }
+
+  function cleanInner(c) {
+    const k = kindById(c.kind);
+    const s1 = c.step === 'choose' ? 'current' : 'done';
+    const s2 = c.step === 'choose' ? 'pending' : c.step === 'confirm' ? 'current' : 'done';
+    const s3 = c.step === 'done' ? 'done' : 'pending';
+    return `<div class="kp-dialog__body"><div class="storage-grid storage-clean__grid">
+    <div class="kp-dialog__head storage-clean__head"><h2 class="kp-dialog__title" id="storage-clean-title">Clean up ${esc(k.label)}</h2><p class="kp-dialog__description">${k.description ? `${esc(k.description)} ` : ''}Now ${esc(count(k.rows, k))}, ${size(k.bytes)}.</p></div>
+    <ol class="kp-steplist kp-steplist--journey storage-clean__steps" aria-label="Steps">${stepItem('choose', 'Choose and preview', 'Nothing is deleted yet', s1)}${stepItem('confirm', 'Confirm', 'Type to confirm', s2)}${stepItem('done', 'Removed', 'The lists update', s3)}</ol>
+    ${filtersCard(k, c)}${previewCard(k, c)}${confirmBand(k, c)}
+  </div></div>
+  <div class="kp-dialog__actions"><button type="button" class="kp-button" id="storage-clean-close" data-kp-dialog-close>Close</button></div>`;
+  }
+
+  const cleanShell = (c) =>
+    `<dialog class="kp-dialog kp-dialog--wide storage-dialog storage-clean" id="storage-clean-dialog" aria-labelledby="storage-clean-title">${cleanInner(c)}</dialog>`;
+
+  // What the form of the open clean-up dialog holds right now.
+  function readForm(dlg, c) {
+    const k = kindById(c.kind);
+    const older = dlg.querySelector('[data-storage-older]');
+    if (older) c.form.older = older.value;
+    for (const f of k.filters) {
+      const el = dlg.querySelector(`[data-storage-filter="${CSS.escape(f.name)}"]`);
+      if (!el) continue;
+      if (f.type === 'choice') {
+        const on = el.matches('select') ? el.value : (el.querySelector('[aria-checked="true"]')?.getAttribute('data-value') ?? '');
+        c.form.values[f.name] = on;
+      } else if (f.type === 'flag') c.form.values[f.name] = el.checked;
+      else c.form.values[f.name] = el.value;
+    }
+  }
+
+  // The read-only count the server answers: rows, bytes, oldest, newest, samples and the token a delete needs.
+  async function runPreview(c) {
+    const k = kindById(c.kind);
+    const sel = selectionOf(k, c.form);
+    c.p = null;
+    c.asked = null;
+    if (sel === null) {
+      c.preview = 'invalid';
+      return redraw();
+    }
+    c.preview = 'loading';
+    await redraw();
+    try {
+      const p = await api(`/api/kit/storage/${encodeURIComponent(c.kind)}/preview`, sel);
+      if (dialog?.state !== c) return;
+      c.p = p;
+      c.asked = sel;
+      c.preview = 'ready';
+    } catch (error) {
+      if (dialog?.state !== c) return;
+      c.preview = 'error';
+      c.error = error.message;
+    }
+    await redraw();
+  }
+
+  async function openCleanup(kindId) {
+    const k = kindById(kindId);
+    if (!k) return;
+    const c = { kind: k.id, step: 'choose', preview: 'loading', form: defaultForm(k), p: null, asked: null, done: null, error: '' };
+    await openModal(cleanShell(c), c, 'clean');
+    await runPreview(c);
+  }
+
+  async function doDelete(button, c) {
+    const typed = dialog.dlg.querySelector('[data-kp-type-confirm] input')?.value ?? '';
+    let result = null;
+    await runFlashButton(button, async () => {
+      try {
+        const body = await api(`/api/kit/storage/${encodeURIComponent(c.kind)}/delete`, { ...c.asked, token: c.p.token, confirm: typed });
+        result = body;
+        return undefined;
+      } catch (error) {
+        return { error: error.message.replace(/\.+$/, ''), word: 'Refused', remedy: error.body?.remedy };
+      }
+    });
+    if (!result || dialog?.state !== c) return;
+    c.done = { count: result.deleted.deleted, free: result.deleted.reclaimable_bytes };
+    c.step = 'done';
+    await load({ quiet: true });
+    await redraw();
+  }
+
+  /* ----------------------------------------------------- the compact -- */
+  function compactInner(c) {
+    const t = totals(data);
+    const none = c.state === 'none' || c.state === 'paused';
+    const done = c.state === 'done';
+    const checking = c.state === 'checking' || c.state === 'unreadable';
+    const gain = none || checking ? 0 : done ? c.freed : c.free;
+    const before = done ? t.app + gain : t.app;
+    const after = before - gain;
+    const totalNow = done ? t.total + gain : t.total;
+    const totalAfter = none || checking ? t.total : done ? t.total : Math.max(0, t.total - gain - t.wal);
+    const meter = (label, bytes) =>
+      `<span class="kp-meter" role="meter" aria-label="${label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round((bytes / t.budget) * 100)}" aria-valuetext="${size(bytes)} of ${size(t.budget)}" style="--kp-value: ${(bytes / t.budget).toFixed(4)}; --kp-mark: ${t.warn / t.budget}"><span class="kp-meter__mark" aria-hidden="true"></span></span>`;
+    const st = c.state === 'running' ? ['done', 'running', 'pending'] : done ? ['done', 'done', 'done'] : ['pending', 'pending', 'pending'];
+    const run = c.state === 'running' || done;
+    const steps = `<ol class="kp-steplist" aria-label="What happens">${stepItem('pause', 'Writes pause', 'For a few seconds; reading carries on', st[0])}${stepItem('rewrite', 'The file is rewritten', 'Without the empty space deleted rows left', st[1])}${stepItem('resume', 'Writes resume', 'The budget reading is updated', st[2])}</ol>`;
+    const off = none || checking || c.state === 'running';
+    const primary = done
+      ? '<button type="button" class="kp-button kp-button--primary" id="storage-compact-done" data-kp-dialog-close>Done</button>'
+      : `<button type="button" class="kp-button" id="storage-compact-cancel" data-kp-dialog-close${c.state === 'running' ? ' disabled' : ''}>Cancel</button>${flashButton('Compact now', { kind: 'primary', words: 'Compacted,Failed', attrs: `id="storage-compact-run" data-storage-run${off ? ' disabled' : ''}${off ? ' aria-describedby="storage-compact-why"' : ''}` })}`;
+    const noteText =
+      c.state === 'paused'
+        ? 'Writes are paused for a backup, so compacting has to wait. Try again in a minute.'
+        : c.state === 'none'
+          ? 'There is no empty space to give back, so compacting would change nothing.'
+          : done
+            ? `Done: ${size(gain)} given back. The file is ${size(t.app)} now.`
+            : 'It never runs by itself. The sign-in data is not touched, and nothing is removed.';
+    const sState = c.state === 'failed' ? 'failed' : c.state === 'checking' ? 'checking' : c.state === 'unreadable' ? 'unreadable' : 'ready';
+    const cardState = sState === 'failed' || sState === 'unreadable' ? 'error' : sState === 'checking' ? 'loading' : 'ready';
+    const fig = (label, value, noteTextLine) => figure(label, value, noteTextLine);
+    return `<div class="kp-dialog__body"><div class="storage-grid storage-compact__grid">
+    <div class="kp-dialog__head storage-compact__head"><h2 class="kp-dialog__title" id="storage-compact-title">Compact the application data</h2><p class="kp-dialog__description">Deleted rows leave empty space inside the file. Compacting rewrites it without that space.</p></div>
+    <div class="kp-kpis storage-compact__kpis" role="group" aria-label="Before and after" data-kp-kpis-columns="all 3 1">${fig('Now', size(before), 'application data')}${fig('Can be given back', size(gain), none ? 'no empty space' : 'empty space')}${fig('After', size(after), 'about')}</div>
+    <section class="kp-card storage-compact__steps" data-kp-state="${cardState}" data-storage-card="steps" data-storage-sstate="${sState}" aria-labelledby="storage-compact-h-steps"><div class="storage-card-head"><h3 class="kp-dialog__heading" id="storage-compact-h-steps">What happens</h3><p class="kp-lede" data-kp-lede-measure="full">${run ? 'In progress; you can leave this open.' : 'Three steps, a few seconds in all.'}</p></div>
+      <div class="kp-card__stage"><div class="kp-card__data">${steps}</div></div></section>
+    <section class="kp-card storage-compact__meters" aria-labelledby="storage-compact-h-meters"><div class="storage-card-head"><h3 class="kp-dialog__heading" id="storage-compact-h-meters">Against the budget</h3><p class="kp-lede" data-kp-lede-measure="full">All storage, with the tick at the ${size(t.warn)} warning level.</p></div>
+      <div class="kp-formgrid storage-meters" data-kp-formgrid-label="fit"><div class="kp-formgrid__row"><span class="kp-formgrid__label">Now</span><div class="kp-formgrid__control">${meter('All storage now', totalNow)}</div><p class="kp-formgrid__value"><strong>${size(totalNow)}</strong></p></div>
+        <div class="kp-formgrid__row"><span class="kp-formgrid__label">After</span><div class="kp-formgrid__control">${meter('All storage after compacting', totalAfter)}</div><p class="kp-formgrid__value"><strong>${size(totalAfter)}</strong></p></div></div></section>
+    <section class="storage-compact__foot"><p class="kp-dialog__note" id="storage-compact-why">${esc(noteText)}</p><div class="storage-compact__acts">${primary}</div></section>
+  </div></div>`;
+  }
+
+  const compactShell = (c) =>
+    `<dialog class="kp-dialog kp-dialog--wide storage-dialog storage-compact" id="storage-compact-dialog" aria-labelledby="storage-compact-title">${compactInner(c)}</dialog>`;
+
+  // What a compact would do, asked of the service at the moment the dialog opens.
+  async function checkCompact(c) {
+    c.state = 'checking';
+    c.error = '';
+    await redraw();
+    try {
+      const p = await api('/api/kit/storage/compact/preview', {});
+      if (dialog?.state !== c) return;
+      c.free = p.reclaimable_bytes;
+      c.state = p.paused ? 'paused' : p.reclaimable_bytes > 0 || totals(data).wal > 0 ? 'ready' : 'none';
+    } catch (error) {
+      if (dialog?.state !== c) return;
+      c.state = 'unreadable';
+      c.error = error.message;
+    }
+    await redraw();
+  }
+
+  async function openCompact() {
+    const c = { state: 'checking', free: 0, freed: 0, error: '' };
+    await openModal(compactShell(c), c, 'compact');
+    await checkCompact(c);
+  }
+
+  async function runCompact(button, c) {
+    const before = totals(data);
+    const gain = c.free + before.wal;
+    let ok = false;
+    c.state = 'running';
+    const list = dialog.dlg.querySelector('.kp-steplist');
+    for (const [id, state] of [['pause', 'done'], ['rewrite', 'running']]) list?.querySelector(`[data-kp-step-id="${id}"]`)?.setAttribute('data-state', state);
+    dialog.dlg.querySelector('#storage-compact-cancel')?.setAttribute('disabled', '');
+    await runFlashButton(button, async () => {
+      try {
+        await api('/api/kit/storage/compact', {});
+        ok = true;
+        return undefined;
+      } catch (error) {
+        c.error = `${error.message.replace(/\.*$/, '.')} Nothing was changed.`;
+        return { error: error.message.replace(/\.+$/, ''), word: 'Failed', remedy: error.body?.remedy };
+      }
+    });
+    if (dialog?.state !== c) return;
+    if (ok) {
+      c.freed = gain;
+      c.state = 'done';
+      await load({ quiet: true });
+    } else c.state = 'failed';
+    await redraw();
+  }
+
+  /* ----------------------------------------------------------- events -- */
+  document.addEventListener('click', async (event) => {
+    const t = event.target instanceof Element ? event.target : null;
+    if (!t) return;
+    const cleanup = t.closest('[data-storage-cleanup]');
+    if (cleanup && root.contains(cleanup)) {
+      event.preventDefault();
+      await openCleanup(cleanup.getAttribute('data-storage-cleanup'));
+      return;
+    }
+    if (t.closest('[data-storage-compact]') && !t.closest('[disabled]')) {
+      event.preventDefault();
+      await openCompact();
+      return;
+    }
+    const dlg = dialog && dialog.dlg.contains(t) ? dialog : null;
+    if (!dlg) return;
+    const c = dlg.state;
+    if (dlg.kind === 'clean') {
+      if (t.closest('[data-storage-reset]')) {
+        c.form = defaultForm(kindById(c.kind));
+        c.preview = 'idle';
+        c.p = null;
+        await redraw();
+      } else if (t.closest('[data-storage-preview]')) {
+        readForm(dlg.dlg, c);
+        await runPreview(c);
+      } else if (t.closest('[data-storage-continue]')) {
+        c.step = 'confirm';
+        await redraw();
+        dlg.dlg.querySelector('[data-kp-type-confirm] input')?.focus();
+      } else if (t.closest('[data-storage-back]')) {
+        c.step = 'choose';
+        await redraw();
+      } else if (t.closest('[data-storage-delete]')) {
+        await doDelete(t.closest('[data-storage-delete]'), c);
+      }
+    } else if (dlg.kind === 'compact' && t.closest('[data-storage-run]')) {
+      await runCompact(t.closest('[data-storage-run]'), c);
+    }
+  });
+
+  // A card or a table that failed asks again through the package's own retry event.
+  document.addEventListener('kp-card-retry', async (event) => {
+    const el = event.target instanceof Element ? event.target : null;
+    if (!el) return;
+    if (dialog && dialog.dlg.contains(el)) {
+      if (dialog.kind === 'clean') await runPreview(dialog.state);
+      else await checkCompact(dialog.state);
+    } else if (root.contains(el)) await load();
+  });
+  root.addEventListener('kp-datatable-retry', () => load());
+  // A change of any choice in the clean-up dialog makes the old preview stale: it is asked for again.
+  for (const type of ['change', 'kp-segmented-change', 'kp-date-change']) {
+    document.addEventListener(type, async (event) => {
+      const el = event.target instanceof Element ? event.target : null;
+      if (!dialog || dialog.kind !== 'clean' || !el || !dialog.dlg.contains(el)) return;
+      if (!el.closest('[data-storage-filter], [data-storage-older], .kp-datepicker')) return;
+      const c = dialog.state;
+      readForm(dialog.dlg, c);
+      if (c.preview !== 'idle' && c.step === 'choose') {
+        c.preview = 'idle';
+        c.p = null;
+        await redraw();
+      }
+    });
+  }
+  // The header's refresh control reads again, quietly.
+  root.addEventListener('kp-refresh', async (event) => event.detail.done(await load({ quiet: true })));
+  // A phone shows the kinds as cards; crossing that width draws the table again.
+  narrow.addEventListener('change', async () => {
+    if (!data) return;
+    await mountTable();
+    await paint();
+  });
+
+  /* ------------------------------------------------------------- start -- */
+  await mountTable();
+  await attachParts(root);
+  // The first read goes through the header's own control, so its line says
+  // when the page was read ("updated now") and a failure shows there too.
+  const { refreshOf } = await kp('auto-refresh');
+  const refresh = refreshOf(root.querySelector('.kp-refresh'));
+  if (refresh) refresh.now('now');
+  else await load();
 }

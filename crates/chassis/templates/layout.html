@@ -4,13 +4,16 @@
 {%- if id == "status" %}<path d="M3 12h4l3-7 4 14 3-7h4"/>
 {%- elif id == "clients" %}<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16.5 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c2 .7 3.2 2.4 3.5 5.2"/>
 {%- elif id == "passkeys" %}<circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v4M15 12v3"/>
+{%- elif id == "storage" %}<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>
 {%- elif id == "search" %}<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>
 {%- elif id == "messages" or id == "inbox" %}<path d="M4 5h16v11H8l-4 4z"/>
 {%- else %}<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 9v11"/>
 {%- endif -%}
 </svg>
 {%- endmacro -%}
-{%- set hints = {"status": "Version, health and updates", "clients": "The programs that call this service", "passkeys": "Ways to sign in"} -%}
+{#- A letter for a page whose first one the registry order already gave away
+    (Status has "s"): the chord is `g` and this letter. -#}
+{%- set chords = {"storage": "o"} -%}
 <!doctype html>
 <html lang="en" data-theme="formal">
 <head>
@@ -112,7 +115,7 @@
     <li role="presentation" class="kp-palette__group" data-kp-group data-chassis-group="go"><span class="kp-palette__group-label">Go to</span>
       <ul role="group" aria-label="Go to">
         {% for item in nav %}{% set page = pages[loop.index0] %}
-        <li role="presentation"><a class="kp-palette__option" role="option" data-kp-option data-kp-static data-value="go-{{ page.id }}" data-chassis-go="{{ page.id }}" href="{{ item.href }}">{{ item.label }}{% if hints[page.id] %}<span class="kp-palette__description">{{ hints[page.id] }}</span>{% endif %}</a></li>
+        <li role="presentation"><a class="kp-palette__option" role="option" data-kp-option data-kp-static data-value="go-{{ page.id }}" data-chassis-go="{{ page.id }}"{% if chords[page.id] %} data-chassis-chord="{{ chords[page.id] }}"{% endif %} href="{{ item.href }}">{{ item.label }}{% if page.hint %}<span class="kp-palette__description">{{ page.hint }}</span>{% endif %}</a></li>
         {% endfor %}
       </ul>
     </li>
@@ -144,7 +147,7 @@
   <header class="kp-drawer__head"><h2 class="kp-dialog__title" id="chassis-more-title">More</h2><button type="button" class="kp-icon-button kp-dialog__close" data-kp-dialog-close aria-label="Close">×</button><p class="kp-drawer__desc">The pages you need less often, and your session.</p></header>
   <div class="kp-drawer__body"><div class="kp-menu kp-menu--rich" role="group" aria-label="More">
     {% for item in nav %}{% if loop.index > 3 %}{% set page = pages[loop.index0] %}
-    <a class="kp-menu__item" href="{{ item.href }}"{% if item.href == active_nav %} aria-current="page"{% endif %}><span class="kp-menu__label">{{ item.label }}</span>{% if hints[page.id] %}<span class="kp-menu__hint">{{ hints[page.id] }}</span>{% endif %}</a>
+    <a class="kp-menu__item" href="{{ item.href }}"{% if item.href == active_nav %} aria-current="page"{% endif %}><span class="kp-menu__label">{{ item.label }}</span>{% if page.hint %}<span class="kp-menu__hint">{{ page.hint }}</span>{% endif %}</a>
     {% endif %}{% endfor %}
     <button type="button" class="kp-menu__item" data-chassis-run="theme"><span class="kp-menu__label">Choose a theme</span><span class="kp-menu__hint">Colours and feel of this dashboard</span></button>
     {% if not open_dashboard %}<button type="submit" form="chassis-logout" class="kp-menu__item"><span class="kp-menu__label">Log out</span><span class="kp-menu__hint">End this session on this browser</span></button>{% endif %}

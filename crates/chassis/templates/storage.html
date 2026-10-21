@@ -1,0 +1,50 @@
+{% extends "layout.html" %}
+{% block title %}{{ app_name }} — storage{% endblock %}
+{% block content %}
+{#- kit-storage (approved demo research/chassis-storage in kp-themes, Kenny
+    21/10/2026 07:42, kinds as a table, the kind's name typed to confirm):
+    the budget (columns 1 to 8) against the empty space that can be given
+    back (9 to 12), and the kinds of data across all twelve. The server draws
+    the frame with every card waiting; chassis.js (the "storage" block) reads
+    /api/kit/storage, fills the cards and opens the clean-up and compact
+    dialogs. The figures are never in this file: they are read. -#}
+<div class="kp-ops kit-ops storage" data-kp-ops-sticky="none" data-kp-ops-failed="plate" data-chassis-storage>
+  <header class="kp-ops__head kp-page-header">
+    <div class="kp-page-header__inner">
+      <div>
+        <h1 class="kp-page-header__title">Storage</h1>
+        <p class="kp-page-header__description">How much room this service’s data takes, what it is made of, and how to clear out what you no longer need.</p>
+        <div class="storage-fresh"><div class="kp-refresh" data-kp-refresh="30" data-kp-remember="chassis-storage-refresh" data-kp-look="menu" data-kp-refresh-choices="0,15,30,60"></div></div>
+      </div>
+      <div class="kp-page-header__actions"></div>
+    </div>
+  </header>
+
+  <div class="kp-ops__body">
+    <section class="kp-card storage-card storage-card--budget" data-kp-span="8" data-kp-state="loading" data-storage-card="budget" aria-labelledby="storage-budget-t">
+      <div class="kp-card__header"><h2 class="kp-card__title" id="storage-budget-t">Space used</h2><div class="kp-card__actions" data-storage-level></div></div>
+      <p class="kp-card__body" data-storage-budget-about>Everything this service keeps on disk, against its budget. The budget only warns: nothing is ever deleted for you.</p>
+      <div class="kp-card__stage"><div class="kp-card__data" data-storage-budget></div></div>
+    </section>
+
+    <section class="kp-card storage-card storage-card--compact" data-kp-span="4" data-kp-state="loading" data-storage-card="compact" aria-labelledby="storage-compact-t">
+      <div class="kp-card__header"><h2 class="kp-card__title" id="storage-compact-t">Give back empty space</h2></div>
+      <p class="kp-card__body">Deleting rows leaves empty space inside the file until it is rewritten. Compacting gives it back; the sign-in data is never touched.</p>
+      <div class="kp-card__stage"><div class="kp-card__data" data-storage-compact></div></div>
+    </section>
+
+    <section class="kp-card storage-card storage-card--kinds" data-kp-span="12" data-kp-state="ready" data-storage-card="kinds" aria-labelledby="storage-kinds-t">
+      <div class="kp-card__header"><h2 class="kp-card__title" id="storage-kinds-t" data-storage-kinds-title>What is stored</h2></div>
+      <p class="kp-card__body">One row for every kind of data this application keeps. Clean up removes only what you choose, after a preview and a typed confirmation.</p>
+      <div class="kp-card__stage"><div class="kp-card__data">
+        <div class="kp-datatable storage-kinds" data-kp-datatable data-kp-remember="chassis-storage-kinds" data-kp-page-size="10">
+          <div class="kp-table-wrap"><table class="kp-table"><caption class="kp-sr-only">What is stored, one row per kind</caption>
+            <thead><tr><th scope="col" data-kp-sort="text">Kind</th><th scope="col" data-kp-sort="number" class="kp-numeric">Amount</th><th scope="col" data-kp-sort="number" class="kp-numeric">Size</th><th scope="col" data-kp-sort="number">Share of the budget</th><th scope="col" data-kp-sort="number">Oldest</th><th scope="col" data-kp-sort="number">Newest</th><th scope="col"><span class="kp-sr-only">Action</span></th></tr></thead>
+            <tbody data-storage-kinds></tbody></table></div>
+          <div class="kp-empty" data-kp-datatable-empty hidden><p class="kp-empty__title">This application stores no data of its own yet</p><p class="kp-empty__body">When it declares a kind of data, it appears here with its size and a way to clean it up.</p></div>
+        </div>
+      </div></div>
+    </section>
+  </div>
+</div>
+{% endblock %}

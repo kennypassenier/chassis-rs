@@ -306,7 +306,7 @@ async fn a_disabled_kit_page_is_gone_from_the_nav_and_its_route() {
         version: "0.0.0",
         ..Default::default()
     };
-    for off in ["status", "clients", "passkeys"] {
+    for off in ["status", "clients", "passkeys", "storage"] {
         let mut app = TestApp::start_with(spec(), axum::Router::new(), move |a| {
             a.disable_kit_page(off);
         })

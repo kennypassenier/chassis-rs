@@ -64,7 +64,7 @@ questions go to Kenny in one form before anything is built.
    read-only preview (count, size, oldest/newest, a few sample rows), then a
    typed confirmation and a single-transaction delete that re-counts first.
    VACUUM of the app file on demand only, with the reclaimable size shown.
-   Stable control ids for the homelab Live view; JSON twins under
+   Stable control ids for the homelab Live view (listed in DASHBOARD.md); JSON twins under
    `/api/kit/storage`.
 
 ## Decided (Kenny, 2026-10-21 06:58, form chassis-rs-3-11-0-opslag)

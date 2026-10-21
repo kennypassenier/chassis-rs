@@ -26,8 +26,8 @@ button. It defines four blocks a page may fill: `title`, `head`,
 `chassis_version`, `kp_themes_version`; and per render `logged_in` and
 `active_nav` (the href whose nav link gets `aria-current="page"`). The
 navigation is `Status` (`/`), the clients label (`/clients`, default
-`Clients`), `Passkeys` (`/passkeys`, only when compiled in), then the
-project's entries in registration order.
+`Clients`), `Passkeys` (`/passkeys`, only when compiled in), `Storage`
+(`/storage`), then the project's entries in registration order.
 
 ## Kit pages and routes
 
@@ -38,6 +38,7 @@ project's entries in registration order.
 | `GET /` | admin | Status page: Service, Health, Updates cards, Problems (if any), then project sections. |
 | `GET /clients` | admin | The clients table with the row controls below. |
 | `GET/POST /api/clients`, `/api/clients/{id}/{reissue,revoke,token,requests,test}`, `DELETE /api/clients/{id}` | admin | The JSON the buttons call. |
+| `GET /storage` | admin | The Storage page (3.11.0), below. |
 | `GET /api/kit/storage`, `POST /api/kit/storage/{kind}/{preview,delete}`, `POST /api/kit/storage/compact{,/preview}` | admin | The Storage page's JSON (3.11.0), below. |
 | `GET /passkeys`, `/passkeys/*`, `/api/passkeys*` | admin (login/start+finish: anyone) | Only over HTTPS via a trusted proxy; else 404 with a remedy. |
 | `GET /static/{*name}` | anyone | Embedded assets: `Cache-Control: public, max-age=31536000, immutable` when the URL carries the `?v=<hash>` the layout adds, `no-cache` with a strong `ETag` (304 when unchanged) for a URL without it, such as a font reached from `fonts.css` or a module a project's app imports (fix-13). |
@@ -705,15 +706,17 @@ request is a 403). Errors are the kit's `{"error", "remedy"}`.
 
 | Route | What |
 |---|---|
-| `GET /api/kit/storage` | `budget` (`budget_bytes`, `warn_bytes`, `total_bytes`, `used_percent`, `level` = `ok`/`warn`/`over`, `checked_at`), `files` (one per file: `role` `app`/`kit`, `file`, `db_bytes`, `wal_bytes`, `total_bytes`, `reclaimable_bytes`, `cleanable`; the kit file is `cleanable: false`), `reclaimable_bytes` (app), `has_app_db`, `paused`, `import` (`state` `not_requested`/`done`/`failed` + `why`), `kinds` (one per declared kind: `id`, `label`, `description`, `rows`, `bytes` (estimated), `oldest`, `newest`, `filters`, `supports_age`, `finished_automatically`). A filter is `{name, label, type: choice\|flag\|text, values?}`. |
-| `POST /api/kit/storage/{kind}/preview` | Body `{"older_than_secs"?: n, "filters"?: {name: value}}`. Read-only: `rows`, `bytes`, `oldest`, `newest`, `samples` (five rows, oldest first), `confirm_with` (the kind's id: what a person types), `token`. |
-| `POST /api/kit/storage/{kind}/delete` | Body: the same selection plus `token` and `confirm` (the kind's id). The token binds the selection, the instant (an age is fixed at the preview) and the count; it is valid 15 minutes and until a restart. Recounts inside the transaction: if the number of rows moved it deletes nothing and says so (400). One transaction, one audit log line (`audit=true`), then the budget is rechecked. Answers `deleted` (`deleted`, `remaining`, `reclaimable_bytes`) and the new `budget`. |
+| `GET /api/kit/storage` | `budget` (`budget_bytes`, `warn_bytes`, `total_bytes`, `used_percent`, `level` = `ok`/`warn`/`over`, `checked_at`), `files` (one per file: `role` `app`/`kit`, `file`, `db_bytes`, `wal_bytes`, `total_bytes`, `reclaimable_bytes`, `cleanable`; the kit file is `cleanable: false`), `reclaimable_bytes` (app), `last_compacted_at` (RFC 3339 or `null`; kept in the app file), `has_app_db`, `paused`, `import` (`state` `not_requested`/`done`/`failed` + `why`), `kinds` (one per declared kind: `id`, `label`, `description`, `unit` (what its rows are called: `rows`, `cells`, …), `rows`, `bytes` (estimated), `oldest`, `newest`, `filters`, `supports_age`, `finished_automatically`). A filter is `{name, label, type: choice\|flag\|text, values?}`. |
+| `POST /api/kit/storage/{kind}/preview` | Body `{"older_than_secs"?: n, "filters"?: {name: value}}`. Read-only: `rows`, `bytes`, `oldest`, `newest`, `samples` (five rows, oldest first; the time column is an RFC 3339 string), `columns` (a sample row's columns in the table's order, the integer primary key left out) and `time_column`, `confirm_with` (the kind's name as the page shows it, its `label`: what a person types), `token`. |
+| `POST /api/kit/storage/{kind}/delete` | Body: the same selection plus `token` and `confirm` (the kind's `label`, exactly as `confirm_with` gave it; the id is refused). The token binds the selection, the instant (an age is fixed at the preview) and the count; it is valid 15 minutes and until a restart. Recounts inside the transaction: if the number of rows moved it deletes nothing and says so (400). One transaction, one audit log line (`audit=true`), then the budget is rechecked. Answers `deleted` (`deleted`, `remaining`, `reclaimable_bytes`) and the new `budget`. |
 | `POST /api/kit/storage/compact/preview` | `file_bytes`, `reclaimable_bytes`, `free_space_needed_bytes`, `paused`. |
 | `POST /api/kit/storage/compact` | `VACUUM` of the app file. 503 with `Retry-After` while a backup pause holds the state. |
 
 A project declares its kinds with `App::storage_kind(DataKind::new("events",
 "Events").table("events").time_column("at", TimeFormat::UnixSeconds)
-.filter(Filter::choice("level", "Level", "level", ["info", "error"])))`; ids
+.unit("events").filter(Filter::choice("level", "Level", "level", ["info", "error"])))`
+(`unit` is optional, default `rows`); a megabyte is 1 000 000 bytes in every
+size the kit writes, the budget and its warn line included; ids
 are lowercase `[a-z][a-z0-9_]*` (32 at most), `compact` and `kit` are
 reserved, and the declaration is checked against the schema at start. A kind
 whose rows can end by their own definition adds
@@ -722,6 +725,34 @@ are removed daily and the count is logged. Nothing of this reaches
 `<name>-kit.db`: it has no kind, no delete and no compact. Proven by
 `tests/storage_api.rs` (`the_kit_file_can_never_be_previewed_deleted_from_or_compacted`
 and the others) and `tests/storage_app.rs`.
+
+### The Storage page (`/storage`, 3.11.0)
+
+A kit page like Status, Clients and Passkeys: in the registry (`id` `storage`,
+order 1030, hint "What the service stores", so the bar, the palette with its
+chord `g o`, the tab bar and the phone's More drawer list it), behind the same
+login, switched off with `App::disable_kit_page("storage")` (no page, no
+`/api/kit/storage`), drawn from the JSON above (a project with
+`kit_pages_in_webapp()` draws its own). Built as Kenny approved it in the
+kp-themes demo `research/chassis-storage`: **Space used** (the budget against
+the three parts, the sign-in data marked read-only, a warning band with what,
+why and what now), **Give back empty space** (the compact card), and **What is
+stored** (the kinds as a sortable table, one `Clean up…` per kind). Clean up
+opens a dialog in two steps: choose (older than a date, then the kind's own
+declared filters) with a read-only preview, then the kind's NAME typed to
+confirm; the server counts again inside the delete transaction. Compact is a
+dialog of its own and only ever runs when asked. Every card and the table
+have the package's loading, empty and failed states.
+
+Stable control ids, for the homelab Live view: `storage-open-clean-<kind id>`
+(a row's button), `storage-band-clean`, `storage-open-compact`; the clean-up
+dialog `storage-clean-dialog` with `storage-clean-older`,
+`storage-clean-filter-<filter name>`, `storage-clean-reset`,
+`storage-clean-preview`, `storage-clean-continue`, `storage-clean-confirm`
+(the block the name is typed into; the field is its `input`),
+`storage-clean-back`, `storage-clean-delete`, `storage-clean-close`,
+`storage-clean-done`; the compact dialog `storage-compact-dialog` with
+`storage-compact-run`, `storage-compact-cancel`, `storage-compact-done`.
 
 The budget shows up elsewhere too: past the warn line the status page's
 Problems card says so (nothing is refused), `/metrics` carries

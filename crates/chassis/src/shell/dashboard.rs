@@ -622,6 +622,8 @@ impl Dashboard {
             include_str!("../../templates/passkeys.html"),
         )
         .map_err(template_error)?;
+        env.add_template("storage.html", include_str!("../../templates/storage.html"))
+            .map_err(template_error)?;
         // feat-ui-1: every template renders a timestamp through this, so
         // there is one place that decides what a reader sees.
         env.add_filter("human_time", |v: String| crate::shell::time::human_time(&v));
@@ -809,6 +811,7 @@ impl Dashboard {
                     .map(|p| {
                         serde_json::json!({
                             "id": p.id, "title": p.title, "path": p.path, "group": p.group,
+                            "hint": p.hint,
                         })
                     })
                     .collect::<Vec<_>>(),
@@ -1219,6 +1222,19 @@ pub async fn clients_page(State(d): State<Dashboard>) -> Result<Html<String>, Er
             idle_clients => d.idle_clients(),
             active_nav => "/clients",
             ..minijinja::Value::from_serialize(&data)
+        },
+    )
+}
+
+/// `GET /storage`: the Storage page (3.11.0). The server draws the frame
+/// and its loading states; the script fills it from `/api/kit/storage`.
+pub async fn storage_page(State(d): State<Dashboard>) -> Result<Html<String>, Error> {
+    d.render(
+        "storage.html",
+        context! {
+            logged_in => true,
+            idle_clients => d.idle_clients(),
+            active_nav => "/storage",
         },
     )
 }
@@ -1647,6 +1663,7 @@ mod tests {
                 "passkeys.html",
                 include_str!("../../templates/passkeys.html"),
             ),
+            ("storage.html", include_str!("../../templates/storage.html")),
         ] {
             // kp-themes 11 pages say what they do in a `.kp-lede` (kit-kp11).
             assert!(

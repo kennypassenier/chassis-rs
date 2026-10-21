@@ -17,7 +17,9 @@ use super::app_db::{AppDb, StorageProblem};
 use super::db::{Db, FileSizes};
 use crate::core::error::Error;
 
-const MB: u64 = 1024 * 1024;
+/// A megabyte is 1 000 000 bytes, the unit the Storage page writes sizes in,
+/// so a budget of 50 MB reads "50.0 MB" there and not "52.4 MB".
+const MB: u64 = 1_000_000;
 
 /// Budget and warn line in bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

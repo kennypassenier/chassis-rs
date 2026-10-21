@@ -210,6 +210,7 @@ pub struct DataKind {
     id: String,
     label: String,
     description: String,
+    unit: String,
     shape: Shape,
     filters: Vec<Filter>,
     finished: Option<Finisher>,
@@ -230,13 +231,15 @@ fn ident_ok(s: &str) -> bool {
 
 impl DataKind {
     /// A kind named `id` (lowercase letters, digits and `_`, starting with a
-    /// letter; it is what a person types to confirm a delete) shown as
-    /// `label`. Add `.table(..)` or build it with [`DataKind::custom`].
+    /// letter; the name a script uses in a route) shown as `label`, which is
+    /// also what a person types to confirm a delete. Add `.table(..)` or
+    /// build it with [`DataKind::custom`].
     pub fn new(id: &str, label: &str) -> Self {
         DataKind {
             id: id.into(),
             label: label.into(),
             description: String::new(),
+            unit: "rows".into(),
             shape: Shape::Table {
                 table: String::new(),
                 time: None,
@@ -255,6 +258,13 @@ impl DataKind {
 
     pub fn description(mut self, text: &str) -> Self {
         self.description = text.into();
+        self
+    }
+
+    /// What this kind's rows are called in a count on the page, in the
+    /// plural: `"cells"`, `"samples"`. Default `"rows"`.
+    pub fn unit(mut self, plural: &str) -> Self {
+        self.unit = plural.into();
         self
     }
 
@@ -336,6 +346,10 @@ impl DataKind {
 
     pub(crate) fn describe(&self) -> &str {
         &self.description
+    }
+
+    pub(crate) fn unit_word(&self) -> &str {
+        &self.unit
     }
 
     pub(crate) fn has_time(&self) -> bool {
@@ -601,11 +615,41 @@ impl DataKind {
                 while let Some(row) = rows.next()? {
                     let mut o = serde_json::Map::new();
                     for (i, n) in names.iter().enumerate() {
-                        o.insert(n.clone(), sample_value(row.get::<_, Sql>(i)?));
+                        let raw = row.get::<_, Sql>(i)?;
+                        // The time column is shown as an instant, whatever
+                        // the table stores, so a page never prints epoch digits.
+                        let shown = match time {
+                            Some((c, f)) if c == n => show_time(&raw, Some(*f)).map(Json::String),
+                            _ => None,
+                        };
+                        o.insert(n.clone(), shown.unwrap_or_else(|| sample_value(raw)));
                     }
                     out.push(Json::Object(o));
                 }
                 Ok(out)
+            }
+        }
+    }
+
+    /// The columns a sample row shows, in the table's order, and which of
+    /// them is the time column (shown as an instant). A custom kind says neither:
+    /// the page then reads the keys of its first sample.
+    pub fn sample_layout(&self, conn: &Connection) -> Result<(Vec<String>, Option<String>), Error> {
+        match &self.shape {
+            Shape::Custom(_) => Ok((Vec::new(), None)),
+            Shape::Table { table, time } => {
+                let mut stmt = conn.prepare(&format!("PRAGMA table_info(\"{table}\")"))?;
+                // The integer primary key is the row's number in the file, not
+                // something a person reads: it stays out of the sample.
+                let mut columns = Vec::new();
+                let mut rows = stmt.query([])?;
+                while let Some(r) = rows.next()? {
+                    let (name, ty, pk): (String, String, i64) = (r.get(1)?, r.get(2)?, r.get(5)?);
+                    if !(pk > 0 && ty.eq_ignore_ascii_case("INTEGER")) {
+                        columns.push(name);
+                    }
+                }
+                Ok((columns, time.as_ref().map(|(c, _)| c.clone())))
             }
         }
     }

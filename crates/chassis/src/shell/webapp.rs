@@ -52,6 +52,7 @@ const RESERVED: &[&str] = &[
     "/api",
     "/clients",
     "/passkeys",
+    "/storage",
     "/healthz",
     "/metrics",
 ];

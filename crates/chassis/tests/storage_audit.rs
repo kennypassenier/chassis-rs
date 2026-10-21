@@ -66,7 +66,7 @@ fn a_delete_writes_one_audit_line_with_the_kind_the_selection_and_the_count() {
     assert_eq!(preview.stats.rows, 3);
     cap.0.lock().unwrap().clear();
     let done = app
-        .delete("events", &sel, &preview.token, "events")
+        .delete("events", &sel, &preview.token, "Events")
         .unwrap();
     assert_eq!(done.deleted, 3);
     let log = String::from_utf8(cap.0.lock().unwrap().clone()).unwrap();

@@ -94,7 +94,44 @@ scaffold writes. A breaking change in either is a major and carries a
   and answer 503 with `Retry-After` while a backup pause holds the state.
   Admin login and the same-origin rule apply like for the other kit POSTs.
   The kit file is never deletable or compactable through any route (a test
-  holds that). The page itself is not part of this change. Additive.
+  holds that). Additive.
+
+- **The Storage page, `/storage`** (`dashboard`; Kenny approved the demo
+  `research/chassis-storage` of kp-themes 21/10/2026, the kinds as a table,
+  the kind's name typed to confirm): a kit page in the registry beside Status,
+  Clients and Passkeys (order 1030; the bar, the palette with the chord
+  `g o`, the tab bar and the phone's More drawer list it; `App::disable_kit_page("storage")`
+  removes the page and its API; `/storage` is reserved against a web app's
+  mount). **Space used** is the budget against the three parts (application
+  data, sign-in data marked read-only, pending writes) with a share bar and a
+  warning band that says what, why and what now; **Give back empty space** is
+  the compact card; **What is stored** is the kinds as a sortable table with
+  amount, size, share of the budget, oldest and newest and a `Clean up…` per
+  kind. Clean up is a dialog in two steps (choose and read-only preview, then
+  the kind's NAME typed), compact a dialog of its own; every card and the
+  table have the package's loading, empty and failed states. Sizes are
+  decimal and human, counts exact, dates dd/mm/yyyy HH:mm. Stable control ids
+  for the homelab Live view are listed in docs/DASHBOARD.md. The page's
+  kp-themes workarounds (gaps 11 to 14 and 18 of `~/Projects/kp-gaps/chassis-rs.md`)
+  stand in one block of `chassis.css` that says when to delete it. Additive.
+
+- **`Page::hint` and `DataKind::unit`**: a page says in one line what it is for
+  (the palette and the More drawer print it; the kit's four pages carry one and
+  `/api/kit/pages` returns it, so the drawer no longer keeps a list of its own in
+  the layout); a kind names what its rows are called (`.unit("cells")`, default
+  `rows`) and the overview returns it. The preview also returns `columns` and
+  `time_column` and shows the time column as an RFC 3339 string, and the
+  overview returns `last_compacted_at` (kept in the app file). Additive.
+
+### Changed (unreleased 3.11.0 only)
+
+- **The typed confirmation of a delete is the kind's name as the page shows it**
+  (its label: "Delivery log"), not its id: `confirm_with` and the delete's
+  `confirm` are the label, and the id is refused. This is what the approved
+  demo showed; nothing released depended on the id.
+- **A megabyte of the budget is 1 000 000 bytes**, as in every size the page
+  writes, so a budget of 50 MB reads "50.0 MB" and not "52.4 MB"
+  (`<P>_STORAGE_BUDGET_MB`, `<P>_STORAGE_WARN_MB`, `App::storage_budget`).
 
 ### Documentation
 

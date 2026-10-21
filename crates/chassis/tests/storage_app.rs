@@ -75,7 +75,7 @@ async fn past_the_warn_line_the_status_page_metrics_and_hook_say_so_but_no_write
             let db = app.app_db(big_import(3)).unwrap();
             *h2.lock().unwrap() = Some(db);
             app.on_storage_warn(move |report| {
-                assert_eq!(report.budget_bytes, 1024 * 1024);
+                assert_eq!(report.budget_bytes, 1_000_000);
                 w2.fetch_add(1, Ordering::SeqCst);
             });
         },
@@ -100,7 +100,7 @@ async fn past_the_warn_line_the_status_page_metrics_and_hook_say_so_but_no_write
         "{text}"
     );
     assert!(
-        text.contains("budgeted_storage_budget_bytes 1048576"),
+        text.contains("budgeted_storage_budget_bytes 1000000"),
         "{text}"
     );
     assert!(
@@ -135,11 +135,11 @@ async fn under_the_warn_line_nothing_is_said_and_the_defaults_are_50_and_40() {
     );
     let (_, text) = TestApp::send_text(app.request(reqwest::Method::GET, "/metrics")).await;
     assert!(
-        text.contains("quiet_storage_budget_bytes 52428800"),
+        text.contains("quiet_storage_budget_bytes 50000000"),
         "50 MB: {text}"
     );
     assert!(
-        text.contains("quiet_storage_warn_bytes 41943040"),
+        text.contains("quiet_storage_warn_bytes 40000000"),
         "40 MB: {text}"
     );
     assert!(text.contains("quiet_storage_level 0"), "{text}");
@@ -156,11 +156,11 @@ async fn code_sets_the_budget_and_the_environment_wins_over_code() {
     .await;
     let (_, text) = TestApp::send_text(app.request(reqwest::Method::GET, "/metrics")).await;
     assert!(
-        text.contains("coded_storage_budget_bytes 104857600"),
+        text.contains("coded_storage_budget_bytes 100000000"),
         "{text}"
     );
     assert!(
-        text.contains("coded_storage_warn_bytes 83886080"),
+        text.contains("coded_storage_warn_bytes 80000000"),
         "80 MB: 80 % of the budget: {text}"
     );
     app.shutdown().await;
@@ -180,11 +180,11 @@ async fn code_sets_the_budget_and_the_environment_wins_over_code() {
     .await;
     let (_, text) = TestApp::send_text(app.request(reqwest::Method::GET, "/metrics")).await;
     assert!(
-        text.contains("envwins_storage_budget_bytes 20971520"),
+        text.contains("envwins_storage_budget_bytes 20000000"),
         "{text}"
     );
     assert!(
-        text.contains("envwins_storage_warn_bytes 5242880"),
+        text.contains("envwins_storage_warn_bytes 5000000"),
         "{text}"
     );
     app.shutdown().await;

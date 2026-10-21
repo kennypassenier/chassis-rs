@@ -868,3 +868,273 @@ pre.snippet {
 }
 .kit-ops .kp-qr:empty { min-block-size: 21.7rem; }
 @media (max-width: 40rem) { .kit-ops .kp-qr:empty { min-block-size: 22.15rem; } }
+
+/* ======================================================================
+   storage (kit-storage, 3.11.0; approved demo research/chassis-storage)
+   The Storage page is kp-themes' own `.kp-ops` frame. These rules lay out
+   what only this page adds: the budget card's grid, the kinds' cells and
+   the compositions of the clean-up and compact dialogs on the 12-column
+   grid. Only tokens. The dialog is the container the arrangements answer
+   to, so the same dialog is right on a desktop and on a phone.
+   ====================================================================== */
+
+/* The header's freshness line and refresh control stand under the description. */
+.storage-fresh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-sm, 0.5rem) var(--kp-space-md, 1rem);
+  margin-block-start: var(--kp-space-sm, 0.5rem);
+}
+
+/* --- the cards of the page: their stage is the container the arrangements answer to --- */
+.storage-card .kp-card__data { container: storagec / inline-size; }
+
+/* Space used: the figure (1 of 3 columns) against the share bar (2 of 3), the three parts across both. */
+.storage-budget {
+  display: grid;
+  grid-template-columns: minmax(11rem, 1fr) minmax(0, 2.2fr);
+  column-gap: var(--kp-space-lg, 1.5rem);
+  row-gap: var(--kp-space-md, 1rem);
+  align-items: stretch;
+}
+.storage-budget__figure { grid-column: 1; margin: 0; }
+.storage-budget__bar { grid-column: 2; margin: 0; align-self: center; }
+.storage-budget .storage-files { grid-column: 1 / -1; }
+
+@container storagec (max-width: 34rem) {
+  .storage-budget { grid-template-columns: minmax(0, 1fr); }
+  .storage-budget__figure,
+  .storage-budget__bar { grid-column: 1; }
+}
+
+.storage-files__row p { margin: 0; color: var(--muted-foreground); }
+.storage-files__size { text-align: end; font-variant-numeric: tabular-nums; }
+
+/* Give back empty space: the figure above, the button and its sentence on the card's own bottom edge. */
+.storage-compact-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--kp-space-md, 1rem);
+  block-size: 100%;
+}
+.storage-compact-card .kp-kpis { margin: 0; }
+.storage-compact-card__act {
+  display: grid;
+  align-content: end;
+  justify-items: start;
+  gap: var(--kp-space-xs, 0.25rem);
+}
+.storage-compact-card__act p { margin: 0; }
+
+/* The kinds: the name, what it is, and the note that it cleans itself, in one cell of its own. */
+.storage-kind { display: grid; gap: var(--kp-space-2xs, 0.125rem); max-inline-size: 18rem; }
+.storage-kind__about,
+.storage-kind__self { color: var(--muted-foreground); }
+.storage-kind__self { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kp-space-xs, 0.25rem); }
+
+.storage-kinds td.kp-numeric,
+.storage-share__n { white-space: nowrap; }
+
+/* The share of the budget: a meter and its number, the number in a column of its own so every row's bar starts on one edge. */
+.storage-share {
+  display: grid;
+  grid-template-columns: minmax(3rem, 1fr) 5ch;
+  align-items: center;
+  gap: var(--kp-space-sm, 0.5rem);
+  min-inline-size: 6.5rem;
+}
+.storage-share__n { text-align: end; font-variant-numeric: tabular-nums; }
+.storage-when { font-size: var(--kp-text-md, 1rem); }
+
+/* A column of buttons keeps its buttons whole: the cell is as wide as its button and no wider. */
+.storage-fit { inline-size: 1%; white-space: nowrap; }
+@container kp-table (max-width: 40rem) {
+  .kp-datatable[data-kp-cards] .storage-fit { inline-size: auto; }
+}
+
+/* A sample row's long text is cut with an ellipsis; its full text is the cell's title. */
+.storage-prev__table td { max-inline-size: 24rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --- the dialogs: the same frame --- */
+.storage-dialog {
+  --kp-dialog-wide: 60rem;
+  container: storaged / inline-size;
+}
+.storage-dialog [hidden] { display: none !important; }
+.storage-dialog .kp-dialog__head { margin: 0; }
+/* The plain-page h2/h3 margins at the top of this file are not for dialogs. */
+.storage-dialog :is(.kp-dialog__title, .kp-dialog__heading) { margin: 0; }
+
+.storage-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--kp-space-lg, 1.5rem);
+  row-gap: var(--kp-space-md, 1rem);
+  min-inline-size: 0;
+}
+.storage-grid > * { min-inline-size: 0; }
+
+.storage-card-head {
+  display: grid;
+  align-content: start;
+  gap: var(--kp-space-xs, 0.25rem);
+  margin-block-end: var(--kp-space-md, 1rem);
+}
+.storage-card-head :is(h3, p) { margin: 0; }
+
+/* --- the clean-up dialog: the title and the steps across; the choices (1-5) against the preview (6-12); the confirm band across --- */
+.storage-clean { --kp-dialog-wide: 70rem; }
+.storage-clean__grid {
+  grid-template-areas:
+    'head head head head head head head head head head head head'
+    'steps steps steps steps steps steps steps steps steps steps steps steps'
+    'filters filters filters filters filters preview preview preview preview preview preview preview'
+    'confirm confirm confirm confirm confirm confirm confirm confirm confirm confirm confirm confirm';
+}
+.storage-clean__head { grid-area: head; }
+.storage-clean__steps { grid-area: steps; }
+.storage-clean__filters { grid-area: filters; }
+.storage-clean__preview { grid-area: preview; --kp-card-stage-min: 21rem; }
+.storage-clean__confirm { grid-area: confirm; }
+.storage-clean__filters,
+.storage-clean__preview { align-content: start; min-inline-size: 0; }
+
+.storage-form { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
+.storage-nofilters { margin: 0; }
+.storage-prev__kpis { margin-block-end: var(--kp-space-md, 1rem); }
+.storage-prev__note { margin: 0; }
+
+/* The confirm band: words | what to type | the actions, the same three tracks in every step. */
+.storage-clean__confirm {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 4fr) minmax(max-content, 3fr);
+  column-gap: var(--kp-space-lg, 1.5rem);
+  row-gap: var(--kp-space-sm, 0.5rem);
+  /* The three columns are as tall as the band, their contents at the top: the field stands beside the actions, not alone on a line. */
+  align-items: stretch;
+  min-block-size: 9rem;
+  padding: var(--kp-space-md, 1rem) var(--kp-space-md, 1rem) 0;
+  border-block-start: 1px solid var(--border);
+}
+.storage-clean__confirm :is(h3, p) { margin: 0; }
+.storage-clean__confirm-words { display: grid; align-content: start; gap: var(--kp-space-xs, 0.25rem); }
+.storage-clean__confirm-body { min-inline-size: 0; }
+/* The first line of each text column stands on the centre line of the buttons beside it. */
+.storage-clean__confirm-words > h3,
+.storage-clean__confirm-body > p:first-child,
+.storage-clean__confirm--done .storage-clean__confirm-words > h3 {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--kit-bar-button, 2.25rem);
+}
+.storage-clean__confirm-acts,
+.storage-compact__acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: start;
+  align-content: start;
+  gap: var(--kp-space-sm, 0.5rem);
+}
+.storage-clean__confirm-acts .kp-button,
+.storage-compact__acts .kp-button { min-inline-size: 7.5rem; }
+
+@container storaged (max-width: 56rem) {
+  .storage-clean__grid {
+    grid-template-areas:
+      'head head head head head head head head head head head head'
+      'steps steps steps steps steps steps steps steps steps steps steps steps'
+      'filters filters filters filters filters filters filters filters filters filters filters filters'
+      'preview preview preview preview preview preview preview preview preview preview preview preview'
+      'confirm confirm confirm confirm confirm confirm confirm confirm confirm confirm confirm confirm';
+  }
+  .storage-clean__confirm { grid-template-columns: minmax(0, 1fr); }
+  .storage-clean__confirm-acts { justify-content: stretch; }
+  .storage-clean__confirm-acts .kp-button { flex: 1 1 0; }
+}
+
+/* --- the compact dialog: the title; three figures; the steps (1-7) against the budget bars (8-12); the foot --- */
+.storage-compact { --kp-dialog-wide: 60rem; }
+.storage-compact__grid {
+  grid-template-areas:
+    'head head head head head head head head head head head head'
+    'kpis kpis kpis kpis kpis kpis kpis kpis kpis kpis kpis kpis'
+    'steps steps steps steps steps steps steps meters meters meters meters meters'
+    'foot foot foot foot foot foot foot foot foot foot foot foot';
+}
+.storage-compact__head { grid-area: head; }
+.storage-compact__kpis { grid-area: kpis; margin: 0; }
+.storage-compact__steps { grid-area: steps; --kp-card-stage-min: 12rem; }
+.storage-compact__meters { grid-area: meters; align-content: start; }
+.storage-compact__foot {
+  grid-area: foot;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--kp-space-lg, 1.5rem);
+  align-items: center;
+  padding: var(--kp-space-md, 1rem) var(--kp-space-sm, 0.5rem) 0;
+  border-block-start: 1px solid var(--border);
+}
+.storage-compact__foot p { margin: 0; }
+.storage-meters { --kp-formgrid-control: 4fr; }
+
+@container storaged (max-width: 44rem) {
+  .storage-compact__grid {
+    grid-template-areas:
+      'head head head head head head head head head head head head'
+      'kpis kpis kpis kpis kpis kpis kpis kpis kpis kpis kpis kpis'
+      'steps steps steps steps steps steps steps steps steps steps steps steps'
+      'meters meters meters meters meters meters meters meters meters meters meters meters'
+      'foot foot foot foot foot foot foot foot foot foot foot foot';
+  }
+  .storage-compact__foot { grid-template-columns: minmax(0, 1fr); row-gap: var(--kp-space-sm, 0.5rem); }
+  .storage-compact__acts { justify-content: stretch; }
+  .storage-compact__acts .kp-button { flex: 1 1 0; }
+}
+
+/* The phone: the dialogs' actions share the width. */
+@container storaged (max-width: 39.99rem) {
+  .storage-dialog .kp-dialog__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .storage-dialog .kp-dialog__actions > :only-child { grid-column: 1 / -1; }
+}
+
+/* ----------------------------------------------------------------------
+   Until the next kp-themes release (kp-themes is on hold; the gaps are
+   queued in ~/Projects/kp-gaps/chassis-rs.md, items 11 to 14 and 18, found
+   building this page). Delete each rule when the package carries it.
+   ---------------------------------------------------------------------- */
+
+/* 11: the package folds the 8 + 4 pair of a `.kp-ops__body` to 12 + 6 under 64rem. This page keeps its pair on one row until the phone rule (48rem). */
+.storage .kp-ops__body > [data-kp-span='8'] { grid-column: span 8; }
+.storage .kp-ops__body > [data-kp-span='4'] { grid-column: span 4; }
+
+/* 13: the attention band's three sentences are three lines, each on its own. */
+[data-storage-band] .kp-attention__text > span { display: block; }
+[data-storage-band] .kp-attention__text > span + span { margin-block-start: var(--kp-space-2xs, 0.125rem); }
+
+/* 14: `.kp-formgrid` switches to its phone layout when its card is narrower than 36rem; the three parts of the budget use a grid of their own. */
+.storage-files {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr) max-content;
+  column-gap: var(--kp-space-lg, 1.5rem);
+}
+.storage-files__row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: baseline;
+  padding-block: var(--kp-space-sm, 0.5rem);
+  border-block-end: 1px solid var(--border);
+}
+@container storagec (max-width: 34rem) {
+  .storage-files__row {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    row-gap: var(--kp-space-2xs, 0.125rem);
+  }
+  .storage-files__note { grid-column: 1; grid-row: 2; }
+  .storage-files__tag { grid-column: 2; grid-row: 2; }
+}
+
+/* 18: `kp-meter` has no inline size inside a formgrid control track. */
+.storage-meters .kp-meter { display: block; inline-size: 100%; }

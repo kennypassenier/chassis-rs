@@ -141,6 +141,9 @@ impl std::fmt::Debug for AppDb {
     }
 }
 
+/// The `chassis_meta` key that holds when the app file was last compacted.
+const LAST_COMPACTED_KEY: &str = "storage.last_compacted_at";
+
 /// How long a preview token stays valid.
 const TOKEN_TTL_SECS: i64 = 15 * 60;
 
@@ -153,7 +156,12 @@ pub struct Preview {
     #[serde(flatten)]
     pub stats: KindStats,
     pub samples: Vec<Json>,
-    /// What the person types to confirm: the kind's name.
+    /// The columns of a sample row in the table's order (empty for a custom
+    /// kind), and the one that holds an instant (an RFC 3339 string).
+    pub columns: Vec<String>,
+    pub time_column: Option<String>,
+    /// What the person types to confirm: the kind's name as the page shows
+    /// it (its label), so what is typed is what was read.
     pub confirm_with: String,
     /// Binds the selector, the instant and the count; the delete needs it.
     pub token: String,
@@ -191,6 +199,8 @@ pub struct KindOverview {
     #[serde(flatten)]
     pub stats: KindStats,
     pub filters: Vec<super::kinds::Filter>,
+    /// What its rows are called in a count: `rows`, `cells`, `samples`.
+    pub unit: String,
     pub supports_age: bool,
     pub finished_automatically: bool,
 }
@@ -400,6 +410,12 @@ impl AppDb {
 
     // ---- the Storage page's operations -------------------------------------
 
+    /// When the app file was last compacted from the Storage page (RFC 3339),
+    /// `None` if it never was.
+    pub fn last_compacted_at(&self) -> Result<Option<String>, Error> {
+        self.read_blocking(|c| super::meta_get(c, LAST_COMPACTED_KEY))
+    }
+
     /// One row per declared kind: rows, estimated bytes, oldest, newest.
     pub fn overview(&self) -> Result<Vec<KindOverview>, Error> {
         let whole = ResolvedSelector {
@@ -416,6 +432,7 @@ impl AppDb {
                         description: k.describe().into(),
                         stats: k.stats(c, &whole)?,
                         filters: k.filters().to_vec(),
+                        unit: k.unit_word().into(),
                         supports_age: k.has_time(),
                         finished_automatically: k.has_finished_rule(),
                     })
@@ -438,8 +455,13 @@ impl AppDb {
     ) -> Result<Preview, Error> {
         let k = self.kind(kind)?;
         let resolved = k.resolve(sel, now)?;
-        let (stats, samples) =
-            self.read_blocking(|c| Ok((k.stats(c, &resolved)?, k.samples(c, &resolved, 5)?)))?;
+        let (stats, samples, (columns, time_column)) = self.read_blocking(|c| {
+            Ok((
+                k.stats(c, &resolved)?,
+                k.samples(c, &resolved, 5)?,
+                k.sample_layout(c)?,
+            ))
+        })?;
         let token = self.sign(&TokenBody {
             kind: kind.into(),
             asked: sel.clone(),
@@ -452,7 +474,9 @@ impl AppDb {
             label: k.label().into(),
             stats,
             samples,
-            confirm_with: k.id().into(),
+            columns,
+            time_column,
+            confirm_with: k.label().into(),
             token,
         })
     }
@@ -480,10 +504,13 @@ impl AppDb {
         now: &Now,
     ) -> Result<Deleted, Error> {
         let k = self.kind(kind)?;
-        if confirm != k.id() {
+        if confirm.trim() != k.label() {
             return Err(Error::invalid(
-                format!("the confirmation `{confirm}` is not the kind's name"),
-                format!("type `{}` to confirm", k.id()),
+                format!(
+                    "what was typed, `{}`, is not the kind's name",
+                    confirm.trim()
+                ),
+                format!("type `{}` exactly as shown to confirm", k.label()),
             ));
         }
         let body = self.verify(token, now)?;
@@ -596,6 +623,9 @@ impl AppDb {
         }
         let before = self.compact_preview()?;
         self.db()?.vacuum_blocking()?;
+        // Remembered in the file itself, so "last compacted" survives a restart.
+        let at = crate::shell::time::now_rfc3339();
+        self.write_blocking(|tx| super::meta_set(tx, LAST_COMPACTED_KEY, &at))?;
         tracing::info!(
             audit = true,
             reclaimed = before.reclaimable_bytes,
@@ -837,20 +867,22 @@ mod tests {
         let p = app.preview_at("events", &older(5), &now).unwrap();
         assert_eq!(p.stats.rows, 4, "days 6..9: strictly older than five days");
         assert_eq!(p.samples.len(), 4);
-        assert_eq!(p.confirm_with, "events");
+        assert_eq!(
+            p.confirm_with, "Events",
+            "what is typed is the name the page shows"
+        );
         assert_eq!(count(&app, "events"), 10, "a preview deletes nothing");
         let after: i64 = app
             .read_blocking(|c| Ok(c.query_row("PRAGMA data_version", [], |r| r.get(0))?))
             .unwrap();
         assert_eq!(before, after, "and writes nothing");
-        // Samples are the OLDEST first.
-        assert!(
-            p.samples[0]["at"].as_i64() < p.samples[1]["at"].as_i64().or(Some(i64::MAX))
-                || p.samples.len() == 1
-        );
+        // Samples are the OLDEST first, and the time column is an instant,
+        // not epoch digits.
+        assert!(p.samples[0]["at"].is_string(), "{:?}", p.samples[0]);
+        assert!(p.samples[0]["at"].as_str() < p.samples[1]["at"].as_str());
 
         let done = app
-            .delete_at("events", &older(5), &p.token, "events", &now)
+            .delete_at("events", &older(5), &p.token, "Events", &now)
             .unwrap();
         assert_eq!(done.deleted, 4);
         assert_eq!(done.remaining, 6);
@@ -866,37 +898,37 @@ mod tests {
         let err = app
             .delete_at("events", &older(5), &p.token, "yes", &now)
             .unwrap_err();
-        assert!(err.remedy.contains("type `events`"), "{err}");
+        assert!(err.remedy.contains("`Events`"), "{err}");
         let err = app
-            .delete_at("events", &older(5), "garbage", "events", &now)
+            .delete_at("events", &older(5), "garbage", "Events", &now)
             .unwrap_err();
         assert!(err.message.contains("token"), "{err}");
         let mut forged = p.token.clone();
         forged.replace_range(0..2, "ff");
         assert!(
-            app.delete_at("events", &older(5), &forged, "events", &now)
+            app.delete_at("events", &older(5), &forged, "Events", &now)
                 .is_err()
         );
         // A token for another selector or kind is refused: it binds the selection.
         let err = app
-            .delete_at("events", &older(2), &p.token, "events", &now)
+            .delete_at("events", &older(2), &p.token, "Events", &now)
             .unwrap_err();
         assert!(err.message.contains("does not match"), "{err}");
         let err = app
-            .delete_at("snoozes", &older(5), &p.token, "snoozes", &now)
+            .delete_at("snoozes", &older(5), &p.token, "Snoozes", &now)
             .unwrap_err();
         assert!(err.message.contains("does not match"), "{err}");
         // Another AppDb (another secret) cannot honour it either.
         let other = seeded();
         assert!(
             other
-                .delete_at("events", &older(5), &p.token, "events", &now)
+                .delete_at("events", &older(5), &p.token, "Events", &now)
                 .is_err()
         );
         // Stale: older than 15 minutes.
         let late = Now::at(T0 + 16 * 60);
         let err = app
-            .delete_at("events", &older(5), &p.token, "events", &late)
+            .delete_at("events", &older(5), &p.token, "Events", &late)
             .unwrap_err();
         assert!(err.message.contains("older than 15 minutes"), "{err}");
         assert_eq!(count(&app, "events"), 10, "every refusal deleted nothing");
@@ -917,7 +949,7 @@ mod tests {
         })
         .unwrap();
         let err = app
-            .delete_at("events", &older(5), &p.token, "events", &now)
+            .delete_at("events", &older(5), &p.token, "Events", &now)
             .unwrap_err();
         assert!(
             err.message
@@ -929,7 +961,7 @@ mod tests {
         let p2 = app.preview_at("events", &older(5), &now).unwrap();
         assert_eq!(p2.stats.rows, 5);
         assert_eq!(
-            app.delete_at("events", &older(5), &p2.token, "events", &now)
+            app.delete_at("events", &older(5), &p2.token, "Events", &now)
                 .unwrap()
                 .deleted,
             5
@@ -944,7 +976,7 @@ mod tests {
         let p = app.preview_at("events", &older(5), &Now::at(T0)).unwrap();
         let later = Now::at(T0 + 600);
         let done = app
-            .delete_at("events", &older(5), &p.token, "events", &later)
+            .delete_at("events", &older(5), &p.token, "Events", &later)
             .unwrap();
         assert_eq!(done.deleted, 4);
     }
@@ -1158,7 +1190,7 @@ mod tests {
         .unwrap();
         let sel = Selector::default();
         let p = app.preview("events", &sel).unwrap();
-        let del = app.delete("events", &sel, &p.token, "events").unwrap();
+        let del = app.delete("events", &sel, &p.token, "Events").unwrap();
         assert_eq!(del.deleted, 400);
         assert!(del.reclaimable_bytes > 100_000, "{del:?}");
         let before = app.compact_preview().unwrap();

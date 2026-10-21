@@ -1702,9 +1702,10 @@ impl App {
     }
 
     /// feat-pages-1: the project's web app draws the kit's pages too, from
-    /// `/api/kit/status`, `/api/kit/clients` and `/api/kit/passkeys`, so
-    /// every page carries the app's own bar. The kit then claims no GET
-    /// page at `/status`, `/clients` or `/passkeys`; its actions stay.
+    /// `/api/kit/status`, `/api/kit/clients`, `/api/kit/passkeys` and
+    /// `/api/kit/storage`, so every page carries the app's own bar. The kit
+    /// then claims no GET page at `/status`, `/clients`, `/passkeys` or
+    /// `/storage`; its actions stay.
     /// Needs a web app at the root.
     #[cfg(feature = "dashboard")]
     pub fn kit_pages_in_webapp(&mut self) -> &mut Self {
@@ -2646,7 +2647,7 @@ impl App {
             {
                 return Err(Error::config(
                     format!("disable_kit_page(\"{bad}\"): the kit has no such page"),
-                    "use one of: status, clients, passkeys",
+                    "use one of: status, clients, passkeys, storage",
                 ));
             }
             if self.kit_pages_in_webapp && !webapp_at_root {

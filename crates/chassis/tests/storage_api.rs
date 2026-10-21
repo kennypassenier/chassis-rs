@@ -106,8 +106,8 @@ async fn the_overview_has_the_budget_both_files_with_the_log_and_one_row_per_kin
     let mut h = start("api1").await;
     let (status, body) = h.app.get_json("/api/kit/storage").await;
     assert_eq!(status, 200, "{body}");
-    assert_eq!(body["budget"]["budget_bytes"], 50 * 1024 * 1024);
-    assert_eq!(body["budget"]["warn_bytes"], 40 * 1024 * 1024);
+    assert_eq!(body["budget"]["budget_bytes"], 50_000_000);
+    assert_eq!(body["budget"]["warn_bytes"], 40_000_000);
     assert_eq!(body["budget"]["level"], "ok");
     assert!(body["budget"]["total_bytes"].as_u64().unwrap() > 0);
     let files = body["files"].as_array().unwrap();
@@ -186,7 +186,7 @@ async fn it_needs_the_admin_login_and_a_post_needs_a_same_origin_request() {
         .app
         .request(Method::POST, "/api/kit/storage/events/delete")
         .headers(h.app.as_cross_site_browser())
-        .json(&json!({"older_than_secs": 86400 * 5, "token": p["token"], "confirm": "events"}))
+        .json(&json!({"older_than_secs": 86400 * 5, "token": p["token"], "confirm": "Events"}))
         .send()
         .await
         .unwrap();
@@ -203,7 +203,7 @@ async fn preview_is_read_only_and_delete_needs_the_typed_name_then_removes_what_
     let (status, p) = post(&h.app, "/api/kit/storage/events/preview", sel.clone()).await;
     assert_eq!(status, 200, "{p}");
     assert_eq!(p["rows"], 10);
-    assert_eq!(p["confirm_with"], "events");
+    assert_eq!(p["confirm_with"], "Events");
     assert_eq!(p["samples"].as_array().unwrap().len(), 5);
     assert!(p["oldest"].is_string() && p["newest"].is_string() && p["bytes"].is_u64());
     assert_eq!(count(&h.db, "events"), 20, "a preview deletes nothing");
@@ -217,16 +217,13 @@ async fn preview_is_read_only_and_delete_needs_the_typed_name_then_removes_what_
     )
     .await;
     assert_eq!(status, 400, "{e}");
-    assert!(
-        e["remedy"].as_str().unwrap().contains("type `events`"),
-        "{e}"
-    );
+    assert!(e["remedy"].as_str().unwrap().contains("`Events`"), "{e}");
     assert_eq!(count(&h.db, "events"), 20);
     // A token for another selector.
     let (status, _) = post(
         &h.app,
         "/api/kit/storage/events/delete",
-        json!({"older_than_secs": 86_400, "token": token, "confirm": "events"}),
+        json!({"older_than_secs": 86_400, "token": token, "confirm": "Events"}),
     )
     .await;
     assert_eq!(status, 400);
@@ -234,7 +231,7 @@ async fn preview_is_read_only_and_delete_needs_the_typed_name_then_removes_what_
     let (status, d) = post(
         &h.app,
         "/api/kit/storage/events/delete",
-        json!({"older_than_secs": 5 * 86_400, "token": token, "confirm": "events"}),
+        json!({"older_than_secs": 5 * 86_400, "token": token, "confirm": "Events"}),
     )
     .await;
     assert_eq!(status, 200, "{d}");
@@ -263,7 +260,7 @@ async fn the_delete_recounts_so_a_changed_selection_is_refused_not_deleted() {
     let (status, e) = post(
         &h.app,
         "/api/kit/storage/events/delete",
-        json!({"filters": {"level": "error"}, "token": p["token"], "confirm": "events"}),
+        json!({"filters": {"level": "error"}, "token": p["token"], "confirm": "Events"}),
     )
     .await;
     assert_eq!(status, 400, "{e}");
