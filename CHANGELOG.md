@@ -7,6 +7,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [3.12.0] - 2026-10-21
+
 ### Added
 
 - **`App::sync_browser_keys` and the preferences API** (`dashboard`): the
