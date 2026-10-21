@@ -113,3 +113,5 @@ demos on the kp-themes Agenda (research/chassis-kit-*); the rest is API.
 4. Command palette rows: kp-palette__label / __description edges differ per
    row (up to 31.8 px at 1280, 19 px at 390); kp-themes is on hold, so fix
    it kit-side and queue it in ~/Projects/kp-gaps/chassis-rs.md.
+
+All four queued items shipped in 3.10.0 (2026-10-21); the palette needed no kit change (kp-themes 11.2.0 fixed it).
