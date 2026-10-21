@@ -502,7 +502,7 @@ fn the_status_page_uses_the_components_own_states() {
     }
     // A phone: the freshness line takes its own row instead of overflowing.
     let css = kit_file("static/chassis.css");
-    assert!(css.contains(".chassis-status .kp-refresh__bar > .kp-refresh__line"));
+    assert!(css.contains(".chassis-status__fresh .kp-refresh__bar > .kp-refresh__line"));
 }
 
 /// 2026-10-19 (Kenny: "elk thema heeft al een loading animatie voor dit soort
