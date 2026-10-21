@@ -1138,3 +1138,9 @@ pre.snippet {
 
 /* 18: `kp-meter` has no inline size inside a formgrid control track. */
 .storage-meters .kp-meter { display: block; inline-size: 100%; }
+
+/* A health badge inside a key-value row takes its baseline from its words,
+   not from its empty dot, so it shares the label's line (2 px off in dark,
+   2026-10-21): the dot leaves baseline alignment and centres itself. */
+.kp-kv dd > .kp-health { align-items: baseline; }
+.kp-kv dd > .kp-health > .kp-health__dot { align-self: center; }
