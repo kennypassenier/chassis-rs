@@ -839,6 +839,68 @@ They exist only when the service declared keys.
 
 Proven by `tests/prefs_api.rs`.
 
+### The browser side: no flash, nothing for kp-themes to do
+
+The server puts the login's values into every signed-in HTML page it sends
+(the kit's pages, a project page rendered in the layout, and the index of a
+`webapp` — no change to your `index.html`): a
+`<script type="application/json" id="chassis-prefs">` block right after
+`<head>` and, after it, the classic script `/static/prefs-boot.js`. The
+script runs before any module and before first paint, so the page needs no
+request to start from the right values. The block carries the values, the
+declaration and the limits; `<` is escaped so a value can never close it, and
+a page that was served conditionally is sent in full (`Cache-Control:
+no-store`), because the values change without the file changing. The login
+page and every answer to a script carry nothing.
+
+What `prefs-boot.js` does:
+
+1. **Applies the database to `localStorage`** for the declared keys (the
+   database wins). A key this browser holds and the database lacks is
+   uploaded the first time this browser syncs (that is how existing choices
+   move in) and removed on later loads (another device removed it); the
+   browser remembers that it has synced with one marker key,
+   `chassis-prefs:synced`, which never syncs.
+2. **Seeds `sessionStorage`** for the declared session keys when the tab has
+   none, so kp-themes' unsaved-changes bar (`kp-unsaved:<path>:<name>`, the
+   draft of a Settings form) finds it when its module attaches. The tab's own
+   value wins over the database's. A form draft never carries a password
+   field (kp-themes leaves them out) and the server refuses a draft with a
+   secret-named field.
+3. **Keeps both in step.** Writes to declared `localStorage` keys go to the
+   browser and to the database: `Storage.prototype.setItem`, `removeItem`
+   and `clear` are wrapped for `localStorage` and declared keys only, which
+   catches kp-themes' own `data-kp-remember` writes without changing
+   kp-themes. Writes are coalesced per key (300 ms), sent with `PUT` /
+   `DELETE`, retried with backoff on a 5xx or a backup pause, reported once
+   (`chassis-prefs-error` on `window`, a console warning) and kept in the
+   browser when the server refuses them. Declared session keys are read back
+   after kp-themes' `kp-unsaved-change`, `-save`, `-discard`, `-undo` and
+   `-revert` events (it fires them before it writes, so the read is one turn
+   later) and when the page hides; a key kp removes is deleted in the
+   database.
+4. **Re-reads** the database when the page becomes visible after 15 s away
+   (a change made on another device) and fires `chassis-prefs-change` on
+   `window` with the changed keys; a script that holds a value in memory
+   listens for it.
+
+`window.chassisPrefs` is the explicit API: `storage` (a Storage-shaped object
+over `localStorage`; the kit's `chassis.js` passes it to kp-themes'
+`configureRemember({ storage })`, and a web app that imports `remember.js`
+itself may do the same), `scope`, `isSynced(key)`, `flush()`, `refresh()`,
+`pending()`.
+
+**Stays in the browser by design:** every key that is not declared, the
+pre-login theme (`theme-boot.js` reads `localStorage.theme` before any
+login, so a key the app needs before login belongs in `except_*`), and every
+`sessionStorage` key except the declared session ones (a tab's Live view
+state is per tab on purpose). An app that wants the signed-in theme to follow
+the login declares `exact("theme")`: after the values are applied the script
+sets `data-theme` again; the browser copy stays for the next pre-login visit.
+
+Proven by `tests/js/prefs_boot.test.mjs` (node, a fake window; also the shared
+rule table `tests/fixtures/sync_rules.json`) and `tests/prefs_page.rs`.
+
 ## An open dashboard (opt-in, 1.5.0)
 
 A service that sets `AppSpec { open_dashboard: true, .. }` may run without

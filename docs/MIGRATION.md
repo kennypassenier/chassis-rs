@@ -581,4 +581,11 @@ would adopt it:
   boot key) and anything secret. Nothing else in your front end changes (the
   browser side comes with the page; see DASHBOARD.md). New knobs
   `prefs_max_value_bytes`, `prefs_max_scope_bytes`, `prefs_max_keys`.
+- **What the browser side asks of your front end.** Nothing, if it already
+  writes its choices to `localStorage` under the keys you declared: the page
+  carries the values and the sync script. Two things to know: (1) keys that
+  must work before login stay out of the declaration (or in `except_*`);
+  (2) your `Content-Security-Policy` must allow `/static/prefs-boot.js` as a
+  script, which the default `script-src 'self'` does. Listen for
+  `chassis-prefs-change` on `window` if you keep a synced value in memory.
 

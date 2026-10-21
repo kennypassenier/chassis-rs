@@ -430,9 +430,17 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
             .layer(from_fn_with_state(auth.clone(), require_admin)),
         None => Router::new(),
     };
+    // The values ride in every signed-in HTML page (innermost, so the
+    // caller is known when it runs).
+    let inject = |r: Router| match extra.prefs.as_ref() {
+        Some(p) => r.layer(axum::middleware::from_fn_with_state(
+            p.clone(),
+            crate::storage::prefs_inject::inject,
+        )),
+        None => r,
+    };
     let set_for_json = page_set.clone();
-    let pages_admin = pages_admin
-        .with_state(dash.clone())
+    let pages_admin = inject(pages_admin.with_state(dash.clone()))
         .route(
             "/api/kit/pages",
             get(move || {
@@ -569,10 +577,12 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
     // `Dashboard` extension; admin login is required as for the kit's pages.
     // feat-live-1: the auth state rides along so a live stream can ask again
     // later whether its caller is still logged in.
-    let project_pages = dashboard_router
-        .layer(axum::Extension(dash.clone()))
-        .layer(axum::Extension(auth.clone()))
-        .layer(from_fn_with_state(auth.clone(), require_admin));
+    let project_pages = inject(
+        dashboard_router
+            .layer(axum::Extension(dash.clone()))
+            .layer(axum::Extension(auth.clone())),
+    )
+    .layer(from_fn_with_state(auth.clone(), require_admin));
 
     // Outermost first: identify the caller, then throttle it per token (K10,
     // H3), then capture the request for its row.

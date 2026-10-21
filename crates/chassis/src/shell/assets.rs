@@ -325,6 +325,11 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/passkeys.js"),
     ),
     (
+        "prefs-boot.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/prefs-boot.js"),
+    ),
+    (
         "theme-boot.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/theme-boot.js"),

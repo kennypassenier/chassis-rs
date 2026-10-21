@@ -26,6 +26,24 @@ scaffold writes. A breaking change in either is a major and carries a
   knobs `prefs_max_value_bytes`, `prefs_max_scope_bytes`, `prefs_max_keys`.
   **Never declare a secret.** Additive.
 
+- **The browser side of the preferences: `prefs-boot.js`** (`dashboard`): the
+  server renders the login's values into every signed-in HTML page (the
+  kit's pages, project pages and a `webapp` index, with no change to the
+  project's HTML) as a JSON block after `<head>` plus a classic script that
+  runs before any module, so there is no request and no flash. The script
+  applies the database to `localStorage` for the declared keys, seeds the
+  declared `sessionStorage` draft keys (kp-themes' unsaved bar), writes
+  declared `localStorage` changes through to the database (a wrap of
+  `Storage.prototype` for `localStorage` and declared keys only, which
+  catches `data-kp-remember` without touching kp-themes; the composite
+  store is also handed to `configureRemember` in `chassis.js`), mirrors the
+  draft from kp-themes' `kp-unsaved-*` events, and re-reads when the page
+  becomes visible again (`chassis-prefs-change`). The pre-login theme and
+  every undeclared or per-tab key stay in the browser. A conditional request
+  for such a page is answered in full. `window.chassisPrefs` is the explicit
+  API. Additive; first node tests of the kit's own JavaScript
+  (`tests/js`).
+
 - **The preference port and its adapters** (`storage`): `PrefStore`, a
   trait for user preferences (get, set, remove, list by prefix, async-
   friendly, every call scoped), with `SqlitePrefStore` (the new table

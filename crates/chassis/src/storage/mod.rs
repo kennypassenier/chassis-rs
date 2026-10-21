@@ -17,6 +17,8 @@ mod kit_db;
 mod prefs;
 #[cfg(feature = "dashboard")]
 pub(crate) mod prefs_api;
+#[cfg(feature = "dashboard")]
+pub(crate) mod prefs_inject;
 mod prefs_rules;
 mod runtime;
 
