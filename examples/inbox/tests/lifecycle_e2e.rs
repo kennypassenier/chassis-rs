@@ -428,12 +428,20 @@ fn client_token_flow_end_to_end() {
     let res = http.get(format!("{base}/api/clients")).send().unwrap();
     assert_eq!(res.status(), 303);
 
-    // Plaintext scan (rule 10): the token is nowhere on disk.
+    // Plaintext scan (rule 10): the token is nowhere on disk. Since 3.11.0
+    // the state dir also holds sqlite files, so the scan reads raw bytes.
+    let found =
+        |raw: &[u8], needle: &str| raw.windows(needle.len()).any(|w| w == needle.as_bytes());
     for entry in std::fs::read_dir(dir.path()).unwrap() {
-        let raw = std::fs::read_to_string(entry.unwrap().path()).unwrap();
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            continue;
+        }
+        let raw = std::fs::read(&path).unwrap();
         assert!(
-            !raw.contains(&token) && !raw.contains(TOKEN),
-            "a secret reached disk in plaintext"
+            !found(&raw, &token) && !found(&raw, TOKEN),
+            "a secret reached disk in plaintext: {}",
+            path.display()
         );
     }
 }
