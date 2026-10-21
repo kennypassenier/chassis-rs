@@ -16,6 +16,12 @@ scaffold writes. A breaking change in either is a major and carries a
   `vocabulary_article("an")`. Templates read `vocab_article` and
   `vocab_article_cap`; the palette reads `data-chassis-article`. Additive.
 
+- **A status section can keep its own card state** (kit-r4, almanac +
+  http-switchboard gap 38): `data-chassis-owned` on the section's card stops
+  chassis.js from setting it back to ready/empty/loading on each poll and
+  re-read, and the cancelable `chassis-settle` event (`detail { card, state,
+  source }`) lets a section veto one change. Documented in docs/DASHBOARD.md.
+
 ### Fixed
 
 - **A status section whose body is html only no longer renders an empty

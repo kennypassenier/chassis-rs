@@ -426,6 +426,34 @@ impl StatusSection for Orders {
 - `/api/kit/status` carries the merged list as `section_assets`
   (`{ module_scripts, stylesheets }`) for a web app that draws the page.
 
+## A section that keeps its own card state (kit-r4)
+
+chassis.js polls `/api/kit/status` and, on every poll and every re-read,
+sets each kit card back to `ready` or `empty` (and to `loading` while a
+re-read runs). A section whose `Section.html` has its own loading, empty and
+failed states would see them wiped. Two ways to keep them, both on the card
+(`section.kp-card[data-chassis-section]`, which the section's script reaches
+with `el.closest('.kp-card')`):
+
+- **`data-chassis-owned`** on the card: the shell never touches the card's
+  `data-kp-state`, neither on a poll nor on a page or card re-read. The card
+  is yours from then on, including its Try again.
+- **`chassis-settle`**, a cancelable event the shell dispatches on the card
+  just before it changes the state (bubbles; `detail`: `{ card, state,
+  source }`, `state` is `ready`, `empty` or `loading`, `source` is `poll` or
+  `reread`). `event.preventDefault()` keeps the card as it is for that one
+  change; use it to keep a state only some of the time.
+
+```js
+const card = document.querySelector('[data-chassis-section^="orders-"]');
+card.setAttribute('data-chassis-owned', '');                 // always mine
+// or, only while I am showing my own failure:
+card.addEventListener('chassis-settle', (e) => { if (mine.failed) e.preventDefault(); });
+```
+
+A card without either keeps the old behaviour. `data-chassis-json` cards are
+still left to their own fetch loop.
+
 ## What the kit attaches itself, and the page-ready signal (kit-kp11)
 
 The layout loads `/static/chassis.js` as a module on every kit page. It

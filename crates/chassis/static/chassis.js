@@ -1705,13 +1705,23 @@ async function startStatus(root) {
   // states (kp-themes card-state): loading shows the theme's own loading
   // card over the data, empty and failed its plates. Cards that read their
   // own JSON (data-chassis-json) keep their own loop below.
-  const POLLED = '.kp-card[data-kp-state]:not([data-chassis-json])';
+  //
+  // A section that keeps its own state (an html section with its own
+  // loading, empty and failed) opts out (kit-r4): `data-chassis-owned` on
+  // its card leaves the card alone on every poll and re-read, and every
+  // other card asks first through the cancelable `chassis-settle` event
+  // (bubbles; detail { card, state, source }); preventDefault keeps the
+  // card as it is.
+  const POLLED = '.kp-card[data-kp-state]:not([data-chassis-json]):not([data-chassis-owned])';
   const reading = new Set();
+  const mayChange = (card, state, source) =>
+    card.dispatchEvent(new CustomEvent('chassis-settle', { bubbles: true, cancelable: true, detail: { card, state, source } }));
   const emptyNote = (card) => ({ title: card.dataset.chassisEmptyTitle, text: card.dataset.chassisEmptyText });
   function settle(card, empty) {
     if (reading.has(card)) return;
     const want = empty ? 'empty' : 'ready';
     if (card.getAttribute('data-kp-state') === want) return;
+    if (!mayChange(card, want, 'poll')) return;
     setCardState(card, want, empty ? emptyNote(card) : undefined);
   }
   function settleCards(d) {
@@ -1878,7 +1888,9 @@ async function startStatus(root) {
   });
   async function reread(scope) {
     const page = scope === 'page';
-    const cards = page ? [...root.querySelectorAll('.kp-card[data-kp-state]')] : scope.filter((c) => c.matches(POLLED));
+    const cards = (page ? [...root.querySelectorAll('.kp-card[data-kp-state]:not([data-chassis-owned])')] : scope.filter((c) => c.matches(POLLED))).filter(
+      (c) => mayChange(c, 'loading', 'reread'),
+    );
     const was = new Map(cards.map((c) => [c, c.getAttribute('data-kp-state')]));
     const strip = only('.kp-ops__kpis .kp-kpis');
     const tiles = strip ? strip.innerHTML : '';

@@ -1344,6 +1344,30 @@ mod tests {
         }
     }
 
+    /// kit-r4 (http-switchboard gap 38): a card the section owns is skipped
+    /// by every poll and re-read, and the others ask `chassis-settle` first.
+    #[test]
+    fn chassis_js_lets_a_section_keep_its_card_state() {
+        let js = include_str!("../../static/chassis.js");
+        assert!(js.contains(
+            "const POLLED = '.kp-card[data-kp-state]:not([data-chassis-json]):not([data-chassis-owned])'"
+        ));
+        assert!(
+            js.contains(".kp-card[data-kp-state]:not([data-chassis-owned])"),
+            "page re-read"
+        );
+        assert!(js.contains("new CustomEvent('chassis-settle', { bubbles: true, cancelable: true"));
+        for source in ["'poll'", "'reread'"] {
+            assert!(
+                js.contains(&format!("mayChange(card, want, {source})"))
+                    || js.contains(&format!("mayChange(c, 'loading', {source})")),
+                "{source}"
+            );
+        }
+        let doc = include_str!("../../../../docs/DASHBOARD.md");
+        assert!(doc.contains("data-chassis-owned") && doc.contains("chassis-settle"));
+    }
+
     /// kit-r4: no template or script writes a literal "a" in front of the
     /// vocabulary word; the article comes from `vocab_article`.
     #[test]
