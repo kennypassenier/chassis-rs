@@ -7,6 +7,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [3.10.0] - 2026-10-21
+
 ### Added
 
 - **The copy-paste command names its token after the vocabulary** (kit-r4,
