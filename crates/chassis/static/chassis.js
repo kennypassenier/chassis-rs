@@ -1480,8 +1480,9 @@ async function startStatus(root) {
   /* ---------------------------------------------------------- bodies -- */
   // The key-value list's own mark for a value that is not there.
   const NONE = '<span class="kp-kv__none">—<span class="kp-sr-only">none</span></span>';
+  // No rows draws nothing (an html-only section has no empty list under it).
   const kvHtml = (pairs) =>
-    `<dl class="kp-kv kp-kv--lines" data-chassis-rows>${pairs
+    !pairs.length ? '' : `<dl class="kp-kv kp-kv--lines" data-chassis-rows>${pairs
       .map(([l, v]) => `<div class="kp-kv__row"><dt>${esc(l)}</dt><dd>${v.html ?? (v === '' ? NONE : esc(v))}</dd></div>`)
       .join('')}</dl>`;
   const kpisHtml = (list, label) =>
@@ -1679,6 +1680,10 @@ async function startStatus(root) {
       const rows = s.body && s.body.kind === 'rows' ? s.body.data : s.rows;
       const dl = card.querySelector('dl[data-chassis-rows]');
       if (dl && rows) redraw(s.slug, JSON.stringify(rows), () => (dl.outerHTML = kvHtml(rows)));
+      // The list was left out while the rows were empty: draw it when they arrive.
+      else if (rows && rows.length) {
+        redraw(s.slug, JSON.stringify(rows), () => card.querySelector('.kp-card__data')?.insertAdjacentHTML('afterbegin', kvHtml(rows)));
+      }
       return;
     }
     if (card.dataset.chassisKind !== 'parts') return;

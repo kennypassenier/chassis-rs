@@ -860,3 +860,47 @@ async fn kit_r4_a_service_can_override_the_article() {
     assert!(page.contains("What an sms is"), "{page}");
     assert!(page.contains("Issue an sms"), "{page}");
 }
+
+struct HtmlOnly;
+
+impl StatusSection for HtmlOnly {
+    fn render(&self) -> Section {
+        Section {
+            title: "Html only".into(),
+            explain: "The body is the project's own markup.".into(),
+            rows: vec![],
+            html: Some("<p id=\"own-body\">owned</p>".into()),
+        }
+    }
+}
+
+// kit-r4 (almanac): a section whose body is html only renders no empty
+// `dl[data-chassis-rows]`; a section with rows still does.
+#[tokio::test]
+async fn kit_r4_an_html_only_section_has_no_empty_rows_list() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app(dir.path(), Router::new());
+    app.status_section(HtmlOnly);
+    app.status_section(Quiet);
+    let running = app.start().await.unwrap();
+    let addr = running.addr;
+    let cookie = login(addr).await;
+    let (_, _, page) = http(addr, "GET", "/", &[("Cookie", cookie.as_str())], "").await;
+    let card = |slug: &str| {
+        let start = page
+            .find(&format!("data-chassis-section=\"{slug}-"))
+            .unwrap();
+        let end = page[start..].find("</section>").unwrap();
+        page[start..start + end].to_string()
+    };
+    let html_only = card("html-only");
+    assert!(html_only.contains("id=\"own-body\""), "{html_only}");
+    assert!(!html_only.contains("data-chassis-rows"), "{html_only}");
+    assert!(card("quiet").contains("data-chassis-rows"));
+    let js = include_str!("../static/chassis.js");
+    assert!(
+        js.contains("!pairs.length ? ''"),
+        "the live redraw draws no empty list either"
+    );
+    running.stop().await;
+}

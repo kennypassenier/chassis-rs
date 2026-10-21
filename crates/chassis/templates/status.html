@@ -10,7 +10,7 @@
   a kp-themes part; the server draws the first paint and chassis.js (the
   "status" block) keeps it fresh from /api/kit/status.
 #}
-{% macro rows_list(rows) %}<dl class="kp-kv kp-kv--lines" data-chassis-rows>{% for row in rows %}<div class="kp-kv__row"><dt>{{ row[0] }}</dt><dd>{% if row[1] %}{{ row[1] }}{% else %}<span class="kp-kv__none">—<span class="kp-sr-only">none</span></span>{% endif %}</dd></div>{% endfor %}</dl>{% endmacro %}
+{% macro rows_list(rows) %}{% if rows|length > 0 %}<dl class="kp-kv kp-kv--lines" data-chassis-rows>{% for row in rows %}<div class="kp-kv__row"><dt>{{ row[0] }}</dt><dd>{% if row[1] %}{{ row[1] }}{% else %}<span class="kp-kv__none">—<span class="kp-sr-only">none</span></span>{% endif %}</dd></div>{% endfor %}</dl>{% endif %}{% endmacro %}
 
 {% macro check_list(checks, label) %}<ul class="kp-statuslist kp-statuslist--rows" aria-label="{{ label }}">{% for c in checks %}<li class="kp-statusrow" data-state="{% if c.state == 'failed' %}failed{% elif c.state == 'warn' %}warn{% else %}ok{% endif %}" data-kp-status-id="{{ c.name }}"><span class="kp-statusrow__mark" aria-hidden="true"></span><span class="kp-statusrow__body"><span class="kp-statusrow__label">{{ c.name }}</span><span class="kp-statusrow__detail">{{ c.detail }}</span></span></li>{% endfor %}</ul>{% endmacro %}
 

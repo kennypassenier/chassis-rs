@@ -16,6 +16,13 @@ scaffold writes. A breaking change in either is a major and carries a
   `vocabulary_article("an")`. Templates read `vocab_article` and
   `vocab_article_cap`; the palette reads `data-chassis-article`. Additive.
 
+### Fixed
+
+- **A status section whose body is html only no longer renders an empty
+  `dl[data-chassis-rows]`** (kit-r4, almanac): an empty rows list draws
+  nothing, on the first paint and on the live redraw; rows that arrive later
+  are drawn then.
+
 ### Changed
 
 - **kp-themes 11.2.0 vendored** (verified against the release SHA256SUMS; 212
