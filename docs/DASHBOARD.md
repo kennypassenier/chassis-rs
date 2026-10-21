@@ -38,6 +38,7 @@ project's entries in registration order.
 | `GET /` | admin | Status page: Service, Health, Updates cards, Problems (if any), then project sections. |
 | `GET /clients` | admin | The clients table with the row controls below. |
 | `GET/POST /api/clients`, `/api/clients/{id}/{reissue,revoke,token,requests,test}`, `DELETE /api/clients/{id}` | admin | The JSON the buttons call. |
+| `GET /api/kit/storage`, `POST /api/kit/storage/{kind}/{preview,delete}`, `POST /api/kit/storage/compact{,/preview}` | admin | The Storage page's JSON (3.11.0), below. |
 | `GET /passkeys`, `/passkeys/*`, `/api/passkeys*` | admin (login/start+finish: anyone) | Only over HTTPS via a trusted proxy; else 404 with a remedy. |
 | `GET /static/{*name}` | anyone | Embedded assets: `Cache-Control: public, max-age=31536000, immutable` when the URL carries the `?v=<hash>` the layout adds, `no-cache` with a strong `ETag` (304 when unchanged) for a URL without it, such as a font reached from `fonts.css` or a module a project's app imports (fix-13). |
 
@@ -694,6 +695,38 @@ the self-update feature, `not compiled in` otherwise), **Problems** (only
 when there are any), then every project `Section` as a label/value table
 and optional raw HTML.
 
+## The Storage JSON API (3.11.0)
+
+The kit keeps its state in two sqlite files (`docs/ARCHITECTURE_DECISIONS.md`
+arch-21). The Storage PAGE is drawn from this API; until it ships, a project's
+own web app can draw its own. Every route is behind the admin login, and a
+`POST` obeys the same-origin rule as the other kit POSTs (a cross-site
+request is a 403). Errors are the kit's `{"error", "remedy"}`.
+
+| Route | What |
+|---|---|
+| `GET /api/kit/storage` | `budget` (`budget_bytes`, `warn_bytes`, `total_bytes`, `used_percent`, `level` = `ok`/`warn`/`over`, `checked_at`), `files` (one per file: `role` `app`/`kit`, `file`, `db_bytes`, `wal_bytes`, `total_bytes`, `reclaimable_bytes`, `cleanable`; the kit file is `cleanable: false`), `reclaimable_bytes` (app), `has_app_db`, `paused`, `import` (`state` `not_requested`/`done`/`failed` + `why`), `kinds` (one per declared kind: `id`, `label`, `description`, `rows`, `bytes` (estimated), `oldest`, `newest`, `filters`, `supports_age`, `finished_automatically`). A filter is `{name, label, type: choice\|flag\|text, values?}`. |
+| `POST /api/kit/storage/{kind}/preview` | Body `{"older_than_secs"?: n, "filters"?: {name: value}}`. Read-only: `rows`, `bytes`, `oldest`, `newest`, `samples` (five rows, oldest first), `confirm_with` (the kind's id: what a person types), `token`. |
+| `POST /api/kit/storage/{kind}/delete` | Body: the same selection plus `token` and `confirm` (the kind's id). The token binds the selection, the instant (an age is fixed at the preview) and the count; it is valid 15 minutes and until a restart. Recounts inside the transaction: if the number of rows moved it deletes nothing and says so (400). One transaction, one audit log line (`audit=true`), then the budget is rechecked. Answers `deleted` (`deleted`, `remaining`, `reclaimable_bytes`) and the new `budget`. |
+| `POST /api/kit/storage/compact/preview` | `file_bytes`, `reclaimable_bytes`, `free_space_needed_bytes`, `paused`. |
+| `POST /api/kit/storage/compact` | `VACUUM` of the app file. 503 with `Retry-After` while a backup pause holds the state. |
+
+A project declares its kinds with `App::storage_kind(DataKind::new("events",
+"Events").table("events").time_column("at", TimeFormat::UnixSeconds)
+.filter(Filter::choice("level", "Level", "level", ["info", "error"])))`; ids
+are lowercase `[a-z][a-z0-9_]*` (32 at most), `compact` and `kit` are
+reserved, and the declaration is checked against the schema at start. A kind
+whose rows can end by their own definition adds
+`.finished_by_definition("expires_at < :now")`: those rows, and only those,
+are removed daily and the count is logged. Nothing of this reaches
+`<name>-kit.db`: it has no kind, no delete and no compact. Proven by
+`tests/storage_api.rs` (`the_kit_file_can_never_be_previewed_deleted_from_or_compacted`
+and the others) and `tests/storage_app.rs`.
+
+The budget shows up elsewhere too: past the warn line the status page's
+Problems card says so (nothing is refused), `/metrics` carries
+`<prefix>_storage_bytes{file}`, `_budget_bytes`, `_warn_bytes` and `_level`.
+
 ## An open dashboard (opt-in, 1.5.0)
 
 A service that sets `AppSpec { open_dashboard: true, .. }` may run without
@@ -703,7 +736,8 @@ handler answers anyone who can reach the port, `Caller` is always
 `Admin`, the Log out button is gone, and every page opens with a banner
 ("This dashboard is open …"). Nothing sealed is written: clients live in
 a memory store (the Clients page explains that no token can be issued),
-no session is ever minted, passkeys are off. `--check` and every start
+no session is ever minted, passkeys are off (the kit file `<name>-kit.db`
+exists, since 3.11.0, but holds no secret). `--check` and every start
 print a warning naming both variables; setting them closes the dashboard
 again without any other change.
 

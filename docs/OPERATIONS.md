@@ -156,17 +156,18 @@ One root, `<P>_STATE_DIR` (default `/var/lib/<name>`). What lives there:
 
 | File | Content | When |
 |---|---|---|
-| `clients.json.enc` | clients and their tokens, sealed (XChaCha20-Poly1305, `{"v": 1, "nonce", "ciphertext"}`) | after the first client |
-| `sessions.json.enc` | SHA-256 of session ids, sealed | after the first login |
-| `passkeys.json.enc` | WebAuthn credentials, sealed | after the first passkey |
+| `<name>-kit.db` (+ `-wal`, `-shm`) | sqlite, 3.11.0: clients (token and field values sealed per field, XChaCha20-Poly1305 under `<P>_SECRET_KEY`), sessions (SHA-256 of the cookie), passkeys (credential sealed) | after the first start |
+| `<name>.db` (+ `-wal`, `-shm`) | the app's own database, when the service uses `App::app_db` | after the first start |
+| `clients.json.enc.migrated`, `sessions.json.enc.migrated`, `passkeys.json.enc.migrated` | what 3.10.0 and earlier kept in `*.json.enc`, renamed after the import into the kit database; still sealed, a backup; delete when no longer wanted | after the first start of 3.11.0 |
 | `update-state.json` | plaintext `{from_version, to_version, previous_binary, attempts}` | only while an autonomous update is on probation |
 | `update-skip.json` | plaintext list of versions this process installed and rolled back; never reinstalled (CF-3). Delete it to retry one on purpose | after the first autonomous rollback |
 | `config.toml` | yours, optional | — |
 | `.chassis-probe`, `.<file>.tmp-<pid>` | transient: the write probe and atomic-write temp files | never at rest |
 
 Every file the kit writes is created **0600** (observed:
-`-rw------- clients.json.enc`), written temp + fsync + rename, then the
-directory is fsynced. The binary, `<bin>.prev`, `<bin>.staging` and
+`-rw------- clients.json.enc`, 3.10.0), written temp + fsync + rename, then the
+directory is fsynced; the sqlite files are 0644 or the process umask, written by
+sqlite itself (WAL, `synchronous=FULL`). The binary, `<bin>.prev`, `<bin>.staging` and
 `<bin>.drill` live **beside the binary**, not here; pre-update copies go
 to `<state>-pre-update/<version>/`; captures and rate-limiter state are
 in memory and gone after a restart.
@@ -184,7 +185,7 @@ REALIZATION_PLAN L8), abort-safe until step 5:
 1. `systemctl stop <name>`.
 2. `tar -C /var/lib -czf /root/<name>-state.tgz <name>` — keep it until
    step 7 passes.
-3. Prove the tar lists `clients.json.enc` and `sessions.json.enc`.
+3. Prove the tar lists `<name>-kit.db` (3.10.0 and earlier: `clients.json.enc` and `sessions.json.enc`).
 4. (The drill destroys the root here: `rm -rf /var/lib/<name>/*`.)
 5. `tar -C /var/lib -xzf /root/<name>-state.tgz && chown -R <name>: /var/lib/<name>`.
 6. `systemctl start <name>`; `systemctl is-active <name>` → `active`.
@@ -255,7 +256,7 @@ The tar is useless without the secret key — see §8. Proven by:
 
 ## 8 · The secret key — where every copy is, and how to put one back
 
-`<P>_SECRET_KEY` seals the three `.json.enc` files. The kit reads it
+`<P>_SECRET_KEY` seals the secret fields of `<name>-kit.db` (before 3.11.0: the three `.json.enc` files). The kit reads it
 **only from the environment** (never from the file, never from a flag)
 and **writes no copy of it anywhere**: not in the state root, not in the
 backup. Asked deliberately (ECOSYSTEM norm N4): if the key were gone

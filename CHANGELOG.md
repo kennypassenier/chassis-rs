@@ -54,7 +54,10 @@ scaffold writes. A breaking change in either is a major and carries a
   `storage_warn_mb`, feature `storage`); `chassis-cli` lists `storage` among
   the kit features, implied by `dashboard` and by the default features.
   `TestApp::try_start_with_env` returns the kit's refusal instead of
-  panicking. Additive.
+  panicking. The new value types are `#[non_exhaustive]` so they can grow in
+  a minor; they are built with `AppDbSpec::new(migrations).with_import(hook)`,
+  `ImportReport::new(expected, imported, files)` and
+  `Selector::all().older_than(secs).with_filter(name, value)`. Additive.
 
 - **The kit's clients, sessions and passkeys move into `<name>-kit.db`**
   (`dashboard`, which implies `storage`; Kenny, 2026-10-21): one table each,
@@ -92,6 +95,15 @@ scaffold writes. A breaking change in either is a major and carries a
   Admin login and the same-origin rule apply like for the other kit POSTs.
   The kit file is never deletable or compactable through any route (a test
   holds that). The page itself is not part of this change. Additive.
+
+### Documentation
+
+- **docs/ARCHITECTURE_DECISIONS.md arch-21 "SQLite, two files"** amends AR5;
+  **docs/DASHBOARD.md** documents the Storage JSON API; **docs/MIGRATION.md**
+  says what moves at the first start of 3.11.0, what does not, that a
+  downgrade is a restore of the pre-update copy, and how to adopt
+  `App::app_db`; docs/OPERATIONS.md and docs/CONFIGURATION.md name the new
+  files and what `rekey` now re-seals.
 
 ## [3.10.0] - 2026-10-21
 

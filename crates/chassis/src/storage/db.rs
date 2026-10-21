@@ -92,6 +92,7 @@ impl From<rusqlite::Error> for Error {
 
 /// What `--check` learns about a database file without touching it.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Inspection {
     pub path: PathBuf,
     /// `false`: no file yet, it is created at start.
@@ -136,6 +137,7 @@ impl Inspection {
 
 /// Sizes of one database, for the budget and the Storage page.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
 pub struct FileSizes {
     /// `page_count * page_size`.
     pub db_bytes: u64,
@@ -235,6 +237,12 @@ fn migrate(conn: &mut Connection, migrations: &[Migration], path: &str) -> Resul
     for (i, step) in migrations.iter().enumerate().skip(current) {
         let version = i + 1;
         let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        // Another process starting at the same moment may have applied this
+        // step between the read above and the lock: look again under it.
+        let applied = tx.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))? as usize;
+        if applied >= version {
+            continue;
+        }
         (step.0)(&tx).map_err(|e| {
             Error::new(
                 e.kind,

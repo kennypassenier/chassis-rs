@@ -21,6 +21,7 @@ const MB: u64 = 1024 * 1024;
 
 /// Budget and warn line in bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct StorageConfig {
     pub budget_bytes: u64,
     pub warn_bytes: u64,
@@ -58,6 +59,7 @@ impl Default for StorageConfig {
 /// How full the budget is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Level {
     Ok,
     /// At or past the warn line.
@@ -68,6 +70,7 @@ pub enum Level {
 
 /// One file's share.
 #[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
 pub struct FileReport {
     /// `app` or `kit`.
     pub role: &'static str,
@@ -82,6 +85,7 @@ pub struct FileReport {
 
 /// The budget at one check.
 #[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
 pub struct StorageReport {
     pub files: Vec<FileReport>,
     pub total_bytes: u64,

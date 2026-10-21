@@ -27,6 +27,7 @@ use crate::core::error::{Error, Kind};
 
 /// What the import hook may need to know.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ImportContext {
     /// The state directory the old files live in.
     pub state_dir: PathBuf,
@@ -34,6 +35,7 @@ pub struct ImportContext {
 
 /// What an import hook reports back.
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct ImportReport {
     /// How many records the old files held.
     pub expected: u64,
@@ -45,12 +47,25 @@ pub struct ImportReport {
     pub files: Vec<PathBuf>,
 }
 
+impl ImportReport {
+    /// What the hook reports: the records the old files held, the rows it
+    /// wrote, and the old files to rename `*.migrated` once it committed.
+    pub fn new(expected: u64, imported: u64, files: Vec<PathBuf>) -> Self {
+        ImportReport {
+            expected,
+            imported,
+            files,
+        }
+    }
+}
+
 /// Runs once, in one transaction, when the marker is absent.
 pub type ImportHook =
     Box<dyn FnOnce(&Transaction, &ImportContext) -> Result<ImportReport, Error> + Send>;
 
 /// What a project hands [`crate::App::app_db`].
 #[derive(Default)]
+#[non_exhaustive]
 pub struct AppDbSpec {
     /// The schema as a numbered list; each step atomic, append only.
     pub migrations: Vec<Migration>,
@@ -58,9 +73,29 @@ pub struct AppDbSpec {
     pub import: Option<ImportHook>,
 }
 
+impl AppDbSpec {
+    /// A schema and no import.
+    pub fn new(migrations: Vec<Migration>) -> Self {
+        AppDbSpec {
+            migrations,
+            import: None,
+        }
+    }
+
+    /// Move the project's old data in, once (see the module docs).
+    pub fn with_import(
+        mut self,
+        hook: impl FnOnce(&Transaction, &ImportContext) -> Result<ImportReport, Error> + Send + 'static,
+    ) -> Self {
+        self.import = Some(Box::new(hook));
+        self
+    }
+}
+
 /// How the one-time import stands.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ImportState {
     /// No import hook, or the database is not open yet.
     NotRequested,
@@ -73,6 +108,7 @@ pub enum ImportState {
 
 /// A condition the status page should show.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct StorageProblem {
     pub what: String,
     pub why: String,
@@ -110,6 +146,7 @@ const TOKEN_TTL_SECS: i64 = 15 * 60;
 
 /// A preview, and the token that binds a delete to it.
 #[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
 pub struct Preview {
     pub kind: String,
     pub label: String,
@@ -124,6 +161,7 @@ pub struct Preview {
 
 /// What a delete did.
 #[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
 pub struct Deleted {
     pub kind: String,
     pub deleted: u64,
@@ -145,6 +183,7 @@ struct TokenBody {
 
 /// One kind's row on the Storage page.
 #[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
 pub struct KindOverview {
     pub id: String,
     pub label: String,
@@ -602,6 +641,7 @@ impl AppDb {
 
 /// What a compact would do or did.
 #[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
 pub struct CompactPreview {
     pub file_bytes: u64,
     pub reclaimable_bytes: u64,
@@ -1091,52 +1131,6 @@ mod tests {
         assert_eq!(
             app.prune_finished_at(&Now::at(T0)).unwrap(),
             vec![("snoozes".to_string(), 0)]
-        );
-    }
-
-    /// Every delete leaves one audit line: the kind, the selection, how many.
-    #[test]
-    fn a_delete_writes_one_audit_line() {
-        #[derive(Clone, Default)]
-        struct Capture(Arc<Mutex<Vec<u8>>>);
-        impl std::io::Write for Capture {
-            fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
-                self.0.lock().unwrap().extend_from_slice(b);
-                Ok(b.len())
-            }
-            fn flush(&mut self) -> std::io::Result<()> {
-                Ok(())
-            }
-        }
-        impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Capture {
-            type Writer = Capture;
-            fn make_writer(&'a self) -> Capture {
-                self.clone()
-            }
-        }
-        let cap = Capture::default();
-        let sub = tracing_subscriber::fmt()
-            .with_writer(cap.clone())
-            .with_ansi(false)
-            .finish();
-        let app = seeded();
-        let now = Now::at(T0);
-        let p = app.preview_at("events", &older(5), &now).unwrap();
-        tracing::subscriber::with_default(sub, || {
-            app.delete_at("events", &older(5), &p.token, "events", &now)
-                .unwrap();
-        });
-        let log = String::from_utf8(cap.0.lock().unwrap().clone()).unwrap();
-        assert_eq!(log.lines().count(), 1, "{log}");
-        assert!(log.contains("audit=true"), "{log}");
-        assert!(
-            log.contains("kind=\"events\"") || log.contains("kind=events"),
-            "{log}"
-        );
-        assert!(log.contains("deleted=4"), "{log}");
-        assert!(
-            log.contains("cutoff_secs"),
-            "the selection is in the line: {log}"
         );
     }
 

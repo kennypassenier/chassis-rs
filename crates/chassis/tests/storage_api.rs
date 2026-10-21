@@ -38,12 +38,7 @@ async fn start(name: &'static str) -> Harness {
         ..Default::default()
     };
     let mut app = TestApp::start_with(spec, Router::new(), move |app| {
-        let db = app
-            .app_db(AppDbSpec {
-                migrations: schema(),
-                import: None,
-            })
-            .unwrap();
+        let db = app.app_db(AppDbSpec::new(schema())).unwrap();
         *h2.lock().unwrap() = Some(db);
         app.storage_kind(
             DataKind::new("events", "Events")

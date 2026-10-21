@@ -2203,10 +2203,7 @@ impl App {
                 #[cfg(not(all(feature = "storage", feature = "dashboard")))]
                 let fields: Option<usize> = None;
                 let db_note = fields.map_or_else(String::new, |n| {
-                    format!(
-                        " and {n} sealed field(s) in {}",
-                        crate::storage::kit_file_name(self.spec.name)
-                    )
+                    format!(" and {n} sealed field(s) in {}-kit.db", self.spec.name)
                 });
                 println!(
                     "{}: {} store file(s){db_note} in {} now sealed under {prefix}_SECRET_KEY; unset {old_env} and start the service",

@@ -47,22 +47,15 @@ async fn refused(spec: AppSpec, env: &[(&str, &str)], configure: impl FnOnce(&mu
 
 /// An app database whose import writes `mb` megabytes at the first start.
 fn big_import(mb: usize) -> AppDbSpec {
-    AppDbSpec {
-        migrations: schema(),
-        import: Some(Box::new(move |tx, _| {
-            for _ in 0..mb {
-                tx.execute(
-                    "INSERT INTO blobs (at, data) VALUES (0, zeroblob(1048576))",
-                    [],
-                )?;
-            }
-            Ok(ImportReport {
-                expected: mb as u64,
-                imported: mb as u64,
-                files: vec![],
-            })
-        })),
-    }
+    AppDbSpec::new(schema()).with_import(move |tx, _| {
+        for _ in 0..mb {
+            tx.execute(
+                "INSERT INTO blobs (at, data) VALUES (0, zeroblob(1048576))",
+                [],
+            )?;
+        }
+        Ok(ImportReport::new(mb as u64, mb as u64, vec![]))
+    })
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -131,11 +124,7 @@ async fn past_the_warn_line_the_status_page_metrics_and_hook_say_so_but_no_write
 async fn under_the_warn_line_nothing_is_said_and_the_defaults_are_50_and_40() {
     let _one = SERIAL.lock().await;
     let mut app = TestApp::start_with(spec("quiet"), Router::new(), |app| {
-        app.app_db(AppDbSpec {
-            migrations: schema(),
-            import: None,
-        })
-        .unwrap();
+        app.app_db(AppDbSpec::new(schema())).unwrap();
     })
     .await;
     app.login().await;
@@ -162,11 +151,7 @@ async fn code_sets_the_budget_and_the_environment_wins_over_code() {
     let _one = SERIAL.lock().await;
     let mut app = TestApp::start_with(spec("coded"), Router::new(), |app| {
         app.storage_budget(100, None);
-        app.app_db(AppDbSpec {
-            migrations: schema(),
-            import: None,
-        })
-        .unwrap();
+        app.app_db(AppDbSpec::new(schema())).unwrap();
     })
     .await;
     let (_, text) = TestApp::send_text(app.request(reqwest::Method::GET, "/metrics")).await;
@@ -189,11 +174,7 @@ async fn code_sets_the_budget_and_the_environment_wins_over_code() {
         ],
         |app| {
             app.storage_budget(100, Some(90));
-            app.app_db(AppDbSpec {
-                migrations: schema(),
-                import: None,
-            })
-            .unwrap();
+            app.app_db(AppDbSpec::new(schema())).unwrap();
         },
     )
     .await;
@@ -225,17 +206,14 @@ async fn a_failed_import_keeps_the_service_up_with_a_problem_and_the_old_files()
     let h2 = handle.clone();
     let mut app = TestApp::start_with(spec("imp"), Router::new(), move |app| {
         let db = app
-            .app_db(AppDbSpec {
-                migrations: schema(),
-                import: Some(Box::new(|tx, ctx| {
-                    tx.execute("INSERT INTO blobs (at, data) VALUES (0, x'00')", [])?;
-                    std::fs::write(ctx.state_dir.join("legacy.json"), b"{}").ok();
-                    Err(chassis::Error::dependency(
-                        "legacy.json is torn",
-                        "restore it from the backup",
-                    ))
-                })),
-            })
+            .app_db(AppDbSpec::new(schema()).with_import(|tx, ctx| {
+                tx.execute("INSERT INTO blobs (at, data) VALUES (0, x'00')", [])?;
+                std::fs::write(ctx.state_dir.join("legacy.json"), b"{}").ok();
+                Err(chassis::Error::dependency(
+                    "legacy.json is torn",
+                    "restore it from the backup",
+                ))
+            }))
             .unwrap();
         *h2.lock().unwrap() = Some(db);
     })
@@ -267,22 +245,15 @@ async fn a_failed_import_keeps_the_service_up_with_a_problem_and_the_old_files()
 async fn a_good_import_at_start_renames_the_old_files() {
     let _one = SERIAL.lock().await;
     let mut app = TestApp::start_with(spec("imp2"), Router::new(), |app| {
-        app.app_db(AppDbSpec {
-            migrations: schema(),
-            import: Some(Box::new(|tx, ctx| {
-                let old = ctx.state_dir.join("legacy.json");
-                std::fs::write(&old, b"[1,2]").unwrap();
-                tx.execute(
-                    "INSERT INTO blobs (at, data) VALUES (0, x'01'), (0, x'02')",
-                    [],
-                )?;
-                Ok(ImportReport {
-                    expected: 2,
-                    imported: 2,
-                    files: vec![old],
-                })
-            })),
-        })
+        app.app_db(AppDbSpec::new(schema()).with_import(|tx, ctx| {
+            let old = ctx.state_dir.join("legacy.json");
+            std::fs::write(&old, b"[1,2]").unwrap();
+            tx.execute(
+                "INSERT INTO blobs (at, data) VALUES (0, x'01'), (0, x'02')",
+                [],
+            )?;
+            Ok(ImportReport::new(2, 2, vec![old]))
+        }))
         .unwrap();
     })
     .await;
@@ -296,11 +267,7 @@ async fn a_good_import_at_start_renames_the_old_files() {
 async fn a_kind_that_does_not_match_the_schema_stops_the_start() {
     let _one = SERIAL.lock().await;
     let err = refused(spec("badkind"), &[], |app| {
-        app.app_db(AppDbSpec {
-            migrations: schema(),
-            import: None,
-        })
-        .unwrap();
+        app.app_db(AppDbSpec::new(schema())).unwrap();
         app.storage_kind(DataKind::new("ghosts", "Ghosts").table("ghosts"));
     })
     .await;
@@ -338,11 +305,7 @@ async fn check_inspects_the_app_database_and_refuses_a_newer_one() {
     let mut app =
         App::from_args_with_env(spec("chk"), argv.clone(), env.clone(), Router::new()).unwrap();
     assert!(matches!(app.control, Some(Control::Check)));
-    app.app_db(AppDbSpec {
-        migrations: schema(),
-        import: None,
-    })
-    .unwrap();
+    app.app_db(AppDbSpec::new(schema())).unwrap();
     app.control().await.unwrap();
     assert!(
         !dir.path().join("chk.db").exists(),
@@ -350,26 +313,12 @@ async fn check_inspects_the_app_database_and_refuses_a_newer_one() {
     );
 
     // A database from a newer build.
-    drop(
-        AppDb::open(
-            &dir.path().join("chk.db"),
-            AppDbSpec {
-                migrations: schema(),
-                import: None,
-            },
-            vec![],
-        )
-        .unwrap(),
-    );
+    drop(AppDb::open(&dir.path().join("chk.db"), AppDbSpec::new(schema()), vec![]).unwrap());
     let conn = chassis::storage::rusqlite::Connection::open(dir.path().join("chk.db")).unwrap();
     conn.execute_batch("PRAGMA user_version = 9").unwrap();
     drop(conn);
     let mut app = App::from_args_with_env(spec("chk"), argv, env, Router::new()).unwrap();
-    app.app_db(AppDbSpec {
-        migrations: schema(),
-        import: None,
-    })
-    .unwrap();
+    app.app_db(AppDbSpec::new(schema())).unwrap();
     let err = app.control().await.unwrap_err();
     assert!(err.message.contains("newer build"), "{err}");
     assert!(err.remedy.contains("pre-update copy"), "{err}");
@@ -383,10 +332,7 @@ async fn compact_is_refused_while_a_backup_pause_holds_the_state() {
     let dir = tempfile::tempdir().unwrap();
     let app = AppDb::open(
         &dir.path().join("a.db"),
-        AppDbSpec {
-            migrations: schema(),
-            import: None,
-        },
+        AppDbSpec::new(schema()),
         vec![
             DataKind::new("blobs", "Blobs")
                 .table("blobs")

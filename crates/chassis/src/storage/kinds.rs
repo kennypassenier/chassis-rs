@@ -25,6 +25,7 @@ use crate::core::error::Error;
 
 /// How a time column stores its instants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum TimeFormat {
     /// Integer seconds since the Unix epoch.
     #[default]
@@ -38,6 +39,7 @@ pub enum TimeFormat {
 /// The current instant in the three formats a time column may use, so a
 /// pruning clause and a cutoff agree on one `now`.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Now {
     pub secs: i64,
 }
@@ -65,6 +67,7 @@ fn rfc3339(secs: i64) -> String {
 /// What a person may narrow a kind by.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum FilterKind {
     /// One of a declared set of values (`column = ?`).
     Choice { values: Vec<String> },
@@ -76,6 +79,7 @@ pub enum FilterKind {
 
 /// One declared filter of a kind.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct Filter {
     pub name: String,
     pub label: String,
@@ -124,6 +128,7 @@ impl Filter {
 /// Which rows of a kind: older than some age, and/or matching filters.
 /// An empty selector is the whole kind.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Selector {
     /// Only rows whose time column is at least this many seconds old.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -133,8 +138,28 @@ pub struct Selector {
     pub filters: BTreeMap<String, String>,
 }
 
+impl Selector {
+    /// The whole kind.
+    pub fn all() -> Self {
+        Selector::default()
+    }
+
+    /// Only rows at least this many seconds old.
+    pub fn older_than(mut self, secs: u64) -> Self {
+        self.older_than_secs = Some(secs);
+        self
+    }
+
+    /// Narrow by a declared filter.
+    pub fn with_filter(mut self, name: &str, value: &str) -> Self {
+        self.filters.insert(name.into(), value.into());
+        self
+    }
+}
+
 /// What a selection holds.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct KindStats {
     pub rows: u64,
     /// Estimated: the table's share of the file, scaled to the selection.
@@ -159,6 +184,7 @@ pub trait KindOps: Send + Sync {
 
 /// A [`Selector`] with its age turned into an absolute instant.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct ResolvedSelector {
     /// Rows strictly older than this unix second.
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -102,7 +102,8 @@ directly; a `remedy` is mandatory at compile time.
 
 ## 6 · `ClientStore`: keeping your own client table (kyu)
 
-The kit's clients live in `clients.json.enc` by default. A project that
+The kit's clients live in the kit database (`<name>-kit.db`, until 3.10.0 in
+`clients.json.enc`) by default. A project that
 keeps them elsewhere implements the trait and hands it in with
 `app.client_store(Arc::new(MyStore))`:
 
@@ -126,7 +127,8 @@ difference knowingly. The kit ships `FileClientStore` and
 `MemoryClientStore` and drives both through one suite — run your
 implementation through the same `drive()` (`shell::store::tests`). Note
 the trait differs from AR5's sketch (`list`, `get_by_token`, …): the code
-is the contract. Sessions and passkeys always use the kit's sealed files.
+is the contract. Sessions and passkeys always use the kit's own database (until 3.10.0 its
+sealed files).
 
 ## 7 · Behaviour that changes on purpose
 
@@ -339,6 +341,68 @@ Nothing is required. What a project can adopt, each on its own:
 - **Drift:** `chassis sync` now also reports a kit tag in Cargo.toml that
   differs from `chassis_tag`, a stale `kp_themes`, and with `--remote` a branch
   protection that names other checks than the CI does.
+
+## 3.11.0: sqlite storage (a minor, additive)
+
+What moves, and what does not (docs/ARCHITECTURE_DECISIONS.md arch-21):
+
+- **Moves, by itself, at the first start of 3.11.0:** the kit's clients,
+  sessions and passkeys, from `clients.json.enc`, `sessions.json.enc` and
+  `passkeys.json.enc` into `<name>-kit.db` in the state directory, in ONE
+  transaction, secrets sealed per field with the same `<P>_SECRET_KEY`. The
+  old files are renamed `*.json.enc.migrated` (still sealed; keep them until
+  the first backup after the upgrade, then delete them). If the move fails
+  (a duplicate id, a file under another key) nothing is written, the
+  service keeps running on the old files and the status page shows a
+  problem; the next start retries.
+- **Does not move:** your own code. `ClientStore` (kyu keeps its clients in
+  its own sqlite), `EncryptedFile`, `rekey_dir` and every other public item
+  are unchanged, so nothing has to be edited to take 3.11.0. A headless
+  service (`default-features = false, features = ["core", …]`) links no
+  sqlite at all; `dashboard` implies the new `storage` feature.
+- **`rekey`** now re-seals the database fields too (one transaction) and
+  says how many.
+- **Downgrade = restore the pre-update copy.** An older binary refuses the
+  newer kit database and the old JSON files were renamed, so going back
+  means restoring `<name>-pre-update/<version>/` (taken before the update,
+  with `<name>-kit.db` and `<name>.db` as consistent `VACUUM INTO`
+  snapshots) over the state directory, then starting the old binary.
+- **Backup:** both files are in the state root. The pause now checkpoints
+  their logs; nothing to change in `service.yml`, `backup_pause: chassis`
+  works as is. A service with the pause not wired still gets a consistent
+  tar only if it stops the unit.
+- **New knobs:** `storage_budget_mb` (50) and `storage_warn_mb` (40). The
+  budget warns and never refuses a write.
+
+Adopting the app database is optional and yours to schedule:
+
+```rust
+let db = app.app_db(
+    AppDbSpec::new(vec![Migration::sql(
+        "CREATE TABLE events (id INTEGER PRIMARY KEY, at INTEGER NOT NULL, level TEXT NOT NULL) STRICT;",
+    )])
+    // Runs once, in one transaction, after the migrations; report what the
+    // old files held and what you wrote. A mismatch or an error rolls it all
+    // back and you keep running on the old files (db.import_state()).
+    .with_import(|tx, ctx| {
+        /* read ctx.state_dir/old.json, INSERT through tx */
+        Ok(ImportReport::new(n, n, vec![old_file]))
+    }),
+)?;
+app.storage_kind(
+    DataKind::new("events", "Events")
+        .table("events")
+        .time_column("at", TimeFormat::UnixSeconds),
+);
+```
+
+`db.read(..)` / `db.write(..)` are async (a write is one `BEGIN IMMEDIATE`
+transaction under the backup pause's ticket); the `_blocking` twins are for
+synchronous code. Claims in your own documents that 3.11.0 made false: "the
+state directory holds `clients.json.enc`, `sessions.json.enc` and
+`passkeys.json.enc`", "`rekey` re-seals the `*.json.enc` files" (it re-seals
+the database fields as well), and a backup check that expects those names in
+the tar (look for `<name>-kit.db`).
 
 ## 3.0.0: releases are gated and built locally
 

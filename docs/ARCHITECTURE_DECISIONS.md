@@ -244,6 +244,12 @@ four methods — `snapshot`, `update`, `touch`, `persist` (in-memory mutation
 with debounced persistence, critic #13) — not the `list/get_by_token/insert/
 revoke/delete/touch` sketch above; `docs/MIGRATION.md` documents the code.*
 
+*Amendment 2026-10-21 (3.11.0): the three sealed JSON files are replaced by
+sqlite, two files per service. The decision, its reasons and the
+`ClientStore` seam are in arch-21; the paragraph above describes what 3.10.0 and
+earlier wrote and what the first start of 3.11.0 imports and renames
+`*.json.enc.migrated`.*
+
 ### AR6 · Security model
 - Bootstrap token compared constant-time (`subtle`); client tokens stored
   encrypted (not hashed) so reveal/copy work, compared constant-time
@@ -465,6 +471,75 @@ Almanac). `/healthz` answers what is **running**. During a supervised
 update they legitimately differ until the restart; the docs say which to
 ask for what. **Code-enforced** (E2E: `--version` with no env and no
 state dir succeeds).
+
+### arch-21 · SQLite, two files (3.11.0, amends AR5)
+Kenny, 2026-10-21 (homelab thread, form `chassis-rs-3-11-0-opslag`). The
+kit keeps its state in **sqlite**, in two files under `<P>_STATE_DIR`,
+service-prefixed: `<name>-kit.db` (the kit's own: clients, sessions,
+passkeys) and `<name>.db` (the app's, opened through `App::app_db`).
+rusqlite 0.40.2 with `bundled`, the version kyu runs (its ADR T2), behind the
+cargo feature `storage` (on by default; `dashboard` implies it; a headless
+`default-features = false, features = ["core", …]` build links none of it).
+No SQLCipher: it has no static-musl story, and it is not needed (below).
+
+- **Connections.** One write connection behind a mutex plus two read-only
+  connections; WAL, `synchronous=FULL`, `busy_timeout=5000`,
+  `foreign_keys=ON`; every call under `spawn_blocking`. A write is `BEGIN
+  IMMEDIATE` and holds a backup `WriteTicket`, so the pause gate of AR9
+  covers it. Migrations are a numbered list in `PRAGMA user_version`, each
+  atomic with its version bump; a database newer than the binary is refused
+  with a remedy; `--check` inspects read-only and creates or migrates
+  nothing. **Code-enforced.**
+- **The kit file is the kit's alone.** Secrets stay sealed FIELD BY FIELD
+  with the AR5 envelope and the same `<P>_SECRET_KEY` (a client's token and
+  field values, a passkey's credential); ids, names, timestamps and the hash
+  of a session cookie are plain columns. `rekey` re-seals the fields in one
+  transaction. No cleanup, delete, vacuum or Storage route can reach the
+  file: those take an `AppDb`, a type that cannot be built for it, and a
+  `DataKind` is validated against the app's file only. The only rows the kit
+  removes from it by itself are sessions past their own expiry, daily, with a
+  count in the log. **Code-enforced, locked by tests.**
+- **The one-time import** of `clients.json.enc`, `sessions.json.enc`
+  (`sessions.open.json.enc` for an open run) and `passkeys.json.enc` runs in
+  ONE transaction with a marker per source. A failure (a file that does not
+  open, a duplicate id, a count that does not match) writes nothing, renames
+  nothing, raises a status-page problem and leaves the kit running on the
+  old files; the next start retries. A success verifies the counts and
+  renames the files `*.json.enc.migrated`; a marker makes a second run a
+  no-op even if an old file is restored. The same hook shape is offered to
+  the app (`AppDbSpec::import`).
+- **Not encrypted at rest for the app file**, like the JSON files were not
+  for project data: secrets belong in the kit file.
+- **Budget.** Default 50 MB, warn at 40 (`<P>_STORAGE_BUDGET_MB`,
+  `<P>_STORAGE_WARN_MB`, `App::storage_budget`; the environment wins). Size =
+  `page_count * page_size` plus the log, both files summed, the kit's part
+  shown. Checked at start, every ten minutes and after each Storage action.
+  **It warns and never refuses**: a status-page problem, `/metrics`, the
+  `on_storage_warn` hook; no write is rejected for size and no useful data is
+  removed because of it.
+- **Cleanup.** A project declares its kinds of data (`DataKind`: table, time
+  column, filters, optionally what makes a row FINISHED BY ITS OWN
+  DEFINITION). Only those rows are removed automatically (daily, logged with
+  a count). Everything else goes through the Storage API: a read-only
+  preview with a token that binds the selection, then a delete that needs the
+  token and the kind's name typed, recounts inside the transaction, runs in
+  one transaction and leaves an audit line. `VACUUM` is on demand, of the app
+  file only, and refused while a backup pause holds the state.
+- **Backup.** After the tickets drained, the pause runs
+  `wal_checkpoint(TRUNCATE)` on every file; a checkpoint still busy after
+  5 s refuses the in-process pause and `backup-pause` falls back to stopping
+  the unit (AR9, unchanged). The pre-update copy snapshots each file with
+  `VACUUM INTO`. A downgrade restores that copy: an older binary refuses a
+  newer schema and the old JSON files were renamed, so the copy under
+  `<name>-pre-update/<version>/` is the way back.
+- **What does not change.** `EncryptedFile`, `rekey_dir`, the `ClientStore`
+  trait (kyu keeps its clients in its own sqlite), `FileClientStore` and
+  every public item of 3.10.0. 3.11.0 is a minor.
+
+Alternatives considered: a second JSON-per-store layer with an index
+(rejected: no transaction across stores, which the import needs); SQLCipher
+(rejected above); one file for kit and app (rejected: the kit's data must be
+out of reach of every cleanup path by construction, not by a flag).
 
 ---
 

@@ -219,6 +219,7 @@ impl KitDb {
 
     // ---- passkeys --------------------------------------------------------------
 
+    #[cfg_attr(not(feature = "passkeys"), allow(dead_code))]
     pub(crate) fn load_passkeys(&self) -> Result<Vec<PasskeyRow>, Error> {
         let key = self.key.clone();
         self.db.read_blocking(|c| {
@@ -242,6 +243,7 @@ impl KitDb {
         })
     }
 
+    #[cfg_attr(not(feature = "passkeys"), allow(dead_code))]
     pub(crate) fn save_passkeys(&self, rows: &[PasskeyRow]) -> Result<(), Error> {
         let key = self.key.clone();
         let rows = rows.to_vec();
@@ -287,10 +289,17 @@ impl KitDb {
             Ok(renames)
         })
         .map_err(|e| {
+            // A key or file problem has its own remedy (rekey, restore); a
+            // database error's generic one would mislead here.
+            let remedy = if e.kind == crate::core::error::Kind::Config {
+                format!("{} Nothing was written and the old files stay in use.", e.remedy)
+            } else {
+                "nothing was written and the old files stay in use; fix what the message names (a duplicate id, for one) or restore the file from the last backup".to_string()
+            };
             Error::new(
                 e.kind,
                 format!("moving the old stores into the kit database failed and was rolled back: {}", e.message),
-                "nothing was written and the old files stay in use; fix what the message names (a duplicate id, a file sealed under another key) or restore the file from the last backup",
+                remedy,
             )
         })?;
         let moved = renames.len();
@@ -405,6 +414,7 @@ fn write_sessions(tx: &Transaction, file: &SessionsFile) -> Result<(), Error> {
     Ok(())
 }
 
+#[cfg_attr(not(feature = "passkeys"), allow(dead_code))]
 fn write_passkeys(tx: &Transaction, key: &Key, rows: &[PasskeyRow]) -> Result<(), Error> {
     let existing: BTreeSet<String> = tx
         .prepare("SELECT id FROM kit_passkeys")?
