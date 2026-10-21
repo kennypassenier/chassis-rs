@@ -95,6 +95,9 @@ pub struct StorageReport {
 /// Called once when the level rises (ok to warn, warn to over).
 pub type WarnHook = Arc<dyn Fn(&StorageReport) + Send + Sync>;
 
+/// Removes expired sessions from the kit file and says how many.
+pub(crate) type KitPrune = Arc<dyn Fn() -> Result<u64, Error> + Send + Sync>;
+
 /// How often the budget is rechecked.
 pub const CHECK_EVERY: Duration = Duration::from_secs(600);
 /// How often finished rows are pruned.
@@ -105,6 +108,8 @@ struct Inner {
     app: Option<AppDb>,
     kit: Option<Db>,
     kit_problems: Mutex<Vec<StorageProblem>>,
+    /// Removes expired sessions from the kit file; set by the dashboard.
+    kit_prune: Mutex<Option<KitPrune>>,
     report: Mutex<Option<StorageReport>>,
     hook: Option<WarnHook>,
 }
@@ -134,10 +139,32 @@ impl Storage {
                 app,
                 kit,
                 kit_problems: Mutex::new(Vec::new()),
+                kit_prune: Mutex::new(None),
                 report: Mutex::new(None),
                 hook,
             }),
         }
+    }
+
+    #[cfg(feature = "dashboard")]
+    pub(crate) fn add_problem(&self, p: StorageProblem) {
+        self.inner
+            .kit_problems
+            .lock()
+            .expect("problems lock")
+            .push(p);
+    }
+
+    /// The kit file's handle, for the dashboard's stores.
+    #[cfg(feature = "dashboard")]
+    pub(crate) fn kit_db(&self) -> Option<&Db> {
+        self.inner.kit.as_ref()
+    }
+
+    /// What removes expired sessions from the kit file.
+    #[cfg(feature = "dashboard")]
+    pub(crate) fn set_kit_prune(&self, f: KitPrune) {
+        *self.inner.kit_prune.lock().expect("prune lock") = Some(f);
     }
 
     pub fn config(&self) -> StorageConfig {
@@ -247,6 +274,24 @@ impl Storage {
         out
     }
 
+    /// Remove, on the app's side, the rows of declared kinds that are
+    /// finished by their own definition, and, on the kit's side, the
+    /// sessions that expired. Nothing else is ever removed on its own.
+    pub fn prune_finished(&self) -> Result<(), Error> {
+        if let Some(app) = &self.inner.app {
+            app.prune_finished()?;
+        }
+        let kit_prune = self.inner.kit_prune.lock().expect("prune lock").clone();
+        if let Some(f) = kit_prune {
+            let removed = f()?;
+            tracing::info!(
+                removed,
+                "storage: removed expired sessions from the kit database"
+            );
+        }
+        Ok(())
+    }
+
     /// The background work: the ten-minute budget check and the daily
     /// removal of rows finished by their own definition.
     pub(crate) fn spawn(&self) -> Vec<tokio::task::JoinHandle<()>> {
@@ -263,33 +308,26 @@ impl Storage {
                 }
             }
         }));
-        if self.inner.app.is_some() {
-            let me = self.clone();
-            tasks.push(tokio::spawn(async move {
-                // A minute after start, then daily.
-                tokio::time::sleep(Duration::from_secs(60)).await;
-                let mut tick = tokio::time::interval(PRUNE_EVERY);
-                loop {
-                    tick.tick().await;
-                    let again = me.clone();
-                    let res = tokio::task::spawn_blocking(move || match again.inner.app.as_ref() {
-                        Some(app) => app.prune_finished(),
-                        None => Ok(Vec::new()),
-                    })
-                    .await;
-                    match res {
-                        Ok(Err(e)) => {
-                            tracing::warn!(error = %e, "storage: pruning finished rows failed")
-                        }
-                        Ok(Ok(_)) => {
-                            let again = me.clone();
-                            let _ = tokio::task::spawn_blocking(move || again.check()).await;
-                        }
-                        Err(_) => {}
+        let me = self.clone();
+        tasks.push(tokio::spawn(async move {
+            // A minute after start, then daily.
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            let mut tick = tokio::time::interval(PRUNE_EVERY);
+            loop {
+                tick.tick().await;
+                let again = me.clone();
+                match tokio::task::spawn_blocking(move || again.prune_finished()).await {
+                    Ok(Err(e)) => {
+                        tracing::warn!(error = %e, "storage: pruning finished rows failed")
                     }
+                    Ok(Ok(())) => {
+                        let again = me.clone();
+                        let _ = tokio::task::spawn_blocking(move || again.check()).await;
+                    }
+                    Err(_) => {}
                 }
-            }));
-        }
+            }
+        }));
         tasks
     }
 

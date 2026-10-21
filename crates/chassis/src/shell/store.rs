@@ -318,6 +318,55 @@ impl ClientStore for FileClientStore {
     }
 }
 
+/// Clients in the kit database (`<name>-kit.db`, 3.11.0): the same
+/// in-memory model as [`FileClientStore`], persisted as rows with the token
+/// and the project's field values sealed per field.
+#[cfg(feature = "dashboard")]
+pub(crate) struct DbClientStore {
+    kit: crate::storage::KitDb,
+    state: std::sync::RwLock<ClientsFile>,
+}
+
+#[cfg(feature = "dashboard")]
+impl DbClientStore {
+    pub(crate) fn open(kit: crate::storage::KitDb) -> Result<Self, Error> {
+        let loaded = kit.load_clients()?;
+        loaded.check_format()?;
+        Ok(Self {
+            kit,
+            state: std::sync::RwLock::new(loaded),
+        })
+    }
+}
+
+#[cfg(feature = "dashboard")]
+impl ClientStore for DbClientStore {
+    fn snapshot(&self) -> ClientsFile {
+        self.state.read().expect("clients lock").clone()
+    }
+
+    fn update(
+        &self,
+        f: &mut dyn FnMut(&mut ClientsFile) -> Result<Client, Error>,
+    ) -> Result<Client, Error> {
+        let mut guard = self.state.write().expect("clients lock");
+        let mut working = guard.clone();
+        let client = f(&mut working)?;
+        self.kit.save_clients(&working)?;
+        *guard = working;
+        Ok(client)
+    }
+
+    fn touch(&self, id: &str, now: &str) {
+        self.state.write().expect("clients lock").touch(id, now);
+    }
+
+    fn persist(&self) -> Result<(), Error> {
+        let snapshot = self.state.read().expect("clients lock").clone();
+        self.kit.save_clients(&snapshot)
+    }
+}
+
 /// Clients in memory only: tests, and the second implementation the
 /// shared suite needs (rule 7g).
 #[derive(Default)]
@@ -357,6 +406,9 @@ pub type Clients = Arc<dyn ClientStore>;
 /// around them; the file is small and rewritten on every change.
 pub struct SessionStore {
     file: Option<EncryptedFile>,
+    /// 3.11.0: the kit database, when the sessions live there.
+    #[cfg(feature = "dashboard")]
+    kit: Option<crate::storage::KitDb>,
     pub state: RwLock<crate::core::session::SessionsFile>,
 }
 
@@ -365,6 +417,19 @@ impl SessionStore {
         let loaded = file.load()?.unwrap_or_default();
         Ok(Self {
             file: Some(file),
+            #[cfg(feature = "dashboard")]
+            kit: None,
+            state: RwLock::new(loaded),
+        })
+    }
+
+    /// Sessions in the kit database (3.11.0).
+    #[cfg(feature = "dashboard")]
+    pub(crate) fn open_db(kit: crate::storage::KitDb) -> Result<Self, Error> {
+        let loaded = kit.load_sessions()?;
+        Ok(Self {
+            file: None,
+            kit: Some(kit),
             state: RwLock::new(loaded),
         })
     }
@@ -372,11 +437,18 @@ impl SessionStore {
     pub fn in_memory() -> Self {
         Self {
             file: None,
+            #[cfg(feature = "dashboard")]
+            kit: None,
             state: RwLock::new(Default::default()),
         }
     }
 
     pub async fn save(&self) -> Result<(), Error> {
+        #[cfg(feature = "dashboard")]
+        if let Some(kit) = &self.kit {
+            let snapshot = self.state.read().await.clone();
+            return kit.save_sessions(snapshot).await;
+        }
         if let Some(f) = &self.file {
             let snapshot = self.state.read().await.clone();
             f.save(&snapshot)?;
@@ -562,5 +634,26 @@ mod tests {
         assert_eq!(snap.get("id-1").unwrap().uses, 1);
 
         drive(&MemoryClientStore::default());
+    }
+
+    /// Rule 7g again: the kit-database implementation passes the very same
+    /// suite and its changes survive a reopen.
+    #[cfg(feature = "dashboard")]
+    #[test]
+    fn the_database_store_passes_the_same_suite() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("svc-kit.db");
+        let open = || {
+            crate::storage::KitDb::new(
+                crate::storage::Db::open(&path, &crate::storage::kit_migrations()).unwrap(),
+                key(),
+            )
+        };
+        let store = DbClientStore::open(open()).unwrap();
+        drive(&store);
+        let reopened = DbClientStore::open(open()).unwrap();
+        let snap = reopened.snapshot();
+        assert!(snap.get("id-1").unwrap().revoked_at.is_some());
+        assert_eq!(snap.get("id-1").unwrap().uses, 1);
     }
 }

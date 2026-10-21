@@ -10,6 +10,8 @@
 mod app_db;
 mod db;
 mod kinds;
+#[cfg(feature = "dashboard")]
+mod kit_db;
 mod runtime;
 
 pub use app_db::{
@@ -20,6 +22,21 @@ pub use db::{Db, FileSizes, Inspection, Migration, meta_get, meta_set, wal_path}
 pub use kinds::{
     DataKind, Filter, FilterKind, KindOps, KindStats, Now, ResolvedSelector, Selector, TimeFormat,
 };
+#[cfg(feature = "dashboard")]
+pub(crate) use kit_db::{
+    ImportPlan, KitDb, PasskeyRow, kit_file_name, kit_migrations, kit_schema_version,
+};
+
+/// Re-seal the sealed fields of the kit database at `path` from `old` to
+/// `new` in one transaction (what `<name> rekey` does beside the JSON files).
+#[cfg(feature = "dashboard")]
+pub(crate) fn rekey_kit_file(
+    path: &Path,
+    old: &crate::core::crypto::Key,
+    new: &crate::core::crypto::Key,
+) -> Result<usize, Error> {
+    KitDb::rekey(path, old, new)
+}
 pub use runtime::{FileReport, Level, Storage, StorageConfig, StorageReport, WarnHook};
 
 /// The sqlite crate the handles are built on, re-exported so a project

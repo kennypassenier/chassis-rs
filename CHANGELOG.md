@@ -56,6 +56,26 @@ scaffold writes. A breaking change in either is a major and carries a
   `TestApp::try_start_with_env` returns the kit's refusal instead of
   panicking. Additive.
 
+- **The kit's clients, sessions and passkeys move into `<name>-kit.db`**
+  (`dashboard`, which implies `storage`; Kenny, 2026-10-21): one table each,
+  the secrets sealed FIELD BY FIELD with the same crypto and the same
+  `<P>_SECRET_KEY` (a client's token and field values, a passkey's
+  credential), ids, names, timestamps and the SHA-256 of a session cookie in
+  plain columns. The first start imports `clients.json.enc`,
+  `sessions.json.enc` (`sessions.open.json.enc` for an open run) and
+  `passkeys.json.enc` in ONE transaction and verifies the counts; a failure
+  writes nothing, renames nothing, raises a status-page problem and the kit
+  keeps running on the old files until the next start retries; a success
+  renames them `*.json.enc.migrated` (still sealed: they keep working as a
+  backup) and a marker per source makes it idempotent, so a restored old
+  file is never read again. `<name> rekey` also re-seals the database fields,
+  in one transaction. Expired sessions are the only rows the kit removes from
+  this file, daily, logged with a count. Nothing in the Storage layer can
+  reach this file: no kind, no delete, no compact. `EncryptedFile`,
+  `rekey_dir`, `ClientStore`, `FileClientStore` and every other public item
+  are unchanged; a project's own `ClientStore` (kyu's) is still used as given.
+  The data moves, the API does not. Additive.
+
 ## [3.10.0] - 2026-10-21
 
 ### Security

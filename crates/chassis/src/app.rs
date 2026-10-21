@@ -2104,6 +2104,11 @@ impl App {
     #[cfg(feature = "storage")]
     fn storage_files_to_check(&self) -> Vec<(String, usize)> {
         let mut out = Vec::new();
+        #[cfg(feature = "dashboard")]
+        out.push((
+            crate::storage::kit_file_name(self.spec.name),
+            crate::storage::kit_schema_version(),
+        ));
         if let Some((_, spec)) = &self.app_db {
             out.push((format!("{}.db", self.spec.name), spec.migrations.len()));
         }
@@ -2182,8 +2187,29 @@ impl App {
                     &hex::encode(candidate),
                 )?;
                 let done = crate::shell::store::rekey_dir(&loaded.state_dir, &old_key, &new_key)?;
+                // 3.11.0: the sealed fields of the kit database too, in one
+                // transaction; a service that never ran 3.11 has no such file.
+                #[cfg(all(feature = "storage", feature = "dashboard"))]
+                let fields = {
+                    let kit = loaded
+                        .state_dir
+                        .join(crate::storage::kit_file_name(self.spec.name));
+                    if kit.exists() {
+                        Some(crate::storage::rekey_kit_file(&kit, &old_key, &new_key)?)
+                    } else {
+                        None
+                    }
+                };
+                #[cfg(not(all(feature = "storage", feature = "dashboard")))]
+                let fields: Option<usize> = None;
+                let db_note = fields.map_or_else(String::new, |n| {
+                    format!(
+                        " and {n} sealed field(s) in {}",
+                        crate::storage::kit_file_name(self.spec.name)
+                    )
+                });
                 println!(
-                    "{}: {} store file(s) in {} now sealed under {prefix}_SECRET_KEY; unset {old_env} and start the service",
+                    "{}: {} store file(s){db_note} in {} now sealed under {prefix}_SECRET_KEY; unset {old_env} and start the service",
                     self.spec.name,
                     done,
                     loaded.state_dir.display()
@@ -2457,14 +2483,26 @@ impl App {
         }
         // 3.11.0: the sqlite files open (and migrate) before anything reads
         // or serves; a database newer than this build stops the start here.
+        #[cfg(all(feature = "storage", feature = "dashboard"))]
+        let kit_db = Some(crate::storage::Db::open(
+            &loaded
+                .state_dir
+                .join(crate::storage::kit_file_name(self.spec.name)),
+            &crate::storage::kit_migrations(),
+        )?);
+        #[cfg(all(feature = "storage", not(feature = "dashboard")))]
+        let kit_db: Option<crate::storage::Db> = None;
         #[cfg(feature = "storage")]
         let storage = open_storage(
             loaded,
             self.spec.name,
-            self.app_db.take(),
-            std::mem::take(&mut self.storage_kinds),
-            self.storage_budget,
-            self.storage_warn_hook.take(),
+            kit_db,
+            StorageSetup {
+                app_db: self.app_db.take(),
+                kinds: std::mem::take(&mut self.storage_kinds),
+                budget: self.storage_budget,
+                hook: self.storage_warn_hook.take(),
+            },
             &mut self.dbs,
         )?;
         #[cfg(feature = "storage")]
@@ -2789,17 +2827,29 @@ impl App {
 /// app's file is installed into the handle `App::app_db` returned; every
 /// file joins `dbs`, which the backup pause and the pre-update copy read.
 #[cfg(feature = "storage")]
-fn open_storage(
-    loaded: &Loaded,
-    name: &str,
+struct StorageSetup {
     app_db: Option<(crate::storage::AppDb, crate::storage::AppDbSpec)>,
     kinds: Vec<crate::storage::DataKind>,
     budget: Option<(u64, Option<u64>)>,
     hook: Option<crate::storage::WarnHook>,
+}
+
+#[cfg(feature = "storage")]
+fn open_storage(
+    loaded: &Loaded,
+    name: &str,
+    kit_db: Option<crate::storage::Db>,
+    setup: StorageSetup,
     dbs: &mut Vec<crate::storage::Db>,
 ) -> Result<crate::storage::Storage, Error> {
     use crate::core::config::Source;
     use crate::storage::{Storage, StorageConfig};
+    let StorageSetup {
+        app_db,
+        kinds,
+        budget,
+        hook,
+    } = setup;
     let default_budget = budget.map_or(StorageConfig::DEFAULT_BUDGET_MB, |b| b.0);
     let budget_mb = if loaded.source("storage_budget_mb") == Some(Source::Default) {
         default_budget
@@ -2830,7 +2880,10 @@ fn open_storage(
             ));
         }
     };
-    let storage = Storage::new(cfg, app, None, hook);
+    if let Some(kit) = &kit_db {
+        dbs.push(kit.clone());
+    }
+    let storage = Storage::new(cfg, app, kit_db, hook);
     if let Err(e) = storage.check() {
         tracing::warn!(error = %e, "storage: the first budget check failed");
     }

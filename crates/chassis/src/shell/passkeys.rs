@@ -147,7 +147,10 @@ impl<P> Ceremonies<P> {
 pub struct PasskeyState {
     pub webauthn: Arc<Webauthn>,
     pub auth: AuthState,
-    file: EncryptedFile,
+    file: Option<EncryptedFile>,
+    /// 3.11.0: the kit database, when the passkeys live there.
+    #[cfg(feature = "dashboard")]
+    kit: Option<crate::storage::KitDb>,
     store: Arc<Mutex<PasskeysFile>>,
     pending: Arc<Mutex<Ceremonies<Pending>>>,
     /// For the client IP behind a trusted proxy (the per-IP share).
@@ -220,8 +223,53 @@ impl PasskeyState {
         Ok(Self {
             webauthn: Arc::new(webauthn),
             auth,
-            file,
+            file: Some(file),
+            #[cfg(feature = "dashboard")]
+            kit: None,
             store: Arc::new(Mutex::new(loaded)),
+            pending: Arc::new(Mutex::new(Ceremonies::new(limits))),
+            guards,
+            logins: Arc::default(),
+        })
+    }
+
+    /// Passkeys in the kit database (3.11.0); the credential is sealed per
+    /// row with the same key.
+    #[cfg(feature = "dashboard")]
+    pub(crate) fn open_db(
+        webauthn: Webauthn,
+        auth: AuthState,
+        kit: crate::storage::KitDb,
+        limits: CeremonyLimits,
+        guards: crate::shell::guards::Guards,
+    ) -> Result<Self, Error> {
+        let passkeys = kit
+            .load_passkeys()?
+            .into_iter()
+            .map(|r| {
+                Ok(StoredPasskey {
+                    id: r.id,
+                    label: r.label,
+                    created_at: r.created_at,
+                    last_used_at: r.last_used_at,
+                    passkey: serde_json::from_str(&r.credential_json).map_err(|e| {
+                        Error::config(
+                            format!("a stored passkey does not parse: {e}"),
+                            "restore the kit database from the last backup or pre-update copy",
+                        )
+                    })?,
+                })
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
+        Ok(Self {
+            webauthn: Arc::new(webauthn),
+            auth,
+            file: None,
+            kit: Some(kit),
+            store: Arc::new(Mutex::new(PasskeysFile {
+                v: PASSKEYS_FORMAT,
+                passkeys,
+            })),
             pending: Arc::new(Mutex::new(Ceremonies::new(limits))),
             guards,
             logins: Arc::default(),
@@ -230,7 +278,29 @@ impl PasskeyState {
 
     fn save(&self) -> Result<(), Error> {
         let snapshot = self.store.lock().expect("passkeys lock").clone();
-        self.file.save(&snapshot)
+        #[cfg(feature = "dashboard")]
+        if let Some(kit) = &self.kit {
+            let rows = snapshot
+                .passkeys
+                .iter()
+                .map(|p| {
+                    Ok(crate::storage::PasskeyRow {
+                        id: p.id.clone(),
+                        label: p.label.clone(),
+                        created_at: p.created_at.clone(),
+                        last_used_at: p.last_used_at.clone(),
+                        credential_json: serde_json::to_string(&p.passkey).map_err(|e| {
+                            Error::internal(format!("serialise a passkey: {e}"), "report this")
+                        })?,
+                    })
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            return kit.save_passkeys(&rows);
+        }
+        match &self.file {
+            Some(file) => file.save(&snapshot),
+            None => Ok(()),
+        }
     }
 
     fn put_pending(
