@@ -7,6 +7,8 @@
 //! is the app's, opened through [`crate::App::app_db`]. The design and
 //! Kenny's decisions are in `docs/STORAGE_DESIGN.md`.
 
+#[cfg(feature = "dashboard")]
+pub(crate) mod api;
 mod app_db;
 mod db;
 mod kinds;

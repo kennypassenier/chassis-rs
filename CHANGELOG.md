@@ -76,6 +76,23 @@ scaffold writes. A breaking change in either is a major and carries a
   are unchanged; a project's own `ClientStore` (kyu's) is still used as given.
   The data moves, the API does not. Additive.
 
+- **The Storage page's JSON API, `/api/kit/storage`** (`dashboard`): `GET`
+  returns the budget (bytes, warn line, level, percent), both files with
+  their write-ahead log and reclaimable bytes (the kit's marked
+  `cleanable: false`), the app import state and one row per declared kind
+  (rows, estimated bytes, oldest, newest, declared filters). `POST
+  /api/kit/storage/{kind}/preview` is read-only (count, bytes, oldest, newest,
+  five samples) and returns a token that binds the selection, the instant and
+  the count; `POST /api/kit/storage/{kind}/delete` needs that token, the
+  selection again and the kind's name typed as the confirmation, recounts
+  inside the transaction and refuses when the count moved, deletes in ONE
+  transaction, writes one audit line and rechecks the budget. `POST
+  /api/kit/storage/compact/preview` and `/compact` vacuum the app file only
+  and answer 503 with `Retry-After` while a backup pause holds the state.
+  Admin login and the same-origin rule apply like for the other kit POSTs.
+  The kit file is never deletable or compactable through any route (a test
+  holds that). The page itself is not part of this change. Additive.
+
 ## [3.10.0] - 2026-10-21
 
 ### Security

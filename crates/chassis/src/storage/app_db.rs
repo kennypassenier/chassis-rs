@@ -1094,6 +1094,52 @@ mod tests {
         );
     }
 
+    /// Every delete leaves one audit line: the kind, the selection, how many.
+    #[test]
+    fn a_delete_writes_one_audit_line() {
+        #[derive(Clone, Default)]
+        struct Capture(Arc<Mutex<Vec<u8>>>);
+        impl std::io::Write for Capture {
+            fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(b);
+                Ok(b.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Capture {
+            type Writer = Capture;
+            fn make_writer(&'a self) -> Capture {
+                self.clone()
+            }
+        }
+        let cap = Capture::default();
+        let sub = tracing_subscriber::fmt()
+            .with_writer(cap.clone())
+            .with_ansi(false)
+            .finish();
+        let app = seeded();
+        let now = Now::at(T0);
+        let p = app.preview_at("events", &older(5), &now).unwrap();
+        tracing::subscriber::with_default(sub, || {
+            app.delete_at("events", &older(5), &p.token, "events", &now)
+                .unwrap();
+        });
+        let log = String::from_utf8(cap.0.lock().unwrap().clone()).unwrap();
+        assert_eq!(log.lines().count(), 1, "{log}");
+        assert!(log.contains("audit=true"), "{log}");
+        assert!(
+            log.contains("kind=\"events\"") || log.contains("kind=events"),
+            "{log}"
+        );
+        assert!(log.contains("deleted=4"), "{log}");
+        assert!(
+            log.contains("cutoff_secs"),
+            "the selection is in the line: {log}"
+        );
+    }
+
     #[test]
     fn compact_reclaims_the_pages_a_delete_freed_and_is_refused_while_paused() {
         let dir = tempfile::tempdir().unwrap();

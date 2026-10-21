@@ -408,6 +408,13 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
             );
         }
     }
+    // 3.11.0: the Storage page's JSON API, behind the admin login and the
+    // same-origin rule; the page itself is drawn from it.
+    let storage_api = match &extra.storage {
+        Some(st) => crate::storage::api::routes(st.clone())
+            .layer(from_fn_with_state(auth.clone(), require_admin)),
+        None => Router::new(),
+    };
     let set_for_json = page_set.clone();
     let pages_admin = pages_admin
         .with_state(dash.clone())
@@ -569,6 +576,7 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         .merge(logout)
         .merge(pages_admin)
         .merge(clients_api)
+        .merge(storage_api)
         .merge(project_pages)
         .merge(api_routes);
     #[cfg(feature = "passkeys")]

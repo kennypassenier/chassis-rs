@@ -342,6 +342,11 @@ impl DataKind {
                     .into(),
             ));
         }
+        if matches!(self.id.as_str(), "compact" | "kit") {
+            return Err(bad(
+                "`compact` and `kit` are the Storage routes' own words; pick another id".into(),
+            ));
+        }
         let mut names = std::collections::BTreeSet::new();
         for f in &self.filters {
             if !names.insert(&f.name) || !ident_ok(&f.name) {
