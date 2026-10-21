@@ -24,6 +24,11 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Fixed
 
+- **A status section's own refresh bar keeps the package's form-grid tracks**
+  (kit-r4, http-switchboard gap 39): the kit's `.kp-refresh__bar` rules in
+  chassis.css were unlayered and scoped to the whole status page, so they beat
+  the package's subgrid rules and stacked a section's bar in one column. They
+  now reach only the kit's own header bar (`.chassis-status__fresh`).
 - **A status section whose body is html only no longer renders an empty
   `dl[data-chassis-rows]`** (kit-r4, almanac): an empty rows list draws
   nothing, on the first paint and on the live redraw; rows that arrive later

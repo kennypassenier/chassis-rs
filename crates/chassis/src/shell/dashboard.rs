@@ -1368,6 +1368,24 @@ mod tests {
         assert!(doc.contains("data-chassis-owned") && doc.contains("chassis-settle"));
     }
 
+    /// kit-r4 (http-switchboard gap 39): the unlayered refresh-bar rules reach
+    /// only the kit's own header bar, never a section's own `.kp-refresh`.
+    #[test]
+    fn refresh_bar_rules_are_scoped_to_the_kits_header() {
+        let css = include_str!("../../static/chassis.css");
+        let mut seen = 0;
+        for line in css.lines().filter(|l| l.contains(".kp-refresh__bar")) {
+            seen += 1;
+            assert!(
+                line.trim_start()
+                    .starts_with(".chassis-status__fresh .kp-refresh__bar"),
+                "unscoped: {line}"
+            );
+        }
+        assert!(seen >= 4, "the rules are still there ({seen})");
+        assert!(!css.contains(".chassis-status .kp-refresh"));
+    }
+
     /// kit-r4: no template or script writes a literal "a" in front of the
     /// vocabulary word; the article comes from `vocab_article`.
     #[test]

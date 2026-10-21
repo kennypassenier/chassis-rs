@@ -235,18 +235,20 @@ pre.snippet {
    three parts and the copyable's two parts share top and bottom edges
    instead of being centred at their own heights, and the freshness line
    keeps its column when the page is narrow instead of wrapping its button
-   under it. */
-.chassis-status .kp-refresh__bar {
+   under it. Scoped to the kit's own header bar (kit-r4): a status
+   section's own `.kp-refresh` lives in a form grid, and these unlayered
+   rules would beat the package's subgrid tracks there. */
+.chassis-status__fresh .kp-refresh__bar {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: stretch;
     column-gap: var(--kp-space-md, 1rem);
 }
-.chassis-status .kp-refresh__bar > .kp-button {
+.chassis-status__fresh .kp-refresh__bar > .kp-button {
     block-size: auto;
     min-block-size: 0;
 }
-.chassis-status .kp-refresh__bar > :not(.kp-button):not(.kp-menu-button) {
+.chassis-status__fresh .kp-refresh__bar > :not(.kp-button):not(.kp-menu-button) {
     display: flex;
     align-items: center;
 }
@@ -254,11 +256,11 @@ pre.snippet {
    takes a row of its own under the chooser and the button: three columns
    would push "updating…" past the edge. */
 @media (max-width: 39.99rem) {
-    .chassis-status .kp-refresh__bar {
+    .chassis-status__fresh .kp-refresh__bar {
         grid-template-columns: minmax(0, 1fr) auto;
         row-gap: var(--kp-space-sm, 0.5rem);
     }
-    .chassis-status .kp-refresh__bar > .kp-refresh__line {
+    .chassis-status__fresh .kp-refresh__bar > .kp-refresh__line {
         grid-column: 1 / -1;
         grid-row: 2;
     }
