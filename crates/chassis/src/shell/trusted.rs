@@ -138,4 +138,49 @@ mod tests {
         assert!(t.admits("10.10.10.10".parse().unwrap()));
         assert!(!t.admits("10.10.10.11".parse().unwrap()));
     }
+
+    /// Kenny, 2026-10-22: "Zie dat het werkt voor 10.10.10.10". His PC's
+    /// own connection is marked; a neighbour, or a header naming his PC, is not.
+    #[tokio::test]
+    async fn kennys_pc_at_10_10_10_10_is_marked_and_nothing_else_is() {
+        use axum::Router;
+        use axum::body::Body;
+        use axum::routing::get;
+        use tower::ServiceExt;
+
+        let app = Router::new()
+            .route(
+                "/",
+                get(|req: Request| async move {
+                    if is_trusted(req.extensions()) {
+                        "admin"
+                    } else {
+                        "login"
+                    }
+                }),
+            )
+            .layer(axum::middleware::from_fn_with_state(
+                TrustedAdmins::new(parse_trusted_admins("10.10.10.10", &[]).unwrap()),
+                mark,
+            ));
+        let ask = |peer: &str, xff: Option<&str>| {
+            let mut req = axum::http::Request::get("/").body(Body::empty()).unwrap();
+            if let Some(x) = xff {
+                req.headers_mut()
+                    .insert("x-forwarded-for", x.parse().unwrap());
+            }
+            req.extensions_mut()
+                .insert(ConnectInfo(peer.parse::<SocketAddr>().unwrap()));
+            let app = app.clone();
+            async move {
+                let r = app.oneshot(req).await.unwrap();
+                let b = axum::body::to_bytes(r.into_body(), 1024).await.unwrap();
+                String::from_utf8(b.to_vec()).unwrap()
+            }
+        };
+        assert_eq!(ask("10.10.10.10:51515", None).await, "admin");
+        assert_eq!(ask("[::ffff:10.10.10.10]:51515", None).await, "admin");
+        assert_eq!(ask("10.10.10.4:443", Some("10.10.10.10")).await, "login");
+        assert_eq!(ask("10.10.10.11:51515", None).await, "login");
+    }
 }
