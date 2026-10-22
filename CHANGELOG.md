@@ -7,6 +7,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [3.13.0] - 2026-10-22
+
 ### Added
 
 - **Trusted admins: `<P>_TRUSTED_ADMINS`** (`dashboard`; Kenny, 2026-10-22:
