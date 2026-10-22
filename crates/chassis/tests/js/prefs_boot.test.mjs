@@ -203,3 +203,38 @@ test('the pre-login theme stays local when the app does not declare it', () => {
     assert.equal(w.localStorage.getItem('theme'), null);
     assert.equal(w.doc.documentElement.attrs['data-theme'], undefined);
 });
+
+// reload-flush (homelab, found adopting 3.12.0): a choice made a moment
+// before a reload came back as the database's older value. An unconfirmed
+// write is kept in this browser, wins over the page's snapshot, and is sent.
+test('a write the reload outran wins over the database and is sent again', async () => {
+    const first = world({ keys: { 'homelab.log-levels': '["warn"]' }, marker: true });
+    first.localStorage.setItem('homelab.log-levels', '["error"]');
+    const pending = first.localStorage.getItem('chassis-prefs:pending');
+    assert.ok(pending, 'the write is kept until the server confirms it');
+    // The reload: same browser storage, the database still has the old value.
+    const second = world({
+        keys: { 'homelab.log-levels': '["warn"]' },
+        marker: true,
+        local: { 'homelab.log-levels': '["error"]', 'chassis-prefs:pending': pending },
+    });
+    assert.equal(second.localStorage.getItem('homelab.log-levels'), '["error"]', 'the newer choice survives the reload');
+    await second.drain();
+    const put = second.calls.find((c) => c.method === 'PUT');
+    assert.deepEqual(put?.body, { value: '["error"]' });
+    assert.equal(second.localStorage.getItem('chassis-prefs:pending'), null, 'confirmed, so no longer kept');
+});
+
+test('a pending write of another login is dropped, and a reload sends at once', async () => {
+    const w = world({
+        keys: { 'homelab.log-levels': '["warn"]' },
+        marker: true,
+        local: { 'chassis-prefs:pending': JSON.stringify({ scope: 'someone-else', keys: { 'homelab.log-levels': '["x"]' } }) },
+    });
+    assert.equal(w.localStorage.getItem('homelab.log-levels'), '["warn"]');
+    assert.equal(w.localStorage.getItem('chassis-prefs:pending'), null);
+    w.localStorage.setItem('homelab.log-levels', '["error"]');
+    (w.listeners['w:beforeunload'] ?? []).forEach((f) => f());
+    await new Promise((r) => setImmediate(r));
+    assert.ok(w.calls.some((c) => c.method === 'PUT'), 'beforeunload flushes without waiting for the timer');
+});

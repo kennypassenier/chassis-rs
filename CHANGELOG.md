@@ -7,6 +7,18 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed
+
+- **A browser choice made just before a reload is no longer lost**
+  (`dashboard`, homelab, found adopting 3.12.0): a reload asked for the next
+  page before `pagehide` sent the write, so the page came back with the
+  database's older value and overwrote the newer choice. `prefs-boot.js` now
+  keeps every write the server has not confirmed in
+  `localStorage["chassis-prefs:pending"]` (per login); on the next page that
+  write wins over the database and is sent again, and `beforeunload` sends at
+  once too. The workaround `window.chassisPrefs.flush()` before a reload is
+  no longer needed. No change for a consumer.
+
 ## [3.12.0] - 2026-10-21
 
 ### Added

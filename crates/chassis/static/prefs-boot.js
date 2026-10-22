@@ -7,7 +7,9 @@
 //
 // What it does:
 //   1. Applies the database values to localStorage for the declared keys
-//      (the database wins). A key this browser holds but the database lacks
+//      (the database wins, except over a write this browser has not had
+//      confirmed yet: those are kept in localStorage and sent again, so a
+//      reload that outruns them loses nothing). A key this browser holds but the database lacks
 //      is uploaded the first time this browser syncs, and removed when it
 //      has synced before (another device removed it).
 //   2. Seeds sessionStorage for the declared session keys (kp-themes' unsaved
@@ -56,6 +58,11 @@
 
     var d = snap.synced;
     var MARK = "chassis-prefs:synced";
+    // 3.13.0 (reload-flush): the writes not yet confirmed by the server, kept
+    // in this browser so a reload that outruns them does not lose them. The
+    // page comes back with the database's older value; a pending write wins
+    // over it and is sent again.
+    var PENDING = "chassis-prefs:pending";
     var API = "/api/kit/prefs";
 
     function startsWithAny(key, list) {
@@ -133,7 +140,37 @@
             return;
         }
         queue[key] = { area: area, value: value };
+        savePending();
         schedule(300);
+    }
+    function savePending() {
+        if (!local) return;
+        var keys = {};
+        var any = false;
+        Object.keys(queue).forEach(function (key) {
+            if (queue[key].area !== "local") return;
+            keys[key] = queue[key].value;
+            any = true;
+        });
+        if (any) put(local, PENDING, JSON.stringify({ scope: snap.scope, keys: keys }));
+        else drop(local, PENDING);
+    }
+    function loadPending() {
+        if (!local) return;
+        var saved;
+        try {
+            saved = JSON.parse(get(local, PENDING) || "null");
+        } catch (e) {
+            saved = null;
+        }
+        if (!saved || saved.scope !== snap.scope || !saved.keys) {
+            drop(local, PENDING);
+            return;
+        }
+        Object.keys(saved.keys).forEach(function (key) {
+            var v = saved.keys[key];
+            if (isLocal(key) && (v === null || typeof v === "string")) queue[key] = { area: "local", value: v };
+        });
     }
     function schedule(ms) {
         if (timer !== null) return;
@@ -192,6 +229,7 @@
         });
         running = chain.then(function () {
             running = null;
+            savePending();
             if (retry && Object.keys(queue).length) {
                 backoff = Math.min(backoff ? backoff * 2 : 1000, 30000);
                 schedule(backoff);
@@ -204,12 +242,14 @@
     }
 
     // ---- first apply ------------------------------------------------------
-    function applyLocal(fromDb, firstLoad) {
+    function applyLocal(fromDb) {
         var changed = [];
         if (!local) return changed;
         var synced = get(local, MARK) === snap.scope;
         Object.keys(fromDb).forEach(function (key) {
-            if (!isLocal(key) || (queue[key] && !firstLoad)) return;
+            // A write this browser has not had confirmed yet wins, on the
+            // first apply too (a reload that outran it).
+            if (!isLocal(key) || queue[key]) return;
             if (get(local, key) !== fromDb[key]) {
                 put(local, key, fromDb[key]);
                 changed.push(key);
@@ -260,7 +300,8 @@
         if (t) document.documentElement.setAttribute("data-theme", t);
     }
 
-    applyLocal(snap.keys || {}, true);
+    loadPending();
+    applyLocal(snap.keys || {});
     seedSession(snap.session || {});
     keysOf(session || { length: 0 }, isSession).forEach(function (k) {
         known[k] = get(session, k);
@@ -314,7 +355,7 @@
             })
             .then(function (fresh) {
                 if (!fresh || !fresh.keys) return [];
-                var changed = applyLocal(fresh.keys, false);
+                var changed = applyLocal(fresh.keys);
                 if (changed.length) {
                     mirrorTheme();
                     window.dispatchEvent(new CustomEvent("chassis-prefs-change", { detail: { keys: changed } }));
@@ -336,6 +377,11 @@
         }
     });
     window.addEventListener("pagehide", function () {
+        noteSession();
+        flush(true);
+    });
+    // A reload asks for the next page before pagehide fires: send now too.
+    window.addEventListener("beforeunload", function () {
         noteSession();
         flush(true);
     });
