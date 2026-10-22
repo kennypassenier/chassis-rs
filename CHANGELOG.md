@@ -26,9 +26,10 @@ scaffold writes. A breaking change in either is a major and carries a
   page before `pagehide` sent the write, so the page came back with the
   database's older value and overwrote the newer choice. `prefs-boot.js` now
   keeps every write the server has not confirmed in
-  `localStorage["chassis-prefs:pending"]` (per login); on the next page that
-  write wins over the database and is sent again, and `beforeunload` sends at
-  once too. The workaround `window.chassisPrefs.flush()` before a reload is
+  `localStorage["chassis-prefs:pending"]` (per login), and a confirmed one for
+  30 s more, because the next page may have been rendered before the server
+  stored it (measured in Firefox); on the next page such a write wins over
+  the database and is sent again, and `beforeunload` sends at once too. The workaround `window.chassisPrefs.flush()` before a reload is
   no longer needed. No change for a consumer.
 
 ## [3.12.0] - 2026-10-21

@@ -63,6 +63,11 @@
     // page comes back with the database's older value; a pending write wins
     // over it and is sent again.
     var PENDING = "chassis-prefs:pending";
+    // A confirmed write is still kept this long: the next page may have been
+    // rendered before the server stored it (measured in Firefox: the reload's
+    // GET was answered before the keepalive PUT of the page it replaced).
+    var RECENT_MS = 30000;
+    var recent = {}; // key -> { value, at }: confirmed, kept for RECENT_MS
     var API = "/api/kit/prefs";
 
     function startsWithAny(key, list) {
@@ -147,9 +152,18 @@
         if (!local) return;
         var keys = {};
         var any = false;
+        var now = Date.now();
+        Object.keys(recent).forEach(function (key) {
+            if (now - recent[key].at >= RECENT_MS) {
+                delete recent[key];
+                return;
+            }
+            keys[key] = { value: recent[key].value, at: recent[key].at };
+            any = true;
+        });
         Object.keys(queue).forEach(function (key) {
             if (queue[key].area !== "local") return;
-            keys[key] = queue[key].value;
+            keys[key] = { value: queue[key].value, at: 0 };
             any = true;
         });
         if (any) put(local, PENDING, JSON.stringify({ scope: snap.scope, keys: keys }));
@@ -167,10 +181,15 @@
             drop(local, PENDING);
             return;
         }
+        var now = Date.now();
         Object.keys(saved.keys).forEach(function (key) {
-            var v = saved.keys[key];
-            if (isLocal(key) && (v === null || typeof v === "string")) queue[key] = { area: "local", value: v };
+            var e = saved.keys[key];
+            if (!e || !isLocal(key) || (e.value !== null && typeof e.value !== "string")) return;
+            // Unconfirmed, or confirmed so lately that this page's values may
+            // predate it: it wins and is sent again (a PUT is idempotent).
+            if (!e.at || now - e.at < RECENT_MS) queue[key] = { area: "local", value: e.value };
         });
+        savePending(); // what has expired leaves the browser now
     }
     function schedule(ms) {
         if (timer !== null) return;
@@ -214,6 +233,7 @@
                 return send(key, entry, keepalive)
                     .then(function (state) {
                         if (queue[key] === entry) delete queue[key];
+                        if (state === "ok" && entry.area === "local") recent[key] = { value: entry.value, at: Date.now() };
                         if (state === "retry") {
                             retry = true;
                             if (!queue[key]) queue[key] = entry;

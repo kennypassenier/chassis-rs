@@ -222,14 +222,31 @@ test('a write the reload outran wins over the database and is sent again', async
     await second.drain();
     const put = second.calls.find((c) => c.method === 'PUT');
     assert.deepEqual(put?.body, { value: '["error"]' });
-    assert.equal(second.localStorage.getItem('chassis-prefs:pending'), null, 'confirmed, so no longer kept');
+    // Confirmed, but kept a moment: the next page may have been rendered
+    // before the server stored it (measured in Firefox, 2026-10-22).
+    const kept = JSON.parse(second.localStorage.getItem('chassis-prefs:pending'));
+    assert.ok(kept.keys['homelab.log-levels'].at > 0);
+    const third = world({
+        keys: {},
+        marker: true,
+        local: { 'homelab.log-levels': '["error"]', 'chassis-prefs:pending': JSON.stringify(kept) },
+    });
+    assert.equal(third.localStorage.getItem('homelab.log-levels'), '["error"]', 'a page rendered before the PUT landed keeps the choice');
+    // Long confirmed: the database decides again.
+    kept.keys['homelab.log-levels'].at = Date.now() - 60000;
+    const fourth = world({
+        keys: {},
+        marker: true,
+        local: { 'homelab.log-levels': '["error"]', 'chassis-prefs:pending': JSON.stringify(kept) },
+    });
+    assert.equal(fourth.localStorage.getItem('homelab.log-levels'), null, 'removed on another device, so removed here');
 });
 
 test('a pending write of another login is dropped, and a reload sends at once', async () => {
     const w = world({
         keys: { 'homelab.log-levels': '["warn"]' },
         marker: true,
-        local: { 'chassis-prefs:pending': JSON.stringify({ scope: 'someone-else', keys: { 'homelab.log-levels': '["x"]' } }) },
+        local: { 'chassis-prefs:pending': JSON.stringify({ scope: 'someone-else', keys: { 'homelab.log-levels': { value: '["x"]', at: 0 } } }) },
     });
     assert.equal(w.localStorage.getItem('homelab.log-levels'), '["warn"]');
     assert.equal(w.localStorage.getItem('chassis-prefs:pending'), null);
