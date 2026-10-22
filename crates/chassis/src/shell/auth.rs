@@ -172,6 +172,20 @@ pub async fn identify(state: &AuthState, headers: &HeaderMap) -> Option<Caller> 
     None
 }
 
+/// [`identify`] for a whole request: a request the trusted-sources layer
+/// marked is the admin when it sends no bearer (a bearer still decides, so a
+/// script on that machine keeps its own identity).
+pub(crate) async fn identify_request(
+    state: &AuthState,
+    trusted: bool,
+    headers: &HeaderMap,
+) -> Option<Caller> {
+    if trusted && bearer(headers).is_none() {
+        return Some(Caller::Admin);
+    }
+    identify(state, headers).await
+}
+
 /// Whether the caller these headers identified is still allowed in, read
 /// without touching anything: no session's expiry slides and no client's
 /// last-used time moves. For checks that repeat by themselves (feat-live-1:
@@ -205,7 +219,8 @@ pub async fn require_caller(
     mut req: Request<Body>,
     next: Next,
 ) -> Response {
-    match identify(&state, req.headers()).await {
+    let trusted = crate::shell::trusted::is_trusted(req.extensions());
+    match identify_request(&state, trusted, req.headers()).await {
         Some(caller) => {
             req.extensions_mut().insert(caller);
             next.run(req).await
@@ -250,7 +265,8 @@ pub async fn require_admin(
     mut req: Request<Body>,
     next: Next,
 ) -> Response {
-    match identify(&state, req.headers()).await {
+    let trusted = crate::shell::trusted::is_trusted(req.extensions());
+    match identify_request(&state, trusted, req.headers()).await {
         Some(Caller::Admin) => {
             req.extensions_mut().insert(Caller::Admin);
             next.run(req).await

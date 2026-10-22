@@ -7,6 +7,18 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **Trusted admins: `<P>_TRUSTED_ADMINS`** (`dashboard`; Kenny, 2026-10-22:
+  "mijn pc heeft altijd toegang, zonder token"): exact IP addresses whose
+  requests are the admin without a login. Only the TCP peer counts, never a
+  forwarded header, so nothing through a proxy gets in this way; a bearer, when
+  sent, still decides; `GET /login` from such a machine goes to `/`. A range,
+  `0.0.0.0` / `::` and an address that is also a trusted proxy refuse to
+  start, and a set list is a `--check` and start-log warning. Default empty:
+  nothing changes until a service sets it. Additive. See CONFIGURATION.md
+  "Trusted admins".
+
 ### Fixed
 
 - **A browser choice made just before a reload is no longer lost**

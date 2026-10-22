@@ -864,7 +864,8 @@ impl Dashboard {
     /// come from [`crate::shell::http::error_context`], set for this call.
     pub fn render_error(&self, status: StatusCode, message: &str, remedy: &str) -> Option<String> {
         let ctx = crate::shell::http::error_context();
-        let signed_in = crate::shell::auth::still_valid_now(&self.auth, &ctx.headers);
+        let signed_in =
+            ctx.trusted || crate::shell::auth::still_valid_now(&self.auth, &ctx.headers);
         let (art, why) = error_look(status);
         self.render(
             "error.html",

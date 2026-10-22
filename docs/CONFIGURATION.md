@@ -173,3 +173,27 @@ log at `WARN`. Proven by:
 (the `--check` knob refusals), `version_answers_with_no_configuration_at_all`,
 `app::tests::every_command_named_in_a_remedy_exists` (every `<binary> …`
 a remedy names is a real subcommand).
+
+### Trusted admins (3.13.0)
+
+`<P>_TRUSTED_ADMINS` (default empty, so off) lists exact IP addresses whose
+requests are the admin without a login: no token, session or passkey. Kenny,
+2026-10-22: "mijn pc heeft altijd toegang, zonder token. Niemand neemt dit
+adres ooit over". Only the TCP peer counts; a request through a reverse proxy
+carries the proxy's address and never gets in this way, whatever
+`X-Forwarded-For` says. A request that sends a bearer is decided by that
+bearer, so a script on the machine keeps its own identity. `GET /login` from
+such a machine goes to `/`.
+
+Refused at start and by `--check`: an entry that is not an address (a range
+such as `10.10.10.0/24` included), an unspecified address (`0.0.0.0`, `::`),
+and an address that is also in `trusted_proxies` (everyone behind that proxy
+would be the admin). When the list is set, `--check` and the start log say
+so as a warning:
+
+```text
+warning: INBOX_TRUSTED_ADMINS lets 10.10.10.10 in as the admin without a login: anyone who can use that address reaches every page. It is meant for one machine whose address nobody else ever takes
+```
+
+Proven by `tests/trusted_admins.rs` and the unit tests in
+`shell/trusted.rs`.

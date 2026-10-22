@@ -33,6 +33,8 @@ pub mod passkeys;
 pub mod request_guard;
 pub mod store;
 pub mod time;
+#[cfg(feature = "dashboard")]
+pub(crate) mod trusted;
 #[cfg(feature = "self-update")]
 pub mod update;
 #[cfg(feature = "webapp")]

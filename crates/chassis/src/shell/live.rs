@@ -187,6 +187,11 @@ fn still_allowed(req: &axum::extract::Request) -> Option<StillAllowed> {
         .extensions()
         .get::<crate::shell::auth::AuthState>()?
         .clone();
+    // trusted-sources: the machine stays the admin for as long as it is
+    // connected; there is no session to expire.
+    if crate::shell::trusted::is_trusted(req.extensions()) {
+        return Some(Arc::new(|| Box::pin(async { true })));
+    }
     let headers: HeaderMap = req.headers().clone();
     Some(Arc::new(move || {
         let (auth, headers) = (auth.clone(), headers.clone());

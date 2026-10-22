@@ -61,6 +61,8 @@ pub type HtmlErrorRenderer =
 pub(crate) struct ErrorContext {
     pub(crate) request_id: Option<String>,
     pub(crate) headers: axum::http::HeaderMap,
+    /// trusted-sources: the request came from a trusted admin.
+    pub(crate) trusted: bool,
 }
 
 thread_local! {
@@ -108,6 +110,10 @@ pub async fn html_errors(
             .and_then(|v| v.to_str().ok())
             .map(str::to_string),
         headers: req.headers().clone(),
+        #[cfg(feature = "dashboard")]
+        trusted: crate::shell::trusted::is_trusted(req.extensions()),
+        #[cfg(not(feature = "dashboard"))]
+        trusted: false,
     });
     let res = next.run(req).await;
     let Some(render) = render else { return res };

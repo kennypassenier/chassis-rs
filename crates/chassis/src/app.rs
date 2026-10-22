@@ -260,6 +260,12 @@ impl AppSpec {
                 None,
                 "Comma-separated IP addresses whose `X-Forwarded-For` and `X-Forwarded-Proto` headers are believed.",
             ),
+            k(
+                "trusted_admins",
+                Some(""),
+                None,
+                "Comma-separated IP addresses whose requests are the admin without a login (the TCP peer itself; never through a proxy, never a trusted proxy). Needs the dashboard feature.",
+            ),
             // L3 — login, clients, captures (K8, K12, K13)
             secret(
                 "token",
@@ -1314,6 +1320,12 @@ impl App {
                 health_sample: Duration::from_secs(parse_u64(&loaded, "health_sample_secs", 1)?),
             },
         };
+        // trusted-sources: validated at parse time so --check refuses a bad list.
+        #[cfg(feature = "dashboard")]
+        crate::shell::trusted::parse_trusted_admins(
+            loaded.get("trusted_admins").unwrap_or(""),
+            &limits.trusted_proxies,
+        )?;
         // The update knobs are validated at parse time so --check refuses them.
         #[cfg(feature = "self-update")]
         {
@@ -2515,6 +2527,15 @@ impl App {
                 self.listen, self.spec.name
             ));
         }
+        #[cfg(feature = "dashboard")]
+        if let Some(raw) = loaded.get("trusted_admins")
+            && !raw.trim().is_empty()
+        {
+            w.push(format!(
+                "{prefix}_TRUSTED_ADMINS lets {} in as the admin without a login: anyone who can use that address reaches every page. It is meant for one machine whose address nobody else ever takes",
+                raw.trim()
+            ));
+        }
         if self.limits.trusted_proxies.is_empty() && !self.listen.ip().is_loopback() {
             w.push(format!(
                 "trusted_proxies is empty while listening on {}: behind a reverse proxy every client shares the proxy's IP (one attacker's failed logins lock everyone out), cookies are never Secure and passkeys stay off. What now: set {prefix}_TRUSTED_PROXIES to the proxy's IP, or bind to 127.0.0.1 if no proxy is involved",
@@ -2814,6 +2835,28 @@ impl App {
             self.limits.max_body_bytes,
             html_errors,
         );
+        // trusted-sources: outermost, so the error pages and every guard
+        // inside see the mark.
+        #[cfg(feature = "dashboard")]
+        let router = {
+            let trusted = crate::shell::trusted::TrustedAdmins::new(
+                crate::shell::trusted::parse_trusted_admins(
+                    self.loaded
+                        .as_ref()
+                        .and_then(|l| l.get("trusted_admins"))
+                        .unwrap_or(""),
+                    &self.limits.trusted_proxies,
+                )?,
+            );
+            if trusted.is_empty() {
+                router
+            } else {
+                router.layer(axum::middleware::from_fn_with_state(
+                    trusted,
+                    crate::shell::trusted::mark,
+                ))
+            }
+        };
 
         let (stop_tx, stop_rx) = oneshot::channel::<()>();
         let task = tokio::spawn(async move {
