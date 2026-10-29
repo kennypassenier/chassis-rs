@@ -321,6 +321,28 @@ function wire(rootEl, historyOption) {
         busy = layBusy(false);
     };
 
+    /**
+     * A failure asked for before the detail's own component drew its plate (js/code.js draws it after its busy card has closed) is
+     * covered by the master-detail's plate at first. While the state reads `error` and no own plate stands, the body is watched:
+     * when a component's own failed plate appears, the state is applied again and the master-detail's plate gives way [KYU 54].
+     */
+    let stopOwnWatch = () => {};
+    /** @param {PaneStateOptions} options */
+    const watchOwn = (options) => {
+        stopOwnWatch();
+        if (typeof MutationObserver !== 'function') return;
+        const seen = new MutationObserver(() => {
+            if (state === 'error' && !rootEl.hasAttribute('data-kp-error-own') && ownFailure()) setState('error', options);
+        });
+        seen.observe(bodyEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-kp-state', 'class', 'hidden'] });
+        stopOwnWatch = () => {
+            seen.disconnect();
+            stopOwnWatch = () => {};
+        };
+    };
+    const ownFailure = () =>
+        [...bodyEl.querySelectorAll(":is([data-kp-state='error'], .kp-stateplate--error)")].some((el) => el.getBoundingClientRect().width > 0);
+
     /** @param {PaneState} next @param {PaneStateOptions} [options] */
     const setState = (next, options = {}) => {
         state = next;
@@ -330,9 +352,9 @@ function wire(rootEl, historyOption) {
         // list it points at.
         // A component of the detail that shows its own failure keeps its plate: the master-detail draws none over it.
         // (on screen: where the detail is a closed sheet on a phone its plate is 0 x 0, and the master-detail's plate is the one to read).
-        const own =
-            next === 'error' &&
-            [...bodyEl.querySelectorAll(":is([data-kp-state='error'], .kp-stateplate--error)")].some((el) => el.getBoundingClientRect().width > 0);
+        const own = next === 'error' && ownFailure();
+        if (next === 'error' && !own) watchOwn(options);
+        else stopOwnWatch();
         rootEl.toggleAttribute('data-kp-error-own', own);
         const wide = (next === 'error' && !own) || (next === 'empty' && !rootEl.querySelector('[data-kp-pane="list"] [data-kp-pane-key]'));
         rootEl.toggleAttribute('data-kp-state-wide', wide);
@@ -536,6 +558,7 @@ function wire(rootEl, historyOption) {
         attributes.disconnect();
         busy?.remove();
         unwatchList();
+        stopOwnWatch();
         handles.delete(rootEl);
         rootEl.removeAttribute('data-kp-pane-shown');
         rootEl.removeAttribute('data-kp-narrow-on');

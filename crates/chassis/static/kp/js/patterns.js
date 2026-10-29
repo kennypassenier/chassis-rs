@@ -279,6 +279,58 @@ export function attachPatterns(
 // again" from a polite region, not every second. The state is
 // `data-kp-secret-state` on the field: hidden, loading, shown, error, disabled.
 
+/**
+ * Empty the clipboard again `wait` ms from now, only if it still holds `secret` where the page may read it [wish-1120, homelab 108].
+ * Shared by the display field's Copy and the input field's Copy [wish-1028].
+ * @param {HTMLElement} field @param {string} secret @param {number} wait @param {(text: string) => void} say
+ * @returns {() => void} cancel
+ */
+function clearClipboardLater(field, secret, wait, say) {
+    const s = getStrings();
+    /** @type {(() => void) | null} */
+    let dropFocus = null;
+    /** @param {boolean} cleared @param {string} reason */
+    const done = (cleared, reason) => {
+        if (cleared) say(s.secretClipboardCleared);
+        field.dispatchEvent(new CustomEvent(SECRET_CLIPBOARD_EVENT, { bubbles: true, detail: { cleared, reason } }));
+    };
+    const clear = async () => {
+        let reason = 'timer';
+        try {
+            // Only if the clipboard still holds what was copied; a refusal to read does not stop the clearing.
+            const now = await navigator.clipboard.readText();
+            if (now !== secret) return done(false, 'changed');
+        } catch {
+            reason = 'unavailable';
+        }
+        try {
+            await navigator.clipboard.writeText('');
+            done(true, reason);
+        } catch {
+            // A write needs the page in focus and, in some browsers, a press or a key of the person's (Firefox): try
+            // again at the next one, or when the page gets the focus back.
+            const events = ['pointerdown', 'keydown'];
+            const again = () => {
+                for (const name of events) document.removeEventListener(name, again, true);
+                window.removeEventListener('focus', again);
+                dropFocus = null;
+                void clear();
+            };
+            for (const name of events) document.addEventListener(name, again, true);
+            window.addEventListener('focus', again);
+            dropFocus = () => {
+                for (const name of events) document.removeEventListener(name, again, true);
+                window.removeEventListener('focus', again);
+            };
+        }
+    };
+    const timer = window.setTimeout(() => void clear(), wait);
+    return () => {
+        window.clearTimeout(timer);
+        dropFocus?.();
+    };
+}
+
 /** @typedef {(field: HTMLElement, purpose: 'reveal' | 'copy') => string | Promise<string>} SecretLoad */
 /** @typedef {'hidden' | 'loading' | 'shown' | 'error' | 'disabled'} SecretState */
 
@@ -301,6 +353,321 @@ export function hideSecret(field) {
     secrets.get(field)?.hide('call');
 }
 
+// ── The secret INPUT [wish-1028, chassis-rs 1] ───────────────────────────
+//
+// The same `.kp-secret` field, typed into instead of read: a token or a password a person enters, with its typing hidden. Built from
+// the package's own parts (`.kp-field__input`, `.kp-button`, `.kp-copyable__button`, the line and drain of the display field):
+//
+//   <div class="kp-secret" data-kp-secret data-kp-secret-mode="input" data-kp-secret-label="API token" data-kp-secret-name="token"></div>
+//
+//   data-kp-secret-mode="input"    the input mode (read when the field attaches); without it the field only displays a value
+//   data-kp-secret-name="token"    the input's name (and its form field)
+//   data-kp-secret-placeholder     placeholder words
+//   data-kp-secret-autocomplete    default `off`; `new-password` or `current-password` lets a password manager in
+//   data-kp-secret-ttl="30"        how long a shown (unhidden) value stays: a number of seconds or a number with ms, s, min or h
+//                                  (every unit of time); 0: until Hide is pressed. Default 30 s. Read again when it changes
+//   data-kp-secret-hide-on-blur    default on: leaving the field (or the tab) hides the value; `false` keeps it shown
+//   data-kp-secret-paste="false"   no Paste button (Paste reads the clipboard; where that is refused the line says to press Ctrl+V)
+//   data-kp-secret-copy="false"    no Copy button; the Copy empties the clipboard again after `data-kp-secret-clear` like the display field
+//   data-kp-secret-invalid="why"   the input is marked invalid and the line under it says why (read again when it changes)
+//   data-kp-secret-disabled="why"  the input and the buttons are off and the line says why
+//
+// The value is `secretInputValue(field)` and the input's own `input` and `change` events; it is never in a custom event. Show and Hide
+// fire `kp-secret` (`{ shown, reason }`) as the display field does. The state is `data-kp-secret-state`: hidden, shown, error, disabled.
+// The line under the box always keeps its height: it says "Typing is hidden", the number of characters, the countdown, or the reason.
+
+/** @type {WeakMap<Element, HTMLInputElement>} */
+const secretInputs = new WeakMap();
+
+/**
+ * What has been typed into a secret input field (empty for a field that is not one).
+ * @param {Element} field
+ */
+export function secretInputValue(field) {
+    return secretInputs.get(field)?.value ?? '';
+}
+
+/**
+ * Put a value into a secret input field, or empty it with an empty string; the field hides it again.
+ * @param {Element} field @param {string} value
+ */
+export function setSecretInputValue(field, value) {
+    const input = secretInputs.get(field);
+    if (!input) return;
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/**
+ * @param {HTMLElement} field
+ * @param {{ copiedMs: number, clearAfterMs: number | false }} options
+ * @returns {() => void} detach
+ */
+function wireSecretInput(field, { copiedMs, clearAfterMs }) {
+    const doc = field.ownerDocument;
+    const s = getStrings();
+    const make = (/** @type {string} */ tag, /** @type {string} */ className) => {
+        const el = doc.createElement(tag);
+        el.className = className;
+        return el;
+    };
+    field.classList.add('kp-secret');
+    if (!field.hasAttribute('role')) field.setAttribute('role', 'group');
+    const name = field.getAttribute('aria-label') ?? field.dataset.kpSecretLabel ?? s.secretLabel;
+    if (!field.hasAttribute('aria-label') && !field.hasAttribute('aria-labelledby')) field.setAttribute('aria-label', name);
+
+    const built = /** @type {Element[]} */ ([]);
+    let entry = /** @type {HTMLElement | null} */ (field.querySelector(':scope > .kp-secret__entry'));
+    if (!entry) {
+        entry = make('div', 'kp-secret__entry');
+        field.prepend(entry);
+        built.push(entry);
+    }
+    let input = /** @type {HTMLInputElement | null} */ (entry.querySelector('input'));
+    const authored = input !== null;
+    if (!input) {
+        input = /** @type {HTMLInputElement} */ (make('input', 'kp-field__input kp-secret__input'));
+        entry.append(input);
+    }
+    input.classList.add('kp-secret__input');
+    input.type = 'password';
+    input.spellcheck = false;
+    input.setAttribute('autocapitalize', 'off');
+    input.setAttribute('autocorrect', 'off');
+    if (!input.hasAttribute('autocomplete')) input.setAttribute('autocomplete', field.dataset.kpSecretAutocomplete ?? 'off');
+    if (!input.name && field.dataset.kpSecretName) input.name = field.dataset.kpSecretName;
+    if (!input.placeholder && field.dataset.kpSecretPlaceholder) input.placeholder = field.dataset.kpSecretPlaceholder;
+    if (!input.hasAttribute('aria-label') && !input.id) input.setAttribute('aria-label', name);
+    secretInputs.set(field, input);
+
+    let actions = /** @type {HTMLElement | null} */ (field.querySelector(':scope > .kp-secret__actions'));
+    if (!actions) {
+        actions = make('div', 'kp-secret__actions');
+        entry.after(actions);
+        built.push(actions);
+    }
+    const button = (/** @type {string} */ className, /** @type {string} */ marker) => {
+        const el = /** @type {HTMLButtonElement} */ (make('button', className));
+        el.type = 'button';
+        el.setAttribute(marker, '');
+        actions.append(el);
+        return el;
+    };
+    const reveal = button('kp-button kp-secret__reveal', 'data-kp-secret-reveal');
+    const paste = field.dataset.kpSecretPaste === 'false' ? null : button('kp-button kp-secret__paste', 'data-kp-secret-paste-button');
+    const copy = field.dataset.kpSecretCopy === 'false' ? null : button('kp-button kp-copyable__button kp-secret__copy', 'data-kp-secret-copy');
+    for (const part of [reveal, paste, copy]) if (part) built.push(part);
+    let line = /** @type {HTMLElement | null} */ (field.querySelector(':scope > .kp-secret__line'));
+    if (!line) {
+        line = make('p', 'kp-secret__line');
+        field.append(line);
+        built.push(line);
+    }
+    const words = make('span', 'kp-secret__words');
+    const drain = make('span', 'kp-secret__drain');
+    drain.setAttribute('aria-hidden', 'true');
+    line.replaceChildren(words, drain);
+    const spoken = make('span', 'kp-sr-only kp-secret__live');
+    spoken.setAttribute('role', 'status');
+    spoken.setAttribute('aria-live', 'polite');
+    field.append(spoken);
+    built.push(spoken);
+    const lineId = line.id || `kp-secret-line-${Math.random().toString(36).slice(2, 9)}`;
+    line.id = lineId;
+    input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), lineId].filter(Boolean).join(' '));
+    if (!input.id) input.id = `kp-secret-input-${Math.random().toString(36).slice(2, 9)}`;
+    reveal.setAttribute('aria-controls', input.id);
+
+    let shown = false;
+    let seconds = SECRET_TTL;
+    let left = 0;
+    let timer = 0;
+    let copiedTimer = 0;
+    let cancelClear = () => {};
+    /** The words of the last failed paste, until the next key. */
+    let pasteProblem = '';
+    const readOptions = () => {
+        const ms = clearDelay(field.dataset.kpSecretTtl, SECRET_TTL * 1000);
+        seconds = Math.round(ms / 1000);
+    };
+    readOptions();
+    const hidesOnBlur = () => !['false', 'off'].includes(field.dataset.kpSecretHideOnBlur ?? '');
+    const disabledWhy = () => field.dataset.kpSecretDisabled;
+    const invalidWhy = () => field.dataset.kpSecretInvalid;
+    /** @param {string} text */
+    const say = (text) => {
+        spoken.textContent = '';
+        window.setTimeout(() => (spoken.textContent = text), 30);
+    };
+    const stop = () => {
+        window.clearInterval(timer);
+        timer = 0;
+    };
+    const paint = () => {
+        const why = disabledWhy();
+        const bad = invalidWhy();
+        const empty = input.value === '';
+        field.dataset.kpSecretState = why !== undefined ? 'disabled' : bad !== undefined || pasteProblem ? 'error' : shown ? 'shown' : 'hidden';
+        input.type = shown ? 'text' : 'password';
+        input.disabled = why !== undefined;
+        if (bad !== undefined) input.setAttribute('aria-invalid', 'true');
+        else input.removeAttribute('aria-invalid');
+        reveal.textContent = shown ? s.secretHide : s.secretReveal;
+        reveal.setAttribute('aria-pressed', String(shown));
+        reveal.disabled = why !== undefined || empty;
+        if (paste) {
+            paste.textContent = s.secretPaste;
+            paste.disabled = why !== undefined;
+        }
+        if (copy && !copy.hasAttribute('data-kp-copied')) copy.textContent = s.secretCopy;
+        if (copy) copy.disabled = why !== undefined || empty;
+        const text =
+            why !== undefined
+                ? why
+                : bad !== undefined
+                  ? bad
+                  : pasteProblem ||
+                    (shown ? (seconds === 0 ? s.secretStaysShown : s.secretHidesIn(left)) : empty ? s.secretInputHint : s.secretInputCount(input.value.length));
+        words.textContent = text;
+    };
+    /** @param {string} [reason] */
+    const hide = (reason = 'press') => {
+        if (!shown) return;
+        shown = false;
+        stop();
+        paint();
+        say(s.secretHidden);
+        field.dispatchEvent(new CustomEvent(SECRET_EVENT, { bubbles: true, detail: { shown: false, reason } }));
+    };
+    const tick = () => {
+        left -= 1;
+        if (left === 10 && seconds > 10) say(s.secretHidesIn(10));
+        if (left <= 0) hide('timer');
+        else paint();
+    };
+    /** @param {string} [reason] */
+    const show = (reason = 'press') => {
+        if (shown || disabledWhy() !== undefined || input.value === '') return;
+        shown = true;
+        left = seconds;
+        drain.style.animation = 'none';
+        void drain.offsetWidth;
+        drain.style.removeProperty('animation');
+        paint();
+        say(s.secretShown(seconds));
+        field.dispatchEvent(new CustomEvent(SECRET_EVENT, { bubbles: true, detail: { shown: true, reason } }));
+        if (seconds > 0) timer = window.setInterval(tick, 1000);
+    };
+    const onReveal = () => {
+        if (shown) hide('press');
+        else show('press');
+        input.focus();
+    };
+    const onInput = () => {
+        pasteProblem = '';
+        if (input.value === '' && shown) hide('call');
+        else paint();
+    };
+    const onPaste = async () => {
+        if (!paste) return;
+        let text = '';
+        try {
+            text = await navigator.clipboard.readText();
+        } catch {
+            pasteProblem = s.secretPasteBlocked;
+            paint();
+            say(pasteProblem);
+            input.focus();
+            return;
+        }
+        pasteProblem = '';
+        const from = input.selectionStart ?? input.value.length;
+        const to = input.selectionEnd ?? from;
+        input.setRangeText(text, from, to, 'end');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        say(s.secretPasted(text.length));
+        input.focus();
+    };
+    const onCopy = async () => {
+        if (!copy || input.value === '') return;
+        const text = input.value;
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (error) {
+            copy.dataset.kpCopyFailed = '';
+            copy.dispatchEvent(new CustomEvent(COPY_FAILED_EVENT, { bubbles: true, detail: { text: '', error } }));
+            say(s.copyBlockedAnnouncement);
+            return;
+        }
+        delete copy.dataset.kpCopyFailed;
+        copy.textContent = s.copied;
+        copy.dataset.kpCopied = '';
+        // The value itself is never put in the event or the announcement.
+        copy.dispatchEvent(new CustomEvent(COPY_EVENT, { bubbles: true, detail: { text: '' } }));
+        say(s.copiedAnnouncement(name));
+        window.clearTimeout(copiedTimer);
+        copiedTimer = window.setTimeout(() => {
+            delete copy.dataset.kpCopied;
+            paint();
+        }, copiedMs);
+        cancelClear();
+        const wait = clearDelay(field.dataset.kpSecretClear, clearAfterMs);
+        if (wait > 0) cancelClear = clearClipboardLater(field, text, wait, say);
+    };
+    /** @param {FocusEvent} event */
+    const onFocusOut = (event) => {
+        if (!shown || !hidesOnBlur()) return;
+        const next = event.relatedTarget;
+        if (next instanceof Node && field.contains(next)) return;
+        hide('away');
+    };
+    const onAway = () => {
+        if (doc.visibilityState === 'hidden' && hidesOnBlur()) hide('away');
+    };
+    input.addEventListener('input', onInput);
+    reveal.addEventListener('click', onReveal);
+    paste?.addEventListener('click', onPaste);
+    copy?.addEventListener('click', onCopy);
+    field.addEventListener('focusout', onFocusOut);
+    doc.addEventListener('visibilitychange', onAway);
+    paint();
+    const watch = new MutationObserver(() => {
+        if (disabledWhy() !== undefined) hide('call');
+        paint();
+    });
+    watch.observe(field, { attributes: true, attributeFilter: ['data-kp-secret-disabled', 'data-kp-secret-invalid'] });
+    const stopOptions = watchOptions(field, ['data-kp-secret-ttl'], () => {
+        readOptions();
+        if (shown) {
+            stop();
+            left = seconds;
+            if (seconds > 0) timer = window.setInterval(tick, 1000);
+        }
+        paint();
+    });
+    secrets.set(field, { reveal: (reason) => show(reason), hide: (reason) => hide(reason) });
+    return () => {
+        watch.disconnect();
+        stopOptions();
+        stop();
+        window.clearTimeout(copiedTimer);
+        input.removeEventListener('input', onInput);
+        reveal.removeEventListener('click', onReveal);
+        paste?.removeEventListener('click', onPaste);
+        copy?.removeEventListener('click', onCopy);
+        field.removeEventListener('focusout', onFocusOut);
+        doc.removeEventListener('visibilitychange', onAway);
+        shown = false;
+        input.value = '';
+        input.type = 'password';
+        for (const part of built) part.remove();
+        if (authored) input.classList.remove('kp-secret__input');
+        delete field.dataset.kpSecretState;
+        secrets.delete(field);
+        secretInputs.delete(field);
+    };
+}
+
 /**
  * Attach every secret field under `root`.
  * @param {ParentNode} [root]
@@ -316,6 +683,10 @@ export function attachSecrets(root = document, { load, copiedMs = COPIED_MS, cle
     ]);
     for (const field of fields) {
         if (secrets.has(field)) continue;
+        if (field.dataset.kpSecretMode === 'input') {
+            cleanups.push(wireSecretInput(field, { copiedMs, clearAfterMs }));
+            continue;
+        }
         const doc = field.ownerDocument;
         const s = getStrings();
         const make = (/** @type {string} */ tag, /** @type {string} */ className) => {
@@ -403,9 +774,7 @@ export function attachSecrets(root = document, { load, copiedMs = COPIED_MS, cle
         let paused = false;
         let ticket = 0;
         let copiedTimer = 0;
-        let clearTimer = 0;
-        /** @type {(() => void) | null} */
-        let dropClearFocus = null;
+        let cancelClear = () => {};
         /** @param {string} text */
         const say = (text) => {
             spoken.textContent = '';
@@ -600,46 +969,10 @@ export function attachSecrets(root = document, { load, copiedMs = COPIED_MS, cle
         };
         /** Empty the clipboard again some seconds after a copy [wish-1120, homelab 108]. @param {string} secret */
         const scheduleClear = (secret) => {
-            window.clearTimeout(clearTimer);
-            dropClearFocus?.();
+            cancelClear();
             const wait = clearDelay(field.dataset.kpSecretClear, clearAfterMs);
             if (!(wait > 0)) return;
-            /** @param {boolean} cleared @param {string} reason */
-            const done = (cleared, reason) => {
-                if (cleared) say(s.secretClipboardCleared);
-                field.dispatchEvent(new CustomEvent(SECRET_CLIPBOARD_EVENT, { bubbles: true, detail: { cleared, reason } }));
-            };
-            const clear = async () => {
-                let reason = 'timer';
-                try {
-                    // Only if the clipboard still holds what was copied; a refusal to read does not stop the clearing.
-                    const now = await navigator.clipboard.readText();
-                    if (now !== secret) return done(false, 'changed');
-                } catch {
-                    reason = 'unavailable';
-                }
-                try {
-                    await navigator.clipboard.writeText('');
-                    done(true, reason);
-                } catch {
-                    // A write needs the page in focus and, in some browsers, a press or a key of the person's (Firefox): try
-                    // again at the next one, or when the page gets the focus back.
-                    const events = ['pointerdown', 'keydown'];
-                    const again = () => {
-                        for (const name of events) document.removeEventListener(name, again, true);
-                        window.removeEventListener('focus', again);
-                        dropClearFocus = null;
-                        void clear();
-                    };
-                    for (const name of events) document.addEventListener(name, again, true);
-                    window.addEventListener('focus', again);
-                    dropClearFocus = () => {
-                        for (const name of events) document.removeEventListener(name, again, true);
-                        window.removeEventListener('focus', again);
-                    };
-                }
-            };
-            clearTimer = window.setTimeout(() => void clear(), wait);
+            cancelClear = clearClipboardLater(field, secret, wait, say);
         };
         const onFocusIn = (/** @type {FocusEvent} */ event) => {
             if (event.target === value) pause(true);

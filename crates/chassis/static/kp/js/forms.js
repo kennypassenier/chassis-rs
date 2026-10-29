@@ -21,6 +21,11 @@
 // Turning them off and using `checkValidity()` keeps the validation and
 // loses the popup.
 //
+// A valid form is not submitted natively [wish-1028, Kitchen 5]: attachForms calls preventDefault() on a valid submit, fires
+// `kp-form-valid` and the page sends the data. A form that should also be sent by the browser (an `action` doing the work) says
+// so with `data-kp-form-native-submit` or the `nativeSubmit` option. This changes behaviour for every consumer that relied on the
+// native submit of a form carrying `data-kp-form`.
+//
 // Three rules this enforces, each because leaving it to care is how it
 // gets skipped:
 //
@@ -174,8 +179,11 @@ export function form(element) {
  * Attach every form under `root`.
  *
  * @param {ParentNode} root
- * @param {{ validateOn?: 'blur' | 'input' | 'submit', revalidateOn?: 'input' | 'blur' | 'none', focusSummary?: boolean, focusFirstInvalid?: boolean, wrapper?: string, invalidClass?: string, summaryHeading?: string, summaryHeadingClass?: string }} [options]
- *   Defaults, each also settable per form as `data-kp-validate-on`, `data-kp-revalidate-on`, `data-kp-focus-summary`.
+ * @param {{ validateOn?: 'blur' | 'input' | 'submit', revalidateOn?: 'input' | 'blur' | 'none', focusSummary?: boolean, focusFirstInvalid?: boolean, wrapper?: string, invalidClass?: string, summaryHeading?: string, summaryHeadingClass?: string, nativeSubmit?: boolean }} [options]
+ *   Defaults, each also settable per form as `data-kp-validate-on`, `data-kp-revalidate-on`, `data-kp-focus-summary`, `data-kp-form-native-submit`.
+ *   A valid submit is NOT sent by the browser: the form fires `kp-form-valid` and the page sends the data itself (`preventDefault()`),
+ *   so a handler that saves with `fetch` is not followed by a reload of the page [wish-1028, Kitchen 5]. `nativeSubmit: true` (or
+ *   `data-kp-form-native-submit` on the form) lets the browser submit a valid form as well, for a form whose `action` does the work.
  * @returns {(() => void) & { handles: FormHandle[] }} detach
  */
 export function attachForms(
@@ -189,6 +197,7 @@ export function attachForms(
         invalidClass = 'kp-field--invalid',
         summaryHeading = 'p',
         summaryHeadingClass = 'kp-form__summary-title',
+        nativeSubmit = false,
     } = {},
 ) {
     /** @type {(() => void)[]} */
@@ -210,6 +219,8 @@ export function attachForms(
         const again = /** @type {'input' | 'blur' | 'none'} */ (form.dataset.kpRevalidateOn ?? revalidateOn);
         const focusOnError = form.dataset.kpFocusSummary === undefined ? focusSummary : form.dataset.kpFocusSummary !== 'false';
         const summary = /** @type {HTMLElement | null} */ (form.querySelector(SUMMARY));
+        /** `data-kp-form-native-submit` (or the option): the browser also submits a valid form [wish-1028]. */
+        const native = () => (form.dataset.kpFormNativeSubmit === undefined ? nativeSubmit : form.dataset.kpFormNativeSubmit !== 'false');
 
         /** @returns {HTMLElement[]} */
         const fields = () =>
@@ -315,6 +326,9 @@ export function attachForms(
         /** @param {SubmitEvent} event */
         const onSubmit = (event) => {
             if (validateAll()) {
+                // The page sends the data from `kp-form-valid`; the browser's own submit would reload the page and drop an
+                // async save [wish-1028]. `nativeSubmit` / `data-kp-form-native-submit` keeps the old behaviour.
+                if (!native()) event.preventDefault();
                 form.dispatchEvent(new CustomEvent(VALID_EVENT, { bubbles: true, detail: { data: new FormData(form), done } }));
                 return;
             }

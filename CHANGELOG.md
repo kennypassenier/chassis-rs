@@ -7,6 +7,27 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed
+
+- **kp-themes 11.3.0 vendored** (verified against the release SHA256SUMS; 213
+  vendored files, new module `sequencer`, the editable timeline). What a
+  consumer's own pages notice: **a valid `data-kp-form` is no longer
+  submitted by the browser**; the package fires `kp-form-valid` and stops the
+  submit. A form whose `action` does the work (a plain POST) must say
+  `data-kp-form-native-submit` (or pass `nativeSubmit: true`), or it silently
+  stops sending. Also: form-grid descriptions, ledes and progress rows fill
+  their column; a gantt keeps its minimum width and scrolls on a phone;
+  charts attach lazily from 12 on a page; the refresh chooser's menu can be
+  picked again (its items are `menuitemradio`, which the menu button now
+  answers).
+
+### Fixed
+
+- **The kit's login and logout keep their plain POST under kp-themes
+  11.3.0**: both forms say `data-kp-form-native-submit`. Without it the
+  login stayed on /login after a valid token (measured in Firefox before the
+  fix). Locked by `login_and_logout_keep_their_native_post`.
+
 ## [3.13.0] - 2026-10-22
 
 ### Added

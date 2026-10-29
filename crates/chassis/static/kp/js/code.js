@@ -22,6 +22,11 @@
 //     longer, and a foot that says when only the start was sent
 //     (`truncated: { shown, total }`).
 //
+// TOML and shell text are coloured too [wish-1028, almanac 17]: name the language `TOML` or `bash` (also `sh`, `shell`, `zsh`) and the
+// keys, [tables], strings, numbers, comments, commands, flags and $variables get their own classes (`.kp-code__key`,
+// `__section`, `__string`, `__value`, `__comment`, `__var`). `highlight: false` (`data-kp-code-highlight="off"`) leaves the text plain.
+// The colours are two knobs, `--kp-code-key` and `--kp-code-value`; comments and punctuation are the muted ink.
+//
 // States: `loading` (the body keeps its height under the data table's busy
 // card, js/busy-card.js; the tools wait, disabled), `empty`, `binary` (`size`)
 // and `error` (`message`). Empty and error are the package plate (js/state-plate.js, `.kp-stateplate`) in the body's place at its
@@ -57,7 +62,8 @@ export const CODE_COPIED_MS = 1500;
  * @typedef {object} CodeSpec
  * @property {string} [text]
  * @property {string} [title]
- * @property {string} [language]   shown in the head; 'JSON' (any case) offers Pretty and Raw when the text parses
+ * @property {string} [language]   shown in the head; 'JSON' (any case) offers Pretty and Raw when the text parses; 'TOML' and 'bash' (sh, shell, zsh) colour the text
+ * @property {boolean} [highlight] colour TOML and shell text (default true); false leaves it plain [wish-1028]
  * @property {string} [size]       shown in the head, and in the binary sentence
  * @property {boolean} [lines]     line numbers
  * @property {boolean} [wrap]      wrapped from the start (the reader can toggle it)
@@ -149,6 +155,156 @@ function jsonLine(doc, line) {
 
 /** @param {string | undefined} language */
 const isJson = (language) => (language ?? '').trim().toLowerCase() === 'json';
+
+/** @param {string | undefined} language */
+const isToml = (language) => (language ?? '').trim().toLowerCase() === 'toml';
+/** @param {string | undefined} language */
+const isShell = (language) => ['bash', 'sh', 'shell', 'zsh'].includes((language ?? '').trim().toLowerCase());
+/**
+ * The language whose text the block colours, or null.
+ * @param {CodeSpec} spec
+ * @returns {'toml' | 'shell' | null}
+ */
+const highlightKind = (spec) => (spec.highlight === false ? null : isToml(spec.language) ? 'toml' : isShell(spec.language) ? 'shell' : null);
+
+/** @param {Document} doc @param {string} className @param {string} text */
+const span = (doc, className, text) => {
+    const node = make(doc, className);
+    node.textContent = text;
+    return node;
+};
+
+/**
+ * Two coloured spans side by side sit 0 px from each other (`["kenny"]`, `10,`, `$(git`). The punctuation one becomes plain text of
+ * the line (as the JSON colon does); with no punctuation in the pair the first one does.
+ * @param {Node[]} nodes @returns {Node[]}
+ */
+function apart(nodes) {
+    const isSpan = (/** @type {Node | undefined} */ n) => n !== undefined && n.nodeType === 1;
+    const isPunct = (/** @type {Node} */ n) => /** @type {Element} */ (n).classList.contains('kp-code__punct');
+    for (let i = 1; i < nodes.length; i += 1) {
+        if (!isSpan(nodes[i - 1]) || !isSpan(nodes[i])) continue;
+        const drop = isPunct(nodes[i]) ? i : i - 1;
+        nodes[drop] = /** @type {Node} */ (nodes[drop].ownerDocument?.createTextNode(nodes[drop].textContent ?? ''));
+    }
+    return nodes;
+}
+
+/**
+ * One line of TOML as nodes. `state.open` carries a multi-line string (triple quotes) from one line to the next.
+ * @param {Document} doc @param {string} line @param {{ open: string }} state
+ */
+function tomlLine(doc, line, state) {
+    /** @type {Node[]} */
+    const out = [];
+    let rest = line;
+    if (state.open) {
+        const end = rest.indexOf(state.open);
+        if (end === -1) return [span(doc, 'kp-code__string', rest)];
+        out.push(span(doc, 'kp-code__string', rest.slice(0, end + 3)));
+        rest = rest.slice(end + 3);
+        state.open = '';
+    } else {
+        const header = /^(\s*)(\[\[?[^\]]*\]\]?)(.*)$/.exec(rest);
+        if (header) {
+            out.push(doc.createTextNode(header[1]), span(doc, 'kp-code__section', header[2]));
+            rest = header[3];
+        }
+    }
+    const pattern =
+        /(#.*)|("""|''')|("(?:[^"\\]|\\.)*"|'[^']*')|([A-Za-z0-9_-]+(?=\s*(?:\.\s*[A-Za-z0-9_"'-]+\s*)*=))|(\b(?:true|false|inf|nan)\b|[+-]?\d[\w:.+-]*)|([{}[\],=])/g;
+    let last = 0;
+    for (const match of rest.matchAll(pattern)) {
+        const at = match.index ?? 0;
+        if (at < last) continue;
+        if (at > last) out.push(doc.createTextNode(rest.slice(last, at)));
+        let length = match[0].length;
+        if (match[1] !== undefined) out.push(span(doc, 'kp-code__comment', match[1]));
+        else if (match[2] !== undefined) {
+            const end = rest.indexOf(match[2], at + 3);
+            if (end === -1) {
+                state.open = match[2];
+                length = rest.length - at;
+                out.push(span(doc, 'kp-code__string', rest.slice(at)));
+            } else {
+                length = end + 3 - at;
+                out.push(span(doc, 'kp-code__string', rest.slice(at, end + 3)));
+            }
+        } else if (match[3] !== undefined) {
+            const asKey = /^\s*=/.test(rest.slice(at + length)) && !rest.slice(0, at).includes('=');
+            out.push(span(doc, asKey ? 'kp-code__key' : 'kp-code__string', match[3]));
+        } else if (match[4] !== undefined) out.push(span(doc, 'kp-code__key', match[4]));
+        else if (match[5] !== undefined) out.push(span(doc, 'kp-code__value', match[5]));
+        else out.push(span(doc, 'kp-code__punct', match[6]));
+        last = at + length;
+    }
+    if (last < rest.length) out.push(doc.createTextNode(rest.slice(last)));
+    return out;
+}
+
+const SHELL_KEYWORDS = new Set(['if', 'then', 'else', 'elif', 'fi', 'for', 'while', 'until', 'do', 'done', 'case', 'esac', 'in', 'function', 'select']);
+/** After these a new command starts. */
+const SHELL_OPENS = new Set(['if', 'then', 'else', 'elif', 'do', 'while', 'until']);
+
+/**
+ * One line of shell as nodes: the command at the start of each command, its flags, quoted text, $variables, operators and comments.
+ * @param {Document} doc @param {string} line
+ */
+function shellLine(doc, line) {
+    /** @type {Node[]} */
+    const out = [];
+    const pattern =
+        /(^\s*\$(?=\s))|(^|\s)(#.*)|("(?:[^"\\]|\\.)*"|'[^']*')|(\$\{[^}]*\}|\$\(|\$[A-Za-z_][A-Za-z0-9_]*|\$[0-9?@#*!$])|(&&|\|\|?|;|>>?|<<?|\d?>&\d|\(|\)|`)|(\s--?[A-Za-z0-9][\w-]*)|([A-Za-z_][A-Za-z0-9_]*)(?==)|([^\s"'$|&;<>()`#=]+)/g;
+    /** @type {boolean} */
+    let expectCommand = true;
+    /** A `NAME=value` prefix: the value is not the command, the command after it still is. */
+    let assigned = false;
+    let commandAfter = true;
+    let last = 0;
+    for (const match of line.matchAll(pattern)) {
+        const at = match.index ?? 0;
+        if (at < last) continue;
+        if (at > last) out.push(doc.createTextNode(line.slice(last, at)));
+        const before = expectCommand;
+        if (match[1] !== undefined) out.push(span(doc, 'kp-code__punct', match[1]));
+        else if (match[3] !== undefined) {
+            if (match[2]) out.push(doc.createTextNode(match[2]));
+            out.push(span(doc, 'kp-code__comment', match[3]));
+        } else if (match[4] !== undefined) {
+            out.push(span(doc, 'kp-code__string', match[4]));
+            expectCommand = false;
+        } else if (match[5] !== undefined) {
+            out.push(span(doc, 'kp-code__var', match[5]));
+            expectCommand = match[5] === '$(';
+        } else if (match[6] !== undefined) {
+            out.push(span(doc, 'kp-code__punct', match[6]));
+            expectCommand = ['&&', '||', '|', ';', '(', '`'].includes(match[6]);
+        } else if (match[7] !== undefined) {
+            out.push(doc.createTextNode(match[7][0]), span(doc, 'kp-code__value', match[7].slice(1)));
+            expectCommand = false;
+        } else if (match[8] !== undefined) {
+            out.push(span(doc, 'kp-code__var', match[8]));
+            if (before) {
+                assigned = true;
+                commandAfter = true;
+            }
+            expectCommand = false;
+        } else {
+            const word = match[9];
+            /** @type {boolean} */
+            const keyword = expectCommand && SHELL_KEYWORDS.has(word);
+            out.push(keyword ? span(doc, 'kp-code__section', word) : expectCommand && !assigned ? span(doc, 'kp-code__key', word) : doc.createTextNode(word));
+            expectCommand = keyword && SHELL_OPENS.has(word);
+        }
+        if (assigned && match[8] === undefined) {
+            assigned = false;
+            expectCommand = commandAfter;
+        }
+        last = at + match[0].length;
+    }
+    if (last < line.length) out.push(doc.createTextNode(line.slice(last)));
+    return out;
+}
 
 /**
  * `auto` (and no language in a cell) is JSON only when the text is an object or a list that parses.
@@ -440,6 +596,8 @@ function drawBody(el, memory) {
     memory.shown = shown;
     const lines = shown.split('\n');
     memory.lines = lines.length;
+    const colour = highlightKind(spec);
+    const tomlState = { open: '' };
     const body = make(doc, 'kp-code__body', 'pre');
     body.id ||= `kp-code-${(serial += 1)}`;
     // The `code` is what scrolls sideways, inside the body's padding, so a long line is cut 0.75rem from the plate's edge, never at it.
@@ -452,6 +610,8 @@ function drawBody(el, memory) {
         const words = make(doc, 'kp-code__text');
         if (line === '') words.textContent = ' ';
         else if (json) words.append(...jsonLine(doc, line));
+        else if (colour === 'toml') words.append(...apart(tomlLine(doc, line, tomlState)));
+        else if (colour === 'shell') words.append(...apart(shellLine(doc, line)));
         else words.textContent = line;
         row.append(words);
         code.append(row);
@@ -580,7 +740,7 @@ function wire(el, memory) {
 /**
  * Fill every `[data-kp-code]` under `root` from its markup: the text of its
  * `code` (or `pre`), and `data-kp-code-title`, `-language`, `-size`,
- * `-lines`, `-wrap`, `-max`, `-layout`, `-state`.
+ * `-lines`, `-wrap`, `-max`, `-layout`, `-state`, `-highlight` (`off`).
  * @param {ParentNode} [root]
  * @returns {() => void} detach
  */
@@ -611,6 +771,7 @@ export function attachCodes(root = document) {
             open: open === 'dialog' ? 'dialog' : undefined,
             downloadUrl: el.getAttribute('data-kp-download') ?? undefined,
             copy: el.getAttribute('data-kp-copy') === 'false' ? false : undefined,
+            highlight: ['off', 'false'].includes(read('highlight') ?? '') ? false : undefined,
             truncated:
                 cut.length === 2 && cut.every((n) => Number.isFinite(n) && n > 0)
                     ? { shown: formatBytes(cut[0]), total: formatBytes(cut[1]) }

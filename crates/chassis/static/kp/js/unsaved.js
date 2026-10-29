@@ -23,7 +23,7 @@
 //   data-kp-scroll-root    a selector: the box that scrolls the header out of view        the window
 //   data-kp-track          auto (the bar marks the rows as they are edited) | app (the page marks them)   auto
 //   data-kp-warn-leave     browser | app | both | off: the warning on closing the tab / following a link   both
-//   data-kp-keep           session | off: keep the changes across a reload                 session
+//   data-kp-keep           session | local | off: keep the changes across a reload (local: also across a closed tab) [wish-1028]   session
 //   data-kp-keep-exclude   a selector of what is never kept                               [type=password], [data-kp-secret]
 //   data-kp-undo-ms        how long Undo is offered after Discard                          6000
 //   data-kp-save-label     the Save button's words, {n} for the count                      "Save {n} changes"
@@ -32,6 +32,10 @@
 // Leaving: closing the tab asks the browser's own question; following a link inside the page fires the cancelable
 // `kp-unsaved-leave` with `{ href }` and, if the page does not answer it, the package's confirmation dialog. Kept changes
 // are restored on the next load with a toast ("2 changes kept from before you left"); a secret is never kept.
+// Where the kept changes go [wish-1028, chassis-rs 20]: `sessionStorage` by default, `localStorage` with `data-kp-keep="local"`, or any
+// browser `Storage` a consumer hands in, once for the page with configureUnsaved({ storage }) (the way configureRemember does it) or
+// for one call with attachUnsaved(root, { storage }). `storage: null` keeps nothing. Browser storage only: a Storage-shaped object a
+// page writes itself works too, nothing here talks to a server.
 // Nothing runs on import; attachUnsaved(root) returns a detach.
 
 import { getStrings } from './strings.js';
@@ -40,6 +44,20 @@ import { openConfirmation } from './components.js';
 import { attachMenuButtons, setMenu, MENU_SELECT_EVENT } from './menu-button.js';
 import { raiseOverlay, placeBlockSide } from './top-layer.js';
 import { arriveShown, playClose, stopClose } from './motion.js';
+
+/** @typedef {{ storage?: Storage | null }} UnsavedConfig */
+
+/** The page-wide default for where kept changes go; `undefined`: the bar's own choice (session or local). @type {{ storage: Storage | null | undefined }} */
+const config = { storage: undefined };
+
+/**
+ * Set where every bar keeps its changes, once: a browser `Storage`, or `null` to keep nothing. Without it a bar uses
+ * `sessionStorage` (`localStorage` with `data-kp-keep="local"`). A bar attached with its own `storage` option keeps that one [wish-1028].
+ * @param {UnsavedConfig} next
+ */
+export function configureUnsaved(next) {
+    if (next.storage !== undefined) config.storage = next.storage;
+}
 
 /** An unsaved-changes bar. */
 export const UNSAVED = '[data-kp-unsaved]';
@@ -174,9 +192,10 @@ function fire(c) {
 /**
  * Wire every unsaved-changes bar under `root`.
  * @param {ParentNode} [root]
+ * @param {UnsavedConfig} [options] `storage`: where this call's bars keep their changes (a browser Storage, or null for nowhere)
  * @returns {() => void} detach
  */
-export function attachUnsaved(root = document) {
+export function attachUnsaved(root = document, options = {}) {
     /** @type {(() => void)[]} */
     const cleanups = [];
     const found = /** @type {HTMLElement[]} */ ([
@@ -199,7 +218,18 @@ export function attachUnsaved(root = document) {
         const scrollRoot = el.dataset.kpScrollRoot ? doc.querySelector(el.dataset.kpScrollRoot) : null;
         const auto = el.dataset.kpTrack !== 'app';
         const warn = ['browser', 'app', 'off'].includes(el.dataset.kpWarnLeave ?? '') ? el.dataset.kpWarnLeave : 'both';
-        const keepOn = el.dataset.kpKeep !== 'off';
+        const keepAttribute = el.dataset.kpKeep;
+        /** The Storage the changes are kept in, or null: the call's option, else the page's, else session (or local) storage [wish-1028]. */
+        const store = () => {
+            if (options.storage !== undefined) return options.storage;
+            if (config.storage !== undefined) return config.storage;
+            try {
+                return keepAttribute === 'local' ? win.localStorage : win.sessionStorage;
+            } catch {
+                return null;
+            }
+        };
+        const keepOn = keepAttribute !== 'off' && store() !== null;
         const exclude = el.dataset.kpKeepExclude ?? '[type="password"], [data-kp-secret]';
         const undoMs = el.dataset.kpUndoMs === undefined ? 6000 : Math.max(0, Number(el.dataset.kpUndoMs) || 0);
         const saveLabel = el.dataset.kpSaveLabel;
@@ -461,8 +491,8 @@ export function attachUnsaved(root = document) {
                     const now = readValue(/** @type {HTMLInputElement} */ (c));
                     if (now !== was) kept[key] = now;
                 }
-                if (Object.keys(kept).length) win.sessionStorage.setItem(storeKey, JSON.stringify(kept));
-                else win.sessionStorage.removeItem(storeKey);
+                if (Object.keys(kept).length) store()?.setItem(storeKey, JSON.stringify(kept));
+                else store()?.removeItem(storeKey);
             } catch {
                 // No storage: the changes are not kept.
             }
@@ -470,7 +500,7 @@ export function attachUnsaved(root = document) {
         const restore = () => {
             if (!keepOn) return;
             try {
-                const raw = win.sessionStorage.getItem(storeKey);
+                const raw = store()?.getItem(storeKey);
                 if (!raw) return;
                 const kept = /** @type {Record<string, string>} */ (JSON.parse(raw));
                 let n = 0;

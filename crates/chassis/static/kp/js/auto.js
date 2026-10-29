@@ -217,6 +217,8 @@ export const NEEDS = [
     { name: 'barcell', when: '[data-kp-bar]', load: () => import('./barcell.js'), attach: (m, root) => [m.attachBarCells(root)] },
     // The week agenda and the run timeline [kpadopt-time]: items placed in the days of a week, and runs as bars on a live time axis.
     { name: 'week', when: '[data-kp-week]', load: () => import('./week.js'), attach: (m, root) => [m.attachWeeks(root)] },
+    // The editable timeline [timeline-1029]: bars in lanes that are moved, resized and linked.
+    { name: 'sequencer', when: '[data-kp-sequencer]', load: () => import('./sequencer.js'), attach: (m, root) => [m.attachSequencers(root)] },
     { name: 'gantt', when: '[data-kp-gantt]', load: () => import('./gantt.js'), attach: (m, root) => [m.attachGantts(root)] },
     // The drawing at the top of an empty state, in the theme's own hand [kpadopt4].
     { name: 'art', when: '[data-kp-art]', load: () => import('./art.js'), attach: (m, root) => [m.attachArt(root)] },
@@ -352,7 +354,7 @@ export const NEEDS = [
         // grid, the checklist, the notices, the activity feed, the gallery, the availability grid, the request inspector, the pipeline, the diff view, the data table, the runs list, the run timeline, the week, the chart, the dependency list, the code view and the operations page. The selector is
         // `FOOTPRINT_HOSTS` of js/footprint.js.
         name: 'footprint',
-        when: '[data-kp-matrix], [data-kp-heat], [data-kp-entity-grid], [data-kp-checklist], [data-kp-notices], [data-kp-feed], [data-kp-gallery], [data-kp-availability], [data-kp-requests], [data-kp-pipeline], [data-kp-diffview], [data-kp-datatable], [data-kp-runs], [data-kp-gantt], [data-kp-graph], [data-kp-week], [data-kp-chart], [data-kp-deplist], [data-kp-code], .kp-ops',
+        when: '[data-kp-matrix], [data-kp-heat], [data-kp-entity-grid], [data-kp-checklist], [data-kp-notices], [data-kp-feed], [data-kp-gallery], [data-kp-availability], [data-kp-requests], [data-kp-pipeline], [data-kp-diffview], [data-kp-datatable], [data-kp-runs], [data-kp-gantt], [data-kp-sequencer], [data-kp-graph], [data-kp-week], [data-kp-chart], [data-kp-deplist], [data-kp-code], .kp-ops',
         load: () => import('./footprint.js'),
         attach: (m, root) => [m.attachFootprints(root)],
     },

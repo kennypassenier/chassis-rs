@@ -843,8 +843,9 @@ function initLogin(root) {
   // The form is the package's own (data-kp-form, data-kp-submit,
   // data-kp-form-summary): it names a missing token in its summary and on the
   // field, and the submit button says it is working. A valid form still goes
-  // out as a plain POST (the package does not stop it), so the page changes
-  // on the answer; a service that does not answer within 20 s ends the busy
+  // out as a plain POST (kp-themes 11.3.0 stops a valid submit by default;
+  // the form says data-kp-form-native-submit), so the page changes on the
+  // answer; a service that does not answer within 20 s ends the busy
   // state with a reason on the token field.
   import('./kp/js/forms.js').then(({ attachForms, form }) => {
     attachForms(root, { wrapper: '.kp-formgrid__control' });

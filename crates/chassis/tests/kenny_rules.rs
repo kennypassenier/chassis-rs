@@ -553,3 +553,17 @@ fn passkeys_page_uses_the_components_own_states() {
         "the register dialog must hold still while the browser asks"
     );
 }
+
+/// kp-themes 11.3.0 stops a valid `data-kp-form` submit unless the form asks
+/// for the browser's own POST. The kit's login and logout are plain POSTs to
+/// /login and /logout: without the attribute, nobody could sign in or out.
+#[test]
+fn login_and_logout_keep_their_native_post() {
+    let login = kit_file("templates/login.html");
+    assert!(
+        login
+            .contains(r#"action="/login" id="login-form" data-kp-form data-kp-form-native-submit"#)
+    );
+    let layout = kit_file("templates/layout.html");
+    assert!(layout.contains(r#"id="chassis-logout" data-kp-form data-kp-form-native-submit"#));
+}

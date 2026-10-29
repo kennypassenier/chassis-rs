@@ -1707,6 +1707,48 @@ export function goToStep(root, index) {
 export const getStepIndex = (root) => stateOf(root).index;
 
 /**
+ * @typedef {object} StepsPassed
+ * @property {number} count how many steps are passed
+ * @property {number} total how many steps the flow has
+ * @property {number[]} indexes the passed steps' places, in order
+ * @property {string[]} ids their ids (`step-<n>` for a step without one)
+ * @property {FocusStep[]} steps copies of the passed steps themselves
+ */
+
+/**
+ * The steps the person has passed [wish-1028, Kitchen 4]: a page that mirrors the progress (a checklist beside the flow, "3 of 8
+ * done") reads it here instead of from the remembered progress. In a flow with lines of work (tracks) a step is passed when Next
+ * left it; in a single line it is every step before the one shown; a finished flow has passed them all. Read on the call: it is a
+ * copy, so changing it changes nothing.
+ * @param {Element} root
+ * @returns {StepsPassed}
+ */
+export function getStepsPassed(root) {
+    const state = stateOf(root);
+    const total = state.steps.length;
+    const indexes = state.finished
+        ? state.steps.map((_, i) => i)
+        : tracksOn(root)
+          ? [...state.done].filter((i) => i >= 0 && i < total).sort((a, b) => a - b)
+          : state.steps.map((_, i) => i).filter((i) => i < state.index);
+    return {
+        count: indexes.length,
+        total,
+        indexes,
+        ids: indexes.map((i) => stepKeyOf(state, i)),
+        steps: indexes.map((i) => /** @type {FocusStep} */ ({ ...state.steps[i] })),
+    };
+}
+
+/**
+ * The steps the flow was given by setFocusSteps, as copies, in order [wish-1028].
+ * @param {Element} root
+ * @returns {FocusStep[]}
+ */
+export const getSteps = (root) => stateOf(root).steps.map((step) => ({ ...step }));
+
+
+/**
  * Give the steps, and where to begin (to come back where a person stopped).
  * No event: the page knows.
  * @param {Element} root @param {FocusStep[]} steps @param {{ start?: number }} [options]

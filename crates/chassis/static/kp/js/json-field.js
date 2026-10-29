@@ -483,11 +483,22 @@ function attachOne(area, options) {
         check();
         grow();
     };
+    /** The attribute names the wrap again, at run time [ALM 18]; the tool button's own toggle is not undone by another attribute. */
+    const syncWrap = () => {
+        const want = options.wrap ?? (area.hasAttribute('data-kp-json-wrap') && area.getAttribute('data-kp-json-wrap') !== 'false');
+        if (want === wrap) return;
+        wrap = want;
+        root.setAttribute('data-kp-json-wrap', String(wrap));
+        toolWrap.setAttribute('aria-pressed', String(wrap));
+        drawGutter();
+        grow();
+    };
     const attrs =
         view && 'MutationObserver' in view
             ? new view.MutationObserver((records) => {
                   if (records.some((r) => r.attributeName === 'disabled' || r.attributeName === 'readonly')) lock();
                   if (records.some((r) => r.attributeName?.startsWith('data-kp-json'))) syncOptions();
+                  if (records.some((r) => r.attributeName === 'data-kp-json-wrap')) syncWrap();
               })
             : null;
     attrs?.observe(area, {
@@ -500,6 +511,7 @@ function attachOne(area, options) {
             'data-kp-json-format',
             'data-kp-json-indent',
             'data-kp-json-gutter',
+            'data-kp-json-wrap',
         ],
     });
     const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(() => drawGutter()) : null;

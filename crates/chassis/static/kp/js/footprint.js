@@ -41,6 +41,7 @@ export const FOOTPRINT_HOSTS = [
     '[data-kp-datatable]',
     '[data-kp-runs]',
     '[data-kp-gantt]',
+    '[data-kp-sequencer]',
     '[data-kp-graph]',
     '[data-kp-week]',
     '[data-kp-chart]:not([data-kp-chart="spark"])',

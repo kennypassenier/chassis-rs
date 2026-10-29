@@ -22,7 +22,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 /// The kp-themes version the kit vendors (C3: one place).
-pub const KP_THEMES_VERSION: &str = "11.2.0";
+pub const KP_THEMES_VERSION: &str = "11.3.0";
 
 /// name → (content type, bytes). Explicit list, no path joining (kyu's
 /// traversal-proof shape).
@@ -824,6 +824,11 @@ pub const WEBAPP_KP_ASSETS: &[(&str, &str, &[u8])] = &[
         "kp/js/segmented.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/kp/js/segmented.js"),
+    ),
+    (
+        "kp/js/sequencer.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/kp/js/sequencer.js"),
     ),
     (
         "kp/js/selection-bar.js",

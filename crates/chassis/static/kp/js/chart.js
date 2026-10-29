@@ -201,6 +201,10 @@ export const TREND_CHART = '[data-kp-chart="spark"][data-kp-spark-head="none"]';
  *   string falls back to formatChartValue()
  * @property {ChartDecorate} [decorate] called with every control a chart builds, each time it builds it (a
  *   rebuilt legend included), so the page can mark it
+ * @property {boolean | number} [lazy] draw the plots that are off screen only when they come into view, so a page of many
+ *   charts feeds in one short task instead of one long one. A number is how many charts one call must attach before it starts
+ *   (`12` by default); `true` always, `false` never. Each chart keeps its footprint (the loading plate) until it is drawn.
+ *   Per chart, `data-kp-chart-lazy="off"` draws it at once. Needs `IntersectionObserver`; without it every chart draws at once
  * @property {() => number} [now] the moment a trend's axis counts from (`now`, `today`, `yesterday`);
  *   `Date.now()` by default
  * @typedef {ReturnType<typeof chartWords>} ChartStrings
@@ -739,6 +743,10 @@ const PAGES = new WeakMap();
  * @property {boolean} spark
  * @property {ChartGroup} group
  * @property {() => void} draw
+ * @property {(inView: boolean) => void} [view] set by attachCharts() under `lazy`: whether the plot is (nearly) on screen; it draws
+ *   what it held back as it comes into view
+ * @property {() => void} [resize] draws again when the box the plot was drawn in changed (the resize watch's call; a draw that would be the same is skipped)
+ * @property {() => boolean} [stale] whether the last drawing of a plot no longer fits the group's window (a neighbour's new data moved it)
  * @property {(t: number | null, own: boolean) => void} cursorAt
  * @property {(data: ChartData) => void} setData
  * @property {(i: number | null, on?: boolean) => boolean} select
@@ -972,17 +980,32 @@ function s(doc, tag, attrs = {}) {
  */
 function keepEndsInside(labels, width, inset = 4) {
     if (labels.length === 0) return;
-    const first = labels[0];
-    const last = labels[labels.length - 1];
-    try {
-        const a = first.getBBox();
-        if (a.width > 0 && a.x < inset) first.setAttribute('text-anchor', 'start');
-        const b = last.getBBox();
-        if (b.width > 0 && b.x + b.width > width - inset) last.setAttribute('text-anchor', 'end');
-    } catch {
-        // not laid out (display: none): nothing to measure, the labels stay centred
-    }
+    pendingEnds.push({ labels, width, inset });
+    if (pendingEnds.length > 1) return;
+    // One measuring pass for every chart drawn in this task: the first getBBox lays the page out once, the others read that layout,
+    // and the anchors are written after all the reads (a chart's own measuring used to lay out the writes of the chart before it).
+    queueMicrotask(() => {
+        const batch = pendingEnds.splice(0);
+        /** @type {[SVGTextElement, string][]} */
+        const fixes = [];
+        for (const { labels: row, width: w, inset: gap } of batch) {
+            const first = row[0];
+            const last = row[row.length - 1];
+            if (!first.isConnected) continue;
+            try {
+                const a = first.getBBox();
+                if (a.width > 0 && a.x < gap) fixes.push([first, 'start']);
+                const b = last.getBBox();
+                if (b.width > 0 && b.x + b.width > w - gap) fixes.push([last, 'end']);
+            } catch {
+                // not laid out (display: none): nothing to measure, the labels stay centred
+            }
+        }
+        for (const [label, anchor] of fixes) label.setAttribute('text-anchor', anchor);
+    });
 }
+/** The axis rows waiting for keepEndsInside()'s measuring pass. @type {{ labels: readonly SVGTextElement[], width: number, inset: number }[]} */
+const pendingEnds = [];
 
 /**
  * Hand a control to the page's `decorate`, the info without its empty
@@ -1229,21 +1252,44 @@ function attachMatching(root, options, selector) {
     const touched = new Set();
     /** @type {ChartState[]} */
     const states = [];
+    const lazy = options.lazy ?? 12;
+    /** The plots this call attached; `lazy` counts them. */
+    const hosts = /** @type {HTMLElement[]} */ ([...root.querySelectorAll(selector)]).filter((host) => !CHARTS.has(host));
+    const watching = lazy !== false && typeof view.IntersectionObserver === 'function' && hosts.length >= (lazy === true ? 1 : lazy);
+    // A little before the edge, so a chart is drawn as it comes near.
+    const seen = watching
+        ? new view.IntersectionObserver(
+              (entries) => {
+                  for (const entry of entries) CHARTS.get(/** @type {HTMLElement} */ (entry.target))?.view?.(entry.isIntersecting);
+              },
+              { rootMargin: '200px 0px' },
+          )
+        : null;
     const resize = new view.ResizeObserver((entries) => {
-        for (const entry of entries) CHARTS.get(entry.target)?.draw();
+        for (const entry of entries) {
+            const state = CHARTS.get(entry.target);
+            if (state?.resize) state.resize();
+            else state?.draw();
+        }
     });
-    for (const host of /** @type {HTMLElement[]} */ ([...root.querySelectorAll(selector)])) {
+    for (const host of hosts) {
         if (CHARTS.has(host)) continue;
         const groupEl = /** @type {HTMLElement | null} */ (host.closest(CHART_GROUP));
         const group = (groupEl ? GROUPS.get(groupEl) : LOOSE.get(doc)) ?? new ChartGroup(groupEl, doc, ctx);
         const locale = resolveLocale(options.locale, groupEl ?? host);
         const state = host.dataset.kpChart === 'spark' ? sparkChart(host, group, locale, ctx) : plotChart(host, group, locale, ctx);
-        state.unobserve = () => resize.unobserve(host);
+        const hold = seen != null && state.view != null && host.getAttribute('data-kp-chart-lazy') !== 'off';
+        if (hold) state.view?.(false);
+        state.unobserve = () => {
+            resize.unobserve(host);
+            if (hold) seen?.unobserve(host);
+        };
         CHARTS.set(host, state);
         group.charts.add(state);
         touched.add(group);
         states.push(state);
         resize.observe(host);
+        if (hold) seen?.observe(host);
     }
     // The window of a range depends on every chart's newest point: draw once
     // all of a group are in, the charts already there included.
@@ -1255,6 +1301,7 @@ function attachMatching(root, options, selector) {
     return () => {
         for (const state of states) if (CHARTS.get(state.host) === state) detachChart(state.host);
         resize.disconnect();
+        seen?.disconnect();
     };
 }
 
@@ -1336,6 +1383,14 @@ function plotChart(host, group, locale, ctx) {
     let axisMemo = { key: '', axis: { stride: 0, ticks: /** @type {number[]} */ ([]) } };
     /** The state the plot shows instead of lines, and its words, as last drawn. */
     let shown = '';
+    /** The window ('from to') the plot was last drawn in; '' while it shows a state instead. */
+    let drawnWindow = '';
+    /** What the plot was last drawn for: its width, its height and the host attributes that change the drawing. */
+    let drawnFor = '';
+    /** Held back while off screen (see ChartOptions.lazy); true from the moment a draw was skipped until the next. */
+    let held = false;
+    let behind = false;
+    const drawnKey = () => `${plot.clientWidth} ${chartHeight(host, data)} ${host.hasAttribute('data-kp-chart-loading')} ${host.getAttribute('data-kp-chart-sources')}`;
 
     host.classList.add('kp-chart');
     const plot = h(doc, 'div', { class: 'kp-chart__plot', tabindex: '0', role: 'application' });
@@ -1636,7 +1691,9 @@ function plotChart(host, group, locale, ctx) {
     }
 
     function draw() {
-        const H = chartHeight(host, data);
+                const H = chartHeight(host, data);
+        drawnWindow = '';
+        drawnFor = drawnKey();
         const loading = host.hasAttribute('data-kp-chart-loading');
         plot.setAttribute('aria-busy', String(loading));
         if (loading) {
@@ -1655,10 +1712,18 @@ function plotChart(host, group, locale, ctx) {
             drawState('empty', H);
             return;
         }
+        if (held) {
+            // Off screen: the plot keeps its footprint (the loading plate) and is drawn as it comes into view.
+            behind = true;
+            if (!geo && shown === '') drawState('loading', H);
+            return;
+        }
+        behind = false;
         shown = '';
         host.setAttribute('data-kp-state', 'ready');
         hint.hidden = data.series.length <= 1;
         const { from, to } = win;
+        drawnWindow = `${from} ${to}`;
         const W = Math.max(240, plot.clientWidth);
         const vis = visible();
         const stacked = data.stacked ?? false;
@@ -1860,12 +1925,19 @@ function plotChart(host, group, locale, ctx) {
                         inside.map((p) => p[1]),
                         m.v,
                     );
+                    // One ring is built, the rest are copies of it: a typical-level chart marks hundreds.
+                    const proto = s(doc, 'g', { class: 'kp-chart__series kp-chart__run-series' });
+                    paintSeries(proto, data.series[m.si], m.si);
+                    proto.append(s(doc, 'circle', { class: 'kp-chart__run', cx: 0, cy: 0, r: 4.25 }));
+                    const rings = doc.createDocumentFragment();
                     for (const i of marked) {
-                        const ring = s(doc, 'g', { class: 'kp-chart__series kp-chart__run-series' });
-                        paintSeries(ring, data.series[m.si], m.si);
-                        ring.append(s(doc, 'circle', { class: 'kp-chart__run', cx: x(inside[i][0]), cy: y(inside[i][1]), r: 4.25 }));
-                        g.append(ring);
+                        const ring = /** @type {SVGGElement} */ (proto.cloneNode(true));
+                        const circle = /** @type {SVGCircleElement} */ (ring.firstChild);
+                        circle.setAttribute('cx', String(x(inside[i][0])));
+                        circle.setAttribute('cy', String(y(inside[i][1])));
+                        rings.append(ring);
                     }
+                    g.append(rings);
                 }
             }
             if (medians.length === 1) {
@@ -2232,7 +2304,11 @@ function plotChart(host, group, locale, ctx) {
     });
 
     // A page that sets or clears `data-kp-chart-loading` itself.
-    const watch = new (doc.defaultView ?? globalThis).MutationObserver(() => draw());
+    // (the feed removes `data-kp-chart-loading` just before it draws, which this watch need not draw again)
+    const watch = new (doc.defaultView ?? globalThis).MutationObserver(() => {
+        const asked = `${host.hasAttribute('data-kp-chart-loading')} ${host.getAttribute('data-kp-chart-sources')}`;
+        if (!drawnFor.endsWith(asked)) draw();
+    });
     watch.observe(host, { attributes: true, attributeFilter: ['data-kp-chart-loading', 'data-kp-chart-sources'] });
 
     /** @param {ChartData} next */
@@ -2253,8 +2329,10 @@ function plotChart(host, group, locale, ctx) {
             plot.setAttribute('aria-label', strings.plot(label()));
         }
         if (key() !== keyBefore) decorateOwn();
-        // The group's window follows its newest point: every chart redraws.
-        for (const c of group.charts) c.draw();
+        // The group's window follows its newest point: this chart draws, and a neighbour only when that window moved under it
+        // (a feed to sixteen charts of a group no longer draws every chart sixteen times).
+        draw();
+        for (const c of group.charts) if (c !== state && (!c.stale || c.stale())) c.draw();
     };
     if (data.key != null) host.setAttribute('data-kp-key', data.key);
     points = data.series.map(pointsOf);
@@ -2267,6 +2345,18 @@ function plotChart(host, group, locale, ctx) {
         spark: false,
         group,
         draw,
+        view: (inView) => {
+            held = !inView;
+            if (inView && behind) draw();
+        },
+        resize: () => {
+            if (drawnKey() !== drawnFor) draw();
+        },
+        stale: () => {
+            if (!drawnWindow) return false;
+            const win = range();
+            return !win || `${win.from} ${win.to}` !== drawnWindow;
+        },
         setData,
         select: (i, on) => {
             const next = nextSelection(sel, i, data.series.length, on);

@@ -36,6 +36,11 @@ export const JOBLINE_EVENT = 'kp-jobline';
  * @property {number} [rate] bytes per second; the time left is worked out from it when `etaSeconds` is not given
  */
 
+/**
+ * What `setJobLine` takes: a JobReport in which a key may also be `null` (or `undefined`) to take it back out [HL 137].
+ * @typedef {{ [K in keyof JobReport]?: JobReport[K] | null }} JobReportUpdate
+ */
+
 /** The report each line was last given. @type {WeakMap<Element, JobReport>} */
 const reports = new WeakMap();
 
@@ -114,7 +119,7 @@ function listOf(line) {
 /**
  * Report to a job line: only what is given changes; `null` for a key takes it back out.
  * @param {HTMLElement} line a `[data-kp-jobline]`
- * @param {JobReport} report
+ * @param {JobReportUpdate} report
  */
 export function setJobLine(line, report) {
     const next = { ...(reports.get(line) ?? {}) };

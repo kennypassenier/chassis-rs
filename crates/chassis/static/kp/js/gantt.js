@@ -96,6 +96,16 @@
 //            timeline is read, not searched; the window is still `data-kp-gantt-range`'s or the page's own setGanttWindow);
 //            `data-kp-gantt-legend="off"` leaves out the legend of the states (the page's own series, kinds and stretches stay,
 //            and a legend left with nothing is not drawn); `data-kp-gantt-hint="off"` leaves out the line under the timeline
+//   legend   [wish-1028, Kitchen 1] `data-kp-gantt-legend` also takes `auto` (only the states the runs use: a plan of done, now and
+//            still to do names three) or a list (`"ok running planned"`, spaces or commas; ok, failed, running, queued, planned);
+//            `all` (the default) names every state as before. Read again when it changes
+//   rest     [wish-1028, Kitchen 2] a running run with a `plannedEnd` draws the time it still has after now: a planned-look stretch from
+//            now to `plannedEnd` that shrinks as the clock runs (gone once now is past it), and a live window reaches far enough
+//            after now to hold it (at most 40% of the range). `data-kp-gantt-rest="off"` leaves it out
+//   scroll   [wish-1028, Kitchen 3] a timeline narrower than 32rem keeps its plot a readable width and scrolls sideways inside its own
+//            frame instead of squeezing the lanes; the lane names stay in view and a live window opens at its right end. The width is
+//            `--kp-gantt-min-width` (30rem; 0 turns it off); `data-kp-gantt-scroll="off"` never scrolls, `"always"` keeps the minimum
+//            at every width. A mouse still brushes a range; a finger pans
 //   line     `.kp-gantt--line` [kpadopt4]: one lane and no toolbar, no lane
 //            names and no brush, fitted to its data: the dated line under a
 //            journey stepper
@@ -149,6 +159,7 @@ const CLUSTER_PLATE_PX = 24;
  * @property {number | string | null} [end] when it ended, or for a planned run when it is to end; ignored for a queued or running run
  * @property {GanttRunState} state
  * @property {string} [detail] more words for the hover card
+ * @property {number | string | null} [plannedEnd] a running run's planned end (epoch ms or an ISO string): the time it still has is drawn after now [wish-1028]
  * @property {1 | 2 | 3 | 4 | 5} [series] a finished run's colour, `--chart-1` … `--chart-5`, in place of the success colour [kpadopt3]
  * @typedef {{ id: string, label: string, href?: string, sub?: string }} GanttLane
  * @typedef {object} GanttPoint
@@ -187,6 +198,8 @@ const CLUSTER_PLATE_PX = 24;
  *   ghosts: HTMLElement[], held: number | null, busy: import('./busy-card.js').BusyCard | null, leaving: Promise<void> | null, drawn: boolean, timer: number, observer: ResizeObserver | null, drag: { a: number, b: number } | null, dragMoved: boolean, tickKey: string, labels: Map<HTMLElement, { key: string, width: number }>, outside: Map<HTMLElement, HTMLElement> }} GanttModel
  */
 
+/** The timelines whose own sideways scroll has been put at the live end once [wish-1028]. @type {WeakSet<Element>} */
+const OPENED = new WeakSet();
 /** @type {WeakMap<Element, GanttModel>} */
 const gantts = new WeakMap();
 let idSeq = 0;
@@ -332,8 +345,57 @@ function fitWindow(c) {
 /** The window now: its edges in relative seconds. @param {GanttModel} c */
 function windowOf(c) {
     const now = rel(c, c.now());
-    const end = c.live ? now + Math.max(30, c.span * 0.03) : c.to;
+    // A live window reaches far enough after now to hold the planned remainder of a running bar, but never more than 40% of the range [wish-1028].
+    let lead = Math.max(30, c.span * 0.03);
+    if (c.live && restOn(c))
+        for (const run of c.runs) {
+            const planned = restEnd(c, run);
+            if (planned !== null) lead = Math.max(lead, Math.min(planned - now, c.span * 0.4));
+        }
+    const end = c.live ? now + lead : c.to;
     return { from: end - c.span, end, now };
+}
+
+/** The planned remainder of running bars is drawn unless `data-kp-gantt-rest="off"` [wish-1028]. @param {GanttModel} c */
+const restOn = (c) => c.el.getAttribute('data-kp-gantt-rest') !== 'off';
+
+/**
+ * Where a running run's planned remainder ends, in seconds from the base, or null: it needs state `running`, a `plannedEnd` that
+ * reads as a time, and the option on [wish-1028].
+ * @param {GanttModel} c @param {GanttRun} run
+ */
+function restEnd(c, run) {
+    if (run.state !== 'running' || run.plannedEnd == null || !restOn(c)) return null;
+    const ms = toMs(run.plannedEnd);
+    return Number.isFinite(ms) ? rel(c, ms) : null;
+}
+
+/** The planned-remainder stretch of a running bar. @type {WeakMap<HTMLElement, HTMLElement>} */
+const RESTS = new WeakMap();
+
+/**
+ * Draw (or take away) the remainder a running bar still has: a stretch from now to the planned end, in its lane, on the bar's row.
+ * @param {GanttModel} c @param {GanttLaneModel} lane @param {GanttBar} b
+ */
+function syncRest(c, lane, b) {
+    const end = restEnd(c, b.run);
+    let rest = RESTS.get(b.bar);
+    if (end === null) {
+        rest?.remove();
+        RESTS.delete(b.bar);
+        return;
+    }
+    if (!rest) {
+        rest = make(c.el.ownerDocument, 'span', 'kp-gantt__rest');
+        rest.setAttribute('aria-hidden', 'true');
+        rest.dataset.kpState = 'planned';
+        RESTS.set(b.bar, rest);
+    }
+    if (rest.parentElement !== lane.track) lane.track.append(rest);
+    if (b.run.series) rest.dataset.kpSeries = String(b.run.series);
+    else delete rest.dataset.kpSeries;
+    rest.style.setProperty('--kp-g-row', String(b.row));
+    rest.style.setProperty('--kp-g-e', end.toFixed(2));
 }
 
 /** The words of a bar's name and card. @param {GanttModel} c @param {GanttBar} b */
@@ -350,7 +412,9 @@ function wordsOf(c, b) {
             : run.state === 'running'
               ? `${stamp(c, startMs)}, ${length}`
               : `${stamp(c, startMs)} – ${clock(c, endMs)}, ${length}`;
-    return { name: c.strings.ganttBar(run.label, when, state), card: [run.label, when, state, run.detail ?? ''].filter(Boolean).join(' · ') };
+    const planned = restEnd(c, run);
+    const until = planned !== null && planned * 1000 + c.base * 1000 > nowMs ? c.strings.ganttPlannedUntil(clock(c, planned * 1000 + c.base * 1000)) : '';
+    return { name: c.strings.ganttBar(run.label, when, state), card: [run.label, when, state, until, run.detail ?? ''].filter(Boolean).join(' · ') };
 }
 
 /** Build the chrome once. @param {GanttModel} c */
@@ -641,6 +705,8 @@ function paint(c) {
     }
     for (const [id, bar] of c.bars)
         if (!live.has(id)) {
+            RESTS.get(bar)?.remove();
+            RESTS.delete(bar);
             bar.remove();
             c.bars.delete(id);
             c.states.delete(id);
@@ -733,6 +799,7 @@ function paint(c) {
             b.bar.style.setProperty('--kp-g-e', b.e == null ? 'var(--kp-g-now)' : b.e.toFixed(2));
             const label = /** @type {HTMLElement} */ (b.bar.firstElementChild);
             if (label.textContent !== b.run.label) label.textContent = b.run.label;
+            syncRest(c, lane, b);
         }
     });
     c.body.style.setProperty('--kp-g-lanes', String(Math.max(1, lanes.length)));
@@ -756,8 +823,9 @@ function paint(c) {
               : c.stateLine.dataset.kpWords || s.heatFailed;
     // A timeline of moments with nothing to show has no line for now running through its sentence [kpadopt4].
     c.nowLine.hidden = c.el.hasAttribute('data-kp-gantt-points') && (c.state === 'error' || c.state === 'empty' || empty);
-    // An empty or failed sentence waits, as the runs do, until the card has gone.
-    const plateKind = c.leaving === null && (c.state === 'error' || c.state === 'empty' || (c.state === 'ready' && empty)) ? c.state : null;
+    // An empty or failed plate is drawn at once, as a data table draws its own while its card leaves: there are no runs under the card
+    // to hide, and waiting for the card's leave put a failed timeline's plate about 1.5 s behind its state [KIT22 16]. The runs still wait.
+    const plateKind = c.state === 'error' || c.state === 'empty' || (c.state === 'ready' && empty) ? c.state : null;
     c.stateLine.textContent = c.state === 'loading' && c.leaving === null ? words : '';
     c.stateLine.dataset.kpState = empty && c.state === 'ready' ? 'empty' : c.state;
     // Rebuilt only when what it says changes, so the focus on its Retry survives a repaint.
@@ -1123,11 +1191,26 @@ function syncLegend(c) {
     const runless = c.runs.length === 0 && (c.points.length > 0 || c.kinds.length > 0);
     const off = c.el.getAttribute('data-kp-gantt-legend') === 'off';
     const planned = c.runs.some((run) => run.state === 'planned');
+    const only = legendStates(c);
     for (const li of /** @type {NodeListOf<HTMLElement>} */ (c.legend.querySelectorAll(':scope > .kp-gantt__legend-state'))) {
-        const isPlanned = li.firstElementChild?.getAttribute('data-kp-state') === 'planned';
-        li.hidden = runless || off || (isPlanned && !planned);
+        const state = li.firstElementChild?.getAttribute('data-kp-state') ?? '';
+        li.hidden = runless || off || (only === null ? state === 'planned' && !planned : !only.has(state));
     }
     c.legend.hidden = [...c.legend.children].every((li) => /** @type {HTMLElement} */ (li).hidden);
+}
+
+/**
+ * The states the legend is limited to [wish-1028, Kitchen 1], or null for all of them: `data-kp-gantt-legend="auto"` is the states the
+ * runs use now; a list ("ok running planned") is those states, whether a run uses them or not.
+ * @param {GanttModel} c
+ * @returns {Set<string> | null}
+ */
+function legendStates(c) {
+    const asked = (c.el.getAttribute('data-kp-gantt-legend') ?? '').trim().toLowerCase();
+    if (asked === 'auto') return new Set(c.runs.map((run) => run.state));
+    if (asked === '' || asked === 'off' || asked === 'all') return null;
+    const names = asked.split(/[\s,]+/).filter((name) => ['ok', 'failed', 'running', 'queued', 'planned'].includes(name));
+    return names.length ? new Set(names) : null;
 }
 
 /**
@@ -1404,6 +1487,8 @@ function visible(c) {
         for (const b of lane.bars) {
             const end = b.e ?? now;
             b.bar.hidden = c.state === 'loading' || c.leaving !== null || end < w.from || b.s > w.end;
+            const rest = RESTS.get(b.bar);
+            if (rest) rest.hidden = b.bar.hidden || Number.parseFloat(rest.style.getPropertyValue('--kp-g-e')) <= now;
         }
         for (const point of lane.points) {
             const at = Number.parseFloat(point.style.getPropertyValue('--kp-g-s'));
@@ -1489,6 +1574,11 @@ function announceWindow(c, why) {
 /** One second of the clock. @param {GanttModel} c */
 function tick(c) {
     const w = frame(c);
+    // A narrow timeline scrolls inside its frame: a live window opens at its right end, where now is [wish-1028].
+    if (!OPENED.has(c.el) && c.scroll.scrollWidth > c.scroll.clientWidth + 1) {
+        OPENED.add(c.el);
+        if (c.live) c.scroll.scrollLeft = getComputedStyle(c.scroll).direction === 'rtl' ? -(c.scroll.scrollWidth - c.scroll.clientWidth) : c.scroll.scrollWidth;
+    }
     syncTicks(c, w);
     edgeTicks(c, w);
     visible(c);
@@ -1791,7 +1881,8 @@ export function attachGantts(root = document, options = {}) {
         };
         fonts?.addEventListener?.('loadingdone', refit);
         void fonts?.ready?.then(refit);
-        const stopOptions = watchOptions(el, ['data-kp-gantt-toolbar', 'data-kp-gantt-legend', 'data-kp-gantt-hint'], () => {
+        const stopOptions = watchOptions(el, ['data-kp-gantt-toolbar', 'data-kp-gantt-legend', 'data-kp-gantt-hint', 'data-kp-gantt-rest'], () => {
+            paint(c);
             paintChrome(c);
             tick(c);
         });

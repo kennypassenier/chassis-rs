@@ -247,7 +247,7 @@ function drawDisc(root, measure) {
         const resting = known?.resting === true;
         if (resting) shape.setAttribute('data-kp-wheel-resting', '');
         group.append(shape);
-        // The label along the radius, reading outward on the right and inward on the left, so it is never upside down.
+        // The label along the radius, reading outward on the right and inward on the left (of the screen, turn included), so it is never upside down at rest.
         const mid = (a0 + a1) / 2;
         const half = Math.min(Math.PI / 2, ((span / 2) * Math.PI) / 180);
         const item = items.get(id);
@@ -258,7 +258,9 @@ function drawDisc(root, measure) {
         shape.append(name);
         // No size fits the name whole, on one line or two, and it has no shorter form: nothing is drawn rather than a cut name.
         if (!plan) return;
-        const left = mid > 180;
+        // Where the slice stands on the screen, not in the unturned disc: the disc is turned (state.angle) and the flip follows the
+        // turn, so a label on the left half still reads inward and upright after a spin [KIT 7].
+        const left = (((mid + state.angle) % 360) + 360) % 360 > 180;
         const text = svg('text', {
             class: 'kp-wheel__label',
             transform: `rotate(${(left ? mid + 90 : mid - 90).toFixed(3)})`,

@@ -22,6 +22,11 @@
 //                             `off` leaves it out (read each time, so it can be switched at runtime)
 //   data-kp-follow-key        the key that jumps back and follows again (default End, Home for `head`)
 //   data-kp-follow-space      Space pauses and resumes following, for a log
+//   data-kp-follow-rows       `children` (default): the scroller's element children are the rows. `tbody`: the rows are the
+//                             `<tr>` that arrive in a table body inside the scroller (a datatable in a scrolling box) [wish-1028,
+//                             almanac 9]. A row counts once: a row whose `data-kp-row-key` (or id) the pill has already seen
+//                             is the same row coming back after a sort, a filter or a page change, and is not new. Detail,
+//                             group and held rows are not rows. Read when the pill attaches.
 //
 // A row counts only while it is shown: a filter that hides it (the `hidden`
 // attribute) takes it out of the count, and the count is exact. Scrolling back
@@ -52,6 +57,7 @@ export const NEWPILL_SAY_MS = 10000;
  * @property {boolean} [sinceLeft]
  * @property {string} [key]
  * @property {boolean} [space]
+ * @property {'children' | 'tbody'} [rows] where the rows arrive: the scroller's children (default) or the rows of a table body inside it
  */
 
 /**
@@ -78,6 +84,13 @@ export function newPill(el) {
 /** @param {Element} el */
 const isRow = (el) => !el.classList.contains('kp-newpill__since') && !el.hasAttribute('data-kp-newpill-skip');
 
+/** A row of a table body that counts as one: not a detail, group, held or divider row. @param {Element} el */
+const isTableRow = (el) =>
+    el.tagName === 'TR' && isRow(el) && !el.matches('[data-kp-row-detail], [data-kp-row-group], [data-kp-row-hidden]');
+
+/** The key a row is known by when a sort or filter brings it back, or `''`. @param {Element} row */
+const rowKeyOf = (row) => /** @type {HTMLElement} */ (row).dataset?.kpRowKey || row.id || '';
+
 /**
  * @param {HTMLElement} el
  * @param {NewPillOptions} options
@@ -101,6 +114,7 @@ function attachOne(el, options) {
     const sinceLeft = () => options.sinceLeft ?? !['off', 'false'].includes(el.getAttribute('data-kp-since-left') ?? '');
     const keyName = options.key ?? el.getAttribute('data-kp-follow-key') ?? (head ? 'Home' : 'End');
     const space = options.space ?? el.hasAttribute('data-kp-follow-space');
+    const inTbody = (options.rows ?? el.getAttribute('data-kp-follow-rows')) === 'tbody';
 
     const host = el.parentElement;
     host?.setAttribute('data-kp-newpill-host', '');
@@ -126,6 +140,9 @@ function attachOne(el, options) {
     /** The rows that came while the reader was elsewhere. @type {Set<Element>} */
     const unseen = new Set();
     let programmatic = false;
+    /** In `tbody` mode: the keys of the rows already seen, so a sort or a filter that re-adds them counts none. @type {Set<string>} */
+    const known = new Set();
+    if (inTbody) for (const row of el.querySelectorAll('tbody > tr')) if (isTableRow(row) && rowKeyOf(row)) known.add(rowKeyOf(row));
     let lastSaid = 0;
     /** @type {number | undefined} */
     let sayLater;
@@ -221,7 +238,13 @@ function attachOne(el, options) {
                   let added = false;
                   for (const record of records) {
                       for (const node of record.addedNodes) {
-                          if (!(node instanceof Element) || !isRow(node)) continue;
+                          if (!(node instanceof Element)) continue;
+                          if (inTbody) {
+                              if (!(record.target instanceof Element) || record.target.tagName !== 'TBODY' || !isTableRow(node)) continue;
+                              const key = rowKeyOf(node);
+                              if (key && known.has(key)) continue;
+                              if (key) known.add(key);
+                          } else if (!isRow(node)) continue;
                           added = true;
                           if (hiddenAt && !firstAway) firstAway = node;
                           if (!(following && !paused)) unseen.add(node);
@@ -232,7 +255,7 @@ function attachOne(el, options) {
                   draw();
               })
             : null;
-    observer?.observe(el, { childList: true });
+    observer?.observe(el, inTbody ? { childList: true, subtree: true } : { childList: true });
 
     /** The reader scrolled: away from the end stops following, back to it follows again. */
     const onScroll = () => {
@@ -285,9 +308,9 @@ function attachOne(el, options) {
         const left = new Date(hiddenAt);
         hiddenAt = 0;
         firstAway = null;
-        for (const old of el.querySelectorAll(':scope > .kp-newpill__since')) old.remove();
+        for (const old of el.querySelectorAll(inTbody ? '.kp-newpill__since' : ':scope > .kp-newpill__since')) old.remove();
         if (!row || !row.isConnected) return;
-        const tag = el.tagName === 'UL' || el.tagName === 'OL' ? 'li' : el.tagName === 'TBODY' ? 'tr' : 'div';
+        const tag = row.tagName === 'TR' ? 'tr' : el.tagName === 'UL' || el.tagName === 'OL' ? 'li' : el.tagName === 'TBODY' ? 'tr' : 'div';
         const line = doc.createElement(tag);
         line.className = 'kp-newpill__since';
         line.setAttribute('role', 'separator');

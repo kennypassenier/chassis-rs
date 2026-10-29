@@ -18,7 +18,7 @@
   </section>
   <section class="kp-card kit-login__card" aria-labelledby="login-card-title">
     <h2 class="kp-card__title" id="login-card-title">Sign in</h2>
-    <form method="post" action="/login" id="login-form" data-kp-form novalidate><div class="kp-form__summary" data-kp-form-summary tabindex="-1" hidden></div><div class="kp-formgrid kit-login__grid" data-kp-formgrid-stack="never">
+    <form method="post" action="/login" id="login-form" data-kp-form data-kp-form-native-submit novalidate><div class="kp-form__summary" data-kp-form-summary tabindex="-1" hidden></div><div class="kp-formgrid kit-login__grid" data-kp-formgrid-stack="never">
       {% if error %}
       <div class="kp-formgrid__row"><div class="kp-alert kp-alert--destructive" role="alert" id="login-error" data-kp-formgrid-span="all"><div class="kp-alert__body"><span class="kp-alert__what">That token is not right</span><span class="kp-alert__why">It does not match the service’s login token.</span><span class="kp-alert__remedy"><span class="kp-alert__remedy-label">What now</span> Copy it again from the service’s environment file, without spaces around it.</span></div></div></div>
       {% endif %}

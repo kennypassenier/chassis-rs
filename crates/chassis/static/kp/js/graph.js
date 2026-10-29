@@ -750,6 +750,8 @@ function renderDetail(g) {
     detailCount += 1;
     const title = make(doc, 'h3', 'kp-graph__detail-title', node.label);
     title.id = `kp-graph-detail-${detailCount}`;
+    // The panel exists only while a node is picked: a page-wide heading anchor (js/anchors.js) would add a copy-link to it [HL 138].
+    title.setAttribute('data-kp-anchors', 'off');
     const close = make(doc, 'button', 'kp-button kp-button--sm kp-graph__detail-close', g.strings.graphDetailClose);
     close.type = 'button';
     close.title = g.strings.graphDetailCloseTitle;

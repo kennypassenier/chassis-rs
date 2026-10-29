@@ -20,6 +20,11 @@
 //   data-kp-refresh-label    words for the bar's own label cell ("Auto-refresh"); in a `.kp-formgrid` it stands in the
 //                            label track beside the chooser, the freshness line and Refresh now, on one first baseline;
 //                            elsewhere it is a line above the bar. Switchable at runtime; none by default
+//   data-kp-refresh-title    words for a title in the bar's grid [wish-1028, almanac 21]: the first cell of the bar, before the chooser, so
+//                            "Calendar sync | Every 30 s | updated 12 s ago | Refresh now" stands on one row. In a `.kp-formgrid` it
+//                            takes the label track. With a label too, the title is the heading line over the whole bar. Rich
+//                            content: put an element marked `data-kp-refresh-slot="title"` inside the control and it is moved into
+//                            that cell. Switchable at runtime; `--kp-refresh-title-width` sets the track (default max-content)
 //   data-kp-refresh-stack    auto (default) | always | never: outside a `.kp-formgrid` the bar folds to one column under 40rem of
 //                            viewport (chooser, freshness line, Refresh now, on the start edge); `always` folds it at any width,
 //                            `never` keeps the row. A form grid folds on its own width (data-kp-formgrid-stack). CSS only
@@ -86,6 +91,15 @@ export function refreshDone(element, ok) {
  */
 export function setRefreshInterval(element, seconds) {
     handles.get(element)?.setInterval(seconds, 'script');
+}
+
+/**
+ * Set (or take away, with an empty string) the title in a control's bar [wish-1028].
+ * @param {Element} element @param {string} words
+ */
+export function setRefreshTitle(element, words) {
+    if (words) element.setAttribute('data-kp-refresh-title', words);
+    else element.removeAttribute('data-kp-refresh-title');
 }
 
 /** @param {string | null} raw @param {number[]} fallback */
@@ -227,6 +241,31 @@ function wire(el, clock) {
     failure.append(note, retry);
     const bar = make('div', 'kp-refresh__bar');
     bar.append(chooser, line, now);
+    /** An authored title element, moved into the bar's first cell [wish-1028]. */
+    const slotted = /** @type {HTMLElement | null} */ (el.querySelector(':scope > [data-kp-refresh-slot="title"]'));
+    /** The bar's title cell, drawn while `data-kp-refresh-title` has words or a slot was given. @type {HTMLElement | null} */
+    let titleCell = null;
+    const paintTitle = () => {
+        const words = (el.getAttribute('data-kp-refresh-title') ?? '').trim();
+        if (!words && !slotted) {
+            titleCell?.remove();
+            titleCell = null;
+            return;
+        }
+        if (!titleCell) {
+            titleCell = make('span', 'kp-refresh__title kp-formgrid__label');
+            bar.prepend(titleCell);
+            if (labelCell) titleCell.after(labelCell);
+            if (slotted) titleCell.append(slotted);
+        }
+        if (words) {
+            if (slotted?.parentElement === titleCell) slotted.hidden = true;
+            titleCell.querySelector(':scope > .kp-refresh__title-words')?.remove();
+            const text = make('span', 'kp-refresh__title-words');
+            text.textContent = words;
+            titleCell.append(text);
+        } else if (slotted) slotted.hidden = false;
+    };
     /** The bar's label cell, drawn while `data-kp-refresh-label` has words [formgrid-notes-1019; homelab 52]. @type {HTMLElement | null} */
     let labelCell = null;
     const paintLabel = () => {
@@ -238,11 +277,13 @@ function wire(el, clock) {
         }
         if (!labelCell) {
             labelCell = make('span', 'kp-refresh__label kp-formgrid__label');
-            bar.prepend(labelCell);
+            // After the title, when there is one: the title is the first cell.
+            bar.insertBefore(labelCell, titleCell ? titleCell.nextSibling : bar.firstChild);
         }
         labelCell.textContent = words;
     };
     paintLabel();
+    paintTitle();
     el.replaceChildren(bar, count, custom, failure);
     /** The detach of the menu or segmented wiring of the look drawn now. @type {(() => void) | null} */
     let unwireChooser = null;
@@ -511,8 +552,9 @@ function wire(el, clock) {
     // menu), the choices and the freshness line follow their attributes, and a new `data-kp-refresh` sets the interval.
     const stopWatching = watchOptions(
         el,
-        ['data-kp-look', 'data-kp-refresh', 'data-kp-refresh-choices', 'data-kp-stale-after', 'data-kp-announce', 'data-kp-refresh-label'],
+        ['data-kp-look', 'data-kp-refresh', 'data-kp-refresh-choices', 'data-kp-stale-after', 'data-kp-announce', 'data-kp-refresh-label', 'data-kp-refresh-title'],
         (names) => {
+            if (names.includes('data-kp-refresh-title')) paintTitle();
             if (names.includes('data-kp-refresh-label')) paintLabel();
             if (names.includes('data-kp-look') && look() !== drawnLook) {
                 const hadFocus = chooser.contains(doc.activeElement);

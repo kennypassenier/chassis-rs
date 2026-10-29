@@ -199,8 +199,11 @@ export function menuKeyTarget(event, at, labels) {
     return null;
 }
 
+/** What counts as an item of the menu: a radio or a checkbox item (the refresh chooser's choices) is picked and reached by key like a plain one [CHA 21]. */
+const ITEM_ROLES = '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]';
+
 /** @param {MenuState} s @returns {HTMLElement[]} */
-const menuItems = (s) => /** @type {HTMLElement[]} */ ([...s.menu.querySelectorAll('[role="menuitem"]')]);
+const menuItems = (s) => /** @type {HTMLElement[]} */ ([...s.menu.querySelectorAll(ITEM_ROLES)]);
 
 /** @param {HTMLElement} item */
 const labelOf = (item) => item.querySelector('.kp-menu__label')?.textContent ?? item.textContent ?? '';
@@ -838,7 +841,7 @@ export function attachMenuButtons(root = document, { decorate, strings } = {}) {
         };
         /** @param {MouseEvent} event */
         const onPick = (event) => {
-            const item = /** @type {HTMLElement | null} */ (event.target instanceof Element ? event.target.closest('[role="menuitem"]') : null);
+            const item = /** @type {HTMLElement | null} */ (event.target instanceof Element ? event.target.closest(ITEM_ROLES) : null);
             if (!item || !state.menu.contains(item)) return;
             if (item.getAttribute('aria-disabled') === 'true') {
                 event.preventDefault();
