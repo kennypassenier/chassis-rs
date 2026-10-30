@@ -29,9 +29,22 @@ use crate::shell::clients_api::ClientView;
 use crate::shell::health::Health;
 use crate::shell::store::Clients;
 
+mod builders;
+mod clients;
+mod environment;
+mod errors;
+mod login;
+mod render;
 mod sections;
+mod status;
+#[cfg(test)]
+mod tests;
+mod theme_registry;
+mod views;
+use errors::{capitalised, error_look, sentence, template_error};
 pub use sections::{Check, CheckState, FlashAction, JsonRender, Kpi, KpiTone, SectionBody};
 use sections::{Sample, UptimeHistory};
+use views::attr_escape;
 
 /// One link in the top navigation.
 #[derive(Debug, Clone, Serialize)]
@@ -276,22 +289,6 @@ pub struct Action {
     pub busy_label: Option<String>,
 }
 
-/// The five characters that can break out of a double-quoted attribute.
-fn attr_escape(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            '\'' => out.push_str("&#39;"),
-            _ => out.push(c),
-        }
-    }
-    out
-}
-
 pub type ClientAction = Action;
 pub type SectionAction = Action;
 
@@ -327,37 +324,6 @@ impl Action {
     pub fn busy_label(mut self, label: &str) -> Self {
         self.busy_label = Some(label.to_string());
         self
-    }
-
-    /// What the template renders: the route with `{id}` filled in and a
-    /// confirm phrase whenever the action is destructive. The route is
-    /// attribute-escaped here and rendered `|safe`, because minijinja's
-    /// auto-escape turns every `/` into `&#x2f;` — correct for a browser,
-    /// unreadable for a person and for a consumer's test that asserts
-    /// `data-post="/sources/<id>/sync"`.
-    fn view(&self, id: Option<&str>) -> serde_json::Value {
-        let route = match id {
-            Some(id) => self.route.replace("{id}", id),
-            None => self.route.clone(),
-        };
-        let route = attr_escape(&route);
-        let confirm = if self.destructive {
-            Some(
-                self.confirm
-                    .clone()
-                    .unwrap_or_else(|| DEFAULT_CONFIRM.to_string()),
-            )
-        } else {
-            None
-        };
-        serde_json::json!({
-            "label": self.label,
-            "route": route,
-            "method": self.method,
-            "destructive": self.destructive,
-            "confirm": confirm,
-            "busy_label": self.busy_label,
-        })
     }
 }
 
@@ -417,18 +383,6 @@ impl ClientFormField {
             },
         }
     }
-
-    fn view(&self) -> serde_json::Value {
-        match &self.kind {
-            FieldKind::Text { placeholder } => serde_json::json!({
-                "name": self.name, "label": self.label, "kind": "text", "placeholder": placeholder
-            }),
-            FieldKind::Select { options } => serde_json::json!({
-                "name": self.name, "label": self.label, "kind": "select",
-                "options": options().into_iter().map(|(v, l)| serde_json::json!({"value": v, "label": l})).collect::<Vec<_>>()
-            }),
-        }
-    }
 }
 
 /// A problem the project wants shown on the status page (K17): some
@@ -470,35 +424,8 @@ pub struct Theme {
 /// Parse `THEMES` out of the vendored registry module.
 pub fn themes() -> &'static [Theme] {
     static THEMES: std::sync::OnceLock<Vec<Theme>> = std::sync::OnceLock::new();
-    THEMES.get_or_init(|| {
-        let src = include_str!("../../static/kp/js/theme-registry.js");
-        let mut out = Vec::new();
-        for line in src.lines() {
-            let l = line.trim();
-            if !l.starts_with("{ name:") {
-                continue;
-            }
-            let field = |key: &str| -> Option<String> {
-                let start = l.find(&format!("{key}: "))? + key.len() + 2;
-                let rest = &l[start..];
-                let rest = rest.trim_start_matches('\'');
-                let end = rest.find(['\'', ',', ' ', '}'])?;
-                Some(rest[..end].to_string())
-            };
-            let label_start = l.find("label: '").map(|i| i + 8);
-            let label = label_start
-                .and_then(|s| l[s..].find('\'').map(|e| l[s..s + e].to_string()))
-                .unwrap_or_default();
-            if let (Some(name), Some(dark)) = (field("name"), field("dark")) {
-                out.push(Theme {
-                    name,
-                    label,
-                    dark: dark == "true",
-                });
-            }
-        }
-        out
-    })
+    THEMES
+        .get_or_init(|| theme_registry::parse(include_str!("../../static/kp/js/theme-registry.js")))
 }
 
 /// Everything the page handlers share.
@@ -608,69 +535,8 @@ impl Dashboard {
             });
         }
         kit_nav.append(&mut nav);
-        let mut env = Environment::new();
-        env.add_template("layout.html", include_str!("../../templates/layout.html"))
-            .map_err(template_error)?;
-        env.add_template("login.html", include_str!("../../templates/login.html"))
-            .map_err(template_error)?;
-        env.add_template("status.html", include_str!("../../templates/status.html"))
-            .map_err(template_error)?;
-        env.add_template("clients.html", include_str!("../../templates/clients.html"))
-            .map_err(template_error)?;
-        env.add_template("error.html", include_str!("../../templates/error.html"))
-            .map_err(template_error)?;
-        env.add_template(
-            "passkeys.html",
-            include_str!("../../templates/passkeys.html"),
-        )
-        .map_err(template_error)?;
-        env.add_template("storage.html", include_str!("../../templates/storage.html"))
-            .map_err(template_error)?;
-        env.add_template(
-            "status_notify.html",
-            include_str!("../../templates/status_notify.html"),
-        )
-        .map_err(template_error)?;
-        // feat-ui-1: every template renders a timestamp through this, so
-        // there is one place that decides what a reader sees.
-        env.add_filter("human_time", |v: String| crate::shell::time::human_time(&v));
-        // kit-kp11: dd/mm/yyyy HH:mm, 24 hours (UI principles, rule 52); the
-        // page shows it in the reader's zone once the script has run.
-        env.add_filter("kit_when", |v: String| sections::when_words(&v));
-        env.add_global("app_name", app_name);
-        env.add_global("open_dashboard", open);
-        env.add_global("prefix", prefix.clone());
-        env.add_global("assets", asset_version());
-        env.add_global("themes", minijinja::Value::from_serialize(themes()));
-        env.add_global("nav", minijinja::Value::from_serialize(&kit_nav));
-        // kit-kp11: the shell reads each navigation entry's page id from
-        // `pages`, entry for entry (with_pages replaces both from the registry).
-        env.add_global(
-            "pages",
-            minijinja::Value::from_serialize(
-                kit_nav
-                    .iter()
-                    .map(|n| {
-                        let id = match n.href.as_str() {
-                            "/" => "status",
-                            other => other.trim_matches('/'),
-                        };
-                        serde_json::json!({ "id": id, "title": n.label, "path": n.href })
-                    })
-                    .collect::<Vec<_>>(),
-            ),
-        );
-        env.add_global("chassis_version", crate::VERSION);
-        env.add_global("kp_themes_version", KP_THEMES_VERSION);
-        env.add_global("clients_label", clients_label.clone());
         let vocab = Vocabulary::default();
-        env.add_global("vocab", minijinja::Value::from_serialize(&vocab));
-        env.add_global("token_var", vocab.token_var());
-        env.add_global("vocab_article", article_for(&vocab.singular));
-        env.add_global(
-            "vocab_article_cap",
-            capitalise(article_for(&vocab.singular)),
-        );
+        let env = environment::build(app_name, open, &prefix, &kit_nav, &clients_label, &vocab)?;
         Ok(Self {
             app_name,
             version,
@@ -709,71 +575,6 @@ impl Dashboard {
         })
     }
 
-    /// 3.15.0: show the Notifications card on the Status page.
-    #[cfg(feature = "notify")]
-    pub(crate) fn with_notify_card(mut self, on: bool) -> Self {
-        self.notify_card = on;
-        self
-    }
-
-    /// kit-kp11: where the service's releases are described, from
-    /// `AppSpec::repository`.
-    pub(crate) fn with_repository(mut self, repository: Option<&str>) -> Self {
-        self.repository_url = repository
-            .filter(|r| r.split('/').count() == 2)
-            .map(|r| format!("https://github.com/{r}"));
-        self
-    }
-
-    /// kit-kp11: the checker behind "Check for updates".
-    pub(crate) fn with_update_check(mut self, check: Option<UpdateCheck>) -> Self {
-        self.check_update = check;
-        self
-    }
-
-    /// kit-kp11: keep the availability strip: one sample now, then one every
-    /// five minutes for as long as the service runs.
-    pub(crate) fn spawn_uptime_sampler(&self) {
-        let d = self.clone();
-        tokio::spawn(async move {
-            let mut tick = tokio::time::interval(std::time::Duration::from_secs(300));
-            loop {
-                tick.tick().await;
-                d.sample_health().await;
-            }
-        });
-    }
-
-    /// Read the health once and note it in the history.
-    async fn sample_health(&self) -> crate::shell::health::Report {
-        let report = self.health.report().await;
-        self.note_report(&report);
-        report
-    }
-
-    fn note_report(&self, report: &crate::shell::health::Report) {
-        let (parts, failing) = match report.subsystems.as_object() {
-            Some(map) => (map.len(), map.values().filter(|v| v["ok"] == false).count()),
-            None => (0, 0),
-        };
-        self.uptime
-            .record(Sample::from_report(report.status == "ok", parts, failing));
-    }
-
-    /// kit-kp11: the command a program is wired up with, token as
-    /// the token variable (see `clients_api::command_template`).
-    pub(crate) fn with_command_template(mut self, template: String) -> Self {
-        self.command_template = Arc::from(template);
-        self
-    }
-
-    /// kit-kp11 (clients-manage): what the Test it field starts with.
-    pub(crate) fn with_test_body(mut self, body: String, content_type: &str) -> Self {
-        self.test_json = content_type.to_ascii_lowercase().contains("json");
-        self.test_body = Arc::from(body);
-        self
-    }
-
     /// K28: what this service calls a client, for every template
     /// (`vocab.singular`, `vocab.plural`, `vocab.singular_cap`,
     /// `vocab.plural_cap`) and for the clients API's messages. Set once at
@@ -785,56 +586,6 @@ impl Dashboard {
         let article = article_for(&vocab.singular).to_string();
         self.vocab = vocab;
         self.with_vocabulary_article(&article)
-    }
-
-    /// kit-r4: the article before the singular, as the templates
-    /// (`vocab_article`, `vocab_article_cap`) and the clients API's
-    /// messages write it. Call after `with_vocabulary`; the service's own
-    /// override wins over the vowel-sound rule.
-    pub(crate) fn with_vocabulary_article(mut self, article: &str) -> Self {
-        let env = Arc::make_mut(&mut self.env);
-        env.add_global("vocab_article", article.to_string());
-        env.add_global("vocab_article_cap", capitalise(article));
-        self
-    }
-
-    /// feat-pages-1: the navigation from the page registry: the visible
-    /// pages in order, and where the brand link goes.
-    pub(crate) fn with_pages(mut self, set: &crate::shell::pages::PageSet) -> Self {
-        self.nav = set
-            .pages
-            .iter()
-            .filter(|p| p.nav)
-            .map(|p| NavEntry {
-                label: p.title.clone(),
-                href: p.path.clone(),
-            })
-            .collect();
-        self.clients_href = set
-            .pages
-            .iter()
-            .find(|p| p.id == "clients")
-            .map(|p| p.path.clone());
-        let env = Arc::make_mut(&mut self.env);
-        env.add_global("nav", minijinja::Value::from_serialize(&self.nav));
-        env.add_global(
-            "pages",
-            minijinja::Value::from_serialize(
-                set.pages
-                    .iter()
-                    .filter(|p| p.nav)
-                    .map(|p| {
-                        serde_json::json!({
-                            "id": p.id, "title": p.title, "path": p.path, "group": p.group,
-                            "hint": p.hint,
-                        })
-                    })
-                    .collect::<Vec<_>>(),
-            ),
-        );
-        env.add_global("brand_href", set.brand.href.clone());
-        env.add_global("brand_title", set.brand.title.clone());
-        self
     }
 
     /// K29: the project's buttons on every active client row.
@@ -902,43 +653,6 @@ impl Dashboard {
         .map(|h| h.0)
     }
 
-    /// kit-kp11: how many clients are idle, the number on the Clients tab.
-    /// The same figure as `counts.idle` on the Clients page (one rule, in
-    /// `client_list`), written into the page by the server so the bar never
-    /// waits on a read.
-    fn idle_clients(&self) -> usize {
-        let now = chrono::Utc::now();
-        let views: Vec<ClientView> = self
-            .clients
-            .snapshot()
-            .clients
-            .iter()
-            .map(ClientView::from)
-            .collect();
-        client_list::counts(views.iter().map(|v| (client_list::standing(v, now).0, v))).idle
-    }
-
-    fn render(&self, name: &str, ctx: minijinja::Value) -> Result<Html<String>, Error> {
-        let tmpl = self.env.get_template(name).map_err(template_error)?;
-        Ok(Html(tmpl.render(ctx).map_err(template_error)?))
-    }
-
-    fn login_page(&self, error: Option<&str>, https: bool) -> Result<Html<String>, Error> {
-        self.render(
-            "login.html",
-            context! {
-                logged_in => false,
-                active_nav => "",
-                error => error,
-                remember_me_days => self.remember_me_days,
-                passkeys => self.passkeys_enabled && https,
-                // The login page says what the service is before anyone is in.
-                version => self.version,
-                started_at => self.started_at,
-            },
-        )
-    }
-
     /// Whether this request came through the TLS proxy (AR6).
     pub fn is_https(&self, peer: std::net::SocketAddr, headers: &HeaderMap) -> bool {
         crate::shell::guards::is_https(peer, headers, &self.auth.guards.trusted_proxies)
@@ -964,70 +678,13 @@ impl Dashboard {
     }
 }
 
-/// The kit writes its errors and remedies as lowercase fragments for a log
-/// line and a JSON body; on a page they open a sentence.
-fn capitalised(text: &str) -> String {
-    let text = text.trim();
-    let mut chars = text.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => String::new(),
-    }
-}
-
-/// [`capitalised`] and closed with a full stop; empty stays empty.
-fn sentence(text: &str) -> String {
-    let mut out = capitalised(text);
-    if !out.is_empty() && !out.ends_with(['.', '!', '?']) {
-        out.push('.');
-    }
-    out
-}
-
-/// kit-kp11: the drawing and the plain reason an error page shows for a
-/// status. The reason says what kind of thing happened, never an id or a
-/// raw error; the kit's own remedy follows it on the page.
-fn error_look(status: StatusCode) -> (&'static str, &'static str) {
-    match status.as_u16() {
-        401 => ("locked", "You are not signed in, or the session has ended."),
-        403 => (
-            "locked",
-            "The request came from an address or a page this service does not trust.",
-        ),
-        404 => (
-            "nomatch",
-            "It was moved or removed, or the address is not right.",
-        ),
-        413 => ("error", "The request is larger than this service accepts."),
-        429 => ("offline", "Too many requests came in a short time."),
-        502..=504 => ("offline", "A part this service needs did not answer."),
-        500..=599 => ("error", "Something went wrong on the service’s side."),
-        _ => ("error", "The service could not accept the request as sent."),
-    }
-}
-
-fn template_error(e: minijinja::Error) -> Error {
-    Error::internal(
-        format!("template error: {e}"),
-        "this is a bug in the kit or in a project template; the message names the template and line",
-    )
-}
-
 /// `GET /login`.
 pub async fn login_get(
     State(d): State<Dashboard>,
     ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     headers: HeaderMap,
 ) -> Response {
-    if d.open {
-        // Nothing to log in with; the banner on every page says why.
-        return Redirect::to("/").into_response();
-    }
-    let https = d.is_https(peer, &headers);
-    match d.login_page(None, https) {
-        Ok(html) => html.into_response(),
-        Err(e) => e.into_response(),
-    }
+    login::get(&d, peer, &headers)
 }
 
 /// `POST /login`: wrong token re-renders the page with the message and
@@ -1038,209 +695,30 @@ pub async fn login_post(
     headers: HeaderMap,
     axum::Form(form): axum::Form<LoginForm>,
 ) -> Response {
-    if d.open {
-        return Redirect::to("/").into_response();
-    }
-    match login(&d.auth, &form, peer, &headers).await {
-        Ok(LoginOutcome::Ok(cookie)) => {
-            (CookieJar::new().add(cookie), Redirect::to("/")).into_response()
-        }
-        Ok(LoginOutcome::Wrong(msg)) => match d.login_page(Some(msg), d.is_https(peer, &headers)) {
-            Ok(html) => (StatusCode::OK, html).into_response(),
-            Err(e) => e.into_response(),
-        },
-        Err(e) => e.into_response(),
-    }
-}
-
-/// A `Section` as the template sees it: the project's fields plus its
-/// actions (K29). Kept apart from `Section` because projects build that
-/// one as a struct literal, so a new field there would break them.
-#[derive(Serialize)]
-struct SectionView {
-    #[serde(flatten)]
-    section: Section,
-    actions: Vec<serde_json::Value>,
-    /// kit-kp11: the body as data, when the section declares one.
-    body: Option<SectionBody>,
-    flash_actions: Vec<serde_json::Value>,
-    /// The bodies the card draws, each as `{kind, data, sorts?}`.
-    parts: Vec<serde_json::Value>,
-    /// A readable id for the card, unique on the page.
-    slug: String,
-    /// Columns of twelve the card takes (see `sections::pack_spans`).
-    span: u8,
+    login::post(&d, peer, &headers, &form).await
 }
 
 /// `GET /` — the status page (K17).
 pub async fn status_page(State(d): State<Dashboard>) -> Result<Html<String>, Error> {
-    let data = status_data(&d).await;
-    d.render(
-        "status.html",
-        context! {
-            logged_in => true,
-            idle_clients => d.idle_clients(),
-            notify_card => d.notify_card,
-            active_nav => "/status",
-            ..minijinja::Value::from_serialize(&data)
-        },
-    )
+    status::page(&d).await
 }
 
 /// feat-pages-1: `GET /api/kit/status`, what the status page shows, for a
 /// web app that draws the page itself.
 pub async fn status_json(State(d): State<Dashboard>) -> Response {
-    (
-        [(axum::http::header::CACHE_CONTROL, "no-cache")],
-        axum::Json(status_data(&d).await),
-    )
-        .into_response()
+    status::json(&d).await
 }
 
 /// kit-kp11: `POST /api/kit/status/update-check`, one read-only look at the
 /// release host for the status page's "Check for updates" button. Answers
 /// what the card would now say.
 pub async fn update_check(State(d): State<Dashboard>) -> Response {
-    let Some(check) = d.check_update.clone() else {
-        return Error::config(
-            "this service has no release host to check",
-            "set update_url (or AppSpec.repository) and restart to look for new releases",
-        )
-        .into_response();
-    };
-    if let Err(e) = check().await {
-        return e.into_response();
-    }
-    let facts = sections::update_facts(d.version, &(d.update)(), true);
-    (
-        [(axum::http::header::CACHE_CONTROL, "no-store")],
-        axum::Json(serde_json::json!({
-            "running": d.version,
-            "latest": facts.latest,
-            "newer": facts.newer,
-            "last_check_at": facts.last_check_at,
-        })),
-    )
-        .into_response()
-}
-
-async fn status_data(d: &Dashboard) -> serde_json::Value {
-    let health = d.sample_health().await;
-    let rendered: Vec<Section> = d.sections.iter().map(|s| s.render()).collect();
-    let bodies: Vec<Option<SectionBody>> = d.sections.iter().map(|s| s.body()).collect();
-    let spans = sections::pack_spans(&bodies.iter().map(Option::as_ref).collect::<Vec<_>>());
-    let sections: Vec<SectionView> = d
-        .sections
-        .iter()
-        .zip(rendered)
-        .zip(bodies)
-        .zip(spans)
-        .enumerate()
-        .map(|(i, (((s, section), body), span))| SectionView {
-            slug: sections::slug(&section.title, i),
-            section,
-            actions: s.actions().iter().map(|a| a.view(None)).collect(),
-            parts: body
-                .as_ref()
-                .map(|b| {
-                    b.parts()
-                        .into_iter()
-                        .map(|p| {
-                            let mut v = serde_json::to_value(p).unwrap_or_default();
-                            v["sorts"] = serde_json::json!(p.column_sorts());
-                            v
-                        })
-                        .collect()
-                })
-                .unwrap_or_default(),
-            body,
-            flash_actions: s.flash_actions().iter().map(FlashAction::view).collect(),
-            span,
-        })
-        .collect();
-    let declared: Vec<SectionAssets> = d.sections.iter().map(|s| s.assets()).collect();
-    let section_assets = merge_section_assets(&declared);
-    let problems = sections::problem_views((d.problems)());
-    let update = (d.update)();
-    let update_facts = sections::update_facts(d.version, &update, d.check_update.is_some());
-    let paused = crate::shell::backup::status_view();
-    let snap = d.clients.snapshot();
-    let parts = health.subsystems.as_object().map_or(0, |m| m.len());
-    let failing = health
-        .subsystems
-        .as_object()
-        .map_or(0, |m| m.values().filter(|v| v["ok"] == false).count());
-    let up_secs = chrono::DateTime::parse_from_rfc3339(&d.started_at)
-        .map(|t| {
-            (chrono::Utc::now() - t.with_timezone(&chrono::Utc))
-                .num_seconds()
-                .max(0) as u64
-        })
-        .unwrap_or(0);
-    serde_json::json!({
-        "version": d.version,
-        "listen": d.listen,
-        "started_at": d.started_at,
-        "up_for": sections::span_words(up_secs),
-        "health": health,
-        "parts": { "total": parts, "failing": failing },
-        "sections": sections,
-        "section_assets": section_assets,
-        "problems": problems,
-        "update": update,
-        "update_facts": update_facts,
-        "backup": paused,
-        "uptime": d.uptime.periods(),
-        "repository_url": d.repository_url,
-        "clients": d.clients_href.as_ref().map(|href| serde_json::json!({
-            "href": href,
-            "label": d.vocab.plural_cap,
-            "active": snap.clients.iter().filter(|c| c.revoked_at.is_none()).count(),
-            "total": snap.clients.len(),
-        })),
-    })
-}
-
-#[derive(Serialize)]
-struct ClientRow {
-    #[serde(flatten)]
-    view: ClientView,
-    /// feat-clients-2: one cell per field the project declared, in the
-    /// order it declared them, escaped.
-    declared: Vec<String>,
-    extra: Vec<String>,
-    /// K29: the project's buttons, routes with this client's id filled in.
-    /// Empty on a revoked row — an action on a client that no longer has a
-    /// token has nothing to act on.
-    actions: Vec<serde_json::Value>,
-    /// kit-kp11: `in use`, `idle`, `new` or `revoked` (client_list).
-    state: client_list::Standing,
-    /// Days without a call; 0 unless `state` is `idle`.
-    idle_days: i64,
-    /// dd/mm/yyyy HH:mm, Europe/Brussels.
-    issued_display: String,
-    /// dd/mm/yyyy.
-    issued_date: String,
-    last_used_display: Option<String>,
-    /// `12 s ago`, `5 days ago`.
-    last_used_ago: Option<String>,
-    revoked_display: Option<String>,
-    /// dd/mm/yyyy.
-    revoked_date: Option<String>,
+    status::update_check(&d).await
 }
 
 /// `GET /clients` — the clients page (K12, K13, K14).
 pub async fn clients_page(State(d): State<Dashboard>) -> Result<Html<String>, Error> {
-    let data = clients_data(&d);
-    d.render(
-        "clients.html",
-        context! {
-            logged_in => true,
-            idle_clients => d.idle_clients(),
-            active_nav => "/clients",
-            ..minijinja::Value::from_serialize(&data)
-        },
-    )
+    clients::page(&d)
 }
 
 /// `GET /storage`: the Storage page (3.11.0). The server draws the frame
@@ -1258,519 +736,5 @@ pub async fn storage_page(State(d): State<Dashboard>) -> Result<Html<String>, Er
 
 /// feat-pages-1: `GET /api/kit/clients`, what the clients page shows.
 pub async fn clients_json(State(d): State<Dashboard>) -> Response {
-    (
-        [(axum::http::header::CACHE_CONTROL, "no-cache")],
-        axum::Json(clients_data(&d)),
-    )
-        .into_response()
-}
-
-/// The distinct, filled-in values of one declared field, in the order given.
-fn usual_values<'a>(values: impl Iterator<Item = &'a str>) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for v in values {
-        if !v.is_empty() && v != "—" && !out.iter().any(|o| o == v) {
-            out.push(v.to_string());
-        }
-    }
-    out
-}
-
-/// The path a client calls (`/v1/messages`): the last word of the curl line in
-/// `command_template`, without its scheme and host.
-fn calls_path(template: &str) -> String {
-    let url = template.split_whitespace().last().unwrap_or("");
-    let rest = url.split_once("://").map_or(url, |(_, r)| r);
-    rest.find('/')
-        .map_or_else(|| "/".to_string(), |i| rest[i..].to_string())
-}
-
-fn clients_data(d: &Dashboard) -> serde_json::Value {
-    let snap = d.clients.snapshot();
-    let now = chrono::Utc::now();
-    let rows: Vec<ClientRow> = snap
-        .clients
-        .iter()
-        .map(|c| {
-            let view = ClientView::from(c);
-            let (state, idle_days) = client_list::standing(&view, now);
-            // feat-clients-2: one cell per declared field, before the
-            // project's own columns. The project declared the field, so the
-            // kit shows it back without being asked. The template renders
-            // these WITHOUT `|safe`: the value came from a form, unlike a
-            // project column's cell, which is HTML the project vouches for.
-            let declared: Vec<String> = d
-                .form_fields
-                .iter()
-                .map(|f| {
-                    view.fields
-                        .get(&f.name)
-                        .cloned()
-                        .unwrap_or_else(|| "—".to_string())
-                })
-                .collect();
-            let extra = d.columns.iter().map(|col| col.cell(&view)).collect();
-            let actions = if view.active {
-                d.client_actions
-                    .iter()
-                    .map(|a| a.view(Some(&view.id)))
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            ClientRow {
-                issued_display: client_list::brussels(&view.issued_at),
-                issued_date: client_list::brussels_date(&view.issued_at),
-                last_used_display: view.last_used_at.as_deref().map(client_list::brussels),
-                last_used_ago: view
-                    .last_used_at
-                    .as_deref()
-                    .map(|t| client_list::ago_words(t, now)),
-                revoked_display: view.revoked_at.as_deref().map(client_list::brussels),
-                revoked_date: view.revoked_at.as_deref().map(client_list::brussels_date),
-                state,
-                idle_days,
-                view,
-                declared,
-                extra,
-                actions,
-            }
-        })
-        .collect();
-    let counts = client_list::counts(rows.iter().map(|r| (r.state, &r.view)));
-    // A project column sorts as a number only when every cell is one.
-    let columns: Vec<serde_json::Value> = d
-        .columns
-        .iter()
-        .enumerate()
-        .map(|(i, c)| {
-            let numeric = !rows.is_empty()
-                && rows.iter().all(|r| {
-                    r.extra
-                        .get(i)
-                        .is_some_and(|cell| cell.trim().parse::<f64>().is_ok())
-                });
-            serde_json::json!({ "title": c.title(), "numeric": numeric })
-        })
-        .collect();
-    // kit-kp11 (clients-issue): the values each declared field already holds,
-    // most recent first, for the "used before" list of its combobox.
-    let form_usual: Vec<Vec<String>> = (0..d.form_fields.len())
-        .map(|i| usual_values(rows.iter().rev().map(|r| r.declared[i].as_str())))
-        .collect();
-    serde_json::json!({
-        "counts": counts,
-        "idle_after_days": client_list::IDLE_AFTER_DAYS,
-        "command_template": &*d.command_template,
-        "token_var": d.vocab.token_var(),
-        "calls_path": calls_path(&d.command_template),
-        "form_usual": form_usual,
-        "clients": rows,
-        "declared_columns": d
-            .form_fields
-            .iter()
-            .map(|f| serde_json::json!({ "title": f.label.clone() }))
-            .collect::<Vec<_>>(),
-        "extra_columns": columns,
-        "form_fields": d.form_fields.iter().map(|f| f.view()).collect::<Vec<_>>(),
-        "reveal_seconds": d.reveal_seconds,
-        "capture_body_bytes": d.capture_body_bytes,
-        "capture_ttl_minutes": d.capture_ttl_minutes,
-        "has_test_route": d.has_test_route,
-        "test_body": &*d.test_body,
-        "test_json": d.test_json,
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// kit-r4 (Kenny 2026-10-21): the token variable follows the vocabulary.
-    #[test]
-    fn token_var_is_derived_from_the_singular_word() {
-        for (word, var) in [
-            ("client", "CLIENT_TOKEN"),
-            ("source", "SOURCE_TOKEN"),
-            ("app", "APP_TOKEN"),
-            ("hub client", "HUB_CLIENT_TOKEN"),
-            ("hub--client ", "HUB_CLIENT_TOKEN"),
-            ("3rd", "KIT_3RD_TOKEN"),
-            ("", "CLIENT_TOKEN"),
-        ] {
-            assert_eq!(Vocabulary::new(word, "x").token_var(), var, "{word:?}");
-        }
-        assert_eq!(Vocabulary::default().token_var(), "CLIENT_TOKEN");
-    }
-
-    /// kit-r4 (kyu gap 53): "an app", "a source", "an inbox", by sound.
-    #[test]
-    fn article_follows_the_vowel_sound() {
-        for (word, article) in [
-            ("app", "an"),
-            ("inbox", "an"),
-            ("source", "a"),
-            ("client", "a"),
-            ("user", "a"),
-            ("unit", "a"),
-            ("umbrella", "an"),
-            ("one", "a"),
-            ("hour", "an"),
-            ("Endpoint", "an"),
-            ("", "a"),
-        ] {
-            assert_eq!(article_for(word), article, "{word}");
-        }
-    }
-
-    /// kit-r4 (http-switchboard gap 38): a card the section owns is skipped
-    /// by every poll and re-read, and the others ask `chassis-settle` first.
-    #[test]
-    fn chassis_js_lets_a_section_keep_its_card_state() {
-        let js = include_str!("../../static/chassis.js");
-        assert!(js.contains(
-            "const POLLED = '.kp-card[data-kp-state]:not([data-chassis-json]):not([data-chassis-owned])'"
-        ));
-        assert!(
-            js.contains(".kp-card[data-kp-state]:not([data-chassis-owned])"),
-            "page re-read"
-        );
-        assert!(js.contains("new CustomEvent('chassis-settle', { bubbles: true, cancelable: true"));
-        for source in ["'poll'", "'reread'"] {
-            assert!(
-                js.contains(&format!("mayChange(card, want, {source})"))
-                    || js.contains(&format!("mayChange(c, 'loading', {source})")),
-                "{source}"
-            );
-        }
-        let doc = include_str!("../../../../docs/DASHBOARD.md");
-        assert!(doc.contains("data-chassis-owned") && doc.contains("chassis-settle"));
-    }
-
-    /// kit-r4 (http-switchboard gap 39): the unlayered refresh-bar rules reach
-    /// only the kit's own header bar, never a section's own `.kp-refresh`.
-    #[test]
-    fn refresh_bar_rules_are_scoped_to_the_kits_header() {
-        let css = include_str!("../../static/chassis.css");
-        let mut seen = 0;
-        for line in css.lines().filter(|l| l.contains(".kp-refresh__bar")) {
-            seen += 1;
-            assert!(
-                line.trim_start()
-                    .starts_with(".chassis-status__fresh .kp-refresh__bar"),
-                "unscoped: {line}"
-            );
-        }
-        assert!(seen >= 4, "the rules are still there ({seen})");
-        assert!(!css.contains(".chassis-status .kp-refresh"));
-    }
-
-    /// kit-r4: no template or script writes a literal "a" in front of the
-    /// vocabulary word; the article comes from `vocab_article`.
-    #[test]
-    fn no_template_puts_a_literal_a_before_the_vocabulary() {
-        for (name, text) in [
-            ("clients.html", include_str!("../../templates/clients.html")),
-            ("layout.html", include_str!("../../templates/layout.html")),
-            ("chassis.js", include_str!("../../static/chassis.js")),
-        ] {
-            for bad in [
-                "a {{ vocab.singular",
-                "A {{ vocab.singular",
-                "a ${singular}",
-            ] {
-                assert!(!text.contains(bad), "{name} still writes `{bad}`");
-            }
-        }
-    }
-
-    /// kit-kp11: one empty live toast region in the layout, and the ready
-    /// signal in chassis.js (event plus promise).
-    #[test]
-    fn layout_has_one_toast_region_and_chassis_js_signals_ready() {
-        let layout = include_str!("../../templates/layout.html");
-        assert_eq!(layout.matches("id=\"chassis-toasts\"").count(), 1);
-        assert!(layout.contains(
-            "<div id=\"chassis-toasts\" class=\"kp-toasts\" aria-live=\"polite\"></div>"
-        ));
-        let js = include_str!("../../static/chassis.js");
-        assert!(js.contains("'chassis:ready'") && js.contains("window.chassis"));
-    }
-
-    /// kit-kp11: an error page's sentences open with a capital and close with
-    /// a stop, the drawing and the plain reason follow the status.
-    #[test]
-    fn error_pages_read_as_sentences_with_a_drawing_per_kind() {
-        assert_eq!(sentence("log in again"), "Log in again.");
-        assert_eq!(sentence("Try later!"), "Try later!");
-        assert_eq!(sentence(""), "");
-        assert_eq!(capitalised(" no client with id x"), "No client with id x");
-        for (code, art) in [
-            (401, "locked"),
-            (403, "locked"),
-            (404, "nomatch"),
-            (500, "error"),
-            (503, "offline"),
-        ] {
-            let (found, why) = error_look(StatusCode::from_u16(code).unwrap());
-            assert_eq!(found, art, "{code}");
-            assert!(why.ends_with('.'), "{code}: {why}");
-        }
-    }
-
-    /// kit-kp11: the shell's palette and shortcuts find the clients page's
-    /// actions through these hooks, and the figures stay exact filters.
-    #[test]
-    fn the_calls_path_is_the_end_of_the_command_template() {
-        assert_eq!(
-            calls_path("curl -sS -H \"A: B $CLIENT_TOKEN\" -d '{}' http://127.0.0.1:9/v1/messages"),
-            "/v1/messages"
-        );
-        assert_eq!(calls_path(""), "/");
-        assert_eq!(
-            usual_values(["b", "—", "", "a", "b"].into_iter()),
-            vec!["b".to_string(), "a".to_string()]
-        );
-    }
-
-    /// kit-kp11 (clients-issue, approved): one dialog on the 12-column grid
-    /// with the form card, the live client card, the secret and the command
-    /// block; a flash button is never set to grow by hand.
-    #[test]
-    fn the_issue_dialog_keeps_its_approved_parts() {
-        let html = include_str!("../../templates/clients.html");
-        let css = include_str!("../../static/chassis.css");
-        for part in [
-            "id=\"issue-dialog\"",
-            "kp-dialog--wide issue-dialog",
-            "grid-template-rows: subgrid",
-            "data-kp-usual=",
-            "data-kp-secret",
-            "data-issue-command",
-            "Copy with the token filled in",
-            "data-issue-pane=\"result\"",
-            "class=\"kp-formgrid issue-form\"",
-        ] {
-            assert!(
-                html.contains(part) || css.contains(part),
-                "the issue dialog lost {part}"
-            );
-        }
-        assert!(
-            !html.contains("data-kp-width=\"grow\""),
-            "a flash button's width is the package's to grow"
-        );
-    }
-
-    /// kit-kp11 (clients-manage, round 3, approved): one dialog per client on
-    /// the 12-column composition, built from kp-themes parts used as the
-    /// package documents them; nothing hand-built stands in for them.
-    #[test]
-    fn the_manage_dialog_keeps_its_approved_parts() {
-        let html = include_str!("../../templates/clients.html");
-        let css = include_str!("../../static/chassis.css");
-        let js = include_str!("../../static/chassis.js");
-        for part in [
-            "kp-dialog kp-dialog--wide manage-dialog",
-            "data-kp-secret data-kp-secret-ttl=",
-            "data-kp-command=\"bash\"",
-            "data-kp-json=",
-            "data-kp-requests data-kp-requests-open=\"failed\"",
-            "data-kp-confirm-type=\"{{ c.name }}\"",
-            "manage-danger__acts",
-            "class=\"kp-formgrid manage-test__grid\"",
-        ] {
-            assert!(html.contains(part), "the manage dialog lost {part}");
-        }
-        for part in [".manage-grid {", "@container managed (max-width: 39.99rem)"] {
-            assert!(css.contains(part), "chassis.css lost {part}");
-        }
-        for part in [
-            "kp-secret-request",
-            "setRequests(",
-            "bodyBytes: c.body_bytes",
-            "runFlashButton",
-        ] {
-            assert!(js.contains(part), "chassis.js lost {part}");
-        }
-        // The hand-built request log, token line and copy/busy code are gone.
-        for gone in [
-            "renderRequests",
-            "data-copy-token",
-            "data-reveal",
-            "token-line",
-            "client-dialog",
-        ] {
-            assert!(
-                !html.contains(gone) && !css.contains(gone) && !js.contains(gone),
-                "{gone} came back"
-            );
-        }
-    }
-
-    #[test]
-    fn the_clients_page_carries_the_command_hooks() {
-        let html = include_str!("../../templates/clients.html");
-        for hook in [
-            "data-chassis-command=\"filter-idle\"",
-            "data-chassis-command=\"search\"",
-            "data-chassis-command=\"issue\"",
-            "data-manage=\"{{ c.id }}\"",
-        ] {
-            assert!(html.contains(hook), "clients.html lost {hook}");
-        }
-        assert!(html.contains("{{ counts.idle }}") && !html.contains("9+"));
-    }
-
-    #[test]
-    fn section_assets_merge_once_in_order_and_refuse_foreign_paths() {
-        let a = SectionAssets::new()
-            .module_script("/app/a.js")
-            .stylesheet("/app/a.css");
-        let b = SectionAssets::new()
-            .module_script("/app/b.js")
-            .module_script("/app/a.js")
-            .module_script("https://evil.example/x.js")
-            .module_script("//evil.example/x.js")
-            .module_script("/a\"onload=\"x")
-            .module_script("/../etc/passwd")
-            .stylesheet("/app/a.css");
-        let m = merge_section_assets(&[a, b]);
-        assert_eq!(m.module_scripts, ["/app/a.js", "/app/b.js"]);
-        assert_eq!(m.stylesheets, ["/app/a.css"]);
-    }
-
-    #[test]
-    fn theme_list_comes_from_the_vendored_registry() {
-        let t = themes();
-        assert_eq!(
-            t.len(),
-            12,
-            "kp-themes 11.3.0 ships exactly 12 themes (10.0.0 removed lapis, shade-light and shade-dark; 10.1.0 removed high-contrast, sepia and retro; 11.0.0 removed terminal, phantom, light and grotesk); the vendored registry is pinned"
-        );
-        assert_eq!(t[0].name, "formal");
-        assert_eq!(t[0].label, "Formal");
-        assert!(!t[0].dark);
-        for gone in [
-            "high-contrast",
-            "sepia",
-            "retro",
-            "terminal",
-            "phantom",
-            "light",
-            "grotesk",
-        ] {
-            assert!(
-                t.iter().all(|x| x.name != gone),
-                "{gone} left kp-themes (10.1.0 or 11.0.0)"
-            );
-        }
-        assert!(t.iter().any(|x| x.name == "cyberpunk" && x.dark));
-    }
-
-    // K16: every kit page opens with an explain block.
-    #[test]
-    fn every_page_template_has_an_explain_block() {
-        for (name, src) in [
-            ("login.html", include_str!("../../templates/login.html")),
-            ("status.html", include_str!("../../templates/status.html")),
-            ("clients.html", include_str!("../../templates/clients.html")),
-            ("error.html", include_str!("../../templates/error.html")),
-            (
-                "passkeys.html",
-                include_str!("../../templates/passkeys.html"),
-            ),
-            ("storage.html", include_str!("../../templates/storage.html")),
-        ] {
-            // kp-themes 11 pages say what they do in a `.kp-lede` (kit-kp11).
-            assert!(
-                src.contains("class=\"explain\"")
-                // The status page opens on kp-themes' own page header and
-                // ledes (kit-kp11), which say the same thing in the
-                // package's words.
-                || src.contains("kp-page-header__description")
-                || src.contains("kp-lede"),
-                "{name} lacks an explain block"
-            );
-        }
-    }
-
-    // The no-flash snippet (now `static/theme-boot.js`, S8: no inline
-    // script) must match the vendored module's behaviour: same storage
-    // key, same attribute — and the layout must load it as a plain script.
-    /// Live-found in the kp-themes 5.0.0 drill (2026-09-09): Chromium compiles
-    /// a `pattern` attribute with the `v` flag, where a bare `-` inside a
-    /// character class is a syntax error; the browser then logged
-    /// "Invalid character in character class" and ignored the pattern, so
-    /// the name field accepted anything and only the server refused. The
-    /// class escapes the hyphen. Red before the fix (the template carried
-    /// `._-]`), green after.
-    #[test]
-    fn client_name_pattern_is_valid_under_the_v_flag() {
-        let clients = include_str!("../../templates/clients.html");
-        assert!(
-            clients.contains(r#"pattern="[A-Za-z0-9._\-]{1,64}""#),
-            "the name pattern escapes the hyphen for the v flag"
-        );
-        assert!(
-            !clients.contains("._-]"),
-            "a bare hyphen at the end of the class is invalid under the v flag"
-        );
-    }
-
-    #[test]
-    fn no_flash_snippet_matches_the_vendored_contract() {
-        let layout = include_str!("../../templates/layout.html");
-        let boot = include_str!("../../static/theme-boot.js");
-        let registry = include_str!("../../static/kp/js/theme-registry.js");
-        assert!(boot.contains("localStorage.getItem(\"theme\")"));
-        assert!(registry.contains("STORAGE_KEY = 'theme'"));
-        assert!(boot.contains("setAttribute(\"data-theme\""));
-        assert!(
-            layout.contains("/static/theme-boot.js?v="),
-            "the layout loads the snippet as a file"
-        );
-        assert!(
-            !layout.contains("<script>\n"),
-            "no inline script in the layout (CSP script-src 'self')"
-        );
-        assert!(!layout.contains("bunny.net"), "fonts are vendored (S8)");
-    }
-
-    /// A stored old name is mapped to a theme the vendored registry still
-    /// has: kp-themes 6.0.0 removed `woodblock`, which the 5.0.0 mapping
-    /// used as the target for `nishiki`.
-    #[test]
-    fn every_renamed_theme_maps_to_a_theme_that_exists() {
-        let boot = include_str!("../../static/theme-boot.js");
-        let line = boot
-            .lines()
-            .find(|l| l.contains("var renamed = {"))
-            .expect("the mapping line");
-        let body = line
-            .split('{')
-            .nth(1)
-            .and_then(|r| r.split('}').next())
-            .unwrap();
-        let names: Vec<&str> = themes().iter().map(|t| t.name.as_str()).collect();
-        let mut pairs = 0;
-        for pair in body.split(',') {
-            let (from, to) = pair.split_once(':').expect("from: to");
-            let to = to.trim().trim_matches('"');
-            let from = from.trim().trim_matches('"');
-            assert!(
-                names.contains(&to),
-                "{from} maps to {to}, which kp-themes no longer has"
-            );
-            assert!(
-                !names.contains(&from),
-                "{from} still exists; mapping it would override a choice"
-            );
-            pairs += 1;
-        }
-        assert!(
-            pairs >= 7,
-            "renamed and removed themes are all mapped ({pairs})"
-        );
-    }
+    clients::json(&d)
 }
