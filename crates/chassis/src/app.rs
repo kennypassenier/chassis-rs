@@ -264,7 +264,7 @@ impl AppSpec {
                 "trusted_admins",
                 Some(""),
                 None,
-                "Comma-separated IP addresses whose requests are the admin without a login (the TCP peer itself; never through a proxy, never a trusted proxy). Needs the dashboard feature.",
+                "Comma-separated IP addresses whose requests are the admin without a login: the TCP peer, or behind a trusted proxy the last X-Forwarded-For hop that proxy appended; never a trusted proxy itself. Needs the dashboard feature.",
             ),
             // L3 — login, clients, captures (K8, K12, K13)
             secret(
@@ -2847,6 +2847,7 @@ impl App {
                         .unwrap_or(""),
                     &self.limits.trusted_proxies,
                 )?,
+                self.limits.trusted_proxies.clone(),
             );
             if trusted.is_empty() {
                 router

@@ -1,12 +1,15 @@
 //! Trusted sources (3.13.0; Kenny, 2026-10-22: "mijn pc heeft altijd
 //! toegang, zonder token. Niemand neemt dit adres ooit over").
 //!
-//! A request whose TCP peer is one of `<P>_TRUSTED_ADMINS` is the admin
-//! without a session, a token or a passkey. Only the peer counts: a request
-//! through a reverse proxy carries the proxy's address, and what a header
-//! says about the sender is never believed here, so an address may not be
-//! both a trusted proxy and a trusted admin. A bearer still decides when one
-//! is sent, so a script on that machine keeps its own identity.
+//! A request from one of `<P>_TRUSTED_ADMINS` is the admin without a
+//! session, a token or a passkey. The address is the client address the
+//! guards already use (3.14.1, Kenny 2026-10-30, route "thuis lokaal
+//! houden"): the TCP peer, or, when the peer is a trusted proxy, the last
+//! `X-Forwarded-For` hop, which the proxy itself appended. Anything a client
+//! writes earlier in that header is never read, and a forwarded header from
+//! a peer that is not a trusted proxy is ignored. An address may not be both
+//! a trusted proxy and a trusted admin. A bearer still decides when one is
+//! sent, so a script on that machine keeps its own identity.
 
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
@@ -29,13 +32,15 @@ pub(crate) struct TrustedSource;
 #[derive(Debug, Clone)]
 pub(crate) struct TrustedAdmins {
     addrs: Arc<Vec<IpAddr>>,
+    proxies: Arc<Vec<IpAddr>>,
     logged: Arc<AtomicBool>,
 }
 
 impl TrustedAdmins {
-    pub(crate) fn new(addrs: Vec<IpAddr>) -> Self {
+    pub(crate) fn new(addrs: Vec<IpAddr>, proxies: Vec<IpAddr>) -> Self {
         TrustedAdmins {
             addrs: Arc::new(addrs),
+            proxies: Arc::new(proxies),
             logged: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -93,7 +98,7 @@ pub(crate) async fn mark(
     let peer = req
         .extensions()
         .get::<ConnectInfo<SocketAddr>>()
-        .map(|ConnectInfo(p)| p.ip());
+        .map(|ConnectInfo(p)| crate::shell::guards::client_ip(*p, req.headers(), &trusted.proxies));
     if let Some(peer) = peer
         && trusted.admits(peer)
     {
@@ -133,7 +138,7 @@ mod tests {
 
     #[test]
     fn an_ipv4_mapped_peer_matches_its_ipv4_address() {
-        let t = TrustedAdmins::new(vec!["10.10.10.10".parse().unwrap()]);
+        let t = TrustedAdmins::new(vec!["10.10.10.10".parse().unwrap()], Vec::new());
         assert!(t.admits("::ffff:10.10.10.10".parse().unwrap()));
         assert!(t.admits("10.10.10.10".parse().unwrap()));
         assert!(!t.admits("10.10.10.11".parse().unwrap()));
@@ -160,7 +165,10 @@ mod tests {
                 }),
             )
             .layer(axum::middleware::from_fn_with_state(
-                TrustedAdmins::new(parse_trusted_admins("10.10.10.10", &[]).unwrap()),
+                TrustedAdmins::new(
+                    parse_trusted_admins("10.10.10.10", &[]).unwrap(),
+                    vec!["10.10.10.4".parse().unwrap()],
+                ),
                 mark,
             ));
         let ask = |peer: &str, xff: Option<&str>| {
@@ -180,7 +188,16 @@ mod tests {
         };
         assert_eq!(ask("10.10.10.10:51515", None).await, "admin");
         assert_eq!(ask("[::ffff:10.10.10.10]:51515", None).await, "admin");
-        assert_eq!(ask("10.10.10.4:443", Some("10.10.10.10")).await, "login");
         assert_eq!(ask("10.10.10.11:51515", None).await, "login");
+        // 3.14.1: through the trusted proxy (Traefik, 10.10.10.4) the last
+        // hop it appended counts; what the client wrote before it does not.
+        assert_eq!(ask("10.10.10.4:443", Some("10.10.10.10")).await, "admin");
+        assert_eq!(
+            ask("10.10.10.4:443", Some("10.10.10.10, 10.10.10.55")).await,
+            "login"
+        );
+        assert_eq!(ask("10.10.10.4:443", None).await, "login");
+        // A forwarded header from a peer that is not a trusted proxy is ignored.
+        assert_eq!(ask("10.10.10.55:51515", Some("10.10.10.10")).await, "login");
     }
 }
