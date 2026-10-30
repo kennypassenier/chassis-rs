@@ -14,7 +14,7 @@ const FILES: &[(&str, &[u8])] = &[
     ("css/app.css", b"body{}"),
 ];
 
-async fn get_path(router: &Router, path: &str, headers: &[(&str, &str)]) -> Response {
+pub(super) async fn get_path(router: &Router, path: &str, headers: &[(&str, &str)]) -> Response {
     let mut req = Request::get(path);
     for (k, v) in headers {
         req = req.header(*k, *v);
@@ -26,7 +26,7 @@ async fn get_path(router: &Router, path: &str, headers: &[(&str, &str)]) -> Resp
         .unwrap()
 }
 
-async fn body(res: Response) -> String {
+pub(super) async fn body(res: Response) -> String {
     let b = axum::body::to_bytes(res.into_body(), 1 << 20)
         .await
         .unwrap();
@@ -90,7 +90,11 @@ async fn a_directory_source_serves_edits_and_never_leaves_its_root() {
     std::fs::create_dir_all(&root).unwrap();
     std::fs::write(root.join("index.html"), "v1").unwrap();
     std::fs::write(dir.path().join("secret.txt"), "do not serve").unwrap();
-    let r = WebApp::dir(&root).at("/admin").router().unwrap();
+    let r = WebApp::dir(&root)
+        .at("/admin")
+        .without_kit_runtime()
+        .router()
+        .unwrap();
     assert_eq!(body(get_path(&r, "/admin/", &[]).await).await, "v1");
     std::fs::write(root.join("index.html"), "v2").unwrap();
     assert_eq!(

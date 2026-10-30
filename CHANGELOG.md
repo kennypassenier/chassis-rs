@@ -9,6 +9,13 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **The web app gets the kp-themes runtime without asking** (`webapp`,
+  feat-webapp-3): the file server adds `static/chassis/webapp-runtime.js`
+  (kp-themes' effects and the remembered-choice store, once per page) to
+  every HTML page it serves, so no app can forget `attachEffects` (Medicine
+  Cabinet's dark-theme glow did not follow the mouse). `ETag` covers the
+  injected bytes; `WebApp::without_kit_runtime()` opts out. `boot-kit.js`
+  shares its effects code through `kit-effects.js`.
 - **A warning at start when a web app at the root registers none of its
   pages** (`dashboard`, feat-pages-2): the kit's pages then show only the
   kit's links in their bar (seen in Medicine Cabinet). The line names the

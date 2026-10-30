@@ -9,6 +9,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
 
 use super::files::{content_type, read};
+use super::inject::with_runtime;
 use super::paths::relative_path;
 use super::{DEFAULT_CSP, RESERVED, WebApp};
 
@@ -77,6 +78,13 @@ pub(super) async fn serve(
             None => return (StatusCode::NOT_FOUND, "no index.html").into_response(),
         },
         None => return not_found_with_csp(csp),
+    };
+    // The runtime script goes into HTML before the ETag is computed over the
+    // served bytes, so the tag and the validator always agree.
+    let body = if app.kit_runtime && content_type(&served).starts_with("text/html") {
+        with_runtime(body)
+    } else {
+        body
     };
     let versioned = query.as_deref().is_some_and(|q| q.contains("v="));
     file_response(&served, body, versioned, &headers, csp)
