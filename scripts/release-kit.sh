@@ -69,6 +69,10 @@ cargo deny --version >/dev/null 2>&1 || {
 }
 echo "release-kit: gate — fmt, clippy, tests, cargo-deny, smoke"
 gate_started=$(date +%s)
+# The build script lists static/ for the embedded assets; with a shared
+# target directory its output can come from another checkout, which
+# assets.rs refuses (arch-modular-3). Make this checkout's run the one used.
+touch "$root/crates/chassis/build.rs"
 # One full test run per release (Kenny, 2026-09-29): skipped when the commit
 # gate already saw exactly this tree green (workstation/bin/gate-stamp).
 gate_stamp="$HOME/Projects/workstation/bin/gate-stamp"
