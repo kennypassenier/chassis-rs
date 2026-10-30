@@ -23,6 +23,7 @@ impl Prefs {
 
     /// Refuse any value containing one of these (the service's own secrets,
     /// when they are longer than 7 bytes).
+    #[cfg(any(feature = "dashboard", test))]
     pub(crate) fn forbid_values(mut self, values: Vec<String>) -> Self {
         self.forbidden_values = Arc::new(values.into_iter().filter(|v| v.len() >= 8).collect());
         self

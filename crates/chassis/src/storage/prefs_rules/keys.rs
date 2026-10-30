@@ -2,7 +2,9 @@
 //! project chains and the questions the routes ask (is this key synced, and
 //! where).
 
-use super::{BrowserKeys, PrefLimits};
+use super::BrowserKeys;
+#[cfg(any(feature = "dashboard", test))]
+use super::PrefLimits;
 
 impl BrowserKeys {
     pub fn new() -> Self {
@@ -73,6 +75,7 @@ impl BrowserKeys {
         self
     }
 
+    #[cfg(any(feature = "dashboard", test))]
     pub(crate) fn code_limits(&self) -> PrefLimits {
         self.limits.unwrap_or_default()
     }

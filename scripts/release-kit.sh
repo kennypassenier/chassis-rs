@@ -86,10 +86,19 @@ echo "release-kit: fmt · clippy · tests took $((gate_s / 60)) min $((gate_s % 
 # The consumers enable narrow feature sets, and clippy above only sees all
 # of them at once; the 2026-10-30 file split once left `core` alone
 # uncompilable while every check here was green (arch-modular-1). Each set a
-# consumer can pick must at least build, outside the gate stamp too.
+# consumer can pick must at least build, outside the gate stamp too, and
+# build WITHOUT warnings: dead code that only the dashboard uses shows up
+# only in a narrower set (3.15.0 gated it). Cargo replays cached warnings, so
+# the output is scanned instead of passing `-D warnings`, which would change
+# RUSTFLAGS and rebuild every set from scratch.
 for features in core core,storage core,notify core,self-update core,live core,request-guard core,assets dashboard; do
-  cargo check -q -p chassis --no-default-features --features "$features" ||
-    { echo "release-kit: chassis does not build with --features $features; nothing released" >&2; exit 1; }
+  out=$(cargo check -q -p chassis --no-default-features --features "$features" 2>&1) ||
+    { echo "$out" >&2; echo "release-kit: chassis does not build with --features $features; nothing released" >&2; exit 1; }
+  if grep -q '^warning' <<<"$out"; then
+    echo "$out" >&2
+    echo "release-kit: chassis warns with --features $features; nothing released" >&2
+    exit 1
+  fi
 done
 cargo deny check
 cargo run -q -p chassis-cli -- --version

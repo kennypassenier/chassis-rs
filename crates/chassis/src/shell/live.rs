@@ -31,7 +31,6 @@ use std::time::Duration;
 
 use axum::Router;
 use axum::extract::State;
-use axum::http::HeaderMap;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::get;
 use futures_util::Stream;
@@ -192,7 +191,7 @@ fn still_allowed(req: &axum::extract::Request) -> Option<StillAllowed> {
     if crate::shell::trusted::is_trusted(req.extensions()) {
         return Some(Arc::new(|| Box::pin(async { true })));
     }
-    let headers: HeaderMap = req.headers().clone();
+    let headers: axum::http::HeaderMap = req.headers().clone();
     Some(Arc::new(move || {
         let (auth, headers) = (auth.clone(), headers.clone());
         Box::pin(async move { crate::shell::auth::still_valid(&auth, &headers).await })

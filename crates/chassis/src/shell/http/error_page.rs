@@ -1,7 +1,8 @@
 //! Browser-facing error pages (CF-7): the thread-local context an
 //! [`HtmlErrorRenderer`] reads and the middleware that swaps a JSON refusal
 //! for a page on navigations. Its own module because it is the only code
-//! that rewrites response bodies.
+//! that rewrites response bodies. The context is only built where something
+//! reads it: the dashboard's error page (and the unit tests).
 
 use axum::body::Body;
 use axum::extract::{Request, State};
@@ -9,7 +10,9 @@ use axum::http::HeaderValue;
 use axum::middleware::Next;
 use axum::response::Response;
 
-use super::{HtmlErrorRenderer, X_REQUEST_ID, is_navigation};
+#[cfg(any(feature = "dashboard", test))]
+use super::X_REQUEST_ID;
+use super::{HtmlErrorRenderer, is_navigation};
 
 /// kit-kp11: what an error page knows about the request it answers, set
 /// for the one call of the [`HtmlErrorRenderer`] so the renderer's
@@ -17,20 +20,24 @@ use super::{HtmlErrorRenderer, X_REQUEST_ID, is_navigation};
 /// the request's headers, from which the dashboard tells whether the
 /// browser is signed in (the page then draws the navigation and Log out,
 /// as on every other page).
+#[cfg(any(feature = "dashboard", test))]
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ErrorContext {
     pub(crate) request_id: Option<String>,
     pub(crate) headers: axum::http::HeaderMap,
     /// trusted-sources: the request came from a trusted admin.
+    #[cfg(feature = "dashboard")]
     pub(crate) trusted: bool,
 }
 
+#[cfg(any(feature = "dashboard", test))]
 thread_local! {
     static ERROR_CONTEXT: std::cell::RefCell<ErrorContext> = std::cell::RefCell::new(ErrorContext::default());
 }
 
 /// The context of the error page being rendered right now (empty outside
 /// a render).
+#[cfg(any(feature = "dashboard", test))]
 pub(crate) fn error_context() -> ErrorContext {
     ERROR_CONTEXT.with(|c| c.borrow().clone())
 }
@@ -42,6 +49,7 @@ pub(super) async fn html_errors(
     next: Next,
 ) -> Response {
     let wants_page = render.is_some() && is_navigation(req.headers());
+    #[cfg(any(feature = "dashboard", test))]
     let context = wants_page.then(|| ErrorContext {
         request_id: req
             .headers()
@@ -51,8 +59,6 @@ pub(super) async fn html_errors(
         headers: req.headers().clone(),
         #[cfg(feature = "dashboard")]
         trusted: crate::shell::trusted::is_trusted(req.extensions()),
-        #[cfg(not(feature = "dashboard"))]
-        trusted: false,
     });
     let res = next.run(req).await;
     let Some(render) = render else { return res };
@@ -76,8 +82,10 @@ pub(super) async fn html_errors(
     let parsed: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or_default();
     let message = parsed["error"].as_str().unwrap_or("request refused");
     let remedy = parsed["remedy"].as_str().unwrap_or("");
+    #[cfg(any(feature = "dashboard", test))]
     ERROR_CONTEXT.with(|c| *c.borrow_mut() = context.unwrap_or_default());
     let page = render(parts.status, message, remedy);
+    #[cfg(any(feature = "dashboard", test))]
     ERROR_CONTEXT.with(|c| *c.borrow_mut() = ErrorContext::default());
     match page {
         Some(html) => {

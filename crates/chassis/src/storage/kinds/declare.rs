@@ -39,6 +39,7 @@ impl DataKind {
 
     /// A custom kind whose samples carry an instant (RFC 3339) under `key`
     /// and whose ops honour the selector's age cutoff.
+    #[cfg(feature = "dashboard")]
     pub(crate) fn custom_time_key(mut self, key: &str) -> Self {
         self.custom_time = Some(key.into());
         self
