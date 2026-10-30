@@ -179,9 +179,13 @@ a remedy names is a real subcommand).
 `<P>_TRUSTED_ADMINS` (default empty, so off) lists exact IP addresses whose
 requests are the admin without a login: no token, session or passkey. Kenny,
 2026-10-22: "mijn pc heeft altijd toegang, zonder token. Niemand neemt dit
-adres ooit over". Only the TCP peer counts; a request through a reverse proxy
-carries the proxy's address and never gets in this way, whatever
-`X-Forwarded-For` says. A request that sends a bearer is decided by that
+adres ooit over". The address is the client address the guards already use:
+the TCP peer, or, when the peer is in `trusted_proxies`, the last
+`X-Forwarded-For` hop, which that proxy appended itself (3.14.1, Kenny
+2026-10-30: a hostname kept on the home network through Traefik). What a
+client writes earlier in the header is never read, and the header from a
+peer that is not a trusted proxy is ignored. A request through Cloudflare
+arrives with the tunnel's address as that hop, never with a home address. A request that sends a bearer is decided by that
 bearer, so a script on the machine keeps its own identity. `GET /login` from
 such a machine goes to `/`.
 

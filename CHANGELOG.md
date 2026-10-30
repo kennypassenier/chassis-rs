@@ -7,6 +7,17 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed
+
+- **Trusted admins are recognised through a trusted proxy** (`dashboard`;
+  Kenny, 2026-10-30, route "thuis lokaal houden"): `<P>_TRUSTED_ADMINS`
+  now matches the client address the guards already use, the TCP peer or,
+  behind a proxy in `trusted_proxies`, the last `X-Forwarded-For` hop that
+  proxy appended. So the PC is recognised through a hostname that the home
+  network sends to Traefik. An earlier hop a client wrote itself, and the
+  header from any other peer, are ignored. Nothing changes for a service
+  without `trusted_admins` or without `trusted_proxies`.
+
 ## [3.14.0] - 2026-10-30
 
 ### Changed
