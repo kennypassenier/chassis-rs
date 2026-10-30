@@ -11,21 +11,25 @@
 //! mount — the store underneath keeps saying `client`, and its own guards
 //! only speak when a request races past the checks here.
 
+mod issue;
+mod lookup;
+mod test_send;
+mod token_actions;
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use serde::{Deserialize, Serialize};
 
-use crate::core::clients::{Client, TOKEN_BYTES};
-use crate::core::error::{Error, Kind};
+use crate::core::clients::Client;
+use crate::core::error::Error;
 use crate::shell::captures::Captures;
 use crate::shell::dashboard::Vocabulary;
 use crate::shell::store::Clients;
-use crate::shell::time::{now_rfc3339, random_hex};
 
 /// kit-r4: the article before the vocabulary's singular ("an app").
 #[derive(Clone)]
@@ -61,37 +65,6 @@ impl From<&Client> for ClientView {
             uses: c.uses,
         }
     }
-}
-
-/// The client `id` names, or the refusal in the project's words (K28);
-/// with `active` a revoked row is refused too. The store's own guards
-/// stay underneath for a request that races a delete.
-fn lookup(api: &ClientsApi, vocab: &Vocabulary, id: &str, active: bool) -> Result<Client, Error> {
-    let snap = api.clients.snapshot();
-    let client = snap.get(id).cloned().ok_or_else(|| {
-        Error::new(
-            Kind::NotFound,
-            format!("no {} with id {id}", vocab.singular),
-            format!(
-                "the list on the {} page is current; the id may have been deleted",
-                vocab.plural
-            ),
-        )
-    })?;
-    if active && client.revoked_at.is_some() {
-        return Err(revoked(vocab, id));
-    }
-    Ok(client)
-}
-
-fn revoked(vocab: &Vocabulary, id: &str) -> Error {
-    Error::invalid(
-        format!("{} {id} is revoked; it has no token", vocab.singular),
-        format!(
-            "issue a new {} with that name instead; a revoked row is history",
-            vocab.singular
-        ),
-    )
 }
 
 /// What the test button needs to know (K14): where to send, and with
@@ -151,7 +124,7 @@ pub async fn issue(
     Json(form): Json<IssueForm>,
 ) -> Result<Response, Error> {
     let article = crate::shell::dashboard::article_for(&vocab.singular).to_string();
-    issue_inner(api, vocab, &article, form).await
+    issue::issue_inner(api, vocab, &article, form).await
 }
 
 pub(crate) async fn issue_with_article(
@@ -160,73 +133,7 @@ pub(crate) async fn issue_with_article(
     Extension(article): Extension<VocabArticle>,
     Json(form): Json<IssueForm>,
 ) -> Result<Response, Error> {
-    issue_inner(api, vocab, &article.0, form).await
-}
-
-async fn issue_inner(
-    api: ClientsApi,
-    vocab: Vocabulary,
-    article: &str,
-    form: IssueForm,
-) -> Result<Response, Error> {
-    let id = uuid::Uuid::new_v4().to_string();
-    let token = random_hex(TOKEN_BYTES)?;
-    let now = now_rfc3339();
-    let name = form.name.clone();
-    // Checked here, before the store and before the project's hook: the
-    // hook must not see a name the store would refuse, and the refusal
-    // must speak the project's vocabulary.
-    crate::core::clients::validate_name(&name).map_err(|e| {
-        Error::invalid(
-            format!("{} name `{name}` is not allowed", vocab.singular),
-            e.remedy,
-        )
-    })?;
-    if api
-        .clients
-        .snapshot()
-        .clients
-        .iter()
-        .any(|c| c.name == name && c.token.is_some())
-    {
-        return Err(Error::invalid(
-            format!(
-                "{} {} named `{name}` already has a token",
-                article, vocab.singular
-            ),
-            format!(
-                "re-issue that {}'s token instead, or revoke it first to free the name",
-                vocab.singular
-            ),
-        ));
-    }
-    // The project's hook runs before the token exists, so a refusal issues
-    // nothing.
-    if let Some(hook) = &api.on_issued {
-        let provisional = ClientView {
-            id: id.clone(),
-            name: name.clone(),
-            active: true,
-            issued_at: now.clone(),
-            revoked_at: None,
-            last_used_at: None,
-            uses: 0,
-            fields: form.fields.clone(),
-        };
-        hook(&provisional, &form.fields)?;
-    }
-    // Only declared names reach the store; the hook above saw everything.
-    let stored: BTreeMap<String, String> = api
-        .declared_fields
-        .iter()
-        .filter_map(|name| form.fields.get(name).map(|v| (name.clone(), v.clone())))
-        .collect();
-    let client = api.clients.update(&mut |f| {
-        f.issue_with_fields(&name, id.clone(), token.clone(), &now, stored.clone())
-            .cloned()
-    })?;
-    tracing::info!(client = %client.name, id = %client.id, "client token issued");
-    Ok((StatusCode::CREATED, Json(ClientView::from(&client))).into_response())
+    issue::issue_inner(api, vocab, &article.0, form).await
 }
 
 pub async fn reissue(
@@ -234,14 +141,7 @@ pub async fn reissue(
     Extension(vocab): Extension<Vocabulary>,
     Path(id): Path<String>,
 ) -> Result<Json<ClientView>, Error> {
-    lookup(&api, &vocab, &id, true)?;
-    let token = random_hex(TOKEN_BYTES)?;
-    let now = now_rfc3339();
-    let client = api
-        .clients
-        .update(&mut |f| f.reissue(&id, token.clone(), &now).cloned())?;
-    tracing::info!(client = %client.name, id = %client.id, "client token re-issued");
-    Ok(Json(ClientView::from(&client)))
+    token_actions::reissue(State(api), Extension(vocab), Path(id)).await
 }
 
 pub async fn revoke(
@@ -249,11 +149,7 @@ pub async fn revoke(
     Extension(vocab): Extension<Vocabulary>,
     Path(id): Path<String>,
 ) -> Result<Json<ClientView>, Error> {
-    lookup(&api, &vocab, &id, true)?;
-    let now = now_rfc3339();
-    let client = api.clients.update(&mut |f| f.revoke(&id, &now).cloned())?;
-    tracing::info!(client = %client.name, id = %client.id, "client token revoked");
-    Ok(Json(ClientView::from(&client)))
+    token_actions::revoke(State(api), Extension(vocab), Path(id)).await
 }
 
 pub async fn delete(
@@ -261,14 +157,7 @@ pub async fn delete(
     Extension(vocab): Extension<Vocabulary>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, Error> {
-    let client = lookup(&api, &vocab, &id, false)?;
-    if let Some(hook) = &api.on_deleted {
-        hook(&ClientView::from(&client))?;
-    }
-    let client = api.clients.update(&mut |f| f.delete(&id))?;
-    api.captures.forget(&id);
-    tracing::info!(client = %client.name, id = %client.id, "client deleted");
-    Ok(StatusCode::NO_CONTENT)
+    token_actions::delete(State(api), Extension(vocab), Path(id)).await
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -308,15 +197,7 @@ pub async fn reveal(
     Extension(vocab): Extension<Vocabulary>,
     Path(id): Path<String>,
 ) -> Result<Json<TokenReveal>, Error> {
-    let client = lookup(&api, &vocab, &id, true)?;
-    let token = client.token.clone().ok_or_else(|| revoked(&vocab, &id))?;
-    let command = command_template(
-        &api.self_base_url,
-        api.test_route.as_ref().map(|t| t.path.as_str()),
-        &vocab,
-    )
-    .replace(&token_placeholder(&vocab), &token);
-    Ok(Json(TokenReveal { token, command }))
+    token_actions::reveal(State(api), Extension(vocab), Path(id)).await
 }
 
 /// The client's last requests (K13), newest first.
@@ -333,10 +214,6 @@ pub async fn requests(
 pub(crate) struct TestRequest {
     pub(crate) body: Option<String>,
 }
-
-/// The longest body the dashboard will send as a test, so a pasted file
-/// cannot turn the test button into an upload.
-const TEST_BODY_MAX: usize = 64 * 1024;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TestResult {
@@ -362,52 +239,5 @@ pub(crate) async fn send_test_body(
     Path(id): Path<String>,
     request: Option<Json<TestRequest>>,
 ) -> Result<Json<TestResult>, Error> {
-    let route = api.test_route.as_ref().ok_or_else(|| {
-        Error::invalid(
-            "this service declares no test route",
-            "the project can register one with App::test_route",
-        )
-    })?;
-    let body = request
-        .and_then(|Json(r)| r.body)
-        .unwrap_or_else(|| route.body.clone());
-    if body.len() > TEST_BODY_MAX {
-        return Err(Error::invalid(
-            format!("the test body is {} bytes", body.len()),
-            format!("keep it under {TEST_BODY_MAX} bytes"),
-        ));
-    }
-    let token = lookup(&api, &vocab, &id, true)?
-        .token
-        .ok_or_else(|| revoked(&vocab, &id))?;
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| Error::internal(format!("http client: {e}"), "report this"))?;
-    let url = format!("{}{}", api.self_base_url, route.path);
-    let method = reqwest::Method::from_bytes(route.method.as_bytes()).map_err(|_| {
-        Error::internal(
-            format!("bad test method {}", route.method),
-            "fix App::test_route",
-        )
-    })?;
-    let res = client
-        .request(method, &url)
-        .bearer_auth(&token)
-        .header("content-type", &route.content_type)
-        .header(crate::shell::captures::TEST_HEADER, api.captures.test_key())
-        .body(body)
-        .send()
-        .await
-        .map_err(|e| {
-            Error::dependency(
-                format!("test request to {url} failed: {e}"),
-                "is the service reachable at its own listen address?",
-            )
-        })?;
-    let status = res.status().as_u16();
-    let body = res.text().await.unwrap_or_default();
-    // The capture middleware files this request as a test: it carries
-    // `x-chassis-test` with the per-process key only this function sends.
-    Ok(Json(TestResult { status, body }))
+    test_send::send(State(api), Extension(vocab), Path(id), request).await
 }
