@@ -24,23 +24,6 @@ scaffold writes. A breaking change in either is a major and carries a
   sends `Kyu-Dedup-Key` / `Kyu-Dedup-Window`, stored with the outbox row; a
   `Kyu-Duplicate: true` answer counts as delivered.
 
-### Fixed
-
-- **"updated … ago" counts on again on the Storage and Clients pages**
-  (`dashboard`; Kenny, 2026-10-30, seen on almanac and kyu): the refresh
-  control's line stayed at "updated 0 s ago" because those pages never
-  attached kp-themes' freshness ticker (the status page did). Locked by
-  `the_refresh_line_ticks_on_storage_and_clients`.
-- **"Pending writes" shows what is really pending** (`storage`): SQLite folds
-  its write-ahead log into the database by itself but keeps the file at its
-  largest size, so the Storage page showed about 4 MB beside a 40 KB kit file
-  (measured on kyu and almanac). The ten-minute storage check now folds each
-  log in and trims it to nothing (a busy log waits for the next round), and
-  every connection sets `journal_size_limit` to 1 MB. Locked by
-  `a_checkpoint_empties_the_log_and_the_log_has_a_limit`.
-
-### Added
-
 - **`chassis release` for a multi-binary workspace** (CLI only,
   homelab-shared-4): an optional `[release]` table in `.chassis.toml` with
   `binaries`, `build = "glibc"` (+ `glibc_image`), `sign`, `notes`, and
@@ -81,6 +64,21 @@ scaffold writes. A breaking change in either is a major and carries a
   network sends to Traefik. An earlier hop a client wrote itself, and the
   header from any other peer, are ignored. Nothing changes for a service
   without `trusted_admins` or without `trusted_proxies`.
+
+### Fixed
+
+- **"updated … ago" counts on again on the Storage and Clients pages**
+  (`dashboard`; Kenny, 2026-10-30, seen on almanac and kyu): the refresh
+  control's line stayed at "updated 0 s ago" because those pages never
+  attached kp-themes' freshness ticker (the status page did). Locked by
+  `the_refresh_line_ticks_on_storage_and_clients`.
+- **"Pending writes" shows what is really pending** (`storage`): SQLite folds
+  its write-ahead log into the database by itself but keeps the file at its
+  largest size, so the Storage page showed about 4 MB beside a 40 KB kit file
+  (measured on kyu and almanac). The ten-minute storage check now folds each
+  log in and trims it to nothing (a busy log waits for the next round), and
+  every connection sets `journal_size_limit` to 1 MB. Locked by
+  `a_checkpoint_empties_the_log_and_the_log_has_a_limit`.
 
 ## [3.14.0] - 2026-10-30
 
