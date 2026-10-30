@@ -111,7 +111,13 @@ Env var is `<P>_` + the key upper-cased; the flag is `--` + the key with
 parser accepts is a configuration error naming the knob. Knobs of a feature
 the binary was built without are accepted and ignored. The
 `[[notify.webhook]]` entries themselves live only in the file (see
-OPERATIONS.md § Notifications). Proven by:
+OPERATIONS.md § Notifications). 3.15.0 adds the shared sender's knobs
+`notify_url` (primary target, a kyu topic; default none),
+`notify_fallback_url` (default none) and `notify_outbox_max` (5000); an
+address set by flag, environment or file is locked on the Status page's
+Notifications card, then the value saved on the card applies, then
+`App::notify_targets`, then none. A webhook id comes in through `${VAR}` or
+the environment only. Design: docs/NOTIFY_DESIGN.md. Proven by:
 `app::tests::shipped_defaults_pass_their_own_validation` (the defaults
 survive their own parser; `--max-in-flight 0` is refused),
 `app::tests::k31_knob_table_lists_every_knob_once_and_no_secret_default`,

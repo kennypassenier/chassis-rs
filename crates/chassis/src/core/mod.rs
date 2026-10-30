@@ -12,5 +12,7 @@ pub mod crypto;
 pub mod error;
 #[cfg(feature = "notify")]
 pub mod notify;
+#[cfg(feature = "notify")]
+pub mod notify_target;
 pub mod session;
 pub mod update;

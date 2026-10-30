@@ -34,6 +34,11 @@ pub type Drain = std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
 pub struct Notifier {
     service: String,
     tx: Option<mpsc::Sender<Event>>,
+    /// Webhooks that claim an event keep it (3.15.0): the channel below only
+    /// takes what no `[[notify.webhook]]` entry wants.
+    routes: Arc<Vec<Webhook>>,
+    /// The door to the shared sender and its outbox (3.15.0).
+    intake: Arc<crate::shell::notify_intake::Intake>,
 }
 
 impl Notifier {
@@ -43,6 +48,8 @@ impl Notifier {
         Self {
             service: service.to_string(),
             tx: None,
+            routes: Arc::default(),
+            intake: Arc::default(),
         }
     }
 
@@ -69,6 +76,7 @@ impl Notifier {
         }
         let (tx, mut rx) = mpsc::channel::<Event>(cfg.queue_size.max(1));
         let hooks = Arc::new(webhooks);
+        let routes = hooks.clone();
         let drain = async move {
             let client = reqwest::Client::builder()
                 .timeout(cfg.timeout)
@@ -84,6 +92,8 @@ impl Notifier {
             Self {
                 service: service.to_string(),
                 tx: Some(tx),
+                routes,
+                intake: Arc::default(),
             },
             Some(Box::pin(drain)),
         )
@@ -92,9 +102,32 @@ impl Notifier {
     /// Fire and forget. A full queue drops the event with one warning:
     /// blocking a request handler on a webhook would be the wrong trade.
     pub fn emit(&self, kind: &str, version: &str, detail: impl Into<String>) {
-        let detail = detail.into();
+        self.emit_inner(kind, version, detail.into(), None);
+    }
+
+    /// [`Notifier::emit`] with kyu's damping: a repeat of `dedup` inside its
+    /// window is not stored again by the hub and counts as delivered. Use it
+    /// for failures that repeat (a backup that fails every night); a success
+    /// message sends no key. Only the shared sender (primary and fallback
+    /// targets) carries it; a `[[notify.webhook]]` entry sends as before.
+    pub fn emit_keyed(
+        &self,
+        kind: &str,
+        version: &str,
+        detail: impl Into<String>,
+        dedup: crate::core::notify_target::Dedup,
+    ) {
+        self.emit_inner(kind, version, detail.into(), Some(dedup));
+    }
+
+    fn emit_inner(
+        &self,
+        kind: &str,
+        version: &str,
+        detail: String,
+        dedup: Option<crate::core::notify_target::Dedup>,
+    ) {
         tracing::info!(event = kind, version, detail = %detail, "event");
-        let Some(tx) = &self.tx else { return };
         let event = Event {
             service: self.service.clone(),
             kind: kind.to_string(),
@@ -102,9 +135,22 @@ impl Notifier {
             version: version.to_string(),
             detail,
         };
+        if !self.routes.iter().any(|h| h.wants(kind)) {
+            self.intake.offer(crate::shell::notify_intake::Queued {
+                event: event.clone(),
+                dedup,
+            });
+        }
+        let Some(tx) = &self.tx else { return };
         if let Err(e) = tx.try_send(event) {
             tracing::warn!(error = %e, "notification queue full; event dropped (it is in the log above)");
         }
+    }
+
+    /// The door the shared sender connects to at start.
+    #[cfg(feature = "dashboard")]
+    pub(crate) fn intake(&self) -> Arc<crate::shell::notify_intake::Intake> {
+        self.intake.clone()
     }
 }
 

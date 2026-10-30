@@ -7,6 +7,23 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **One shared notification sender and a Notifications card on the Status
+  page** (Kenny, 2026-10-30; docs/NOTIFY_DESIGN.md). Knobs `notify_url`
+  (primary target, a kyu topic), `notify_fallback_url` and `notify_outbox_max`
+  (5000); `App::notify_targets` gives an app's default. Messages are kept in
+  the kit database (`kit_outbox`, kit schema step 2) until a target accepts
+  them, the fallback is asked once when the primary does not take a message,
+  and the last error is recorded. The card shows both addresses (locked with
+  the reason when configuration fixes them, same precedence as the Storage
+  budget), the messages waiting, the last error and a Test button. API:
+  `/api/kit/notify`. `[[notify.webhook]]` keeps working and claims its
+  events. A build older than 3.15.0 refuses a kit file at schema 2.
+- **kyu damping**: `Notifier::emit_keyed` with `core::notify_target::Dedup`
+  sends `Kyu-Dedup-Key` / `Kyu-Dedup-Window`, stored with the outbox row; a
+  `Kyu-Duplicate: true` answer counts as delivered.
+
 ## [3.14.0] - 2026-10-30
 
 ### Changed

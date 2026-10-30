@@ -1,0 +1,9 @@
+{#- The Notifications card of the Status page (3.15.0). The server draws the
+    frame in its loading state with the final geometry; static/notify-card.js
+    reads /api/kit/notify, fills the grid and owns the card's states
+    (data-chassis-owned keeps the status poll away from it). -#}
+<section class="kp-card notify-card" data-kp-span="12" data-kp-state="loading" data-chassis-owned data-notify-card aria-labelledby="notify-card-t">
+  <div class="kp-card__header"><h2 class="kp-card__title" id="notify-card-t">Notifications</h2><div class="kp-card__actions" data-notify-level></div></div>
+  <p class="kp-card__body">Where this service sends its events. Every event goes to the primary address first; only when that does not take it, once, to the fallback address. Messages wait on disk until one of them does.</p>
+  <div class="kp-card__stage"><div class="kp-card__data" data-notify-body></div></div>
+</section>

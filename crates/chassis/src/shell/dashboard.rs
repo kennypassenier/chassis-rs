@@ -553,6 +553,8 @@ pub struct Dashboard {
     /// `https://github.com/<repository>`, for the release notes link of a
     /// version chip.
     repository_url: Option<String>,
+    /// 3.15.0: the Status page carries the Notifications card.
+    notify_card: bool,
 }
 
 /// The "Check for updates" button's work.
@@ -624,6 +626,11 @@ impl Dashboard {
         .map_err(template_error)?;
         env.add_template("storage.html", include_str!("../../templates/storage.html"))
             .map_err(template_error)?;
+        env.add_template(
+            "status_notify.html",
+            include_str!("../../templates/status_notify.html"),
+        )
+        .map_err(template_error)?;
         // feat-ui-1: every template renders a timestamp through this, so
         // there is one place that decides what a reader sees.
         env.add_filter("human_time", |v: String| crate::shell::time::human_time(&v));
@@ -698,7 +705,15 @@ impl Dashboard {
             clients_href: Some("/clients".to_string()),
             check_update: None,
             repository_url: None,
+            notify_card: false,
         })
+    }
+
+    /// 3.15.0: show the Notifications card on the Status page.
+    #[cfg(feature = "notify")]
+    pub(crate) fn with_notify_card(mut self, on: bool) -> Self {
+        self.notify_card = on;
+        self
     }
 
     /// kit-kp11: where the service's releases are described, from
@@ -1065,6 +1080,7 @@ pub async fn status_page(State(d): State<Dashboard>) -> Result<Html<String>, Err
         context! {
             logged_in => true,
             idle_clients => d.idle_clients(),
+            notify_card => d.notify_card,
             active_nav => "/status",
             ..minijinja::Value::from_serialize(&data)
         },

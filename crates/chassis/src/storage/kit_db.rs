@@ -38,8 +38,9 @@ pub(crate) fn kit_file_name(app: &str) -> String {
 
 /// The kit's schema. Append only.
 pub(crate) fn kit_migrations() -> Vec<Migration> {
-    vec![Migration::sql(
-        "CREATE TABLE kit_clients (
+    vec![
+        Migration::sql(
+            "CREATE TABLE kit_clients (
             id             TEXT NOT NULL UNIQUE,
             name           TEXT NOT NULL,
             token_sealed   TEXT,
@@ -63,7 +64,10 @@ pub(crate) fn kit_migrations() -> Vec<Migration> {
             last_used_at      TEXT,
             credential_sealed TEXT NOT NULL
          ) STRICT;",
-    )]
+        ),
+        // 3.15.0: the notification outbox (storage/outbox.rs).
+        super::outbox::migration(),
+    ]
 }
 
 /// How many migrations the kit file knows, for `--check`.

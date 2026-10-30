@@ -491,6 +491,24 @@ impl AppSpec {
                 "Events waiting for delivery; a full queue drops the event with a warning.",
             ),
             k(
+                "notify_url",
+                None,
+                NOTIFY,
+                "Primary notification target: where every event goes first (a kyu topic such as http://hub.example:8080/t/ops.alerts). Unset = no target. Fixes the address on the Status page's Notifications card; put a webhook id in through ${VAR} or the environment, never in the file.",
+            ),
+            k(
+                "notify_fallback_url",
+                None,
+                NOTIFY,
+                "Fallback notification target, asked once when the primary does not take a message (for example a Home Assistant webhook address). Unset = no fallback. Same rules as notify_url.",
+            ),
+            k(
+                "notify_outbox_max",
+                Some("5000"),
+                NOTIFY,
+                "Most unsent messages kept on disk; past it the oldest are dropped and counted.",
+            ),
+            k(
                 "health_sample_secs",
                 Some("30"),
                 NOTIFY,
@@ -785,6 +803,9 @@ pub struct App {
     notifier: crate::shell::notify::Notifier,
     #[cfg(feature = "notify")]
     notify_drain: Option<crate::shell::notify::Drain>,
+    /// 3.15.0: the app's own default addresses (`App::notify_targets`).
+    #[cfg(feature = "notify")]
+    notify_code_targets: Option<(String, Option<String>)>,
 }
 
 /// What a project registers for the dashboard (K16, K17); read once at start.
@@ -954,6 +975,8 @@ impl App {
             notifier: crate::shell::notify::Notifier::logging_only(spec_name),
             #[cfg(feature = "notify")]
             notify_drain: None,
+            #[cfg(feature = "notify")]
+            notify_code_targets: None,
         }
     }
 
@@ -1464,6 +1487,8 @@ impl App {
             notifier,
             #[cfg(feature = "notify")]
             notify_drain,
+            #[cfg(feature = "notify")]
+            notify_code_targets: None,
         })
     }
 
@@ -1818,6 +1843,17 @@ impl App {
     #[cfg(feature = "storage")]
     pub fn storage_budget(&mut self, budget_mb: u64, warn_mb: Option<u64>) -> &mut Self {
         self.storage_budget = Some((budget_mb, warn_mb));
+        self
+    }
+
+    /// 3.15.0: the app's default notification addresses: the primary target
+    /// (a kyu topic) and an optional fallback. They sit below configuration
+    /// and below what the owner saved on the Status page, and above the
+    /// kit's default of no target. Keep a webhook id out of code: give the
+    /// fallback through `<P>_NOTIFY_FALLBACK_URL` instead.
+    #[cfg(feature = "notify")]
+    pub fn notify_targets(&mut self, primary: &str, fallback: Option<&str>) -> &mut Self {
+        self.notify_code_targets = Some((primary.to_string(), fallback.map(str::to_string)));
         self
     }
 
@@ -2554,6 +2590,63 @@ impl App {
         w
     }
 
+    /// 3.15.0: open the channel on the kit file, connect the notifier's door
+    /// and start the writer and delivery tasks.
+    #[cfg(all(feature = "notify", feature = "dashboard"))]
+    fn start_notify_channel(
+        &self,
+        loaded: &Loaded,
+        kit: crate::storage::Db,
+        code: Option<(String, Option<String>)>,
+    ) -> Result<crate::shell::notify_api::NotifyState, Error> {
+        use crate::shell::{notify_channel as nc, notify_delivery, notify_intake};
+        let (primary, fallback) = code.unzip();
+        let cfg = nc::ChannelConfig {
+            send: crate::shell::notify::NotifyConfig {
+                timeout: self.limits.notify.timeout,
+                retries: self.limits.notify.retries,
+                backoff_base: self.limits.notify.backoff_base,
+                backoff_cap: self.limits.notify.backoff_cap,
+                queue_size: self.limits.notify.queue_size,
+            },
+            outbox_cap: parse_u64(loaded, "notify_outbox_max", 1)? as usize,
+            round_base: nc::ChannelConfig::ROUND_BASE,
+            round_cap: nc::ChannelConfig::ROUND_CAP,
+        };
+        let channel = nc::Channel::open(
+            loaded,
+            &self.spec.prefix(),
+            kit,
+            nc::CodeTargets {
+                primary,
+                fallback: fallback.flatten(),
+            },
+            cfg,
+        )?;
+        let (tx, mut rx) =
+            tokio::sync::mpsc::channel::<notify_intake::Queued>(notify_intake::HAND_OFF);
+        self.notifier.intake().connect(tx);
+        let writer = channel.clone();
+        tokio::spawn(async move {
+            while let Some(q) = rx.recv().await {
+                let ch = writer.clone();
+                let res = tokio::task::spawn_blocking(move || ch.enqueue(&q)).await;
+                if let Ok(Err(e)) | Err(e) = res.map_err(|e| {
+                    Error::internal(format!("a notification task failed: {e}"), "report this")
+                }) {
+                    tracing::warn!(error = %e, "notify: an event could not be written to the outbox");
+                    writer.record_error("outbox", "An event could not be written to disk.");
+                }
+            }
+        });
+        tokio::spawn(notify_delivery::run(channel.clone()));
+        Ok(crate::shell::notify_api::NotifyState {
+            channel,
+            service: self.spec.name,
+            version: self.spec.version,
+        })
+    }
+
     /// Install logging and metrics, bind, announce readiness, serve.
     #[cfg_attr(not(feature = "notify"), allow(unused_mut))]
     pub async fn start(mut self) -> Result<Running, Error> {
@@ -2615,6 +2708,14 @@ impl App {
                 self.prefs_store.take(),
                 storage.app(),
             )?),
+        };
+        // 3.15.0: the shared sender, on the kit file.
+        #[cfg(all(feature = "notify", feature = "dashboard"))]
+        let notify_code = self.notify_code_targets.take();
+        #[cfg(all(feature = "notify", feature = "dashboard"))]
+        let notify_state = match storage.kit_db() {
+            Some(kit) => Some(self.start_notify_channel(loaded, kit.clone(), notify_code)?),
+            None => None,
         };
         #[cfg(feature = "storage")]
         self.scrape_sources
@@ -2802,6 +2903,8 @@ impl App {
                     #[cfg(feature = "storage")]
                     storage: Some(storage.clone()),
                     prefs: prefs.clone(),
+                    #[cfg(feature = "notify")]
+                    notify: notify_state,
                 },
             )
             .await?;

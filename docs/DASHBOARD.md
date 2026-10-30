@@ -40,6 +40,7 @@ navigation is `Status` (`/`), the clients label (`/clients`, default
 | `GET/POST /api/clients`, `/api/clients/{id}/{reissue,revoke,token,requests,test}`, `DELETE /api/clients/{id}` | admin | The JSON the buttons call. |
 | `GET /storage` | admin | The Storage page (3.11.0), below. |
 | `GET /api/kit/storage`, `POST /api/kit/storage/{kind}/{preview,delete}`, `POST /api/kit/storage/compact{,/preview}`, `POST /api/kit/storage/budget` | admin | The Storage page's JSON (3.11.0), below. |
+| `GET /api/kit/notify`, `POST /api/kit/notify/{settings,test}` | admin | The Status page's Notifications card (3.15.0), below. |
 | `GET /passkeys`, `/passkeys/*`, `/api/passkeys*` | admin (login/start+finish: anyone) | Only over HTTPS via a trusted proxy; else 404 with a remedy. |
 | `GET /static/{*name}` | anyone | Embedded assets: `Cache-Control: public, max-age=31536000, immutable` when the URL carries the `?v=<hash>` the layout adds, `no-cache` with a strong `ETag` (304 when unchanged) for a URL without it, such as a font reached from `fonts.css` or a module a project's app imports (fix-13). |
 
@@ -955,3 +956,27 @@ Traefik. S6 (one machine can fill the ceremony table for five minutes)
 is accepted for now. Proven by:
 `passkeys_exist_only_over_https_from_a_trusted_proxy`,
 `shell::passkeys::tests::registration_start_issues_a_challenge_and_finish_refuses_garbage`.
+
+## The Notifications card (Status page, 3.15.0)
+
+Design in docs/NOTIFY_DESIGN.md. A span-12 card on the Status page of every
+service built with `notify` + `dashboard`: the primary and fallback addresses
+(editable, or locked with the reason when configuration fixes them), the
+messages waiting on disk, the last delivery, the last error with its time, and
+a Send test message button. Values are kept in the kit database, never in the
+browser.
+
+`GET /api/kit/notify` answers `active`, `primary` and `fallback` (each
+`address` (host only when `masked`), `masked`, `layer` = `configuration` /
+`page` / `code` / `default`, `locked`, `fixed` (`by`, `name`, `reason`),
+`saved`, `code_default`, `set`), `can_edit`, `outbox` (`waiting`, `oldest_at`,
+`cap`, `dropped_total`), `last_error` (`at`, `target`, `message`) and
+`last_delivery` (`at`, `via`). `POST /api/kit/notify/settings` takes
+`{primary?, fallback?}` (empty text = send nowhere) or `{reset: true}`; a
+locked value is refused with 400. `POST /api/kit/notify/test` answers
+`results` (one per target: `target`, `outcome`, `detail`).
+
+Stable control ids, for the homelab Live view: the fields `notify-primary` and
+`notify-fallback`, the buttons `notify-save`, `notify-reset` (Use defaults)
+and `notify-test`, the lines `notify-state` and `notify-test-result`.
+Proven by `tests/notify_card.rs`.

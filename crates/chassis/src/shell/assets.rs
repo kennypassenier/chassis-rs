@@ -320,6 +320,16 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/chassis.js"),
     ),
     (
+        "notify-card.css",
+        "text/css; charset=utf-8",
+        include_bytes!("../../static/notify-card.css"),
+    ),
+    (
+        "notify-card.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/notify-card.js"),
+    ),
+    (
         "passkeys.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/passkeys.js"),
