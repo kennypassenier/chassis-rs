@@ -24,7 +24,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{capture, command};
+use crate::process::{capture, command};
 
 /// Where the record lives, relative to the project.
 pub const RECORD_PATH: &str = ".chassis/release-failed.json";

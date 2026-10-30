@@ -8,7 +8,7 @@ use std::process::Stdio;
 
 use chassis::Error;
 
-use crate::command;
+use crate::process::command;
 
 /// What a hook sees of the release it belongs to.
 pub struct HookEnv<'a> {

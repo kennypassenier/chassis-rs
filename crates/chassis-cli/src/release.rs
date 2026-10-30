@@ -24,7 +24,9 @@ use std::process::Stdio;
 
 use chassis::Error;
 
-use crate::{Recorded, capture, command, failed_tests};
+use crate::failed_tests;
+use crate::process::{capture, command};
+use crate::recorded::Recorded;
 
 /// The one release target (feat-build-1): statically linked, so the host's
 /// glibc stops deciding whether the service starts.
@@ -581,9 +583,9 @@ pub fn build_binary(dir: &Path, rec: &Recorded) -> Result<PathBuf, Error> {
     match std::fs::remove_dir_all(&dist) {
         Ok(()) => {}
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(crate::io_err(&dist, e)),
+        Err(e) => return Err(crate::render::io_err(&dist, e)),
     }
-    std::fs::create_dir_all(&dist).map_err(|e| crate::io_err(&dist, e))?;
+    std::fs::create_dir_all(&dist).map_err(|e| crate::render::io_err(&dist, e))?;
     for binary in &binaries {
         let built = abs.join(rec.release.built_path(binary));
         std::fs::copy(&built, dist.join(binary)).map_err(|e| {
@@ -596,7 +598,7 @@ pub fn build_binary(dir: &Path, rec: &Recorded) -> Result<PathBuf, Error> {
     let names: Vec<&str> = binaries.iter().map(String::as_str).collect();
     let sums = capture(&dist, "sha256sum", &names)?;
     std::fs::write(dist.join("SHA256SUMS"), &sums)
-        .map_err(|e| crate::io_err(&dist.join("SHA256SUMS"), e))?;
+        .map_err(|e| crate::render::io_err(&dist.join("SHA256SUMS"), e))?;
     print!("{sums}");
 
     if rec.release.build == Build::Glibc {
@@ -794,7 +796,7 @@ pub fn write_notes(dir: &Path, rec: &Recorded, sha: &str) -> Result<(), Error> {
     }
     let path = dir.join(rec.release.notes_file());
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| crate::io_err(&path, e))?;
+        std::fs::create_dir_all(parent).map_err(|e| crate::render::io_err(&path, e))?;
     }
     let body = match rec.release.build {
         crate::release_config::Build::Musl => release_notes(sha),
@@ -803,7 +805,7 @@ pub fn write_notes(dir: &Path, rec: &Recorded, sha: &str) -> Result<(), Error> {
             glibc_image(rec)
         ),
     };
-    std::fs::write(&path, body).map_err(|e| crate::io_err(&path, e))
+    std::fs::write(&path, body).map_err(|e| crate::render::io_err(&path, e))
 }
 
 /// Pushes the image and creates the release. Called after the commit and
@@ -887,9 +889,9 @@ mod tests {
             repo: "kennypassenier/demo-svc".into(),
             toolchain: "1.97".into(),
             chassis_tag: "v0.1.0".into(),
-            chassis_repo: crate::CHASSIS_REPO.into(),
+            chassis_repo: crate::recorded::CHASSIS_REPO.into(),
             chassis_path: None,
-            kp_themes: crate::KP_THEMES.into(),
+            kp_themes: crate::recorded::KP_THEMES.into(),
             state_dir: "/var/lib/demo-svc".into(),
             latch: false,
             env_file: None,
