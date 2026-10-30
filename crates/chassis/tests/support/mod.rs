@@ -1,4 +1,4 @@
-//! Reading the kit's own CSS and JavaScript as text for the source-level
+//! Reading the kit's own CSS, JavaScript and Rust source as text for the source-level
 //! tests. `chassis.css`, `chassis.js` and `notify-card.js` are entry files
 //! that pull their parts in from `static/chassis/` (one file per page or
 //! component), so a test that asserts on what the kit ships reads the entry
@@ -11,7 +11,8 @@
 
 use std::path::Path;
 
-/// The text of a kit asset; for an entry file the text of its parts follows.
+/// The text of a kit asset; for an entry file the text of its parts follows,
+/// and for a Rust module the text of its child modules.
 #[allow(dead_code)]
 pub fn kit_bundle(rel: &str) -> String {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -31,6 +32,10 @@ fn append(root: &Path, rel: &str, seen: &mut Vec<String>, text: &mut String) {
         text.push('\n');
     }
     text.push_str(&body);
+    if let Some(stem) = rel.strip_suffix(".rs") {
+        append_children(root, stem, seen, text);
+        return;
+    }
     if !matches!(rel.rsplit('.').next(), Some("js" | "css")) {
         return;
     }
@@ -44,6 +49,23 @@ fn append(root: &Path, rel: &str, seen: &mut Vec<String>, text: &mut String) {
             };
             append(root, &next, seen, text);
         }
+    }
+}
+
+/// A Rust module's child files (`foo.rs` keeps its children in `foo/`),
+/// depth first in name order, so a source-level assertion still finds text
+/// after the module was split by responsibility.
+fn append_children(root: &Path, stem: &str, seen: &mut Vec<String>, text: &mut String) {
+    let Ok(entries) = std::fs::read_dir(root.join(stem)) else {
+        return;
+    };
+    let mut names: Vec<String> = entries
+        .filter_map(|e| e.ok()?.file_name().into_string().ok())
+        .filter(|n| n.ends_with(".rs"))
+        .collect();
+    names.sort();
+    for name in names {
+        append(root, &format!("{stem}/{name}"), seen, text);
     }
 }
 
