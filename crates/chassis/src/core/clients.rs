@@ -25,6 +25,12 @@ use crate::core::error::{Error, Kind};
 /// test below pins that rather than trusting it.
 pub const CLIENTS_FORMAT: u32 = 2;
 
+/// homelab-shared-1: the name of the declared client field that carries a
+/// client's scope. A project that declares `client_form_field("scope", ..)`
+/// gets the value stored with the client already; [`Client::scope`] reads
+/// it and [`ClientsFile::issue_scoped`] writes it without a form.
+pub const SCOPE_FIELD: &str = "scope";
+
 /// Length of a freshly issued token: 32 random bytes as 64 hex chars.
 pub const TOKEN_BYTES: usize = 32;
 
@@ -83,6 +89,25 @@ impl Client {
             uses: 0,
             fields: Default::default(),
         }
+    }
+}
+
+impl Client {
+    /// The scope this client was issued with (the `scope` field), `None`
+    /// for a client issued without one. What a scope means is the
+    /// project's: the kit stores and returns the text.
+    pub fn scope(&self) -> Option<&str> {
+        self.fields
+            .get(SCOPE_FIELD)
+            .map(String::as_str)
+            .filter(|s| !s.is_empty())
+    }
+
+    /// Whether this client's scope is one of `allowed`. A client without a
+    /// scope is allowed nothing, so adding scopes to a project later never
+    /// widens an old client.
+    pub fn has_scope_in(&self, allowed: &[&str]) -> bool {
+        self.scope().is_some_and(|s| allowed.contains(&s))
     }
 }
 
@@ -164,6 +189,28 @@ impl ClientsFile {
             fields,
         });
         Ok(self.clients.last().expect("just pushed"))
+    }
+
+    /// [`ClientsFile::issue_with_fields`] with the client's scope set in
+    /// `fields["scope"]` (homelab-shared-1). An empty scope is refused: a
+    /// scoped client with no scope would read as unscoped.
+    pub fn issue_scoped(
+        &mut self,
+        name: &str,
+        scope: &str,
+        id: String,
+        token: String,
+        now: &str,
+    ) -> Result<&Client, Error> {
+        if scope.trim().is_empty() {
+            return Err(Error::invalid(
+                "a scoped client needs a scope",
+                "pass the scope the token may act under, e.g. read, operate or all",
+            ));
+        }
+        let mut fields = BTreeMap::new();
+        fields.insert(SCOPE_FIELD.to_string(), scope.trim().to_string());
+        self.issue_with_fields(name, id, token, now, fields)
     }
 
     /// [`ClientsFile::issue_with_fields`] with no fields.
@@ -464,5 +511,32 @@ mod tests {
             .issue("kyu-runner", "id-1".into(), "tok".into(), T0)
             .expect("the previous shape still issues");
         assert!(c.fields.is_empty(), "and it issues without fields");
+    }
+
+    #[test]
+    fn homelab_shared_1_a_scope_is_stored_read_and_checked() {
+        let mut f = ClientsFile::default();
+        f.issue_scoped("wsl", " operate ", "id-1".into(), "t1".into(), T0)
+            .unwrap();
+        f.issue_with_fields("old", "id-2".into(), "t2".into(), T0, Default::default())
+            .unwrap();
+        let wsl = f.by_token("t1").unwrap();
+        assert_eq!(wsl.scope(), Some("operate"), "trimmed");
+        assert!(wsl.has_scope_in(&["operate", "all"]));
+        assert!(!wsl.has_scope_in(&["read"]));
+        let old = f.by_token("t2").unwrap();
+        assert_eq!(old.scope(), None);
+        assert!(
+            !old.has_scope_in(&["read", "operate", "all"]),
+            "unscoped = nothing"
+        );
+        assert!(
+            f.issue_scoped("x", "  ", "id-3".into(), "t3".into(), T0)
+                .is_err(),
+            "empty scope refused"
+        );
+        let text = serde_json::to_string(&f).unwrap();
+        let back: ClientsFile = serde_json::from_str(&text).unwrap();
+        assert_eq!(back.by_token("t1").unwrap().scope(), Some("operate"));
     }
 }

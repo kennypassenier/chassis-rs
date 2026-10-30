@@ -7,6 +7,16 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **Client scopes** (`core::clients`, homelab-shared-1): `SCOPE_FIELD`,
+  `Client::scope()`, `Client::has_scope_in()` and `ClientsFile::issue_scoped()`.
+  A scope is the ordinary declared client field `scope`, so it is stored,
+  sealed and listed like any other field and needs no store migration; a client
+  without one is allowed nothing. The meaning of a scope stays the project's.
+  Not added: hashed tokens (the kit keeps the token revealable on purpose, K12)
+  and a failed-auth counter. See docs/HOMELAB_SHARED.md.
+
 ## [3.14.0] - 2026-10-30
 
 ### Changed
