@@ -1,0 +1,70 @@
+/* The page's base: body, plain-page headings, the nav and the explain block.
+   Imported by ../chassis.css; the import order is the cascade order. */
+
+body {
+    margin: 0;
+    padding-bottom: 4rem;
+}
+
+h1 { font-size: 1.75rem; margin: 0 0 0.5rem; }
+h2 { font-size: 1.25rem; margin: 2rem 0 0.75rem; }
+
+/* .kp-nav is a flex row; this pushes the theme picker and the logout form
+   to the far end. */
+.kp-nav__links { flex: 1; }
+
+/* K16: every section opens with a short explanation in plain language.
+   The lint test looks for this class. */
+.explain {
+    color: var(--muted-foreground);
+    max-width: 48rem;
+    margin: 0 0 1rem;
+    line-height: 1.5;
+}
+
+/* Older names the templates and consumers' project pages still use; the
+   kp-themes utilities are the same rules under their own names. */
+.text-secondary { color: var(--muted-foreground); }
+.text-end { text-align: end; }
+.mono { font-family: var(--theme-font-mono, ui-monospace, monospace); font-size: 0.85rem; }
+
+code, pre { font-size: 0.85rem; }
+pre.snippet {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius, 0.5rem);
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* The status page's cards (K17): a label/value list inside each. */
+.cards .kp-card dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 1rem; }
+.cards .kp-card dt { color: var(--muted-foreground); }
+.cards .kp-card dd { margin: 0; }
+.problems-list { margin: 0; padding-left: 1.25rem; }
+.row-label { text-align: start; white-space: nowrap; }
+.divider { margin: 1rem 0; border: 0; border-top: 1px solid var(--border); }
+
+/* K29: a project's buttons under a status section sit with the text, not at the right edge. */
+.section-actions { margin: 0.75rem 0 1.5rem; }
+
+/* ask-1 (2026-09-10): kp-themes puts `overflow-wrap: anywhere` on .kp-badge,
+   which breaks a one-word state label mid-word ("acti / ve") when the column
+   is narrow — found in http-switchboard's browser drill.
+   Their rule is not wrong: they measured a badge holding one unbroken value
+   at 485 px on a 360 px viewport, pushing the document sideways, and chose
+   `anywhere` over `break-word` because only `anywhere` lowers the min-content
+   contribution a flex item's automatic minimum size is measured against.
+
+   kp-themes 5.1.0 turned that default into a knob (ask-1, answered by their
+   session 2026-09-09): `.kp-badge` reads `overflow-wrap:
+   var(--kp-badge-wrap, anywhere)`, and the knob belongs on the COLUMN rather
+   than on the badge. So the kit no longer marks its own badges; it declares
+   the state cells, which hold a fixed word or a timestamp and never a
+   client-supplied value (measured: active, revoked <time>, ok, degraded,
+   failing). Anything a project renders elsewhere keeps the package's
+   protection, and kp-themes measured what dropping it costs: one unbroken
+   value 485 px wide on a 360 px viewport. */
+.state-cell { --kp-badge-wrap: normal; }

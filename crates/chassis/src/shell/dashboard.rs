@@ -1386,6 +1386,26 @@ fn clients_data(d: &Dashboard) -> serde_json::Value {
 mod tests {
     use super::*;
 
+    /// The kit's own CSS or JavaScript as text: the entry file, then every
+    /// part of it in `static/chassis/` (the entry pulls them in; a source
+    /// level test asserts on the whole).
+    fn kit_text(entry: &str) -> String {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("static");
+        let mut text = std::fs::read_to_string(root.join(entry)).expect("entry file");
+        let ext = entry.rsplit('.').next().expect("extension");
+        let mut parts: Vec<_> = std::fs::read_dir(root.join("chassis"))
+            .expect("static/chassis")
+            .map(|e| e.expect("entry").path())
+            .filter(|p| p.extension().is_some_and(|e| e == ext))
+            .collect();
+        parts.sort();
+        for part in parts {
+            text.push('\n');
+            text.push_str(&std::fs::read_to_string(part).expect("part file"));
+        }
+        text
+    }
+
     /// kit-r4 (Kenny 2026-10-21): the token variable follows the vocabulary.
     #[test]
     fn token_var_is_derived_from_the_singular_word() {
@@ -1427,7 +1447,7 @@ mod tests {
     /// by every poll and re-read, and the others ask `chassis-settle` first.
     #[test]
     fn chassis_js_lets_a_section_keep_its_card_state() {
-        let js = include_str!("../../static/chassis.js");
+        let js = kit_text("chassis.js");
         assert!(js.contains(
             "const POLLED = '.kp-card[data-kp-state]:not([data-chassis-json]):not([data-chassis-owned])'"
         ));
@@ -1451,7 +1471,7 @@ mod tests {
     /// only the kit's own header bar, never a section's own `.kp-refresh`.
     #[test]
     fn refresh_bar_rules_are_scoped_to_the_kits_header() {
-        let css = include_str!("../../static/chassis.css");
+        let css = kit_text("chassis.css");
         let mut seen = 0;
         for line in css.lines().filter(|l| l.contains(".kp-refresh__bar")) {
             seen += 1;
@@ -1469,10 +1489,11 @@ mod tests {
     /// vocabulary word; the article comes from `vocab_article`.
     #[test]
     fn no_template_puts_a_literal_a_before_the_vocabulary() {
+        let chassis_js = kit_text("chassis.js");
         for (name, text) in [
             ("clients.html", include_str!("../../templates/clients.html")),
             ("layout.html", include_str!("../../templates/layout.html")),
-            ("chassis.js", include_str!("../../static/chassis.js")),
+            ("chassis.js", chassis_js.as_str()),
         ] {
             for bad in [
                 "a {{ vocab.singular",
@@ -1493,7 +1514,7 @@ mod tests {
         assert!(layout.contains(
             "<div id=\"chassis-toasts\" class=\"kp-toasts\" aria-live=\"polite\"></div>"
         ));
-        let js = include_str!("../../static/chassis.js");
+        let js = kit_text("chassis.js");
         assert!(js.contains("'chassis:ready'") && js.contains("window.chassis"));
     }
 
@@ -1539,7 +1560,7 @@ mod tests {
     #[test]
     fn the_issue_dialog_keeps_its_approved_parts() {
         let html = include_str!("../../templates/clients.html");
-        let css = include_str!("../../static/chassis.css");
+        let css = kit_text("chassis.css");
         for part in [
             "id=\"issue-dialog\"",
             "kp-dialog--wide issue-dialog",
@@ -1568,8 +1589,8 @@ mod tests {
     #[test]
     fn the_manage_dialog_keeps_its_approved_parts() {
         let html = include_str!("../../templates/clients.html");
-        let css = include_str!("../../static/chassis.css");
-        let js = include_str!("../../static/chassis.js");
+        let css = kit_text("chassis.css");
+        let js = kit_text("chassis.js");
         for part in [
             "kp-dialog kp-dialog--wide manage-dialog",
             "data-kp-secret data-kp-secret-ttl=",

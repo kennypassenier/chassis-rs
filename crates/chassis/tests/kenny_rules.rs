@@ -6,9 +6,10 @@
 
 use std::path::Path;
 
+mod support;
+
 fn kit_file(rel: &str) -> String {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("{rel}: {e}"))
+    support::kit_bundle(rel)
 }
 
 fn repo_file(rel: &str) -> String {

@@ -1,0 +1,48 @@
+/* Stop-gap rules waiting for the next kp-themes release, plus the health badge baseline.
+   Imported by ../chassis.css; the import order is the cascade order. */
+
+/* ----------------------------------------------------------------------
+   Until the next kp-themes release (kp-themes is on hold; the gaps are
+   queued in ~/Projects/kp-gaps/chassis-rs.md, items 11 to 14 and 18, found
+   building this page). Delete each rule when the package carries it.
+   ---------------------------------------------------------------------- */
+
+/* 11: the package folds the 8 + 4 pair of a `.kp-ops__body` to 12 + 6 under 64rem. This page keeps its pair on one row until the phone rule (48rem). */
+.storage .kp-ops__body > [data-kp-span='8'] { grid-column: span 8; }
+.storage .kp-ops__body > [data-kp-span='4'] { grid-column: span 4; }
+
+/* 13: the attention band's three sentences are three lines, each on its own. */
+[data-storage-band] .kp-attention__text > span { display: block; }
+[data-storage-band] .kp-attention__text > span + span { margin-block-start: var(--kp-space-2xs, 0.125rem); }
+
+/* 14: `.kp-formgrid` switches to its phone layout when its card is narrower than 36rem; the three parts of the budget use a grid of their own. */
+.storage-files {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr) max-content;
+  column-gap: var(--kp-space-lg, 1.5rem);
+}
+.storage-files__row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: baseline;
+  padding-block: var(--kp-space-sm, 0.5rem);
+  border-block-end: 1px solid var(--border);
+}
+@container storagec (max-width: 34rem) {
+  .storage-files__row {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    row-gap: var(--kp-space-2xs, 0.125rem);
+  }
+  .storage-files__note { grid-column: 1; grid-row: 2; }
+  .storage-files__tag { grid-column: 2; grid-row: 2; }
+}
+
+/* 18: `kp-meter` has no inline size inside a formgrid control track. */
+.storage-meters .kp-meter { display: block; inline-size: 100%; }
+
+/* A health badge inside a key-value row takes its baseline from its words,
+   not from its empty dot, so it shares the label's line (2 px off in dark,
+   2026-10-21): the dot leaves baseline alignment and centres itself. */
+.kp-kv dd > .kp-health { align-items: baseline; }
+.kp-kv dd > .kp-health > .kp-health__dot { align-self: center; }
