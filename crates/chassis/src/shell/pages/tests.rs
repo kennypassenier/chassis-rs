@@ -122,3 +122,51 @@ fn passkeys_are_listed_only_when_they_are_on() {
     assert_eq!(ids, ["status", "clients"]);
     assert_eq!(set.pages[1].title, "Sources");
 }
+
+/// What `build` logs, captured on this thread only.
+fn build_logs(app_pages: Vec<Page>, webapp_at_root: bool, kit_in_webapp: bool) -> String {
+    #[derive(Clone, Default)]
+    struct Capture(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+    impl std::io::Write for Capture {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let cap = Capture::default();
+    let writer = cap.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(move || writer.clone())
+        .with_ansi(false)
+        .finish();
+    tracing::subscriber::with_default(subscriber, || {
+        registry(app_pages).build("med", "Clients", false, true, webapp_at_root, kit_in_webapp);
+    });
+    String::from_utf8(cap.0.lock().unwrap().clone()).unwrap()
+}
+
+/// Medicine Cabinet, 2026-10-30: a web app at the root that registers none of
+/// its areas leaves the kit's pages with a bar of kit links only; the start
+/// says so, with the remedy, and stays quiet when the app did its part.
+#[test]
+fn a_root_web_app_without_its_own_pages_is_warned_about() {
+    let quiet = build_logs(vec![Page::new("today", "Today", "/")], true, false);
+    assert!(!quiet.contains("no page of its own"), "{quiet}");
+    let loud = build_logs(Vec::new(), true, false);
+    assert!(loud.contains("no page of its own is registered"), "{loud}");
+    assert!(
+        loud.contains("app.page(Page::new"),
+        "names the remedy: {loud}"
+    );
+    assert!(
+        build_logs(Vec::new(), false, false).is_empty(),
+        "no web app at the root"
+    );
+    assert!(
+        build_logs(Vec::new(), true, true).is_empty(),
+        "kit pages drawn by the app"
+    );
+}

@@ -13,6 +13,18 @@ impl Registry {
         webapp_at_root: bool,
         kit_in_webapp: bool,
     ) -> PageSet {
+        if webapp_at_root && !kit_in_webapp && self.app_pages.is_empty() {
+            // Medicine Cabinet, 2026-10-30: the kit's own pages drew a bar
+            // with only Status, Clients and Storage, because the web app
+            // never told the kit its areas. Not an error (an app may want
+            // that), so said once at start, with the remedy.
+            tracing::warn!(
+                "a web app serves the root but no page of its own is registered: the kit's pages \
+                 (Status, Clients, Storage) will show only the kit's links in their bar; \
+                 register the app's areas with app.page(Page::new(id, title, path)), or draw \
+                 the kit's pages inside the app with app.kit_pages_in_webapp()"
+            );
+        }
         let mut pages = kit_pages(clients_label, passkeys, storage);
         self.apply_edits(&mut pages);
         pages.retain(|p| !self.disabled.contains(&p.id));
