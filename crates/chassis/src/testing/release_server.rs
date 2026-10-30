@@ -1,6 +1,6 @@
 //! The in-process fake release host behind `FakeReleaseServer::start`:
 //! a signed manifest written to a temporary directory and a file server
-//! on port 0.
+//! on port 0, and the constructors that start it.
 
 use axum::Router;
 
@@ -74,5 +74,26 @@ pub(super) async fn serve(
         dir,
         version_hits,
         _task: task,
+    }
+}
+
+impl FakeReleaseServer {
+    /// Serve `binary` as `asset` of release `version` of `repo`
+    /// (`owner/name`), signed with the trusted comment `<repo> v<version>`
+    /// the updater binds a manifest to (S1).
+    pub async fn start(repo: &str, version: &str, binary: &[u8], asset: &str) -> FakeReleaseServer {
+        Self::start_signed_as(version, binary, asset, &format!("{repo} v{version}")).await
+    }
+
+    /// [`FakeReleaseServer::start`] with an explicit trusted comment on the
+    /// signature — for the test that a genuine signature over another
+    /// version's or another repository's manifest is refused.
+    pub async fn start_signed_as(
+        version: &str,
+        binary: &[u8],
+        asset: &str,
+        trusted_comment: &str,
+    ) -> FakeReleaseServer {
+        serve(version, binary, asset, trusted_comment).await
     }
 }

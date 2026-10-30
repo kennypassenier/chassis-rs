@@ -1,8 +1,8 @@
 //! Starting the app under test: the temporary state directory, the
 //! environment that stands in for a deployment (port 0, fresh secrets) and
-//! the HTTP client that keeps redirects visible. Its own module because
-//! `TestApp`'s public methods are only requests; this is the one place the
-//! app is built.
+//! the HTTP client that keeps redirects visible. Its own module because it
+//! is the one place the app is built; the `start*` constructors sit here
+//! beside the `launch` they all end in.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -58,6 +58,84 @@ impl TestApp {
             client,
             timeout: DEFAULT_REQUEST_TIMEOUT,
         })
+    }
+
+    /// Start `spec` with `router` as its public routes, exactly as
+    /// `App::from_args_with_env` + `start()` would: a temporary state
+    /// directory, a fresh login token and secret key, `127.0.0.1:0`.
+    /// Panics with the kit's error when the app does not start.
+    pub async fn start(spec: AppSpec, router: Router) -> TestApp {
+        Self::start_with_env(spec, router, &[], |_| {}).await
+    }
+
+    /// [`TestApp::start`], with a closure that configures the [`App`]
+    /// before it starts — where a project registers `api_routes`,
+    /// `client_form_field`, `on_client_issued`, `nav_entry`, and so on.
+    pub async fn start_with(
+        spec: AppSpec,
+        router: Router,
+        configure: impl FnOnce(&mut App),
+    ) -> TestApp {
+        Self::start_with_env(spec, router, &[], configure).await
+    }
+
+    /// [`TestApp::start_with`], with extra environment entries laid over
+    /// the harness's own (`<PREFIX>_STATE_DIR`, `_LISTEN`, `_LOG`,
+    /// `_TOKEN`, `_SECRET_KEY`, `_PUBLIC_URL`): a project's own knobs, or
+    /// a kit knob the test wants at another value. A key that is also one
+    /// of the harness's wins over the harness.
+    pub async fn start_with_env(
+        spec: AppSpec,
+        router: Router,
+        env: &[(&str, &str)],
+        configure: impl FnOnce(&mut App),
+    ) -> TestApp {
+        let name = spec.name;
+        match Self::launch(spec, router, true, env, configure).await {
+            Ok(app) => app,
+            Err(e) => panic!(
+                "the test app `{name}` did not start: {e}. What now: the message above is the kit's own; fix what it names, or use TestApp::try_start_open when the refusal is what the test asserts"
+            ),
+        }
+    }
+
+    /// [`TestApp::start_with_env`] that returns the kit's refusal instead of
+    /// panicking: the test that proves a bad configuration (a storage warn
+    /// line above the budget, a data kind that does not match the schema)
+    /// stops the start with the right message.
+    pub async fn try_start_with_env(
+        spec: AppSpec,
+        router: Router,
+        env: &[(&str, &str)],
+        configure: impl FnOnce(&mut App),
+    ) -> Result<TestApp, Error> {
+        Self::launch(spec, router, true, env, configure).await
+    }
+
+    /// Start a service that opted in to an OPEN dashboard
+    /// (`AppSpec::open_dashboard`): no `<PREFIX>_TOKEN`, no
+    /// `<PREFIX>_SECRET_KEY`, every caller is the admin. [`TestApp::token`]
+    /// and [`TestApp::login`] have nothing to offer on such an app and say
+    /// so. Panics when the app does not start.
+    pub async fn start_open(
+        spec: AppSpec,
+        router: Router,
+        configure: impl FnOnce(&mut App),
+    ) -> TestApp {
+        let name = spec.name;
+        match Self::launch(spec, router, false, &[], configure).await {
+            Ok(app) => app,
+            Err(e) => panic!(
+                "the open test app `{name}` did not start: {e}. What now: set AppSpec::open_dashboard on the spec, or start it with secrets through TestApp::start"
+            ),
+        }
+    }
+
+    /// [`TestApp::start_open`] that returns the kit's refusal instead of
+    /// panicking — for the test that proves a service which did NOT opt in
+    /// refuses to start without its secrets.
+    pub async fn try_start_open(spec: AppSpec, router: Router) -> Result<TestApp, Error> {
+        Self::launch(spec, router, false, &[], |_| {}).await
     }
 }
 
