@@ -14,15 +14,15 @@
 //! problem is raised and the next start tries again. On success the marker
 //! row commits with the data and the old files are renamed `*.migrated`.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use rusqlite::{Connection, Transaction};
+use rusqlite::Transaction;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 
-use super::db::{Db, FileSizes, Migration};
-use super::kinds::{DataKind, KindStats, Now, ResolvedSelector, Selector};
+use super::db::{Db, Migration};
+use super::kinds::{DataKind, KindStats, ResolvedSelector, Selector};
 use crate::core::error::Error;
 
 /// What the import hook may need to know.
@@ -271,160 +271,12 @@ pub struct CompactPreview {
     pub paused: bool,
 }
 
-impl AppDb {
-    /// Open `<state dir>/<file>`: migrate, validate the kinds, run the
-    /// import once. A failed import is NOT an error here: see
-    /// [`AppDb::import_state`].
-    pub fn open(path: &Path, spec: AppDbSpec, kinds: Vec<DataKind>) -> Result<AppDb, Error> {
-        let handle = Self::empty()?;
-        handle.install(path, spec, kinds)?;
-        Ok(handle)
-    }
-
-    /// In memory, for fast tests of a project's own queries.
-    pub fn open_in_memory(spec: AppDbSpec, kinds: Vec<DataKind>) -> Result<AppDb, Error> {
-        let handle = Self::empty()?;
-        let db = Db::open_in_memory(&spec.migrations)?;
-        handle.finish(db, spec.import, kinds, Path::new("."))?;
-        Ok(handle)
-    }
-
-    /// The open database, or an error before start.
-    pub fn db(&self) -> Result<&Db, Error> {
-        self.shared.db.get().ok_or_else(|| {
-            Error::internal(
-                "the app database is not open yet",
-                "it opens when the service starts; open it directly with AppDb::open in a test",
-            )
-        })
-    }
-
-    pub fn path(&self) -> Option<&Path> {
-        self.shared.db.get().and_then(Db::path)
-    }
-
-    pub async fn read<T, F>(&self, f: F) -> Result<T, Error>
-    where
-        T: Send + 'static,
-        F: FnOnce(&Connection) -> Result<T, Error> + Send + 'static,
-    {
-        self.db()?.read(f).await
-    }
-
-    pub async fn write<T, F>(&self, f: F) -> Result<T, Error>
-    where
-        T: Send + 'static,
-        F: FnOnce(&Transaction) -> Result<T, Error> + Send + 'static,
-    {
-        self.db()?.write(f).await
-    }
-
-    pub fn read_blocking<T>(
-        &self,
-        f: impl FnOnce(&Connection) -> Result<T, Error>,
-    ) -> Result<T, Error> {
-        self.db()?.read_blocking(f)
-    }
-
-    pub fn write_blocking<T>(
-        &self,
-        f: impl FnOnce(&Transaction) -> Result<T, Error>,
-    ) -> Result<T, Error> {
-        self.db()?.write_blocking(f)
-    }
-
-    /// A consistent copy of the app's file (`VACUUM INTO`).
-    pub fn vacuum_into(&self, dest: &Path) -> Result<u64, Error> {
-        self.db()?.vacuum_into(dest)
-    }
-
-    pub fn sizes(&self) -> Result<FileSizes, Error> {
-        self.db()?.sizes()
-    }
-
-    /// How the one-time import stands.
-    pub fn import_state(&self) -> ImportState {
-        self.shared.import.lock().expect("import lock").clone()
-    }
-
-    /// Problems found while opening (a failed import, a failed rename).
-    pub fn problems(&self) -> Vec<StorageProblem> {
-        self.shared.problems.lock().expect("problems lock").clone()
-    }
-
-    pub fn kinds(&self) -> &[DataKind] {
-        self.shared.kinds.get().map_or(&[], Vec::as_slice)
-    }
-
-    /// When the app file was last compacted from the Storage page (RFC 3339),
-    /// `None` if it never was.
-    pub fn last_compacted_at(&self) -> Result<Option<String>, Error> {
-        self.read_blocking(|c| crate::storage::meta_get(c, LAST_COMPACTED_KEY))
-    }
-
-    /// One row per declared kind: rows, estimated bytes, oldest, newest.
-    pub fn overview(&self) -> Result<Vec<KindOverview>, Error> {
-        self.overview_rows()
-    }
-
-    /// Read-only: how many rows, how many bytes, oldest, newest, five
-    /// samples, and the token a delete must present.
-    pub fn preview(&self, kind: &str, sel: &Selector) -> Result<Preview, Error> {
-        self.preview_at(kind, sel, &Now::current())
-    }
-
-    /// Delete exactly what the preview showed: the confirmation must be the
-    /// kind's name, the token must be ours, fresh and for this kind and
-    /// selector, and the rows are recounted inside the transaction. If the
-    /// count moved since the preview nothing is deleted.
-    pub fn delete(
-        &self,
-        kind: &str,
-        sel: &Selector,
-        token: &str,
-        confirm: &str,
-    ) -> Result<Deleted, Error> {
-        self.delete_at(kind, sel, token, confirm, &Now::current())
-    }
-
-    /// Remove, from every kind that declared a rule, the rows finished by
-    /// their own definition. Returns `(kind, removed)` per kind with a rule.
-    /// Kinds without a rule, and tables that are no kind, are untouched.
-    pub fn prune_finished(&self) -> Result<Vec<(String, u64)>, Error> {
-        self.prune_finished_at(&Now::current())
-    }
-
-    /// [`AppDb::prune_finished`] at a chosen instant, so a project can test
-    /// its `finished_by_definition` rules without waiting for the clock
-    /// (3.12.0, homelab gap 139).
-    pub fn prune_finished_at(&self, now: &Now) -> Result<Vec<(String, u64)>, Error> {
-        self.prune_rows(now)
-    }
-
-    /// What a compact would do: the file, the pages it would hand back.
-    pub fn compact_preview(&self) -> Result<CompactPreview, Error> {
-        let sizes = self.sizes()?;
-        Ok(CompactPreview {
-            file_bytes: sizes.db_bytes,
-            reclaimable_bytes: sizes.reclaimable_bytes,
-            // VACUUM writes a full copy first.
-            free_space_needed_bytes: sizes.db_bytes.saturating_sub(sizes.reclaimable_bytes),
-            paused: crate::shell::backup::is_paused(),
-        })
-    }
-
-    /// `VACUUM` the app's file. Refused while a backup pause holds the
-    /// state: a rewrite of the whole file is exactly what the backup must
-    /// not see.
-    pub fn compact(&self) -> Result<CompactPreview, Error> {
-        self.run_compact()
-    }
-}
-
+mod access;
 mod compact;
 mod import;
 mod lifecycle;
 mod operations;
+mod status;
 #[cfg(test)]
 mod tests;
 mod token;

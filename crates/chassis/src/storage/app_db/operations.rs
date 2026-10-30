@@ -10,31 +10,6 @@ use crate::core::error::{Error, Kind};
 use crate::storage::kinds::{DataKind, KindStats, Now, ResolvedSelector, Selector};
 
 impl AppDb {
-    /// The rows of [`AppDb::overview`]: one per declared kind.
-    pub(super) fn overview_rows(&self) -> Result<Vec<KindOverview>, Error> {
-        let whole = ResolvedSelector {
-            cutoff_secs: None,
-            filters: Default::default(),
-        };
-        self.read_blocking(|c| {
-            self.kinds()
-                .iter()
-                .map(|k| {
-                    Ok(KindOverview {
-                        id: k.id().into(),
-                        label: k.label().into(),
-                        description: k.describe().into(),
-                        stats: k.stats(c, &whole)?,
-                        filters: k.filters().to_vec(),
-                        unit: k.unit_word().into(),
-                        supports_age: k.has_time(),
-                        finished_automatically: k.has_finished_rule(),
-                    })
-                })
-                .collect()
-        })
-    }
-
     pub(crate) fn preview_at(
         &self,
         kind: &str,
@@ -143,8 +118,79 @@ impl AppDb {
         })
     }
 
-    /// The body of [`AppDb::prune_finished_at`].
-    pub(super) fn prune_rows(&self, now: &Now) -> Result<Vec<(String, u64)>, Error> {
+    pub(super) fn kind(&self, id: &str) -> Result<&DataKind, Error> {
+        self.kinds().iter().find(|k| k.id() == id).ok_or_else(|| {
+            Error::new(
+                Kind::NotFound,
+                format!("there is no kind of data called `{id}`"),
+                format!(
+                    "use one of: {}",
+                    self.kinds()
+                        .iter()
+                        .map(DataKind::id)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            )
+        })
+    }
+
+    /// One row per declared kind: rows, estimated bytes, oldest, newest.
+    pub fn overview(&self) -> Result<Vec<KindOverview>, Error> {
+        let whole = ResolvedSelector {
+            cutoff_secs: None,
+            filters: Default::default(),
+        };
+        self.read_blocking(|c| {
+            self.kinds()
+                .iter()
+                .map(|k| {
+                    Ok(KindOverview {
+                        id: k.id().into(),
+                        label: k.label().into(),
+                        description: k.describe().into(),
+                        stats: k.stats(c, &whole)?,
+                        filters: k.filters().to_vec(),
+                        unit: k.unit_word().into(),
+                        supports_age: k.has_time(),
+                        finished_automatically: k.has_finished_rule(),
+                    })
+                })
+                .collect()
+        })
+    }
+
+    /// Read-only: how many rows, how many bytes, oldest, newest, five
+    /// samples, and the token a delete must present.
+    pub fn preview(&self, kind: &str, sel: &Selector) -> Result<Preview, Error> {
+        self.preview_at(kind, sel, &Now::current())
+    }
+
+    /// Delete exactly what the preview showed: the confirmation must be the
+    /// kind's name, the token must be ours, fresh and for this kind and
+    /// selector, and the rows are recounted inside the transaction. If the
+    /// count moved since the preview nothing is deleted.
+    pub fn delete(
+        &self,
+        kind: &str,
+        sel: &Selector,
+        token: &str,
+        confirm: &str,
+    ) -> Result<Deleted, Error> {
+        self.delete_at(kind, sel, token, confirm, &Now::current())
+    }
+
+    /// Remove, from every kind that declared a rule, the rows finished by
+    /// their own definition. Returns `(kind, removed)` per kind with a rule.
+    /// Kinds without a rule, and tables that are no kind, are untouched.
+    pub fn prune_finished(&self) -> Result<Vec<(String, u64)>, Error> {
+        self.prune_finished_at(&Now::current())
+    }
+
+    /// [`AppDb::prune_finished`] at a chosen instant, so a project can test
+    /// its `finished_by_definition` rules without waiting for the clock
+    /// (3.12.0, homelab gap 139).
+    pub fn prune_finished_at(&self, now: &Now) -> Result<Vec<(String, u64)>, Error> {
         if !self.kinds().iter().any(DataKind::has_finished_rule) {
             return Ok(Vec::new());
         }
@@ -161,23 +207,6 @@ impl AppDb {
             tracing::info!(kind = %kind, removed, "storage: pruned rows finished by their own definition");
         }
         Ok(out)
-    }
-
-    pub(super) fn kind(&self, id: &str) -> Result<&DataKind, Error> {
-        self.kinds().iter().find(|k| k.id() == id).ok_or_else(|| {
-            Error::new(
-                Kind::NotFound,
-                format!("there is no kind of data called `{id}`"),
-                format!(
-                    "use one of: {}",
-                    self.kinds()
-                        .iter()
-                        .map(DataKind::id)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ),
-            )
-        })
     }
 }
 

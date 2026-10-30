@@ -1,9 +1,12 @@
 //! The numbered schema migrations: each step runs in its own transaction
 //! together with the `user_version` bump, and a database newer than the
 //! binary is refused. Its own module because it is the one place that
-//! decides how a schema moves forward.
+//! decides how a schema moves forward; `Migration`'s constructors sit here
+//! too.
 
-use rusqlite::{Connection, TransactionBehavior};
+use std::sync::Arc;
+
+use rusqlite::{Connection, Transaction, TransactionBehavior};
 
 use super::Migration;
 use crate::core::error::Error;
@@ -49,4 +52,19 @@ pub(super) fn migrate(
         tracing::info!(file = path, version, "database migrated");
     }
     Ok(migrations.len())
+}
+
+impl Migration {
+    /// A step that is a batch of SQL statements.
+    pub fn sql(sql: &'static str) -> Self {
+        Migration(Arc::new(move |tx| {
+            tx.execute_batch(sql).map_err(Error::from)
+        }))
+    }
+
+    /// A step that is code, for a change SQL alone cannot make (copying
+    /// rows through a transformation).
+    pub fn code(f: impl Fn(&Transaction) -> Result<(), Error> + Send + Sync + 'static) -> Self {
+        Migration(Arc::new(f))
+    }
 }

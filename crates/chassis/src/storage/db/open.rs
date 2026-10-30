@@ -1,7 +1,7 @@
 //! Opening a database file: create the directory, set the durability
 //! pragmas, apply the migrations (retrying a racing start) and open the
 //! read-only pool. Its own module because it is the one place that knows
-//! how a file becomes a ready [`Db`]; the handle itself only uses it.
+//! how a file becomes a ready [`Db`]: `Db::open` and `Db::open_in_memory`.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -44,62 +44,83 @@ pub(super) fn pragmas(conn: &Connection, wal: bool) -> Result<(), Error> {
     Ok(())
 }
 
-/// Open (creating it) the file at `path`, bring its schema up to date.
-pub(super) fn open_file(path: &Path, migrations: &[Migration]) -> Result<Db, Error> {
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| {
-            Error::config(
-                format!("cannot create {}: {e}", dir.display()),
-                "create the state directory and make the service user its owner",
-            )
-        })?;
-    }
-    let shown = path.display().to_string();
-    let mut writer = Connection::open(path).map_err(|e| {
-        Error::config(
-            format!("cannot open the database {shown}: {e}"),
-            "check the state directory's permissions; the service user must own it",
-        )
-    })?;
-    // Two processes starting on one file at the same moment can find
-    // the first WAL switch locked; the setup is idempotent, so retry.
-    let mut attempt = 0;
-    let schema = loop {
-        let setup = (|| {
-            pragmas(&writer, true)?;
-            writer.execute_batch(META_DDL)?;
-            migrate(&mut writer, migrations, &shown)
-        })();
-        match setup {
-            Err(e) if e.kind == Kind::Overloaded && attempt < 40 => {
-                attempt += 1;
-                std::thread::sleep(Duration::from_millis(50));
-            }
-            other => break other?,
+impl Db {
+    /// Open (creating it) the file at `path`, bring its schema up to date.
+    pub fn open(path: &Path, migrations: &[Migration]) -> Result<Db, Error> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| {
+                Error::config(
+                    format!("cannot create {}: {e}", dir.display()),
+                    "create the state directory and make the service user its owner",
+                )
+            })?;
         }
-    };
-    let mut readers = Vec::with_capacity(READERS);
-    for _ in 0..READERS {
-        let r = Connection::open_with_flags(
-            path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .map_err(|e| {
+        let shown = path.display().to_string();
+        let mut writer = Connection::open(path).map_err(|e| {
             Error::config(
-                format!("cannot open a read connection to {shown}: {e}"),
-                "check the file's permissions",
+                format!("cannot open the database {shown}: {e}"),
+                "check the state directory's permissions; the service user must own it",
             )
         })?;
-        pragmas(&r, false)?;
-        readers.push(Mutex::new(r));
+        // Two processes starting on one file at the same moment can find
+        // the first WAL switch locked; the setup is idempotent, so retry.
+        let mut attempt = 0;
+        let schema = loop {
+            let setup = (|| {
+                pragmas(&writer, true)?;
+                writer.execute_batch(META_DDL)?;
+                migrate(&mut writer, migrations, &shown)
+            })();
+            match setup {
+                Err(e) if e.kind == Kind::Overloaded && attempt < 40 => {
+                    attempt += 1;
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+                other => break other?,
+            }
+        };
+        let mut readers = Vec::with_capacity(READERS);
+        for _ in 0..READERS {
+            let r = Connection::open_with_flags(
+                path,
+                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            )
+            .map_err(|e| {
+                Error::config(
+                    format!("cannot open a read connection to {shown}: {e}"),
+                    "check the file's permissions",
+                )
+            })?;
+            pragmas(&r, false)?;
+            readers.push(Mutex::new(r));
+        }
+        Ok(Db {
+            inner: Arc::new(Inner {
+                path: Some(path.to_path_buf()),
+                writer: Mutex::new(writer),
+                readers,
+                schema,
+                last_failure: Mutex::new(None),
+            }),
+        })
     }
-    Ok(Db {
-        inner: Arc::new(Inner {
-            path: Some(path.to_path_buf()),
-            writer: Mutex::new(writer),
-            readers,
-            schema,
-            last_failure: Mutex::new(None),
-        }),
-    })
+
+    /// A database in memory, for fast logic tests. WAL does not apply to a
+    /// memory database, so a test of durability or of the pause uses
+    /// [`Db::open`] on a real file; reads share the writer here.
+    pub fn open_in_memory(migrations: &[Migration]) -> Result<Db, Error> {
+        let mut writer = Connection::open_in_memory()?;
+        pragmas(&writer, false)?;
+        writer.execute_batch(META_DDL)?;
+        let schema = migrate(&mut writer, migrations, ":memory:")?;
+        Ok(Db {
+            inner: Arc::new(Inner {
+                path: None,
+                writer: Mutex::new(writer),
+                readers: Vec::new(),
+                schema,
+                last_failure: Mutex::new(None),
+            }),
+        })
+    }
 }

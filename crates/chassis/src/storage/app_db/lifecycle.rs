@@ -94,6 +94,23 @@ impl AppDb {
             }
         }
     }
+
+    /// Open `<state dir>/<file>`: migrate, validate the kinds, run the
+    /// import once. A failed import is NOT an error here: see
+    /// [`AppDb::import_state`].
+    pub fn open(path: &Path, spec: AppDbSpec, kinds: Vec<DataKind>) -> Result<AppDb, Error> {
+        let handle = Self::empty()?;
+        handle.install(path, spec, kinds)?;
+        Ok(handle)
+    }
+
+    /// In memory, for fast tests of a project's own queries.
+    pub fn open_in_memory(spec: AppDbSpec, kinds: Vec<DataKind>) -> Result<AppDb, Error> {
+        let handle = Self::empty()?;
+        let db = Db::open_in_memory(&spec.migrations)?;
+        handle.finish(db, spec.import, kinds, Path::new("."))?;
+        Ok(handle)
+    }
 }
 
 /// Every kind must fit the schema, and no id may be declared twice.

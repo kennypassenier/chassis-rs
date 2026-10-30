@@ -7,9 +7,28 @@ use super::{AppDb, CompactPreview, LAST_COMPACTED_KEY};
 use crate::core::error::{Error, Kind};
 
 impl AppDb {
-    /// The body of [`AppDb::compact`]: refuse while paused, vacuum, and
-    /// remember when.
-    pub(super) fn run_compact(&self) -> Result<CompactPreview, Error> {
+    /// When the app file was last compacted from the Storage page (RFC 3339),
+    /// `None` if it never was.
+    pub fn last_compacted_at(&self) -> Result<Option<String>, Error> {
+        self.read_blocking(|c| crate::storage::meta_get(c, LAST_COMPACTED_KEY))
+    }
+
+    /// What a compact would do: the file, the pages it would hand back.
+    pub fn compact_preview(&self) -> Result<CompactPreview, Error> {
+        let sizes = self.sizes()?;
+        Ok(CompactPreview {
+            file_bytes: sizes.db_bytes,
+            reclaimable_bytes: sizes.reclaimable_bytes,
+            // VACUUM writes a full copy first.
+            free_space_needed_bytes: sizes.db_bytes.saturating_sub(sizes.reclaimable_bytes),
+            paused: crate::shell::backup::is_paused(),
+        })
+    }
+
+    /// `VACUUM` the app's file. Refused while a backup pause holds the
+    /// state: a rewrite of the whole file is exactly what the backup must
+    /// not see.
+    pub fn compact(&self) -> Result<CompactPreview, Error> {
         if crate::shell::backup::is_paused() {
             return Err(Error::new(
                 Kind::Overloaded,

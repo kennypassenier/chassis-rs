@@ -19,6 +19,7 @@ use crate::core::error::Error;
 
 mod background;
 mod budget;
+mod construct;
 mod metrics;
 mod report;
 mod setting;
@@ -139,43 +140,6 @@ pub struct StorageReport {
     pub checked_at: u64,
 }
 
-impl FileReport {
-    /// A file's share, for a project's own test of what it hangs on
-    /// [`crate::App::on_storage_warn`] (3.12.0).
-    pub fn new(role: &'static str, file: &str, sizes: FileSizes, cleanable: bool) -> Self {
-        FileReport {
-            role,
-            file: file.to_string(),
-            total_bytes: sizes.total(),
-            sizes,
-            cleanable,
-        }
-    }
-}
-
-impl StorageReport {
-    /// A report built by hand, so a project can unit-test the code it hangs
-    /// on [`crate::App::on_storage_warn`] without a database near the
-    /// budget (3.12.0, homelab gap 139).
-    pub fn new(
-        files: Vec<FileReport>,
-        total_bytes: u64,
-        budget_bytes: u64,
-        warn_bytes: u64,
-        level: Level,
-        checked_at: u64,
-    ) -> Self {
-        StorageReport {
-            files,
-            total_bytes,
-            budget_bytes,
-            warn_bytes,
-            level,
-            checked_at,
-        }
-    }
-}
-
 /// Called once when the level rises (ok to warn, warn to over).
 pub type WarnHook = Arc<dyn Fn(&StorageReport) + Send + Sync>;
 
@@ -212,116 +176,4 @@ fn name_of(db: &Db) -> String {
         .map_or_else(String::new, |n| n.to_string_lossy().into_owned())
 }
 
-impl Storage {
-    pub(crate) fn new(
-        setup: BudgetSetup,
-        app: Option<AppDb>,
-        kit: Option<Db>,
-        hook: Option<WarnHook>,
-    ) -> Self {
-        let cfg = {
-            let (b, w, _) = setup.effective(Stored::default());
-            StorageConfig::from_mb(b, Some(w)).unwrap_or_default()
-        };
-        let storage = Storage {
-            inner: Arc::new(Inner {
-                cfg: Mutex::new(cfg),
-                setup,
-                stored: Mutex::new(Stored::default()),
-                app,
-                kit,
-                kit_problems: Mutex::new(Vec::new()),
-                kit_prune: Mutex::new(None),
-                report: Mutex::new(None),
-                hook,
-            }),
-        };
-        if let Err(e) = storage.load_setting() {
-            tracing::warn!(error = %e, "storage: the budget setting could not be read; using the configured budget");
-        }
-        storage
-    }
-
-    #[cfg(feature = "dashboard")]
-    pub(crate) fn add_problem(&self, p: StorageProblem) {
-        self.inner
-            .kit_problems
-            .lock()
-            .expect("problems lock")
-            .push(p);
-    }
-
-    /// The kit file's handle, for the dashboard's stores.
-    #[cfg(feature = "dashboard")]
-    pub(crate) fn kit_db(&self) -> Option<&Db> {
-        self.inner.kit.as_ref()
-    }
-
-    /// What removes expired sessions from the kit file.
-    #[cfg(feature = "dashboard")]
-    pub(crate) fn set_kit_prune(&self, f: KitPrune) {
-        *self.inner.kit_prune.lock().expect("prune lock") = Some(f);
-    }
-
-    /// The setting as the Storage API shows it.
-    pub fn setting(&self) -> serde_json::Value {
-        self.setting_json()
-    }
-
-    /// Store a new budget and/or warn line (whole MB), or with `reset` remove
-    /// the page setting. A value the environment or a flag fixes is refused;
-    /// the budget is checked again at once. Returns the new report.
-    pub fn set_budget(
-        &self,
-        budget_mb: Option<u64>,
-        warn_mb: Option<u64>,
-        reset: bool,
-    ) -> Result<StorageReport, Error> {
-        self.change_budget(budget_mb, warn_mb, reset)
-    }
-
-    pub fn config(&self) -> StorageConfig {
-        *self.inner.cfg.lock().expect("cfg lock")
-    }
-
-    pub fn app(&self) -> Option<&AppDb> {
-        self.inner.app.as_ref()
-    }
-
-    /// Measure both files, remember the result, and run the warn hook when
-    /// the level rose. Blocks briefly (two `PRAGMA`s per file).
-    pub fn check(&self) -> Result<StorageReport, Error> {
-        self.measure()
-    }
-
-    /// The last check, measuring now when there is none yet.
-    pub fn report(&self) -> Result<StorageReport, Error> {
-        if let Some(r) = self.inner.report.lock().expect("report lock").clone() {
-            return Ok(r);
-        }
-        self.check()
-    }
-
-    /// Everything the status page should say about storage.
-    pub fn problems(&self) -> Vec<StorageProblem> {
-        self.collect_problems()
-    }
-
-    /// Remove, on the app's side, the rows of declared kinds that are
-    /// finished by their own definition, and, on the kit's side, the
-    /// sessions that expired. Nothing else is ever removed on its own.
-    pub fn prune_finished(&self) -> Result<(), Error> {
-        if let Some(app) = &self.inner.app {
-            app.prune_finished()?;
-        }
-        let kit_prune = self.inner.kit_prune.lock().expect("prune lock").clone();
-        if let Some(f) = kit_prune {
-            let removed = f()?;
-            tracing::info!(
-                removed,
-                "storage: removed expired sessions from the kit database"
-            );
-        }
-        Ok(())
-    }
-}
+impl Storage {}

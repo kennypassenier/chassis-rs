@@ -8,16 +8,12 @@ use rusqlite::types::Value as Sql;
 use rusqlite::{Connection, Transaction};
 use serde_json::{Value as Json, json};
 
-use super::{DataKind, KindStats, ResolvedSelector, Shape, TimeFormat, rfc3339};
+use super::{DataKind, KindStats, Now, ResolvedSelector, Shape, TimeFormat, rfc3339};
 use crate::core::error::Error;
 
 impl DataKind {
-    /// The body of [`DataKind::stats`].
-    pub(super) fn stats_impl(
-        &self,
-        conn: &Connection,
-        sel: &ResolvedSelector,
-    ) -> Result<KindStats, Error> {
+    /// Count, estimated bytes, oldest and newest of a selection.
+    pub fn stats(&self, conn: &Connection, sel: &ResolvedSelector) -> Result<KindStats, Error> {
         match &self.shape {
             Shape::Custom(ops) => ops.stats(conn, sel),
             Shape::Table { table, time } => {
@@ -52,8 +48,8 @@ impl DataKind {
         }
     }
 
-    /// The body of [`DataKind::samples`].
-    pub(super) fn samples_impl(
+    /// A few rows of a selection, oldest first, for a person to recognise.
+    pub fn samples(
         &self,
         conn: &Connection,
         sel: &ResolvedSelector,
@@ -93,11 +89,10 @@ impl DataKind {
         }
     }
 
-    /// The body of [`DataKind::sample_layout`].
-    pub(super) fn sample_layout_impl(
-        &self,
-        conn: &Connection,
-    ) -> Result<(Vec<String>, Option<String>), Error> {
+    /// The columns a sample row shows, in the table's order, and which of
+    /// them is the time column (shown as an instant). A custom kind says neither:
+    /// the page then reads the keys of its first sample.
+    pub fn sample_layout(&self, conn: &Connection) -> Result<(Vec<String>, Option<String>), Error> {
         match &self.shape {
             Shape::Custom(_) => Ok((Vec::new(), self.custom_time.clone())),
             Shape::Table { table, time } => {
@@ -117,12 +112,8 @@ impl DataKind {
         }
     }
 
-    /// The body of [`DataKind::delete`].
-    pub(super) fn delete_impl(
-        &self,
-        tx: &Transaction,
-        sel: &ResolvedSelector,
-    ) -> Result<u64, Error> {
+    /// Delete a selection; returns the rows removed.
+    pub fn delete(&self, tx: &Transaction, sel: &ResolvedSelector) -> Result<u64, Error> {
         match &self.shape {
             Shape::Custom(ops) => ops.delete(tx, sel),
             Shape::Table { table, .. } => {
@@ -133,6 +124,15 @@ impl DataKind {
                 )?;
                 Ok(n as u64)
             }
+        }
+    }
+
+    /// Remove the rows finished by their own definition; `None` when this
+    /// kind declares no such rule.
+    pub(crate) fn prune_finished(&self, tx: &Transaction, now: &Now) -> Result<Option<u64>, Error> {
+        match &self.finished {
+            Some(f) => Ok(Some(f(tx, now)?)),
+            None => Ok(None),
         }
     }
 }
