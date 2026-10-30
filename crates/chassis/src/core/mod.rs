@@ -14,7 +14,8 @@ pub mod error;
 pub mod notify;
 #[cfg(feature = "notify")]
 pub mod notify_target;
-#[cfg(feature = "notify")]
+// Only the shared sender (notify + dashboard) sends the token.
+#[cfg(all(feature = "notify", feature = "dashboard"))]
 pub(crate) mod notify_token;
 pub mod session;
 pub mod update;
