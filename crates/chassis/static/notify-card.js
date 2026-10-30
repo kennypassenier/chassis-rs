@@ -79,8 +79,8 @@ async function start(card) {
     const value = t.address ?? '';
     return `<div class="kp-field kp-formgrid__row">
       <label class="kp-formgrid__label" for="${id}">${label}</label>
-      <div class="kp-formgrid__control"><input class="kp-field__input" type="url" id="${id}" value="${esc(value)}" placeholder="${esc(placeholder)}" autocomplete="off" spellcheck="false" aria-describedby="${id}-note"${off ? ' disabled' : ''} data-notify-field="${which}" data-notify-original="${esc(value)}"></div>
-      <div class="kp-formgrid__value"><p class="kp-field__help notify-card__note" id="${id}-note">${tag(t)}${esc(noteOf(t, which))}</p><span class="kp-field__error" data-notify-error="${which}" hidden></span></div>
+      <div class="kp-formgrid__control notify-card__control"><input class="kp-field__input" type="url" id="${id}" value="${esc(value)}" placeholder="${esc(placeholder)}" autocomplete="off" spellcheck="false" aria-describedby="${id}-note"${off ? ' disabled' : ''} data-notify-field="${which}" data-notify-original="${esc(value)}">
+        <p class="kp-field__help notify-card__note" id="${id}-note">${tag(t)}${esc(noteOf(t, which))}</p><span class="kp-field__error" data-notify-error="${which}" hidden></span></div>
     </div>`;
   }
 
@@ -88,15 +88,15 @@ async function start(card) {
     `<button type="button" class="kp-button${kind ? ` kp-button--${kind}` : ''}" id="${id}" data-kp-flash-button data-kp-flash-words="${esc(words)}"${off ? ` disabled aria-describedby="${why}"` : ''}>${esc(label)}</button>`;
 
   function targetsHtml(d) {
-    return `<fieldset class="kp-formgrid notify-card__form" data-kp-formgrid-stack="auto" aria-describedby="notify-explain"><legend class="kp-sr-only">Addresses</legend>
+    return `<div class="kp-formgrid notify-card__form" data-kp-formgrid-stack="auto" role="group" aria-label="Addresses" aria-describedby="notify-explain">
       <p class="kp-dialog__note" id="notify-explain" data-kp-formgrid-span="all">The primary is a kyu topic, such as http://hub.example:8080/t/ops.alerts. The fallback is usually the household Home Assistant webhook. A value fixed by configuration cannot be changed here.</p>
       ${fieldRow('primary', 'Primary', d.primary, 'http://hub.example:8080/t/<topic>')}
       ${fieldRow('fallback', 'Fallback', d.fallback, 'https://homeassistant.example/api/webhook/<id>')}
-      <div class="kp-formgrid__row kp-formgrid__row--buttons"><div class="kp-formgrid__control"><div class="kp-formgrid__buttons">
+      <div class="kp-formgrid__row kp-formgrid__row--buttons"><div class="kp-formgrid__control notify-card__control"><div class="kp-formgrid__buttons">
         ${button('Use defaults', { id: 'notify-reset', words: 'Reset,Refused', off: !d.primary.saved && !d.fallback.saved, why: 'notify-state' })}
         ${button('Save', { id: 'notify-save', words: 'Saved,Refused', kind: 'primary', off: true, why: 'notify-state' })}
-      </div></div><p class="kp-formgrid__value kp-dialog__note notify-card__saving" id="notify-state" data-notify-state role="status"></p></div>
-    </fieldset>`;
+      </div><p class="kp-dialog__note notify-card__saving" id="notify-state" data-notify-state role="status"></p></div></div>
+    </div>`;
   }
 
   function factsHtml(d) {
@@ -108,8 +108,8 @@ async function start(card) {
     const kept = `At most ${num(o.cap)} are kept; past that the oldest are dropped${o.dropped_total ? ` (${num(o.dropped_total)} so far)` : ''}.`;
     const err = d.last_error;
     const errorHtml = err
-      ? `<div class="kp-alert kp-alert--destructive" role="alert"><strong class="kp-alert__title">Last error</strong><span class="kp-alert__body">${esc(err.message)}</span><time class="notify-card__when" datetime="${esc(err.at)}">${when(err.at)}</time></div>`
-      : '<div class="kp-empty"><strong class="kp-empty__title">No error recorded</strong><span class="kp-empty__body">The last error appears here with its time.</span></div>';
+      ? `<div class="kp-alert kp-alert--destructive" role="alert"><span class="kp-attention__icon" aria-hidden="true">!</span><div class="kp-attention__text"><strong>Last error</strong><span>${esc(err.message)}</span><time class="notify-card__when" datetime="${esc(err.at)}">${when(err.at)}</time></div></div>`
+      : '<div class="kp-empty"><p class="kp-empty__title">No error recorded</p><p class="kp-empty__body">The last error appears here with its time.</p></div>';
     const last = d.last_delivery
       ? `${when(d.last_delivery.at)} <span class="kp-text-muted">via the ${esc(d.last_delivery.via)}</span>`
       : '<span class="kp-text-muted">Nothing delivered yet</span>';
@@ -127,7 +127,7 @@ async function start(card) {
         <p class="kp-dialog__note" id="notify-test-why">${esc(why)}</p></div>
       <div class="notify-card__test-result" id="notify-test-result" data-notify-test-result role="status" aria-live="polite">${testIdle()}</div>`;
   }
-  const testIdle = () => '<div class="kp-empty"><strong class="kp-empty__title">No test sent yet</strong><span class="kp-empty__body">The answer of each address appears here.</span></div>';
+  const testIdle = () => '<div class="kp-empty"><p class="kp-empty__title">No test sent yet</p><p class="kp-empty__body">The answer of each address appears here.</p></div>';
   const OUTCOME = { delivered: 'ok', failed: 'failed', not_set: 'warn' };
   const testResult = (r) =>
     `<ul class="kp-statuslist kp-statuslist--rows" aria-label="Test result">${r.results
@@ -263,7 +263,7 @@ async function start(card) {
           out.innerHTML = testResult(r);
           return r.results.some((x) => x.outcome === 'failed') ? { error: 'A target did not take the test message', word: 'Failed' } : 'Sent';
         } catch (error) {
-          out.innerHTML = `<div class="kp-alert kp-alert--destructive" role="alert"><span class="kp-alert__body">${esc(error.message)}</span></div>`;
+          out.innerHTML = `<div class="kp-alert kp-alert--destructive" role="alert"><span class="kp-attention__icon" aria-hidden="true">!</span><div class="kp-attention__text"><strong>The test could not be sent</strong><span>${esc(error.message)}</span></div></div>`;
           return { error: error.message.replace(/\.+$/, ''), word: 'Failed' };
         }
       });

@@ -20,7 +20,10 @@
 .notify-card__test-result { grid-column: 5 / -1; min-block-size: 5.5rem; }
 .notify-card__test-result .kp-empty { block-size: 100%; }
 
-.notify-card__form { --kp-formgrid-label-min: 6.8rem; --kp-formgrid-label-max: 6.8rem; }
+.notify-card__form { --kp-formgrid-label-min: 6rem; --kp-formgrid-label-max: 6rem; }
+.notify-card__control { display: grid; gap: var(--kp-space-xs, 0.25rem); }
+.notify-card__control .kp-field__input { inline-size: 100%; }
+.notify-card__facts .kp-empty { min-block-size: 5.5rem; }
 .notify-card__tag { display: inline-flex; margin-inline-end: var(--kp-space-xs, 0.25rem); }
 .notify-card__note { margin: 0; }
 .notify-card__facts .kp-kpis { margin: 0; }
@@ -35,3 +38,6 @@
   .notify-card__test-result { grid-column: 1 / -1; }
   .notify-card__test { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* The loading plate has the filled card's height, so nothing jumps. */
+.notify-card .kp-card__data { min-block-size: 28rem; }
