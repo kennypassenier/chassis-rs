@@ -30,7 +30,10 @@ mod clients;
 mod drift;
 mod failed_tests;
 mod kit_docs;
+mod manifest_version;
 mod release;
+mod release_config;
+mod release_hooks;
 mod templates;
 
 use std::path::{Path, PathBuf};
@@ -38,6 +41,7 @@ use std::process::{Command, ExitCode};
 
 use chassis::Error;
 use clap::{Parser, Subcommand};
+use manifest_version::{bump_version, current_version};
 use serde::{Deserialize, Serialize};
 
 /// What `new` recorded and `sync`/`release` read back.
@@ -95,6 +99,14 @@ struct Recorded {
     /// `<vmid>-app-<name>` the homelab validates. 0 = not adopted yet.
     #[serde(default)]
     vmid: u32,
+    /// How the release differs from one musl binary named like the project
+    /// (homelab-shared-4): see `release_config.rs`. Last, because it is a
+    /// TOML table. Absent = today's behaviour, and not written back.
+    #[serde(
+        default,
+        skip_serializing_if = "release_config::ReleaseConfig::is_default"
+    )]
+    release: release_config::ReleaseConfig,
 }
 
 impl Recorded {
@@ -585,6 +597,7 @@ fn cmd_new(
         image: None,
         required_checks: Vec::new(),
         vmid: 0,
+        release: Default::default(),
         name,
         description,
         latch,
@@ -1082,13 +1095,37 @@ fn release_plan(rec: &Recorded, v: &str, tag: &str, image: bool) -> Vec<String> 
         format!("write Cargo.toml version = \"{v}\" and a {v} section in CHANGELOG.md; cargo update -w"),
         format!("git commit -am 'chore(release): {v} [meta]' && git tag {tag}   # the commit runs the project's hooks"),
         format!("check: tag {tag} names the version Cargo.toml says"),
-        format!("docker run … rust:{}-slim-trixie cargo build --release --locked --target {} → dist/{} + dist/SHA256SUMS; refuse any `=>` in ldd", rec.toolchain, release::MUSL_TARGET, rec.name),
+        release::build_plan_line(rec),
         format!("docker build -t {image_tag} -t {image_latest} . && docker run --rm {image_tag} --version"),
         format!("git push origin HEAD:main && git push origin {tag}"),
         format!("docker push {image_tag} && docker push {image_latest}; then keep the newest {} image versions on ghcr", release::KEEP_IMAGES),
         format!("gh {}", release::release_create_args(rec, tag).join(" ")),
-        format!("scripts/sign-release.sh {tag}   # minisign asks for the key password; uploads .minisig then VERSION, then marks it latest"),
+        if rec.release.sign {
+            format!("scripts/sign-release.sh {tag}   # minisign asks for the key password; uploads .minisig then VERSION, then marks it latest")
+        } else {
+            "no signing step ([release] sign = false): you sign the release afterwards".to_string()
+        },
     ];
+    let hooks = &rec.release.hooks;
+    if !hooks.pre_gate.is_empty() || hooks.tag_notes.is_some() {
+        let mut line = format!("hooks before the gate: {}", hooks.pre_gate.join(" · "));
+        if let Some(t) = &hooks.tag_notes {
+            line.push_str(&format!(
+                " · tag_notes {t} (the tag is annotated with its output)"
+            ));
+        }
+        plan.insert(0, line);
+    }
+    if !hooks.post_gate.is_empty() {
+        plan.insert(
+            if hooks.pre_gate.is_empty() && hooks.tag_notes.is_none() {
+                2
+            } else {
+                3
+            },
+            format!("hooks after the gate: {}", hooks.post_gate.join(" · ")),
+        );
+    }
     if !image {
         plan.retain(|s| !s.starts_with("docker build -t ") && !s.starts_with("docker push "));
     }
@@ -1110,7 +1147,8 @@ fn cmd_release(
         "chassis release: container image: {} ({why})",
         if image { "yes" } else { "no" }
     );
-    check_release_files(dir, image)?;
+    rec.release.validate()?;
+    check_release_files(dir, image, rec.release.sign)?;
     if plan {
         let cargo_path = dir.join("Cargo.toml");
         let cargo = std::fs::read_to_string(&cargo_path).map_err(|e| io_err(&cargo_path, e))?;
@@ -1203,8 +1241,22 @@ fn cmd_release(
     let changelog = std::fs::read_to_string(&changelog_path).unwrap_or_default();
     check_major_has_migration(&changelog, current, v)?;
 
+    // 0b. The project's own checks (homelab-shared-4): pre_gate hooks, and
+    // the tag annotation text, before anything is gated or changed.
+    let hook_env = release_hooks::HookEnv {
+        version: &v.to_string(),
+        tag: &tag,
+        dry_run,
+    };
+    release_hooks::run_stage(dir, "pre_gate", &rec.release.hooks.pre_gate, &hook_env)?;
+    let annotation = match &rec.release.hooks.tag_notes {
+        Some(line) => Some(release_hooks::tag_notes(dir, line, &hook_env)?),
+        None => None,
+    };
+
     // 1. The gate: everything the kit's CI workflow ran, on this tree.
     release::gate(dir, &rec, image, full_tests)?;
+    release_hooks::run_stage(dir, "post_gate", &rec.release.hooks.post_gate, &hook_env)?;
 
     // 2. Bump Cargo.toml (and, for real, the changelog). A dry run builds
     // the bumped version too, so the binary and the image it proves answer
@@ -1229,7 +1281,20 @@ fn cmd_release(
             &["commit", "-qam", &format!("chore(release): {v} [meta]")],
             false,
         )?;
-        run(dir, "git", &["tag", &tag], false)?;
+        match &annotation {
+            // An annotated tag carries the project's record (an override
+            // list, say); without tag_notes it stays the plain tag.
+            Some(text) => {
+                let msg = dir.join(rec.release.target_dir()).join("tag-message.txt");
+                if let Some(parent) = msg.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| io_err(&msg, e))?;
+                }
+                std::fs::write(&msg, format!("{text}\n")).map_err(|e| io_err(&msg, e))?;
+                let msg_arg = msg.display().to_string();
+                run(dir, "git", &["tag", "-a", &tag, "-F", &msg_arg], false)?;
+            }
+            None => run(dir, "git", &["tag", &tag], false)?,
+        }
     }
     let sha = capture(dir, "git", &["rev-parse", "HEAD"])?
         .trim()
@@ -1252,7 +1317,7 @@ fn cmd_release(
         } else {
             None
         };
-        release::write_notes(dir, &sha)?;
+        release::write_notes(dir, &rec, &sha)?;
         Ok(images)
     })();
     let images = match built {
@@ -1268,10 +1333,10 @@ fn cmd_release(
 
     if dry_run {
         println!("chassis release: dry run for {tag} complete. Built and verified:");
-        println!(
-            "  dist/{}  dist/SHA256SUMS  (static, no dynamic links)",
-            rec.name
-        );
+        for b in rec.release.binaries_or(&rec.name) {
+            println!("  dist/{b}");
+        }
+        println!("  dist/SHA256SUMS  ({})", release::linkage_label(&rec));
         if let Some(images) = &images {
             println!("  {}  {}", images[0], images[1]);
         }
@@ -1287,9 +1352,13 @@ fn cmd_release(
             "  gh {}",
             release::release_create_args(&rec, &tag).join(" ")
         );
-        println!(
-            "  scripts/sign-release.sh {tag}   # minisign asks for the key password; uploads .minisig then VERSION"
-        );
+        if rec.release.sign {
+            println!(
+                "  scripts/sign-release.sh {tag}   # minisign asks for the key password; uploads .minisig then VERSION"
+            );
+        } else {
+            println!("  (no signing step: [release] sign = false)");
+        }
         return Ok(());
     }
 
@@ -1308,7 +1377,13 @@ fn cmd_release(
 
     // 6. Sign locally and upload .minisig before VERSION. Interactive: minisign
     // prints its password prompt and must be seen where there is a terminal.
-    run_interactive(dir, "scripts/sign-release.sh", &[&tag])?;
+    if rec.release.sign {
+        run_interactive(dir, "scripts/sign-release.sh", &[&tag])?;
+    } else {
+        println!(
+            "chassis release: signing is left to you ([release] sign = false): the release is unsigned until you sign {tag}"
+        );
+    }
     println!("released {} {tag}", rec.name);
     Ok(())
 }
@@ -1341,38 +1416,19 @@ impl Drop for Restore {
     }
 }
 
-fn current_version(cargo_toml: &str) -> Result<chassis::core::update::Version, Error> {
-    let mut in_package = false;
-    for line in cargo_toml.lines() {
-        if line.trim_start().starts_with('[') {
-            in_package = line.trim() == "[package]";
-        }
-        if in_package
-            && line.trim_start().starts_with("version")
-            && let Some(v) = line.split('"').nth(1)
-        {
-            return chassis::core::update::Version::parse(v);
-        }
-    }
-    Err(Error::config(
-        "Cargo.toml has no [package] version line",
-        "add `version = \"x.y.z\"` under [package]",
-    ))
-}
-
 /// CF-6 (2026-09-06): a release builds the container image, so a project
 /// without a `Dockerfile` is refused before anything is gated, bumped or
 /// tagged (kyu-runner's first v0.2.0 lost a tag to exactly that). Since
 /// 3.0.0 the image is always built, here, so the check no longer depends on
 /// what a workflow file happens to say, and no CI workflow is required.
-fn check_release_files(dir: &Path, image: bool) -> Result<(), Error> {
+fn check_release_files(dir: &Path, image: bool, sign: bool) -> Result<(), Error> {
     if image && !dir.join("Dockerfile").exists() {
         return Err(Error::config(
             "the release builds a container image but the repository has no Dockerfile",
             "run `chassis sync --write` to add the scaffold Dockerfile (and .dockerignore)",
         ));
     }
-    if !dir.join("scripts/sign-release.sh").exists() {
+    if sign && !dir.join("scripts/sign-release.sh").exists() {
         return Err(Error::config(
             "the release ends with scripts/sign-release.sh, and the repository has none",
             "run `chassis sync --write` to add the scaffold's sign script",
@@ -1396,31 +1452,6 @@ fn check_major_has_migration(
         ));
     }
     Ok(())
-}
-
-fn bump_version(cargo_toml: &str, version: &str) -> Result<String, Error> {
-    let mut out = String::new();
-    let mut done = false;
-    let mut in_package = false;
-    for line in cargo_toml.lines() {
-        if line.trim_start().starts_with('[') {
-            in_package = line.trim() == "[package]";
-        }
-        if in_package && !done && line.trim_start().starts_with("version") {
-            out.push_str(&format!("version = \"{version}\"\n"));
-            done = true;
-        } else {
-            out.push_str(line);
-            out.push('\n');
-        }
-    }
-    if !done {
-        return Err(Error::config(
-            "Cargo.toml has no [package] version line",
-            "add `version = \"x.y.z\"` under [package]",
-        ));
-    }
-    Ok(out)
 }
 
 fn release_changelog(changelog: &str, version: &str, date: &str) -> String {
@@ -1645,6 +1676,7 @@ mod tests {
             image: None,
             required_checks: Vec::new(),
             vmid: 0,
+            release: Default::default(),
         }
     }
 
@@ -1821,7 +1853,7 @@ mod tests {
 
         // The release binary's build and its `ldd` refusal live in
         // release.rs since 3.0.0 and are pinned by its own tests.
-        let release = release::musl_build_args(Path::new("/p"), TOOLCHAIN, 0, 0).join(" ");
+        let release = release::musl_build_args_for(Path::new("/p"), TOOLCHAIN, 0, 0, &[]).join(" ");
         assert!(
             release.contains("cargo build --release --locked --target x86_64-unknown-linux-musl"),
             "the released binary is built for musl:\n{release}"
@@ -2397,20 +2429,64 @@ chassis = { git = "g", tag = "v1.8.0", version = "1.8.0", features = ["testing"]
     #[test]
     fn a_release_needs_a_dockerfile_and_the_sign_script_but_no_workflow() {
         let dir = tempfile::tempdir().unwrap();
-        let err = check_release_files(dir.path(), true).unwrap_err();
+        let err = check_release_files(dir.path(), true, true).unwrap_err();
         assert!(err.to_string().contains("no Dockerfile"), "{err}");
-        let err = check_release_files(dir.path(), false).unwrap_err();
+        let err = check_release_files(dir.path(), false, true).unwrap_err();
         assert!(
             err.to_string().contains("sign-release.sh"),
             "without an image only the sign script is asked for: {err}"
         );
         std::fs::write(dir.path().join("Dockerfile"), "FROM scratch\n").unwrap();
-        let err = check_release_files(dir.path(), true).unwrap_err();
+        let err = check_release_files(dir.path(), true, true).unwrap_err();
         assert!(err.to_string().contains("sign-release.sh"), "{err}");
         std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
         std::fs::write(dir.path().join("scripts/sign-release.sh"), "").unwrap();
-        check_release_files(dir.path(), true).unwrap();
+        check_release_files(dir.path(), true, true).unwrap();
         assert!(!dir.path().join(".github").exists());
+    }
+
+    /// homelab-shared-4: `[release] sign = false` leaves signing to the
+    /// owner, so the sign script is not required; the default still is.
+    #[test]
+    fn a_project_that_signs_outside_the_tool_needs_no_sign_script() {
+        let dir = tempfile::tempdir().unwrap();
+        check_release_files(dir.path(), false, false).unwrap();
+        assert!(check_release_files(dir.path(), false, true).is_err());
+    }
+
+    /// homelab-shared-4: the plan names the hooks where they run, the
+    /// annotated tag, every binary, and the missing signing step.
+    #[test]
+    fn the_plan_names_hooks_binaries_and_a_missing_signing_step() {
+        let mut r = rec();
+        let default_plan = release_plan(&r, "1.2.3", "v1.2.3", false);
+        assert!(
+            !default_plan.iter().any(|l| l.starts_with("hooks ")),
+            "{default_plan:?}"
+        );
+        assert!(default_plan.iter().any(|l| l.contains("sign-release.sh")));
+        r.release = toml::from_str(
+            "binaries = [\"a\", \"b\"]\nsign = false\n[hooks]\npre_gate = [\"scripts/x\"]\npost_gate = [\"scripts/y\"]\ntag_notes = \"scripts/z\"",
+        )
+        .unwrap();
+        let plan = release_plan(&r, "1.2.3", "v1.2.3", false);
+        assert!(
+            plan[0].starts_with("hooks before the gate: scripts/x"),
+            "{plan:?}"
+        );
+        assert!(plan[0].contains("tag_notes scripts/z"), "{plan:?}");
+        assert!(
+            plan[3].starts_with("hooks after the gate: scripts/y"),
+            "{plan:?}"
+        );
+        assert!(
+            plan.iter().any(|l| l.contains("dist/a + dist/b")),
+            "{plan:?}"
+        );
+        assert!(
+            !plan.iter().any(|l| l.contains("sign-release.sh")),
+            "{plan:?}"
+        );
     }
 
     /// 3.3.0 (Kenny, 2026-10-02): a project the homelab runs as a native

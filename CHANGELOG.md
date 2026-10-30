@@ -7,6 +7,38 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **`chassis release` for a multi-binary workspace** (CLI only,
+  homelab-shared-4): an optional `[release]` table in `.chassis.toml` with
+  `binaries`, `build = "glibc"` (+ `glibc_image`), `sign`, `notes`, and
+  `[release.hooks]` `pre_gate` / `post_gate` / `tag_notes` (an annotated tag).
+  A workspace root's `[workspace.package]` version is bumped when there is no
+  `[package]`. Every key defaults to the old behaviour; documented in
+  scaffold/README.md. The logic sits in `manifest_version.rs`,
+  `release_config.rs` and `release_hooks.rs`.
+- **`shell::release_verify`** (feature `self-update`, homelab-shared-3):
+  `verify_release_asset(sums, minisig, pubkey, asset, bytes)` verifies a
+  downloaded release without an `Updater`: signature over `SHA256SUMS` first,
+  then the asset against it; `verify_release_asset_for` also binds the
+  signature's trusted comment to a repo and version. Errors are the typed
+  `ReleaseError` (`NotSigned`, `Signature`, `NotListed`, `HashMismatch`,
+  `WrongRelease`), each with a remedy, convertible to `Error`.
+  `Updater::verify_manifest` shares the trusted-comment check.
+- **`shell::install_binary`** (feature `self-update`, homelab-shared-2):
+  `install_binary(path, bytes)` installs a binary at any path atomically,
+  keeping the old one as `<path>.prev`, keeping its mode and fsyncing;
+  `rollback_binary(path)` restores `.prev`; `prev_path(path)`. `Updater` now
+  calls the same code (one implementation); its behaviour is unchanged except
+  that the new binary takes the old one's mode instead of always 0755.
+- **Client scopes** (`core::clients`, homelab-shared-1): `SCOPE_FIELD`,
+  `Client::scope()`, `Client::has_scope_in()` and `ClientsFile::issue_scoped()`.
+  A scope is the ordinary declared client field `scope`, so it is stored,
+  sealed and listed like any other field and needs no store migration; a client
+  without one is allowed nothing. The meaning of a scope stays the project's.
+  Not added: hashed tokens (the kit keeps the token revealable on purpose, K12)
+  and a failed-auth counter. See docs/HOMELAB_SHARED.md.
+
 ### Changed
 
 - **Trusted admins are recognised through a trusted proxy** (`dashboard`;

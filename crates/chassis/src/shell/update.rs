@@ -33,6 +33,8 @@ use crate::core::update::{
     ContainerEvidence, DrillMarker, Effective, Hold, Mode, StartAction, UpdateState, Version,
     decide_at_startup, drill_applies, effective_mode, hash_for, hash_matches, should_update,
 };
+use crate::shell::install_binary::{install_staged, restore_from, with_suffix};
+use crate::shell::release_verify::check_trusted_comment;
 use crate::shell::store::write_atomic;
 use crate::shell::time::now_rfc3339;
 
@@ -169,14 +171,6 @@ pub fn container_evidence() -> ContainerEvidence {
 
 pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
-}
-
-fn fsync_dir(path: &Path) {
-    if let Some(dir) = path.parent()
-        && let Ok(d) = std::fs::File::open(dir)
-    {
-        let _ = d.sync_all();
-    }
 }
 
 impl Updater {
@@ -336,21 +330,12 @@ impl Updater {
         version: Version,
     ) -> Result<(), Error> {
         let sig = verify_signature(&self.cfg.pubkey, manifest, signature)?;
-        let comment = sig.trusted_comment().trim();
-        let want_suffix = format!(" v{version}");
-        let ok = match &self.cfg.repo {
-            Some(repo) => comment == format!("{repo} v{version}"),
-            None => comment.ends_with(&want_suffix),
-        };
-        if !ok {
-            return Err(Error::config(
-                format!(
-                    "the release signature is for `{comment}`, not for {} v{version}",
-                    self.cfg.repo.as_deref().unwrap_or("this service")
-                ),
+        check_trusted_comment(&sig, self.cfg.repo.as_deref(), version).map_err(|e| {
+            Error::config(
+                e.message(),
                 "VERSION and the signed manifest disagree: the host may be replaying an older release under a newer version number; nothing was installed",
-            ));
-        }
+            )
+        })?;
         Ok(())
     }
 
@@ -485,24 +470,10 @@ impl Updater {
             prune_copies(&self.cfg.copies_dir, self.cfg.keep_copies);
         }
 
-        // Critic #1: hard-link the old binary aside, then one rename. A
-        // `bin` exists at every instant; `bin.prev` is always the old one.
+        // Critic #1, now in `install_binary`: hard-link the old binary
+        // aside, then one rename. `bin` exists at every instant.
         let prev = self.prev_path();
-        let _ = std::fs::remove_file(&prev);
-        std::fs::hard_link(&self.binary, &prev).map_err(|e| {
-            Error::config(
-                format!("cannot keep the previous binary at {}: {e}", prev.display()),
-                prev_link_remedy(&self.binary),
-            )
-        })?;
-        std::fs::rename(&staging, &self.binary).map_err(|e| {
-            let _ = std::fs::remove_file(&prev);
-            Error::config(
-                format!("cannot install the new binary: {e}"),
-                "nothing changed; check the directory's permissions",
-            )
-        })?;
-        fsync_dir(&self.binary);
+        install_staged(&staging, &self.binary)?;
 
         if let Some(kind) = &self.cfg.drill {
             let marker = DrillMarker {
@@ -561,14 +532,13 @@ impl Updater {
             }
             StartAction::Revert(s) => {
                 let prev = PathBuf::from(&s.previous_binary);
-                let restored = std::fs::rename(&prev, &self.binary);
+                let restored = restore_from(&prev, &self.binary);
                 clear_state(&self.state_path());
                 if let Err(e) = self.remember_skip(&s.to_version) {
                     tracing::error!(error = %e, version = %s.to_version, "cannot record the rolled-back version; it may be retried next interval");
                 }
                 match restored {
                     Ok(()) => {
-                        fsync_dir(&self.binary);
                         tracing::error!(failed = %s.to_version, restored = %s.from_version, "update reverted: the new version never became healthy");
                         (self.notify)(Event {
                             kind: "update.rolled_back",
@@ -723,37 +693,6 @@ pub fn verify_signature(
     Ok(sig)
 }
 
-/// The remedy when `bin` cannot be hard-linked to `bin.prev`. Two causes
-/// give the same EPERM: a directory the service user cannot write, and a
-/// binary another user owns — Linux's `fs.protected_hardlinks` refuses a
-/// hard link to a file the caller does not own, however writable the
-/// directory is. kyu met the second on CT 109 (2026-09-20): a root-owned
-/// binary in a kyu-owned directory, while the old text blamed the directory.
-fn prev_link_remedy(binary: &Path) -> String {
-    use std::os::unix::fs::MetadataExt;
-    let owner = std::fs::metadata(binary)
-        .map(|m| format!("uid {}:gid {}", m.uid(), m.gid()))
-        .unwrap_or_else(|_| "an unknown owner".to_string());
-    let dir = binary
-        .parent()
-        .map(|d| d.display().to_string())
-        .unwrap_or_else(|| ".".to_string());
-    format!(
-        "the binary is owned by {owner}; the service user must own it (install it with `install -o <user> -g <group>`), \
-         because Linux refuses a hard link to a file another user owns; and it needs write access to {dir} \
-         (ReadWritePaths in the unit), not only to the binary"
-    )
-}
-
-fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
-    let mut name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "binary".to_string());
-    name.push_str(suffix);
-    path.with_file_name(name)
-}
-
 fn write_executable(path: &Path, bytes: &[u8]) -> Result<(), Error> {
     write_atomic(path, bytes, "staged binary")?;
     #[cfg(unix)]
@@ -891,6 +830,7 @@ fn prune_copies(dir: &Path, keep: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::shell::install_binary::prev_link_remedy;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// The signed fake release lives in `chassis::testing` (K25); these

@@ -311,11 +311,18 @@ pub fn gate(dir: &Path, rec: &Recorded, image: bool, full_tests: bool) -> Result
     } else {
         println!("chassis release: project gates: none (.claude/hooks/gates.project.sh absent)");
     }
+    // A workspace has several binaries and `cargo run` picks none of them:
+    // name the first one `[release] binaries` lists.
+    let run_bin = rec.release.binaries.first().map(String::as_str);
+    let version_args: Vec<&str> = match run_bin {
+        Some(b) => vec!["run", "-q", "--bin", b, "--", "--version"],
+        None => vec!["run", "-q", "--", "--version"],
+    };
     step(
         dir,
         "the binary answers --version without configuration (AR20)",
         "cargo",
-        &["run", "-q", "--", "--version"],
+        &version_args,
     )?;
 
     // Job `cargo-deny (advisories · licenses · bans)`.
@@ -408,14 +415,30 @@ pub fn check_tag_matches(tag: &str, cargo_version: &str) -> Result<(), Error> {
     }
 }
 
+/// ` --bin a --bin b` for a project that names its binaries; nothing when
+/// it does not, which builds what the manifest builds, as before.
+fn bin_flags(binaries: &[String]) -> String {
+    binaries.iter().map(|b| format!(" --bin {b}")).collect()
+}
+
 /// The docker arguments of the musl build, exactly as `release.yml` ran
 /// them, plus one `chown` at the end: a runner threw its checkout away, a
 /// workstation keeps it, and files the container wrote as root would stay
 /// root-owned in the project.
-pub fn musl_build_args(abs_dir: &Path, toolchain: &str, uid: u32, gid: u32) -> Vec<String> {
+///
+/// `binaries` is `[release] binaries`: empty builds what the manifest builds
+/// (today's behaviour), otherwise one `--bin` per name (homelab-shared-4).
+pub fn musl_build_args_for(
+    abs_dir: &Path,
+    toolchain: &str,
+    uid: u32,
+    gid: u32,
+    binaries: &[String],
+) -> Vec<String> {
+    let bins = bin_flags(binaries);
     let script = format!(
         "apt-get update -qq >/dev/null && apt-get install -y -qq musl-tools >/dev/null \
-         && cargo build --release --locked --target {MUSL_TARGET}; \
+         && cargo build --release --locked --target {MUSL_TARGET}{bins}; \
          status=$?; chown -R {uid}:{gid} /w/{MUSL_TARGET_DIR}; exit $status"
     );
     vec![
@@ -434,6 +457,75 @@ pub fn musl_build_args(abs_dir: &Path, toolchain: &str, uid: u32, gid: u32) -> V
         "-c".into(),
         script,
     ]
+}
+
+/// The glibc alternative (homelab-shared-4): the same mounts and variables,
+/// a Debian image, no musl toolchain, output in `target-glibc`.
+pub fn glibc_build_args(
+    abs_dir: &Path,
+    image: &str,
+    uid: u32,
+    gid: u32,
+    binaries: &[String],
+) -> Vec<String> {
+    let dir = "target-glibc";
+    let bins = bin_flags(binaries);
+    let script = format!(
+        "cargo build --release --locked{bins}; status=$?; chown -R {uid}:{gid} /w/{dir}; exit $status"
+    );
+    vec![
+        "run".into(),
+        "--rm".into(),
+        "-v".into(),
+        format!("{}:/w", abs_dir.display()),
+        "-w".into(),
+        "/w".into(),
+        "-e".into(),
+        format!("CARGO_TARGET_DIR=/w/{dir}"),
+        "-e".into(),
+        format!("CARGO_HOME=/w/{dir}/cargo-home"),
+        image.into(),
+        "sh".into(),
+        "-c".into(),
+        script,
+    ]
+}
+
+/// The glibc build's image: `[release] glibc_image`, else the older Debian
+/// (bookworm) so the binary also runs on a newer host.
+pub fn glibc_image(rec: &Recorded) -> String {
+    rec.release
+        .glibc_image
+        .clone()
+        .unwrap_or_else(|| format!("rust:{}-slim-bookworm", rec.toolchain))
+}
+
+/// The one-line description of the build, for the plan.
+pub fn build_plan_line(rec: &Recorded) -> String {
+    let bins = rec.release.binaries_or(&rec.name);
+    let list = bins
+        .iter()
+        .map(|b| format!("dist/{b}"))
+        .collect::<Vec<_>>()
+        .join(" + ");
+    match rec.release.build {
+        crate::release_config::Build::Musl => format!(
+            "docker run … rust:{}-slim-trixie cargo build --release --locked --target {MUSL_TARGET} → {list} + dist/SHA256SUMS; refuse any `=>` in ldd",
+            rec.toolchain
+        ),
+        crate::release_config::Build::Glibc => format!(
+            "docker run … {} cargo build --release --locked → {list} + dist/SHA256SUMS (glibc, dynamically linked; no ldd check)",
+            glibc_image(rec)
+        ),
+    }
+}
+
+/// What the dry run says about the built binaries' linkage.
+pub fn linkage_label(rec: &Recorded) -> &'static str {
+    match rec.release.build {
+        crate::release_config::Build::Musl => "static, no dynamic links",
+        crate::release_config::Build::Glibc => "glibc, dynamically linked",
+    }
 }
 
 /// `ldd` is not a yes/no oracle: on a static binary it exits non-zero or
@@ -459,9 +551,11 @@ fn owner_of(dir: &Path) -> (u32, u32) {
     }
 }
 
-/// Builds `dist/<name>` and `dist/SHA256SUMS` the way `release.yml` did,
-/// then refuses a binary with a dynamic link. Returns the dist directory.
+/// Builds `dist/<binary>` for every binary of the release and
+/// `dist/SHA256SUMS` the way `release.yml` did, then (musl only) refuses a
+/// binary with a dynamic link. Returns the dist directory.
 pub fn build_binary(dir: &Path, rec: &Recorded) -> Result<PathBuf, Error> {
+    use crate::release_config::Build;
     let abs = std::fs::canonicalize(dir).map_err(|e| {
         Error::config(
             format!("cannot resolve {}: {e}", dir.display()),
@@ -469,14 +563,19 @@ pub fn build_binary(dir: &Path, rec: &Recorded) -> Result<PathBuf, Error> {
         )
     })?;
     let (uid, gid) = owner_of(&abs);
-    let args = musl_build_args(&abs, &rec.toolchain, uid, gid);
+    let binaries = rec.release.binaries_or(&rec.name);
+    let (what, args) = match rec.release.build {
+        Build::Musl => (
+            format!("static release binary ({MUSL_TARGET})"),
+            musl_build_args_for(&abs, &rec.toolchain, uid, gid, &rec.release.binaries),
+        ),
+        Build::Glibc => (
+            format!("glibc release binaries ({})", glibc_image(rec)),
+            glibc_build_args(&abs, &glibc_image(rec), uid, gid, &rec.release.binaries),
+        ),
+    };
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
-    step(
-        dir,
-        &format!("static release binary ({MUSL_TARGET})"),
-        "docker",
-        &args,
-    )?;
+    step(dir, &what, "docker", &args)?;
 
     let dist = abs.join("dist");
     match std::fs::remove_dir_all(&dist) {
@@ -485,47 +584,49 @@ pub fn build_binary(dir: &Path, rec: &Recorded) -> Result<PathBuf, Error> {
         Err(e) => return Err(crate::io_err(&dist, e)),
     }
     std::fs::create_dir_all(&dist).map_err(|e| crate::io_err(&dist, e))?;
-    let built = abs
-        .join(MUSL_TARGET_DIR)
-        .join(MUSL_TARGET)
-        .join("release")
-        .join(&rec.name);
-    let shipped = dist.join(&rec.name);
-    std::fs::copy(&built, &shipped).map_err(|e| {
-        Error::internal(
-            format!("cannot copy {} to dist/: {e}", built.display()),
-            "the build step above reported success but left no binary; is the package's binary named like .chassis.toml's `name`?",
-        )
-    })?;
-    let sums = capture(&dist, "sha256sum", &[&rec.name])?;
+    for binary in &binaries {
+        let built = abs.join(rec.release.built_path(binary));
+        std::fs::copy(&built, dist.join(binary)).map_err(|e| {
+            Error::internal(
+                format!("cannot copy {} to dist/: {e}", built.display()),
+                "the build step above reported success but left no binary; is it named like .chassis.toml's `name` (or each entry of [release] binaries)?",
+            )
+        })?;
+    }
+    let names: Vec<&str> = binaries.iter().map(String::as_str).collect();
+    let sums = capture(&dist, "sha256sum", &names)?;
     std::fs::write(dist.join("SHA256SUMS"), &sums)
         .map_err(|e| crate::io_err(&dist.join("SHA256SUMS"), e))?;
     print!("{sums}");
 
-    println!(
-        "chassis release: the released binary has no dynamic links: ldd dist/{}",
-        rec.name
-    );
-    let ldd = command("ldd", &dist).arg(&rec.name).output().map_err(|e| {
-        Error::dependency(
-            format!("cannot run ldd: {e}"),
-            "ldd comes with glibc (Arch/Garuda: package glibc); install it",
-        )
-    })?;
-    let links = format!(
-        "{}{}",
-        String::from_utf8_lossy(&ldd.stdout),
-        String::from_utf8_lossy(&ldd.stderr)
-    );
-    println!("{}", links.trim_end());
-    if has_dynamic_links(&links) {
-        return Err(Error::internal(
-            format!(
-                "dist/{} links shared libraries and would not start on a host with an older glibc",
-                rec.name
-            ),
-            "check the build used --target x86_64-unknown-linux-musl, and that no enabled feature needs OpenSSL (`passkeys` does)",
-        ));
+    if rec.release.build == Build::Glibc {
+        println!(
+            "chassis release: glibc build ([release] build = \"glibc\"): the no-dynamic-links check is for musl and is skipped"
+        );
+        return Ok(dist);
+    }
+    for binary in &binaries {
+        println!("chassis release: the released binary has no dynamic links: ldd dist/{binary}");
+        let ldd = command("ldd", &dist).arg(binary).output().map_err(|e| {
+            Error::dependency(
+                format!("cannot run ldd: {e}"),
+                "ldd comes with glibc (Arch/Garuda: package glibc); install it",
+            )
+        })?;
+        let links = format!(
+            "{}{}",
+            String::from_utf8_lossy(&ldd.stdout),
+            String::from_utf8_lossy(&ldd.stderr)
+        );
+        println!("{}", links.trim_end());
+        if has_dynamic_links(&links) {
+            return Err(Error::internal(
+                format!(
+                    "dist/{binary} links shared libraries and would not start on a host with an older glibc"
+                ),
+                "check the build used --target x86_64-unknown-linux-musl, and that no enabled feature needs OpenSSL (`passkeys` does); or set [release] build = \"glibc\"",
+            ));
+        }
     }
     Ok(dist)
 }
@@ -655,16 +756,13 @@ to publish a binary with one.
     )
 }
 
-/// Where the release body is written for `gh release create --notes-file`;
-/// inside the musl build directory, so `dist/` holds exactly the two assets.
-pub const NOTES_FILE: &str = "target-musl/release-notes.md";
-
 /// The `gh release create` arguments: the binary and the manifest, title =
 /// the tag (the action's default), and never `latest` until signed (fix-10:
 /// the updater reads releases/latest/download/VERSION, and an unsigned
 /// release has none yet).
 pub fn release_create_args(rec: &Recorded, tag: &str) -> Vec<String> {
-    vec![
+    use crate::release_config::Notes;
+    let mut args: Vec<String> = vec![
         "release".into(),
         "create".into(),
         tag.into(),
@@ -673,21 +771,39 @@ pub fn release_create_args(rec: &Recorded, tag: &str) -> Vec<String> {
         "--verify-tag".into(),
         "--title".into(),
         tag.into(),
-        "--notes-file".into(),
-        NOTES_FILE.into(),
-        "--latest=false".into(),
-        format!("dist/{}", rec.name),
-        "dist/SHA256SUMS".into(),
-    ]
+    ];
+    match rec.release.notes {
+        Notes::Local => {
+            args.push("--notes-file".into());
+            args.push(rec.release.notes_file());
+        }
+        Notes::Generated => args.push("--generate-notes".into()),
+    }
+    args.push("--latest=false".into());
+    for b in rec.release.binaries_or(&rec.name) {
+        args.push(format!("dist/{b}"));
+    }
+    args.push("dist/SHA256SUMS".into());
+    args
 }
 
 /// Writes the release body where [`release_create_args`] reads it.
-pub fn write_notes(dir: &Path, sha: &str) -> Result<(), Error> {
-    let path = dir.join(NOTES_FILE);
+pub fn write_notes(dir: &Path, rec: &Recorded, sha: &str) -> Result<(), Error> {
+    if rec.release.notes == crate::release_config::Notes::Generated {
+        return Ok(()); // GitHub writes the body
+    }
+    let path = dir.join(rec.release.notes_file());
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| crate::io_err(&path, e))?;
     }
-    std::fs::write(&path, release_notes(sha)).map_err(|e| crate::io_err(&path, e))
+    let body = match rec.release.build {
+        crate::release_config::Build::Musl => release_notes(sha),
+        crate::release_config::Build::Glibc => format!(
+            "Built locally from `{sha}` by `chassis release`.\n\n**Linkage: glibc ({}), dynamically linked.** Install it on a host whose glibc is at least as new as the build image's.\n",
+            glibc_image(rec)
+        ),
+    };
+    std::fs::write(&path, body).map_err(|e| crate::io_err(&path, e))
 }
 
 /// Pushes the image and creates the release. Called after the commit and
@@ -700,12 +816,17 @@ pub fn publish(
     tags: Option<&[String; 2]>,
 ) -> Result<(), Error> {
     let create = format!("gh {}", release_create_args(rec, tag).join(" "));
+    let sign = if rec.release.sign {
+        format!(" && scripts/sign-release.sh {tag}")
+    } else {
+        String::new()
+    };
     let rest = match tags {
         Some(t) => format!(
-            "docker push {} && docker push {} && {create} && scripts/sign-release.sh {tag}",
+            "docker push {} && docker push {} && {create}{sign}",
             t[0], t[1]
         ),
-        None => format!("{create} && scripts/sign-release.sh {tag}"),
+        None => format!("{create}{sign}"),
     };
     for t in tags.into_iter().flatten() {
         step(dir, "push the image", "docker", &["push", t]).map_err(|e| {
@@ -728,7 +849,9 @@ pub fn publish(
     step(dir, "GitHub release with binary + SHA256SUMS", "gh", &args).map_err(|e| {
         Error::dependency(
             e.message.clone(),
-            format!("the image is pushed; is gh logged in (`gh auth status`)? Then run: {create} && scripts/sign-release.sh {tag}"),
+            format!(
+                "the image is pushed; is gh logged in (`gh auth status`)? Then run: {create}{sign}"
+            ),
         )
     })
 }
@@ -776,6 +899,7 @@ mod tests {
             image: None,
             required_checks: Vec::new(),
             vmid: 0,
+            release: Default::default(),
         }
     }
 
@@ -783,7 +907,7 @@ mod tests {
     /// mounts and variables, same apt line, same cargo command.
     #[test]
     fn the_musl_build_is_the_workflows_docker_invocation() {
-        let args = musl_build_args(Path::new("/p/demo-svc"), "1.97", 1000, 1000);
+        let args = musl_build_args_for(Path::new("/p/demo-svc"), "1.97", 1000, 1000, &[]);
         let joined = args.join(" ");
         assert!(
             joined.starts_with(
@@ -849,5 +973,132 @@ mod tests {
                 "ghcr.io/kennypassenier/demo-svc:latest".to_string()
             ]
         );
+    }
+
+    fn glibc_rec() -> Recorded {
+        let mut r = rec();
+        r.release = toml::from_str(
+            "binaries = [\"host\", \"client\"]\nbuild = \"glibc\"\nsign = false\nnotes = \"generated\"",
+        )
+        .unwrap();
+        r
+    }
+
+    /// homelab-shared-4: several binaries are built with one `--bin` each,
+    /// and a project that names none gets the command it always had.
+    #[test]
+    fn named_binaries_add_bin_flags_and_none_changes_nothing() {
+        let none = musl_build_args_for(Path::new("/p"), "1.97", 1, 1, &[]);
+        assert!(
+            none.last()
+                .unwrap()
+                .contains("--target x86_64-unknown-linux-musl; status"),
+            "no --bin when none are named: {}",
+            none.last().unwrap()
+        );
+        let two = musl_build_args_for(Path::new("/p"), "1.97", 1, 1, &["a".into(), "b".into()]);
+        assert!(
+            two.last()
+                .unwrap()
+                .contains("--target x86_64-unknown-linux-musl --bin a --bin b; status"),
+            "{}",
+            two.last().unwrap()
+        );
+    }
+
+    /// The glibc build is a Debian image with plain `cargo build`, writing
+    /// to its own directory; the default image is the older Debian.
+    #[test]
+    fn the_glibc_build_is_a_debian_image_without_the_musl_target() {
+        let r = glibc_rec();
+        assert_eq!(glibc_image(&r), "rust:1.97-slim-bookworm");
+        let args = glibc_build_args(
+            Path::new("/p/demo-svc"),
+            &glibc_image(&r),
+            1000,
+            1000,
+            &r.release.binaries,
+        );
+        let joined = args.join(" ");
+        assert!(
+            joined.starts_with(
+                "run --rm -v /p/demo-svc:/w -w /w -e CARGO_TARGET_DIR=/w/target-glibc -e CARGO_HOME=/w/target-glibc/cargo-home rust:1.97-slim-bookworm sh -c "
+            ),
+            "{joined}"
+        );
+        let script = args.last().unwrap();
+        assert!(
+            script.starts_with("cargo build --release --locked --bin host --bin client;"),
+            "{script}"
+        );
+        assert!(
+            !script.contains("musl") && !script.contains("apt-get"),
+            "{script}"
+        );
+        assert!(
+            script.ends_with("chown -R 1000:1000 /w/target-glibc; exit $status"),
+            "{script}"
+        );
+        let mut custom = glibc_rec();
+        custom.release.glibc_image = Some("rust:1.97-slim-trixie".into());
+        assert_eq!(glibc_image(&custom), "rust:1.97-slim-trixie");
+    }
+
+    /// Every binary is a release asset next to the manifest; generated
+    /// notes replace the notes file; the default stays exactly as it was.
+    #[test]
+    fn a_multi_binary_release_uploads_every_binary_and_can_take_generated_notes() {
+        assert_eq!(
+            release_create_args(&glibc_rec(), "v1.2.3").join(" "),
+            "release create v1.2.3 --repo kennypassenier/demo-svc --verify-tag --title v1.2.3 \
+             --generate-notes --latest=false dist/host dist/client dist/SHA256SUMS"
+        );
+        let mut local = glibc_rec();
+        local.release.notes = crate::release_config::Notes::Local;
+        let joined = release_create_args(&local, "v1.2.3").join(" ");
+        assert!(
+            joined.contains("--notes-file target-glibc/release-notes.md"),
+            "{joined}"
+        );
+        assert!(build_plan_line(&glibc_rec()).contains("dist/host + dist/client"));
+        assert!(build_plan_line(&rec()).contains("refuse any `=>` in ldd"));
+    }
+
+    /// The glibc build is dynamically linked on purpose: no ldd refusal,
+    /// and the notes say so.
+    #[test]
+    fn the_glibc_notes_say_dynamic_and_generated_notes_write_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut r = glibc_rec();
+        write_notes(dir.path(), &r, "abc1234").unwrap();
+        assert!(
+            !dir.path().join("target-glibc").exists(),
+            "generated: nothing written"
+        );
+        r.release.notes = crate::release_config::Notes::Local;
+        write_notes(dir.path(), &r, "abc1234").unwrap();
+        let body =
+            std::fs::read_to_string(dir.path().join("target-glibc/release-notes.md")).unwrap();
+        assert!(
+            body.contains("glibc") && body.contains("dynamically linked"),
+            "{body}"
+        );
+        assert_eq!(linkage_label(&r), "glibc, dynamically linked");
+        assert_eq!(linkage_label(&rec()), "static, no dynamic links");
+    }
+
+    /// The record without a `[release]` table is unchanged, and one with it
+    /// survives a write and a read.
+    #[test]
+    fn the_release_table_round_trips_and_is_absent_by_default() {
+        let plain = toml::to_string_pretty(&rec()).unwrap();
+        assert!(
+            !plain.contains("release"),
+            "default is not written: {plain}"
+        );
+        let text = toml::to_string_pretty(&glibc_rec()).unwrap();
+        assert!(text.contains("[release]"), "{text}");
+        let back: Recorded = toml::from_str(&text).unwrap();
+        assert_eq!(back.release, glibc_rec().release);
     }
 }

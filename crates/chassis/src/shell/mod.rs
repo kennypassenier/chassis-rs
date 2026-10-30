@@ -18,6 +18,8 @@ pub mod dashboard;
 pub mod guards;
 pub mod health;
 pub mod http;
+#[cfg(feature = "self-update")]
+pub mod install_binary;
 pub mod lifecycle;
 #[cfg(feature = "live")]
 pub mod live;
@@ -29,6 +31,8 @@ pub mod notify;
 pub mod pages;
 #[cfg(feature = "passkeys")]
 pub mod passkeys;
+#[cfg(feature = "self-update")]
+pub mod release_verify;
 #[cfg(feature = "request-guard")]
 pub mod request_guard;
 pub mod store;
