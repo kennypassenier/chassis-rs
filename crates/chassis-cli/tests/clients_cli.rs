@@ -3,118 +3,27 @@
 //! built (`CARGO_BIN_EXE_chassis`); the token it needs travels only through
 //! the child's environment, and every test asserts that argv never carries
 //! it — the whole point of `--token-env`.
+//!
+//! The shared service and command live in `clients_cli/support.rs`; the long
+//! token life cycle is `clients_cli/round_trip.rs`.
+
+#[path = "clients_cli/round_trip.rs"]
+mod round_trip;
+#[path = "clients_cli/support.rs"]
+mod support;
 
 use std::collections::BTreeMap;
-use std::process::{Command, Output};
+use std::process::Command;
 use std::sync::{Arc, Mutex};
 
 use axum::Router;
 use axum::routing::get;
-use chassis::{App, AppSpec, Error, Running};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use chassis::Error;
+
+use support::*;
 
 /// What the issue hook records: the client's name and the form fields.
 type Issued = Arc<Mutex<Vec<(String, BTreeMap<String, String>)>>>;
-
-const ADMIN: &str = "an-admin-token-that-is-long-enough-k30";
-const KEY: &str = "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd";
-const VAR: &str = "TEST_ADMIN_TOKEN";
-
-fn env(dir: &std::path::Path) -> BTreeMap<String, String> {
-    let mut env = BTreeMap::new();
-    env.insert("CLIDEMO_STATE_DIR".into(), dir.display().to_string());
-    env.insert("CLIDEMO_LISTEN".into(), "127.0.0.1:0".into());
-    env.insert("CLIDEMO_LOG".into(), "warn".into());
-    env.insert("CLIDEMO_TOKEN".into(), ADMIN.into());
-    env.insert("CLIDEMO_SECRET_KEY".into(), KEY.into());
-    // Only read when the passkeys feature is compiled in (--all-features).
-    env.insert(
-        "CLIDEMO_PUBLIC_URL".into(),
-        "https://clidemo.example.lan".into(),
-    );
-    env
-}
-
-fn app(dir: &std::path::Path) -> App {
-    let mut app = App::from_args_with_env(
-        AppSpec {
-            name: "clidemo",
-            version: "0.0.0",
-            ..Default::default()
-        },
-        vec!["clidemo".into()],
-        env(dir),
-        Router::new(),
-    )
-    .unwrap();
-    // The door a client token opens: what the E2E checks each token against.
-    app.api_routes(Router::new().route("/v1/ping", get(|| async { "pong" })));
-    app
-}
-
-fn base(running: &Running) -> String {
-    format!("http://{}", running.addr)
-}
-
-/// The command under test. The admin token goes into the child's
-/// environment under `VAR`, or nowhere when `token` is `None`; the
-/// process's own `CHASSIS_TOKEN` is removed so the default never leaks in.
-fn chassis(base: &str, args: &[&str], token: Option<&str>) -> Command {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_chassis"));
-    cmd.arg("clients")
-        .args(args)
-        .args(["--url", base, "--token-env", VAR])
-        .env_remove("CHASSIS_TOKEN");
-    if let Some(t) = token {
-        cmd.env(VAR, t);
-    }
-    // K30's first rule: the token is never on argv.
-    for a in cmd.get_args() {
-        let a = a.to_string_lossy();
-        assert!(!a.contains(ADMIN), "argv carries the admin token: {a}");
-        assert!(
-            a != VAR || true,
-            "the variable NAME may appear; its value may not"
-        );
-    }
-    cmd
-}
-
-/// Run the command off the runtime thread and hand back the three things
-/// every assertion needs.
-async fn run(mut cmd: Command) -> (i32, String, String) {
-    let Output {
-        status,
-        stdout,
-        stderr,
-    } = tokio::task::spawn_blocking(move || cmd.output().unwrap())
-        .await
-        .unwrap();
-    (
-        status.code().unwrap_or(-1),
-        String::from_utf8_lossy(&stdout).to_string(),
-        String::from_utf8_lossy(&stderr).to_string(),
-    )
-}
-
-/// One raw HTTP/1.1 request with a bearer; returns (status, body).
-async fn bearer(addr: std::net::SocketAddr, path: &str, token: &str) -> (u16, String) {
-    let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
-    let request = format!(
-        "GET {path} HTTP/1.1\r\nHost: {addr}\r\nAuthorization: Bearer {token}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-    );
-    stream.write_all(request.as_bytes()).await.unwrap();
-    let mut raw = Vec::new();
-    stream.read_to_end(&mut raw).await.unwrap();
-    let text = String::from_utf8_lossy(&raw).to_string();
-    let status: u16 = text.split_whitespace().nth(1).unwrap().parse().unwrap();
-    let body = text
-        .split_once("\r\n\r\n")
-        .map(|(_, b)| b)
-        .unwrap_or_default()
-        .to_string();
-    (status, body)
-}
 
 // Drilled red once: `revoke` was made to print nothing to stderr and the
 // "revoked" assert failed.
@@ -122,135 +31,11 @@ async fn bearer(addr: std::net::SocketAddr, path: &str, token: &str) -> (u16, St
 async fn k30_issue_reveal_reissue_revoke_delete_round_trip() {
     let dir = tempfile::tempdir().unwrap();
     let running = app(dir.path()).start().await.unwrap();
-    let addr = running.addr;
-    let base = base(&running);
-
-    // Nothing yet: the human list says so, the JSON list is an empty array.
-    let (code, out, _) = run(chassis(&base, &["list"], Some(ADMIN))).await;
-    assert_eq!(code, 0);
-    assert!(out.contains("no clients yet"), "{out}");
-    let (code, out, _) = run(chassis(&base, &["list", "--json"], Some(ADMIN))).await;
-    assert_eq!(code, 0);
-    assert_eq!(out.trim(), "[]");
-
-    // issue: stdout is the token and nothing else; the confirmation is on
-    // stderr; the token opens the API door.
-    let (code, out, err) = run(chassis(&base, &["issue", "alertmanager"], Some(ADMIN))).await;
-    assert_eq!(code, 0, "{err}");
-    let token = out.trim().to_string();
-    assert_eq!(
-        out.lines().count(),
-        1,
-        "exactly one line on stdout: {out:?}"
-    );
-    assert_eq!(token.len(), 64, "a 32-byte hex token: {token}");
-    assert!(token.chars().all(|c| c.is_ascii_hexdigit()), "{token}");
-    assert!(
-        err.contains("issued a token for client `alertmanager`"),
-        "{err}"
-    );
-    assert!(!err.contains(&token), "the token is not repeated on stderr");
-    assert_eq!(
-        bearer(addr, "/v1/ping", &token).await,
-        (200, "pong".to_string())
-    );
-
-    // list: the client is there, by name, active, and the token is not.
-    let (code, out, _) = run(chassis(&base, &["list"], Some(ADMIN))).await;
-    assert_eq!(code, 0);
-    assert!(
-        out.contains("alertmanager") && out.contains("active"),
-        "{out}"
-    );
-    assert!(!out.contains(&token), "{out}");
-    let (_, out, _) = run(chassis(&base, &["list", "--json"], Some(ADMIN))).await;
-    let list: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
-    assert_eq!(list.len(), 1);
-    assert_eq!(list[0]["name"], "alertmanager");
-    let id = list[0]["id"].as_str().unwrap().to_string();
-    assert!(!out.contains(&token));
-
-    // reveal by name and by id: the same token, once.
-    let (code, out, _) = run(chassis(&base, &["reveal", "alertmanager"], Some(ADMIN))).await;
-    assert_eq!(code, 0);
-    assert_eq!(out.trim(), token);
-    let (code, out, _) = run(chassis(&base, &["reveal", &id, "--json"], Some(ADMIN))).await;
-    assert_eq!(code, 0);
-    let reveal: serde_json::Value = serde_json::from_str(&out).unwrap();
-    assert_eq!(reveal["token"], token);
-    assert!(reveal["command"].as_str().unwrap().starts_with("curl"));
-
-    // reissue: a new token on stdout; the old one is refused the same second.
-    let (code, out, err) = run(chassis(&base, &["reissue", "alertmanager"], Some(ADMIN))).await;
-    assert_eq!(code, 0, "{err}");
-    let token2 = out.trim().to_string();
-    assert_ne!(token2, token);
-    assert_eq!(out.lines().count(), 1);
-    assert!(err.contains("re-issued"), "{err}");
-    assert_eq!(bearer(addr, "/v1/ping", &token).await.0, 401);
-    assert_eq!(bearer(addr, "/v1/ping", &token2).await.0, 200);
-
-    // --json on issue folds the token into the view, for scripts that
-    // want the id as well.
-    let (code, out, _) = run(chassis(&base, &["issue", "grafana", "--json"], Some(ADMIN))).await;
-    assert_eq!(code, 0);
-    let issued: serde_json::Value = serde_json::from_str(&out).unwrap();
-    assert_eq!(issued["name"], "grafana");
-    assert_eq!(issued["token"].as_str().unwrap().len(), 64);
-    assert!(issued["id"].is_string());
-
-    // A duplicate name is the service's refusal, passed through with its remedy.
-    let (code, out, err) = run(chassis(&base, &["issue", "grafana"], Some(ADMIN))).await;
-    assert_eq!(code, 1);
-    assert_eq!(out, "", "nothing on stdout when refused");
-    assert!(
-        err.contains("already has a token") && err.contains("What now:"),
-        "{err}"
-    );
-
-    // revoke: 401 for the caller, the row stays as revoked, the name is free.
-    let (code, out, err) = run(chassis(&base, &["revoke", "alertmanager"], Some(ADMIN))).await;
-    assert_eq!(code, 0, "{err}");
-    assert_eq!(out, "", "revoke prints nothing on stdout without --json");
-    assert!(err.contains("revoked client `alertmanager`"), "{err}");
-    assert_eq!(bearer(addr, "/v1/ping", &token2).await.0, 401);
-    let (_, out, _) = run(chassis(&base, &["list"], Some(ADMIN))).await;
-    assert!(out.contains("revoked"), "{out}");
-    let (code, _, err) = run(chassis(&base, &["reveal", "alertmanager"], Some(ADMIN))).await;
-    assert_eq!(code, 1, "a revoked client has no token to reveal");
-    assert!(
-        err.contains("revoked") && err.contains("What now:"),
-        "{err}"
-    );
-
-    // delete by id: gone from the list; the other client stays.
-    let (code, _, err) = run(chassis(&base, &["delete", &id], Some(ADMIN))).await;
-    assert_eq!(code, 0, "{err}");
-    assert!(err.contains("deleted client `alertmanager`"), "{err}");
-    let (_, out, _) = run(chassis(&base, &["list", "--json"], Some(ADMIN))).await;
-    let list: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
-    assert_eq!(list.len(), 1);
-    assert_eq!(list[0]["name"], "grafana");
-    let (code, out, _) = run(chassis(
-        &base,
-        &["delete", "grafana", "--json"],
-        Some(ADMIN),
-    ))
-    .await;
-    assert_eq!(code, 0);
-    let gone: serde_json::Value = serde_json::from_str(&out).unwrap();
-    assert_eq!(gone["deleted"], true);
-    assert_eq!(gone["name"], "grafana");
-
-    // An unknown client: exit 1 and the list command as the remedy.
-    let (code, out, err) = run(chassis(&base, &["revoke", "nobody"], Some(ADMIN))).await;
-    assert_eq!(code, 1);
-    assert_eq!(out, "");
-    assert!(
-        err.contains("nobody") && err.contains("chassis clients list"),
-        "{err}"
-    );
-
+    let service = round_trip::Service {
+        base: base(&running),
+        addr: running.addr,
+    };
+    round_trip::walk(&service).await;
     running.stop().await;
 }
 
