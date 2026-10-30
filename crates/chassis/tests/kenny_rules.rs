@@ -567,3 +567,18 @@ fn login_and_logout_keep_their_native_post() {
     let layout = kit_file("templates/layout.html");
     assert!(layout.contains(r#"id="chassis-logout" data-kp-form data-kp-form-native-submit"#));
 }
+
+/// Measured 2026-10-30 (Notifications card): the address fields stopped at
+/// a third of their column, and an idle test plate could not share the
+/// Send test button's line. Fields span their row; the result area stays
+/// empty until a test is sent.
+#[test]
+fn the_notifications_card_fields_fill_their_row() {
+    let js = kit_file("static/notify-card.js");
+    assert!(js.contains(r#"notify-card__control" data-kp-formgrid-span="control-value"><input"#));
+    assert!(js.contains("const testIdle = () => '';"));
+    assert!(
+        !js.contains("kp-empty__title"),
+        "empty states use the kit's state plate"
+    );
+}

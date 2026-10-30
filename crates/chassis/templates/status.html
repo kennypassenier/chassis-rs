@@ -2,7 +2,7 @@
 {% block title %}{{ app_name }} — status{% endblock %}
 {% block head %}{% for href in section_assets.stylesheets %}<link rel="stylesheet" href="{{ href }}">
 {% endfor %}{% for src in section_assets.module_scripts %}<script type="module" src="{{ src }}"></script>
-{% endfor %}{% endblock %}
+{% endfor %}{% if notify_card %}<link rel="stylesheet" href="/static/notify-card.css?v={{ assets }}"><script type="module" src="/static/notify-card.js?v={{ assets }}"></script>{% endif %}{% endblock %}
 {#
   The status page as an operations page (kit-kp11, approved demo
   research/chassis-kit-status in kp-themes): a header with the freshness
@@ -111,6 +111,8 @@
       <div class="kp-uptime" id="chassis-status-strip" data-kp-uptime data-kp-uptime-label="{{ app_name }}" data-kp-uptime-count="48" data-kp-uptime-open="info" data-chassis-uptime='{{ uptime|tojson }}'></div></div></div>
       <p class="kp-text-muted chassis-status__note">Kept in memory while the service runs: a restart empties it, and the hours before it show no data.</p>
     </section>
+
+    {% if notify_card %}{% include "status_notify.html" %}{% endif %}
 
     {% for section in sections %}
     {# One card per section, in its four data states (kp-themes card-state): the kit draws rows, tables, figures and checks, a JSON-fed card reads its own address. #}

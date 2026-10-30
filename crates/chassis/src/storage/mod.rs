@@ -14,6 +14,10 @@ mod db;
 mod kinds;
 #[cfg(feature = "dashboard")]
 mod kit_db;
+#[cfg(all(feature = "dashboard", feature = "notify"))]
+pub(crate) mod notify_meta;
+#[cfg(feature = "dashboard")]
+pub(crate) mod outbox;
 mod prefs;
 #[cfg(feature = "dashboard")]
 pub(crate) mod prefs_api;

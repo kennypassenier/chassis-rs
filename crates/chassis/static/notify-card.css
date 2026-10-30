@@ -1,0 +1,43 @@
+/* ======================================================================
+   The Notifications card of the Status page (3.15.0). Only tokens.
+   Grid of twelve: the two addresses (columns 1 to 8) against the facts
+   (9 to 12), the test across all twelve. The stage is the container the
+   arrangement answers to, so a phone gets one column.
+   ====================================================================== */
+.notify-card .kp-card__data { container: notifyc / inline-size; }
+
+.notify-card__grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--kp-space-lg, 1.5rem) var(--kp-space-md, 1rem);
+  align-items: start;
+}
+.notify-card__targets { grid-column: 1 / span 8; }
+.notify-card__facts { grid-column: 9 / span 4; display: grid; gap: var(--kp-space-md, 1rem); align-content: start; }
+.notify-card__test { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; gap: var(--kp-space-md, 1rem); align-items: start; }
+.notify-card__test-act { grid-column: 1 / span 4; display: grid; gap: var(--kp-space-xs, 0.25rem); justify-items: start; align-content: start; }
+.notify-card__test-act p { margin: 0; }
+.notify-card__test-result { grid-column: 5 / -1; }
+
+.notify-card__form { --kp-formgrid-label-min: 6rem; --kp-formgrid-label-max: 6rem; }
+.notify-card__control { display: grid; gap: var(--kp-space-xs, 0.25rem); }
+/* Fields fill their column (kp-themes caps .kp-field__input at 28rem; kp-gaps chassis-rs 9). */
+.notify-card__control .kp-field__input { inline-size: 100%; max-inline-size: none; }
+.notify-card__facts .kp-empty { min-block-size: 5.5rem; }
+.notify-card__tag { display: inline-flex; margin-inline-end: var(--kp-space-xs, 0.25rem); }
+.notify-card__note { margin: 0; }
+.notify-card__facts .kp-kpis { margin: 0; }
+.notify-card__when { display: block; color: var(--muted-foreground); }
+.notify-card__saving { margin: 0; }
+
+@container notifyc (max-width: 44rem) {
+  .notify-card__targets,
+  .notify-card__facts,
+  .notify-card__test,
+  .notify-card__test-act,
+  .notify-card__test-result { grid-column: 1 / -1; }
+  .notify-card__test { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The loading plate has the filled card's height, so nothing jumps. */
+.notify-card .kp-card__data { min-block-size: 28rem; }

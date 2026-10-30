@@ -27,6 +27,14 @@ pub mod logging;
 pub mod metrics;
 #[cfg(feature = "notify")]
 pub mod notify;
+#[cfg(all(feature = "notify", feature = "dashboard"))]
+pub(crate) mod notify_api;
+#[cfg(all(feature = "notify", feature = "dashboard"))]
+pub(crate) mod notify_channel;
+#[cfg(all(feature = "notify", feature = "dashboard"))]
+pub(crate) mod notify_delivery;
+#[cfg(feature = "notify")]
+pub(crate) mod notify_intake;
 #[cfg(feature = "dashboard")]
 pub mod pages;
 #[cfg(feature = "passkeys")]

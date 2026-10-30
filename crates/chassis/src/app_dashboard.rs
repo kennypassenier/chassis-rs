@@ -79,6 +79,9 @@ pub(crate) struct MountExtra {
     /// 3.12.0: the synced browser preferences; their routes join the admin
     /// API and every signed-in HTML page carries them.
     pub prefs: Option<crate::storage::Prefs>,
+    /// 3.15.0: the notification channel behind the Status card.
+    #[cfg(feature = "notify")]
+    pub notify: Option<crate::shell::notify_api::NotifyState>,
 }
 
 pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Result<Mounted, Error> {
@@ -361,6 +364,9 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
             extra.kit_in_webapp,
         ),
     );
+    #[cfg(feature = "notify")]
+    let dash = dash
+        .with_notify_card(extra.notify.is_some() && !extra.disabled.iter().any(|d| d == "status"));
     let dash = dash.with_pages(&page_set);
     dash.spawn_uptime_sampler();
     let kit_renders = !extra.kit_in_webapp;
@@ -422,6 +428,12 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
     // same-origin rule; the page itself is drawn from it.
     let storage_api = match extra.storage.as_ref().filter(|_| storage_on) {
         Some(st) => crate::storage::api::routes(st.clone())
+            .layer(from_fn_with_state(auth.clone(), require_admin)),
+        None => Router::new(),
+    };
+    #[cfg(feature = "notify")]
+    let notify_api = match extra.notify.clone().filter(|_| status_on) {
+        Some(n) => crate::shell::notify_api::routes(n)
             .layer(from_fn_with_state(auth.clone(), require_admin)),
         None => Router::new(),
     };
@@ -605,6 +617,10 @@ pub(crate) async fn mount_with(input: MountInput<'_>, extra: MountExtra) -> Resu
         .merge(prefs_api)
         .merge(project_pages)
         .merge(api_routes);
+    #[cfg(feature = "notify")]
+    {
+        all = all.merge(notify_api);
+    }
     #[cfg(feature = "passkeys")]
     {
         all = all.merge(passkey_routes);
