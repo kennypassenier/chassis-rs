@@ -7,8 +7,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 mod command_line;
 
-// The gate is process-wide, so these tests take turns.
-static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+// The gate is process-wide, so these tests take turns, and a test elsewhere
+// that serves requests waits while one of them holds the gate paused.
+use super::TEST_GATE as SERIAL;
 
 fn controller() -> Controller {
     Controller::new(Vec::new(), Vec::new())
@@ -18,7 +19,7 @@ const MIN: Duration = Duration::from_secs(60);
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_pause_waits_for_the_write_in_flight_and_holds_new_ones() {
-    let _serial = SERIAL.lock().await;
+    let _serial = SERIAL.write().await;
     let c = controller();
     let ticket = writing().await;
     let pausing = tokio::spawn({
@@ -48,7 +49,7 @@ async fn a_pause_waits_for_the_write_in_flight_and_holds_new_ones() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_service_raises_the_mode_and_a_caller_can_raise_it_never_lower() {
-    let _serial = SERIAL.lock().await;
+    let _serial = SERIAL.write().await;
     let modes = Arc::new(Mutex::new(Vec::new()));
     let seen = modes.clone();
     let hook: PauseHook = Arc::new(move |m| {
@@ -78,7 +79,7 @@ async fn the_service_raises_the_mode_and_a_caller_can_raise_it_never_lower() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_full_pause_answers_503_except_the_probes() {
     use tower::ServiceExt;
-    let _serial = SERIAL.lock().await;
+    let _serial = SERIAL.write().await;
     let r = full_pause_layer(
         axum::Router::new()
             .route("/healthz", axum::routing::get(|| async { "alive" }))
@@ -118,7 +119,7 @@ async fn a_repeated_pause_is_a_heartbeat_that_moves_the_deadline() {
     // every 60 s while the copy runs, then `backup-resume`. Here in
     // seconds: each repeat answers Ok and pushes the deadline out, and
     // when the repeats stop the pause ends by itself.
-    let _serial = SERIAL.lock().await;
+    let _serial = SERIAL.write().await;
     let c = controller();
     let beat = Duration::from_secs(2);
     let (first, _) = c.pause(beat, Mode::Writes).await.unwrap();
@@ -136,7 +137,7 @@ async fn a_repeated_pause_is_a_heartbeat_that_moves_the_deadline() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_write_that_never_ends_refuses_the_pause_and_releases_the_gate() {
-    let _serial = SERIAL.lock().await;
+    let _serial = SERIAL.write().await;
     let mut c = controller();
     c.drain = Duration::from_millis(200);
     let ticket = writing().await;
@@ -152,7 +153,7 @@ async fn a_write_that_never_ends_refuses_the_pause_and_releases_the_gate() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_deadline_ends_a_pause_nobody_resumed() {
-    let _serial = SERIAL.lock().await;
+    let _serial = SERIAL.write().await;
     let c = controller();
     c.pause(Duration::from_secs(1), Mode::Full).await.unwrap();
     assert!(c.status().is_some());
@@ -164,7 +165,7 @@ async fn the_deadline_ends_a_pause_nobody_resumed() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_failing_pause_hook_refuses_the_pause() {
-    let _serial = SERIAL.lock().await;
+    let _serial = SERIAL.write().await;
     let resumed = Arc::new(AtomicBool::new(false));
     let r = resumed.clone();
     let c = Controller::new(

@@ -77,6 +77,13 @@ pub const HELD_WRITE_LIMIT: Duration = Duration::from_secs(10);
 /// The socket's file name inside the runtime directory.
 pub const SOCKET_NAME: &str = "backup.sock";
 
+/// Tests only: the pause gate is process-wide, so a unit test that pauses it
+/// takes this for writing and a unit test that serves requests through the
+/// kit takes it for reading; otherwise `cargo test` answers some of the
+/// latter's requests with 503 "paused for a backup" (seen 2026-10-30).
+#[cfg(test)]
+pub(crate) static TEST_GATE: tokio::sync::RwLock<()> = tokio::sync::RwLock::const_new(());
+
 /// How much of the service a pause stops. Ordered: `Full` includes
 /// everything `Writes` holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]

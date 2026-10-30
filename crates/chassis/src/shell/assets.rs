@@ -30,6 +30,32 @@ pub const KP_THEMES_VERSION: &str = "11.3.0";
 /// request time (kyu's traversal-proof shape).
 pub const ASSETS: &[(&str, &str, &[u8])] = include!(concat!(env!("OUT_DIR"), "/assets_core.rs"));
 
+/// The checkout `build.rs` listed `static/` in. A shared target directory can
+/// hand this crate the build-script output of another checkout (a second
+/// worktree), whose file list may differ; the build stops instead of
+/// serving that list.
+const GENERATED_FOR: &str = include!(concat!(env!("OUT_DIR"), "/generated_for.rs"));
+const _: () = assert!(
+    same(GENERATED_FOR, env!("CARGO_MANIFEST_DIR")),
+    "the asset tables were generated for another checkout of chassis; run `touch crates/chassis/build.rs` and build again"
+);
+
+/// `a == b` for strings, usable in a `const` assertion.
+const fn same(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i = 0;
+    while i < a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
 /// feat-webapp-1: the rest of kp-themes' framework-free modules (the wizard,
 /// the data table, the palette, the date picker, …). Served by every build
 /// that serves the kit's pages (`assets`, implied by `dashboard`) since 3.9.0:

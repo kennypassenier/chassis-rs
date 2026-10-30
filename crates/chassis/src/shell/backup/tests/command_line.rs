@@ -16,7 +16,7 @@ fn pause_cmd(socket: &Path, mode: Mode, fallback: bool) -> BackupCmd {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_command_line_pauses_and_resumes_over_the_socket() {
-    let _serial = SERIAL.lock().await;
+    let _serial = SERIAL.write().await;
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join(SOCKET_NAME);
     let server = server::Server::start(path.clone(), controller()).expect("bound");
@@ -60,7 +60,7 @@ async fn the_command_line_pauses_and_resumes_over_the_socket() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn without_a_listener_the_fallback_goes_to_systemd_and_never_claims_a_pause() {
-    let _serial = SERIAL.lock().await;
+    let _serial = SERIAL.write().await;
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join(SOCKET_NAME);
     // No server: the fallback asks systemd about a unit that does not

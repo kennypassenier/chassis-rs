@@ -64,7 +64,7 @@ fn main() {
     let (mut core, mut webapp) = (String::new(), String::new());
     for rel in &files {
         let Some(mime) = classify(rel) else { continue };
-        let entry = entry(&root, rel, mime);
+        let entry = entry(rel, mime);
         let is_webapp = rel.starts_with(KP_JS_PREFIX) && !CORE_KP_JS.contains(&rel.as_str());
         if is_webapp {
             webapp.push_str(&entry)
@@ -82,6 +82,12 @@ fn main() {
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
     write(&out.join("assets_core.rs"), &core);
     write(&out.join("assets_webapp.rs"), &webapp);
+    // Which checkout the list was made for; `assets.rs` refuses to compile
+    // when it is another one, because the list (not the bytes) would be
+    // that checkout's.
+    let manifest = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
+    fs::write(out.join("generated_for.rs"), format!("{manifest:?}\n"))
+        .unwrap_or_else(|e| fail(&format!("write generated_for.rs: {e}")));
 }
 
 /// Every file under `dir`, as a `/`-separated path relative to `root`.
@@ -119,15 +125,17 @@ fn classify(rel: &str) -> Option<&'static str> {
     }
 }
 
-/// One table row; the absolute path makes `include_bytes!` independent of
-/// where the generated file sits.
-fn entry(root: &Path, rel: &str, mime: &str) -> String {
-    let abs = root.join(rel);
+/// One table row. The path is spelled from `CARGO_MANIFEST_DIR` when the
+/// crate compiles, never written out absolute: the build-script output can
+/// be reused by another checkout of this crate through a shared target
+/// directory, and an absolute path would then embed THAT checkout's files
+/// (measured 2026-10-30 across two worktrees).
+fn entry(rel: &str, mime: &str) -> String {
     let mut row = String::new();
     writeln!(
         row,
-        "    ({rel:?}, {mime:?}, include_bytes!({:?})),",
-        abs.to_string_lossy()
+        "    ({rel:?}, {mime:?}, include_bytes!(concat!(env!(\"CARGO_MANIFEST_DIR\"), {:?}))),",
+        format!("/static/{rel}")
     )
     .unwrap();
     row

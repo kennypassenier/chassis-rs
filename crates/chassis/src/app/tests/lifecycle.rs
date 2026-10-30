@@ -7,6 +7,7 @@ use super::*;
 /// only — never for `--check`.
 #[tokio::test]
 async fn on_start_runs_once_after_bind_and_not_for_check() {
+    let _gate = crate::shell::backup::TEST_GATE.read().await;
     let dir = tempfile::tempdir().unwrap();
     let ran = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let r2 = ran.clone();
@@ -48,6 +49,7 @@ async fn on_start_runs_once_after_bind_and_not_for_check() {
 
 #[tokio::test]
 async fn start_serves_kit_routes_and_stops_cleanly() {
+    let _gate = crate::shell::backup::TEST_GATE.read().await;
     let dir = tempfile::tempdir().unwrap();
     let mut app = from_args_secret(
         spec(),
@@ -113,6 +115,7 @@ async fn start_serves_kit_routes_and_stops_cleanly() {
 
 #[tokio::test]
 async fn degraded_subsystem_gives_503_but_probe_still_says_alive() {
+    let _gate = crate::shell::backup::TEST_GATE.read().await;
     let dir = tempfile::tempdir().unwrap();
     let mut app = from_args_secret(spec(), argv(&secrets_env(dir.path())), Router::new()).unwrap();
     app.subsystem(Store(false));
@@ -129,6 +132,7 @@ async fn degraded_subsystem_gives_503_but_probe_still_says_alive() {
 
 #[tokio::test]
 async fn body_cap_answers_413() {
+    let _gate = crate::shell::backup::TEST_GATE.read().await;
     let dir = tempfile::tempdir().unwrap();
     let mut args = secrets_env(dir.path());
     args.extend(["--max-body-bytes", "16"]);
