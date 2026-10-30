@@ -22,10 +22,21 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use rusqlite::{Connection, OpenFlags, Transaction, TransactionBehavior};
+use rusqlite::{Connection, Transaction, TransactionBehavior};
 
 use crate::core::error::{Error, Kind};
 use crate::shell::backup::{self, HELD_WRITE_LIMIT, WriteTicket};
+
+mod error_map;
+mod inspect;
+mod maintenance;
+mod migrate;
+mod open;
+#[cfg(test)]
+mod tests;
+
+pub(crate) use maintenance::vacuum_into_conn;
+use open::{META_DDL, pragmas};
 
 /// How long a statement waits for a lock before it gives up.
 pub const BUSY_TIMEOUT: Duration = Duration::from_millis(5_000);
@@ -63,32 +74,6 @@ impl Migration {
 impl std::fmt::Debug for Migration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("Migration(..)")
-    }
-}
-
-impl From<rusqlite::Error> for Error {
-    fn from(e: rusqlite::Error) -> Self {
-        use rusqlite::ErrorCode;
-        let busy = matches!(
-            e.sqlite_error_code(),
-            Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked)
-        );
-        if busy {
-            return Error::new(
-                Kind::Overloaded,
-                format!("the database is busy: {e}"),
-                "retry in a moment; another process holds the file (a backup tool, a second instance)",
-            );
-        }
-        let full = matches!(e.sqlite_error_code(), Some(ErrorCode::DiskFull));
-        Error::dependency(
-            format!("database error: {e}"),
-            if full {
-                "the disk is full; free space under the state directory"
-            } else {
-                "check free space and that the state directory is writable by the service user; if it persists, restore the file from the last backup or pre-update copy"
-            },
-        )
     }
 }
 
@@ -191,37 +176,6 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-fn pragmas(conn: &Connection, wal: bool) -> Result<(), Error> {
-    conn.busy_timeout(BUSY_TIMEOUT)?;
-    conn.pragma_update(None, "foreign_keys", "ON")?;
-    if wal {
-        let mode: String = conn.query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))?;
-        if !mode.eq_ignore_ascii_case("wal") {
-            return Err(Error::config(
-                format!("SQLite refused write-ahead logging and settled on `{mode}`"),
-                "keep the state directory on a local filesystem; a network mount cannot give WAL, and the durability promise depends on it",
-            ));
-        }
-        // SQLite folds the log into the database by itself every 1000 pages,
-        // but keeps the file at its largest size; the Storage page then
-        // showed about 4 MB of "pending writes" next to a 40 KB kit file
-        // (Kenny, 2026-10-30, kyu and almanac). After each fold the log is
-        // trimmed back to this size.
-        conn.query_row(
-            &format!("PRAGMA journal_size_limit = {WAL_SIZE_LIMIT}"),
-            [],
-            |r| r.get::<_, i64>(0),
-        )?;
-    }
-    conn.pragma_update(None, "synchronous", "FULL")?;
-    Ok(())
-}
-
-/// Bookkeeping the kit itself needs (import markers, format versions),
-/// outside the numbered migrations so a project's list is all its own.
-const META_DDL: &str =
-    "CREATE TABLE IF NOT EXISTS chassis_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;";
-
 /// Read a value from the kit's `chassis_meta` table.
 pub fn meta_get(conn: &Connection, key: &str) -> Result<Option<String>, Error> {
     use rusqlite::OptionalExtension;
@@ -244,104 +198,10 @@ pub fn meta_set(conn: &Connection, key: &str, value: &str) -> Result<(), Error> 
     Ok(())
 }
 
-fn migrate(conn: &mut Connection, migrations: &[Migration], path: &str) -> Result<usize, Error> {
-    let current: usize =
-        conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))? as usize;
-    if current > migrations.len() {
-        return Err(Error::config(
-            format!(
-                "the database {path} is schema {current} but this build knows {}",
-                migrations.len()
-            ),
-            "it was written by a newer build; run that build, or restore the pre-update copy (<name>-pre-update/<version>/) taken before the update",
-        ));
-    }
-    for (i, step) in migrations.iter().enumerate().skip(current) {
-        let version = i + 1;
-        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        // Another process starting at the same moment may have applied this
-        // step between the read above and the lock: look again under it.
-        let applied = tx.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))? as usize;
-        if applied >= version {
-            continue;
-        }
-        (step.0)(&tx).map_err(|e| {
-            Error::new(
-                e.kind,
-                format!(
-                    "migration {version} of {path} failed and was rolled back: {}",
-                    e.message
-                ),
-                e.remedy,
-            )
-        })?;
-        // `user_version` takes no bound parameter; the number is ours.
-        tx.execute_batch(&format!("PRAGMA user_version = {version}"))?;
-        tx.commit()?;
-        tracing::info!(file = path, version, "database migrated");
-    }
-    Ok(migrations.len())
-}
-
 impl Db {
     /// Open (creating it) the file at `path`, bring its schema up to date.
     pub fn open(path: &Path, migrations: &[Migration]) -> Result<Db, Error> {
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| {
-                Error::config(
-                    format!("cannot create {}: {e}", dir.display()),
-                    "create the state directory and make the service user its owner",
-                )
-            })?;
-        }
-        let shown = path.display().to_string();
-        let mut writer = Connection::open(path).map_err(|e| {
-            Error::config(
-                format!("cannot open the database {shown}: {e}"),
-                "check the state directory's permissions; the service user must own it",
-            )
-        })?;
-        // Two processes starting on one file at the same moment can find
-        // the first WAL switch locked; the setup is idempotent, so retry.
-        let mut attempt = 0;
-        let schema = loop {
-            let setup = (|| {
-                pragmas(&writer, true)?;
-                writer.execute_batch(META_DDL)?;
-                migrate(&mut writer, migrations, &shown)
-            })();
-            match setup {
-                Err(e) if e.kind == Kind::Overloaded && attempt < 40 => {
-                    attempt += 1;
-                    std::thread::sleep(Duration::from_millis(50));
-                }
-                other => break other?,
-            }
-        };
-        let mut readers = Vec::with_capacity(READERS);
-        for _ in 0..READERS {
-            let r = Connection::open_with_flags(
-                path,
-                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-            )
-            .map_err(|e| {
-                Error::config(
-                    format!("cannot open a read connection to {shown}: {e}"),
-                    "check the file's permissions",
-                )
-            })?;
-            pragmas(&r, false)?;
-            readers.push(Mutex::new(r));
-        }
-        Ok(Db {
-            inner: Arc::new(Inner {
-                path: Some(path.to_path_buf()),
-                writer: Mutex::new(writer),
-                readers,
-                schema,
-                last_failure: Mutex::new(None),
-            }),
-        })
+        open::open_file(path, migrations)
     }
 
     /// A database in memory, for fast logic tests. WAL does not apply to a
@@ -351,7 +211,7 @@ impl Db {
         let mut writer = Connection::open_in_memory()?;
         pragmas(&writer, false)?;
         writer.execute_batch(META_DDL)?;
-        let schema = migrate(&mut writer, migrations, ":memory:")?;
+        let schema = migrate::migrate(&mut writer, migrations, ":memory:")?;
         Ok(Db {
             inner: Arc::new(Inner {
                 path: None,
@@ -367,43 +227,7 @@ impl Db {
     /// from this binary. Read-only, no pragma set, nothing created or
     /// migrated.
     pub fn inspect(path: &Path, known: usize) -> Result<Inspection, Error> {
-        if !path.exists() {
-            return Ok(Inspection {
-                path: path.to_path_buf(),
-                exists: false,
-                schema: None,
-                known,
-                quick_check: None,
-            });
-        }
-        let conn = Connection::open_with_flags(
-            path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .map_err(|e| {
-            Error::config(
-                format!("cannot open the database {} read-only: {e}", path.display()),
-                "check the file's permissions; the service user must be able to read it",
-            )
-        })?;
-        let quick: String = conn.query_row("PRAGMA quick_check(1)", [], |r| r.get(0))?;
-        if quick != "ok" {
-            return Err(Error::config(
-                format!(
-                    "the database {} is damaged: quick_check says `{quick}`",
-                    path.display()
-                ),
-                "restore the newest backup or the pre-update copy before starting",
-            ));
-        }
-        let schema = conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))? as usize;
-        Ok(Inspection {
-            path: path.to_path_buf(),
-            exists: true,
-            schema: Some(schema),
-            known,
-            quick_check: Some(quick),
-        })
+        inspect::inspect_file(path, known)
     }
 
     /// Change how long the write connection waits for a lock. The default
@@ -527,28 +351,7 @@ impl Db {
     /// pause then falls back to stopping the unit. Takes no write ticket:
     /// it runs INSIDE the pause, after the tickets drained.
     pub fn checkpoint(&self) -> Result<(), Error> {
-        if self.inner.path.is_none() {
-            return Ok(());
-        }
-        let conn = lock(&self.inner.writer);
-        let (busy, _log, _done): (i64, i64, i64) =
-            conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
-                Ok((r.get(0)?, r.get(1)?, r.get(2)?))
-            })?;
-        if busy != 0 {
-            return Err(Error::new(
-                Kind::Overloaded,
-                format!(
-                    "the write-ahead log of {} could not be checkpointed: a reader or writer still holds it",
-                    self.inner
-                        .path
-                        .as_deref()
-                        .map_or_else(String::new, |p| p.display().to_string())
-                ),
-                "the pause falls back to stopping the unit; nothing is lost",
-            ));
-        }
-        Ok(())
+        maintenance::checkpoint_writer(&self.inner)
     }
 
     /// Write a complete, consistent copy of the database to `dest` while
@@ -582,25 +385,7 @@ impl Db {
 
     /// Sizes for the budget; the log is read from disk.
     pub fn sizes(&self) -> Result<FileSizes, Error> {
-        let (pages, page_size, free) = self.read_blocking(|c| {
-            Ok((
-                c.query_row("PRAGMA page_count", [], |r| r.get::<_, i64>(0))?,
-                c.query_row("PRAGMA page_size", [], |r| r.get::<_, i64>(0))?,
-                c.query_row("PRAGMA freelist_count", [], |r| r.get::<_, i64>(0))?,
-            ))
-        })?;
-        let wal = self
-            .inner
-            .path
-            .as_ref()
-            .map(|p| wal_path(p))
-            .and_then(|p| std::fs::metadata(p).ok())
-            .map_or(0, |m| m.len());
-        Ok(FileSizes {
-            db_bytes: (pages.max(0) * page_size.max(0)) as u64,
-            wal_bytes: wal,
-            reclaimable_bytes: (free.max(0) * page_size.max(0)) as u64,
-        })
+        maintenance::sizes_of(self)
     }
 }
 
@@ -618,304 +403,4 @@ fn join<T>(r: Result<Result<T, Error>, tokio::task::JoinError>) -> Result<T, Err
             "report this to the project",
         ))
     })
-}
-
-/// `VACUUM INTO` plus verification, on any connection.
-pub(crate) fn vacuum_into_conn(conn: &Connection, dest: &Path, shown: &str) -> Result<u64, Error> {
-    if dest.exists() {
-        return Err(Error::invalid(
-            format!("{shown} already exists; VACUUM INTO refuses to overwrite"),
-            "choose another name or remove the old copy first",
-        ));
-    }
-    conn.execute("VACUUM INTO ?1", [shown])?;
-    let bytes = std::fs::metadata(dest).map_or(0, |m| m.len());
-    let verify = Connection::open_with_flags(dest, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
-    let integrity: String = verify.query_row("PRAGMA integrity_check", [], |r| r.get(0))?;
-    if integrity != "ok" {
-        return Err(Error::dependency(
-            format!("the copy at {shown} is not a sound database ({integrity})"),
-            "it was left in place for inspection; check free space and take another",
-        ));
-    }
-    Ok(bytes)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn two() -> Vec<Migration> {
-        vec![
-            Migration::sql("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT NOT NULL) STRICT;"),
-            Migration::sql("CREATE TABLE u (id INTEGER PRIMARY KEY) STRICT;"),
-        ]
-    }
-
-    #[test]
-    fn pragmas_are_set_on_the_writer_and_the_readers() {
-        let dir = tempfile::tempdir().unwrap();
-        let db = Db::open(&dir.path().join("a.db"), &two()).unwrap();
-        let (mode, sync, fk, busy): (String, i64, i64, i64) = db
-            .write_blocking(|tx| {
-                Ok((
-                    tx.query_row("PRAGMA journal_mode", [], |r| r.get(0))?,
-                    tx.query_row("PRAGMA synchronous", [], |r| r.get(0))?,
-                    tx.query_row("PRAGMA foreign_keys", [], |r| r.get(0))?,
-                    tx.query_row("PRAGMA busy_timeout", [], |r| r.get(0))?,
-                ))
-            })
-            .unwrap();
-        assert_eq!(mode, "wal");
-        assert_eq!(sync, 2, "FULL");
-        assert_eq!(fk, 1);
-        assert_eq!(busy, 5000);
-        let (rsync, rfk, rbusy): (i64, i64, i64) = db
-            .read_blocking(|c| {
-                Ok((
-                    c.query_row("PRAGMA synchronous", [], |r| r.get(0))?,
-                    c.query_row("PRAGMA foreign_keys", [], |r| r.get(0))?,
-                    c.query_row("PRAGMA busy_timeout", [], |r| r.get(0))?,
-                ))
-            })
-            .unwrap();
-        assert_eq!((rsync, rfk, rbusy), (2, 1, 5000));
-        assert_eq!(db.schema_version(), 2);
-    }
-
-    /// Kenny, 2026-10-30: the Storage page showed about 4 MB of "pending
-    /// writes" next to a 40 KB kit file. A checkpoint folds the log in and
-    /// leaves nothing behind, and the log never grows past its limit.
-    #[test]
-    fn a_checkpoint_empties_the_log_and_the_log_has_a_limit() {
-        let dir = tempfile::tempdir().unwrap();
-        let db = Db::open(&dir.path().join("a.db"), &two()).unwrap();
-        for i in 0..200 {
-            db.write_blocking(|tx| {
-                Ok(tx.execute("INSERT INTO t (v) VALUES (?1)", [format!("{i:0>2000}")])?)
-            })
-            .unwrap();
-        }
-        assert!(db.sizes().unwrap().wal_bytes > 0);
-        db.checkpoint().unwrap();
-        assert_eq!(db.sizes().unwrap().wal_bytes, 0);
-        let limit: i64 = db
-            .write_blocking(|tx| Ok(tx.query_row("PRAGMA journal_size_limit", [], |r| r.get(0))?))
-            .unwrap();
-        assert_eq!(limit, WAL_SIZE_LIMIT);
-    }
-
-    #[test]
-    fn a_reader_cannot_write() {
-        let dir = tempfile::tempdir().unwrap();
-        let db = Db::open(&dir.path().join("a.db"), &two()).unwrap();
-        let err = db
-            .read_blocking(|c| Ok(c.execute("INSERT INTO t (v) VALUES ('x')", [])?))
-            .unwrap_err();
-        assert!(
-            err.message.contains("readonly") || err.message.contains("read-only"),
-            "{err}"
-        );
-    }
-
-    #[test]
-    fn migrations_run_once_in_order_and_a_reopen_applies_nothing() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("a.db");
-        let db = Db::open(&path, &two()[..1]).unwrap();
-        assert_eq!(db.schema_version(), 1);
-        drop(db);
-        let db = Db::open(&path, &two()).unwrap();
-        assert_eq!(db.schema_version(), 2);
-        let n: i64 = db
-            .read_blocking(|c| Ok(c.query_row("SELECT count(*) FROM u", [], |r| r.get(0))?))
-            .unwrap();
-        assert_eq!(n, 0);
-    }
-
-    /// A migration that fails halfway leaves the database exactly at the
-    /// previous version: its DDL is rolled back with the version bump.
-    #[test]
-    fn a_failed_migration_rolls_back_whole_and_keeps_the_old_version() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("a.db");
-        let mut steps = two()[..1].to_vec();
-        steps.push(Migration::code(|tx| {
-            tx.execute_batch("CREATE TABLE half (id INTEGER); INSERT INTO t (v) VALUES ('seed');")?;
-            Err(Error::internal("boom", "none"))
-        }));
-        let err = Db::open(&path, &steps).unwrap_err();
-        assert!(err.message.contains("migration 2"), "{err}");
-        assert!(err.message.contains("rolled back"), "{err}");
-        let insp = Db::inspect(&path, 2).unwrap();
-        assert_eq!(insp.schema, Some(1), "still at the previous version");
-        let conn = Connection::open(&path).unwrap();
-        let tables: Vec<String> = conn
-            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='half'")
-            .unwrap()
-            .query_map([], |r| r.get(0))
-            .unwrap()
-            .map(|r| r.unwrap())
-            .collect();
-        assert!(tables.is_empty(), "the half-made table is gone: {tables:?}");
-        let n: i64 = conn
-            .query_row("SELECT count(*) FROM t", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(n, 0, "the seed row went with it");
-        drop(conn);
-        // The next start, with a fixed step, migrates cleanly.
-        let db = Db::open(&path, &two()).unwrap();
-        assert_eq!(db.schema_version(), 2);
-    }
-
-    /// The process dying inside a migration transaction (no commit, no
-    /// rollback call): on reopen the database is at the old version.
-    #[test]
-    fn a_crash_inside_a_migration_transaction_leaves_the_old_version() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("a.db");
-        drop(Db::open(&path, &two()[..1]).unwrap());
-        {
-            let mut conn = Connection::open(&path).unwrap();
-            let tx = conn
-                .transaction_with_behavior(TransactionBehavior::Immediate)
-                .unwrap();
-            tx.execute_batch("CREATE TABLE u (id INTEGER PRIMARY KEY); PRAGMA user_version = 2;")
-                .unwrap();
-            std::mem::forget(tx); // no commit, no rollback: the "crash"
-            // `conn` drops here, closing the file mid-transaction.
-        }
-        assert_eq!(Db::inspect(&path, 2).unwrap().schema, Some(1));
-        assert_eq!(Db::open(&path, &two()).unwrap().schema_version(), 2);
-    }
-
-    #[test]
-    fn a_newer_database_is_refused_with_the_restore_remedy() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("a.db");
-        drop(Db::open(&path, &two()).unwrap());
-        let err = Db::open(&path, &two()[..1]).unwrap_err();
-        assert!(err.message.contains("schema 2"), "{err}");
-        assert!(err.remedy.contains("pre-update copy"), "{err}");
-        assert!(Db::inspect(&path, 1).unwrap().is_newer());
-    }
-
-    #[test]
-    fn inspect_creates_and_migrates_nothing() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("a.db");
-        let none = Db::inspect(&path, 2).unwrap();
-        assert!(!none.exists);
-        assert!(none.describe().contains("created at start"));
-        assert!(!path.exists());
-        drop(Db::open(&path, &two()[..1]).unwrap());
-        let behind = Db::inspect(&path, 2).unwrap();
-        assert!(behind.describe().contains("migration runs at start"));
-        assert_eq!(
-            Db::inspect(&path, 2).unwrap().schema,
-            Some(1),
-            "not migrated by looking"
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn a_failed_write_commits_nothing() {
-        let db = Db::open_in_memory(&two()).unwrap();
-        let err = db
-            .write(|tx| {
-                tx.execute("INSERT INTO t (v) VALUES ('a')", [])?;
-                Err::<(), _>(Error::invalid("no", "no"))
-            })
-            .await
-            .unwrap_err();
-        assert_eq!(err.kind, Kind::Invalid);
-        let n: i64 = db
-            .read(|c| Ok(c.query_row("SELECT count(*) FROM t", [], |r| r.get(0))?))
-            .await
-            .unwrap();
-        assert_eq!(n, 0);
-        assert!(
-            db.recent_write_failure().is_none(),
-            "a refusal is not a sick file"
-        );
-    }
-
-    /// Eight tasks and a second handle on the same file write at once: the
-    /// single writer and the busy timeout serialise them, none fails.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn parallel_writers_all_land() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("a.db");
-        let a = Db::open(&path, &two()).unwrap();
-        let b = Db::open(&path, &two()).unwrap();
-        let mut tasks = Vec::new();
-        for i in 0..8 {
-            let db = if i % 2 == 0 { a.clone() } else { b.clone() };
-            tasks.push(tokio::spawn(async move {
-                for j in 0..25 {
-                    db.write(move |tx| {
-                        tx.execute("INSERT INTO t (v) VALUES (?1)", [format!("{i}-{j}")])?;
-                        Ok(())
-                    })
-                    .await
-                    .unwrap();
-                }
-            }));
-        }
-        for t in tasks {
-            t.await.unwrap();
-        }
-        let n: i64 = a
-            .read(|c| Ok(c.query_row("SELECT count(*) FROM t", [], |r| r.get(0))?))
-            .await
-            .unwrap();
-        assert_eq!(n, 200);
-    }
-
-    #[test]
-    fn vacuum_into_makes_a_sound_copy_and_refuses_to_overwrite() {
-        let dir = tempfile::tempdir().unwrap();
-        let db = Db::open(&dir.path().join("a.db"), &two()).unwrap();
-        db.write_blocking(|tx| Ok(tx.execute("INSERT INTO t (v) VALUES ('kept')", [])?))
-            .unwrap();
-        let dest = dir.path().join("copy.db");
-        db.vacuum_into(&dest).unwrap();
-        let copy = Db::open(&dest, &two()).unwrap();
-        let v: String = copy
-            .read_blocking(|c| Ok(c.query_row("SELECT v FROM t", [], |r| r.get(0))?))
-            .unwrap();
-        assert_eq!(v, "kept");
-        assert!(
-            db.vacuum_into(&dest)
-                .unwrap_err()
-                .message
-                .contains("already exists")
-        );
-    }
-
-    #[test]
-    fn sizes_count_pages_and_the_log_and_reclaimable_pages() {
-        let dir = tempfile::tempdir().unwrap();
-        let db = Db::open(&dir.path().join("a.db"), &two()).unwrap();
-        db.write_blocking(|tx| {
-            for i in 0..200 {
-                tx.execute("INSERT INTO t (v) VALUES (?1)", [format!("{i:0>200}")])?;
-            }
-            Ok(())
-        })
-        .unwrap();
-        let before = db.sizes().unwrap();
-        assert!(before.db_bytes > 0 && before.total() >= before.db_bytes);
-        db.write_blocking(|tx| Ok(tx.execute("DELETE FROM t", [])?))
-            .unwrap();
-        db.checkpoint().unwrap();
-        let after = db.sizes().unwrap();
-        assert_eq!(after.wal_bytes, 0, "checkpoint(TRUNCATE) empties the log");
-        assert!(
-            after.reclaimable_bytes > 0,
-            "deleted pages wait on the freelist"
-        );
-        db.vacuum_blocking().unwrap();
-        assert_eq!(db.sizes().unwrap().reclaimable_bytes, 0);
-    }
 }
