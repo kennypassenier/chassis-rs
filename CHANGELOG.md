@@ -56,6 +56,25 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Changed
 
+- **The kit's source is split by responsibility** (Kenny's engineering
+  rules, 2026-10-30): 64 own files over 250 lines became small modules, among
+  them `app.rs` (3916 lines), `chassis.js` (3129 lines, now ES modules under
+  `static/chassis/`, page state in one context object per page),
+  `chassis.css` (an entry that `@import`s its parts in the old order) and the
+  CLI's `main.rs`. Nothing a service calls moved: the API contract reads the
+  same, and a page serves the same DOM and requests (measured in Firefox).
+  The kit's asset hash changes once, so browsers fetch the files again.
+- **The embedded asset tables are generated** (feature `assets`): a
+  `build.rs` builds `ASSETS` and `WEBAPP_KP_ASSETS` from `static/` with the
+  same rules as the hand-kept list (an unknown extension stops the build), and
+  a test checks that every servable file is embedded exactly once.
+- **The API snapshot files a public method under its type** (CLI tooling,
+  `api_snapshot`): an `impl` block may sit in a child module of the module
+  that declares the type. Types, functions and constants still keep their
+  declaration path.
+- **The release gate builds every feature set a consumer can pick**
+  (`scripts/release-kit.sh`), not only all features at once.
+
 - **Trusted admins are recognised through a trusted proxy** (`dashboard`;
   Kenny, 2026-10-30, route "thuis lokaal houden"): `<P>_TRUSTED_ADMINS`
   now matches the client address the guards already use, the TCP peer or,
@@ -66,6 +85,10 @@ scaffold writes. A breaking change in either is a major and carries a
   without `trusted_admins` or without `trusted_proxies`.
 
 ### Fixed
+
+- **`bigshouldersdisplay-variable.woff2` is served** (feature `assets`):
+  `kp/css/fonts.css` asks for it and `KP_THEMES.sha256` lists it, but the
+  hand-kept table never embedded it, so it answered 404.
 
 - **"updated … ago" counts on again on the Storage and Clients pages**
   (`dashboard`; Kenny, 2026-10-30, seen on almanac and kyu): the refresh
