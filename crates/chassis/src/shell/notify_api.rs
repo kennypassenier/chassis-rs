@@ -73,6 +73,9 @@ fn view_json(v: View) -> Value {
         "primary": target_json(Which::Primary, &v.primary, v.saved[0], &v.code[0]),
         "fallback": target_json(Which::Fallback, &v.fallback, v.saved[1], &v.code[1]),
         "can_edit": !both_locked,
+        // Only whether a token is set and which variable carries it; the
+        // value never leaves the sender.
+        "token": {"set": v.token_set, "env": v.token_env},
         "outbox": {
             "waiting": v.counts.waiting,
             "oldest_at": v.counts.oldest_at.map(epoch_rfc3339),
