@@ -5,11 +5,14 @@
 use serde_json::{Value as Json, json};
 
 use super::BrowserKeys;
+#[cfg(any(feature = "dashboard", test))]
 use super::secrets::{key_ok, looks_secret_name};
+#[cfg(any(feature = "dashboard", test))]
 use crate::core::error::Error;
 
 impl BrowserKeys {
     /// Checked at start and by `--check`.
+    #[cfg(any(feature = "dashboard", test))]
     pub(crate) fn validate(&self) -> Result<(), Error> {
         if self.allow_exact.is_empty()
             && self.allow_prefix.is_empty()
@@ -34,6 +37,7 @@ impl BrowserKeys {
 
     /// Every declared key or prefix must be non-empty, usable as a key and
     /// not name a secret.
+    #[cfg(any(feature = "dashboard", test))]
     fn validate_names(&self) -> Result<(), Error> {
         for p in self
             .allow_exact

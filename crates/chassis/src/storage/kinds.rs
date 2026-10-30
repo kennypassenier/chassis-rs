@@ -181,4 +181,5 @@ mod query;
 mod selection;
 mod validate;
 
+#[cfg(feature = "dashboard")]
 pub(in crate::storage) use query::table_bytes;
