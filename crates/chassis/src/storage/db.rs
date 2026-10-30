@@ -29,6 +29,8 @@ use crate::shell::backup::{self, HELD_WRITE_LIMIT, WriteTicket};
 
 /// How long a statement waits for a lock before it gives up.
 pub const BUSY_TIMEOUT: Duration = Duration::from_millis(5_000);
+/// Bytes the write-ahead log is trimmed back to after a checkpoint.
+pub(crate) const WAL_SIZE_LIMIT: i64 = 1_048_576;
 
 /// Read-only connections next to the one writer.
 pub const READERS: usize = 2;
@@ -200,6 +202,16 @@ fn pragmas(conn: &Connection, wal: bool) -> Result<(), Error> {
                 "keep the state directory on a local filesystem; a network mount cannot give WAL, and the durability promise depends on it",
             ));
         }
+        // SQLite folds the log into the database by itself every 1000 pages,
+        // but keeps the file at its largest size; the Storage page then
+        // showed about 4 MB of "pending writes" next to a 40 KB kit file
+        // (Kenny, 2026-10-30, kyu and almanac). After each fold the log is
+        // trimmed back to this size.
+        conn.query_row(
+            &format!("PRAGMA journal_size_limit = {WAL_SIZE_LIMIT}"),
+            [],
+            |r| r.get::<_, i64>(0),
+        )?;
     }
     conn.pragma_update(None, "synchronous", "FULL")?;
     Ok(())
@@ -669,6 +681,28 @@ mod tests {
             .unwrap();
         assert_eq!((rsync, rfk, rbusy), (2, 1, 5000));
         assert_eq!(db.schema_version(), 2);
+    }
+
+    /// Kenny, 2026-10-30: the Storage page showed about 4 MB of "pending
+    /// writes" next to a 40 KB kit file. A checkpoint folds the log in and
+    /// leaves nothing behind, and the log never grows past its limit.
+    #[test]
+    fn a_checkpoint_empties_the_log_and_the_log_has_a_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open(&dir.path().join("a.db"), &two()).unwrap();
+        for i in 0..200 {
+            db.write_blocking(|tx| {
+                Ok(tx.execute("INSERT INTO t (v) VALUES (?1)", [format!("{i:0>2000}")])?)
+            })
+            .unwrap();
+        }
+        assert!(db.sizes().unwrap().wal_bytes > 0);
+        db.checkpoint().unwrap();
+        assert_eq!(db.sizes().unwrap().wal_bytes, 0);
+        let limit: i64 = db
+            .write_blocking(|tx| Ok(tx.query_row("PRAGMA journal_size_limit", [], |r| r.get(0))?))
+            .unwrap();
+        assert_eq!(limit, WAL_SIZE_LIMIT);
     }
 
     #[test]

@@ -374,3 +374,16 @@ fn storage_defaults_to_five_minutes() {
     assert!(page.contains(r#"data-kp-refresh="300""#));
     assert!(page.contains(r#"data-kp-refresh-choices="0,15,30,60,300""#));
 }
+
+/// Kenny, 2026-10-30 (almanac, kyu): "updated 0 s ago" never counted on.
+/// The refresh control's line ticks only when the freshness ticker runs, so
+/// the Storage page and the Clients page ask for it wherever a refresh
+/// control is.
+#[test]
+fn the_refresh_line_ticks_on_storage_and_clients() {
+    let js = kit_file("static/chassis.js");
+    assert!(
+        js.contains("['freshness', '[data-kp-refresh], [data-kp-ago]', (m, r) => m.attachAgo(r)],")
+    );
+    assert!(js.contains("['[data-kp-refresh], [data-kp-ago]', 'freshness', 'attachAgo'],"));
+}

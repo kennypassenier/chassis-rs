@@ -517,6 +517,19 @@ impl Storage {
 
     /// Measure both files, remember the result, and run the warn hook when
     /// the level rose. Blocks briefly (two `PRAGMA`s per file).
+    /// Fold each write-ahead log into its database and trim it to nothing,
+    /// so the Storage page's "pending writes" shows what is really pending
+    /// (Kenny, 2026-10-30: kyu and almanac showed about 4 MB beside a 40 KB
+    /// kit file). A busy log is left for the next round.
+    pub(crate) fn settle_logs(&self) {
+        let app = self.inner.app.as_ref().and_then(|a| a.db().ok());
+        for db in app.into_iter().chain(self.inner.kit.iter()) {
+            if let Err(e) = db.checkpoint() {
+                tracing::debug!(error = %e, "storage: the write-ahead log stays for the next round");
+            }
+        }
+    }
+
     pub fn check(&self) -> Result<StorageReport, Error> {
         let mut files = Vec::new();
         if let Some(app) = self.inner.app.as_ref().and_then(|a| a.db().ok()) {
@@ -643,7 +656,12 @@ impl Storage {
             loop {
                 tick.tick().await;
                 let again = me.clone();
-                if let Ok(Err(e)) = tokio::task::spawn_blocking(move || again.check()).await {
+                if let Ok(Err(e)) = tokio::task::spawn_blocking(move || {
+                    again.settle_logs();
+                    again.check()
+                })
+                .await
+                {
                     tracing::warn!(error = %e, "storage: the budget check failed");
                 }
             }

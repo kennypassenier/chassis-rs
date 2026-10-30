@@ -265,6 +265,8 @@ const CLIENTS_MODULES = [
   ['[data-kp-art]', 'art', 'attachArt'],
   ['[data-kp-problems]', 'problems', 'attachProblems'],
   ['[data-kp-refresh]', 'auto-refresh', 'attachRefresh'],
+  // The refresh line counts on only with the freshness ticker (see Storage).
+  ['[data-kp-refresh], [data-kp-ago]', 'freshness', 'attachAgo'],
   ['.kp-ops', 'footprint', 'attachFootprints'],
   ['dialog.kp-dialog, .kp-datatable', 'motion', 'attachMotion'],
   ['.kp-card, [data-kp-datatable]', 'loading-pieces', 'attachLoadingPieces'],
@@ -2192,6 +2194,11 @@ async function startStorage(root) {
     ['datatable', '[data-kp-datatable]', (m, r) => m.attachDataTables(r)],
     ['card-state', '.kp-card[data-kp-state]', (m, r) => m.attachCardStates(r)],
     ['auto-refresh', '[data-kp-refresh]', (m, r) => m.attachRefresh(r)],
+    // The refresh control's "updated … ago" only counts on when the freshness
+    // ticker runs; without it the line stayed at "0 s ago" (Kenny,
+    // 2026-10-30, almanac and kyu). The control draws its line after attach,
+    // so the ticker is asked for wherever a refresh control is.
+    ['freshness', '[data-kp-refresh], [data-kp-ago]', (m, r) => m.attachAgo(r)],
     ['loading-pieces', '.kp-meter, .kp-kpi, .kp-card, [data-kp-datatable]', (m, r) => m.attachLoadingPieces(r)],
     ['motion', 'dialog.kp-dialog, .kp-datatable, .kp-field', (m, r) => m.attachMotion(r)],
     ['footprint', '.kp-ops, [data-kp-datatable]', (m, r) => m.attachFootprints(r)],
@@ -2341,7 +2348,7 @@ async function startStorage(root) {
       <div class="storage-files" role="group" aria-label="The three parts of the storage">
         ${row('Application data', size(t.app), `Everything this service stores. Cleaned up here, kind by kind${t.free ? `; ${size(t.free)} of it is empty space` : ''}.`)}
         ${row('Sign-in data', size(t.kit), 'Used for sign-in, never cleaned up here.', '<span class="kp-badge">Read-only</span>')}
-        ${row('Pending writes', size(t.wal), 'Recent changes not yet folded into the data; it empties itself.')}
+        ${row('Pending writes', size(t.wal), 'The write log; SQLite folds it into the data by itself and keeps it at most about 1 MB.')}
       </div>
       <div class="storage-budget__edit" data-storage-budget-edit></div></div>`;
   }
