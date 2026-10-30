@@ -14,6 +14,8 @@ mod error_page;
 mod error_response;
 mod hygiene;
 
+// The dashboard's error page reads the request it renders for.
+#[cfg(any(feature = "dashboard", test))]
 pub(crate) use error_page::error_context;
 
 use axum::Router;

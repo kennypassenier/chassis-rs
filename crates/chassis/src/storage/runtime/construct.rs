@@ -3,8 +3,12 @@
 
 use std::sync::{Arc, Mutex};
 
-use super::{BudgetSetup, Inner, KitPrune, Storage, StorageConfig, Stored, WarnHook};
-use crate::storage::app_db::{AppDb, StorageProblem};
+#[cfg(feature = "dashboard")]
+use super::KitPrune;
+use super::{BudgetSetup, Inner, Storage, StorageConfig, Stored, WarnHook};
+use crate::storage::app_db::AppDb;
+#[cfg(feature = "dashboard")]
+use crate::storage::app_db::StorageProblem;
 use crate::storage::db::Db;
 
 impl Storage {

@@ -2,7 +2,9 @@
 //! types stay declared in the parent; the impls live here so the three
 //! near-identical bodies sit side by side.
 
-use super::{ClientStore, DbClientStore, FileClientStore, MemoryClientStore};
+#[cfg(feature = "dashboard")]
+use super::DbClientStore;
+use super::{ClientStore, FileClientStore, MemoryClientStore};
 use crate::core::clients::{Client, ClientsFile};
 use crate::core::error::Error;
 
