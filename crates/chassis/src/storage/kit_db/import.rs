@@ -7,10 +7,13 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::Transaction;
 
+#[cfg(feature = "passkeys")]
+use super::PasskeyRow;
 use super::clients::insert_clients;
+#[cfg(feature = "passkeys")]
 use super::passkeys::insert_passkeys;
 use super::sessions::insert_sessions;
-use super::{ImportPlan, KitDb, PasskeyRow};
+use super::{ImportPlan, KitDb};
 use crate::core::clients::ClientsFile;
 use crate::core::crypto::Key;
 use crate::core::error::Error;

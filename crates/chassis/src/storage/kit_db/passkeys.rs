@@ -45,6 +45,7 @@ impl KitDb {
     }
 }
 
+#[cfg_attr(not(feature = "passkeys"), allow(dead_code))]
 fn write_passkeys(tx: &Transaction, key: &Key, rows: &[PasskeyRow]) -> Result<(), Error> {
     let existing: BTreeSet<String> = tx
         .prepare("SELECT id FROM kit_passkeys")?
@@ -67,6 +68,7 @@ fn write_passkeys(tx: &Transaction, key: &Key, rows: &[PasskeyRow]) -> Result<()
     Ok(())
 }
 
+#[cfg_attr(not(feature = "passkeys"), allow(dead_code))]
 pub(super) fn insert_passkeys(
     tx: &Transaction,
     key: &Key,
