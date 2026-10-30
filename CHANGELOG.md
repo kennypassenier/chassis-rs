@@ -9,6 +9,11 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **A warning at start when a web app at the root registers none of its
+  pages** (`dashboard`, feat-pages-2): the kit's pages then show only the
+  kit's links in their bar (seen in Medicine Cabinet). The line names the
+  remedy: `app.page(...)` for each area, or `app.kit_pages_in_webapp()`.
+
 - **One shared notification sender and a Notifications card on the Status
   page** (Kenny, 2026-10-30; docs/NOTIFY_DESIGN.md). Knobs `notify_url`
   (primary target, a kyu topic), `notify_fallback_url` and `notify_outbox_max`
