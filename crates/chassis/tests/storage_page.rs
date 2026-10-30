@@ -365,3 +365,12 @@ fn sample_cards_wrap_long_values() {
         ".storage-prev__table[data-kp-cards] td { max-inline-size: none; white-space: normal; overflow-wrap: anywhere; }"
     ));
 }
+
+/// Kenny, 2026-10-24 (confirmed in the 3.14.0 form): the Storage page
+/// refreshes every five minutes by default, and "Every 5 min" is offered.
+#[test]
+fn storage_defaults_to_five_minutes() {
+    let page = kit_file("templates/storage.html");
+    assert!(page.contains(r#"data-kp-refresh="300""#));
+    assert!(page.contains(r#"data-kp-refresh-choices="0,15,30,60,300""#));
+}

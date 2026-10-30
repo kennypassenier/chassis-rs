@@ -23,6 +23,11 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Fixed
 
+- **The Storage page refreshes every 5 minutes by default** (Kenny,
+  2026-10-24), and "Every 5 min" is one of its choices. A choice already made
+  in the browser stays.
+- **tokio 1.54.1** for RUSTSEC-2026-0386 (`AsyncFd::new` and related
+  constructors violated I/O safety).
 - **The kit's login and logout keep their plain POST under kp-themes
   11.3.0**: both forms say `data-kp-form-native-submit`. Without it the
   login stayed on /login after a valid token (measured in Firefox before the
