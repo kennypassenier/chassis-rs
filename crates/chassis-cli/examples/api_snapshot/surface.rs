@@ -4,6 +4,7 @@
 
 use syn::{Item, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType};
 
+use crate::resolve::method_head;
 use crate::text::{is_public, note_deprecated, quote, sealed, sig_text};
 use crate::walk::with_segment;
 
@@ -112,8 +113,12 @@ fn impl_item(i: &ItemImpl, module: &str, out: &mut Vec<String>, dep: &mut Vec<St
         if let syn::ImplItem::Fn(f) = i
             && is_public(&f.vis)
         {
-            out.push(format!("fn {module}::{ty}::{}", sig_text(&quote(&f.sig))));
-            note_deprecated(&f.attrs, &format!("{module}::{ty}::{}", f.sig.ident), dep);
+            // The module is settled later, once every type's declaration is
+            // known: a method belongs to its type, not to the file its impl
+            // block sits in (see `resolve`).
+            let head = method_head(module, &ty);
+            out.push(format!("fn {head}::{}", sig_text(&quote(&f.sig))));
+            note_deprecated(&f.attrs, &format!("{head}::{}", f.sig.ident), dep);
         }
     }
 }

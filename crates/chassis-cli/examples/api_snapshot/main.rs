@@ -23,8 +23,10 @@
 //! read as that line changing.
 //!
 //! The parts: `walk` (the source tree and its module paths), `surface` (one
-//! line per public item) and `text` (the helpers that make a line stable).
+//! line per public item), `resolve` (which module a method belongs to) and
+//! `text` (the helpers that make a line stable).
 
+mod resolve;
 mod surface;
 mod text;
 mod walk;
@@ -48,6 +50,7 @@ fn main() {
     let mut lines = Vec::new();
     let mut dep = Vec::new();
     walk(Path::new(&root), &crate_name, &mut lines, &mut dep);
+    resolve::settle(&mut lines, &mut dep);
     lines.sort();
     lines.dedup();
     dep.sort();
