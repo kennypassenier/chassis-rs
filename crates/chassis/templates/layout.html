@@ -25,6 +25,7 @@
 <link rel="stylesheet" href="/static/kp/dist/kp-themes.css?v={{ assets }}">
 <link rel="stylesheet" href="/static/chassis.css?v={{ assets }}">
 <script type="module" src="/static/chassis.js?v={{ assets }}"></script>
+{{ pwa_head|default('')|safe }}
 {% block head %}{% endblock %}
 </head>
 <body>

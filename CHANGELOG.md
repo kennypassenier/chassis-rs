@@ -9,6 +9,16 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **Every web app is installable** (`webapp`, feat-webapp-4): at the root,
+  the kit serves `/manifest.webmanifest`, generated or own icons
+  (`pwa/icon-*.png` in the app), `/sw.js` and an offline page without a
+  login, links the manifest from the app's pages and the login page, and
+  registers a network-first service worker from `webapp-runtime.js` that
+  never serves a stale page and never stores `/api`, redirects, non-200 or
+  opaque answers. `WebApp::pwa(Pwa::new().display(Display::Standalone)
+  .theme_color(..)..)` tunes it; `WebApp::without_pwa()` opts out. Additive
+  API: `Pwa`, `Display`, `WebApp::pwa`, `WebApp::without_pwa`.
+
 - **The web app gets the kp-themes runtime without asking** (`webapp`,
   feat-webapp-3): the file server adds `static/chassis/webapp-runtime.js`
   (kp-themes' effects and the remembered-choice store, once per page) to

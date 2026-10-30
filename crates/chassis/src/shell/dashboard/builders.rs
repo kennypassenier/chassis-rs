@@ -83,6 +83,14 @@ impl Dashboard {
         self
     }
 
+    /// feat-webapp-4: the tags that link the web app's manifest, for the
+    /// layout's `<head>` (so an installed app can sign in); empty without.
+    pub(crate) fn with_pwa_head(mut self, tags: Option<String>) -> Self {
+        let env = Arc::make_mut(&mut self.env);
+        env.add_global("pwa_head", tags.unwrap_or_default());
+        self
+    }
+
     /// feat-pages-1: the navigation from the page registry: the visible
     /// pages in order, and where the brand link goes.
     pub(crate) fn with_pages(mut self, set: &crate::shell::pages::PageSet) -> Self {

@@ -15,6 +15,7 @@
 
 import { configureRemember } from '../kp/js/remember.js';
 import { attachKitEffects } from './kit-effects.js';
+import { registerPwa } from './pwa-register.js';
 
 /**
  * Install the runtime on `win`/`doc` unless it is already there. The attach
@@ -29,6 +30,9 @@ export function installRuntime(win, doc, deps = {}) {
     // them localStorage stays as it was.
     if (win.chassisPrefs) remember({ storage: win.chassisPrefs.storage });
     const effects = attach(doc);
+    // An installable app (feat-webapp-4) links the kit's manifest; only then
+    // does the page register the service worker.
+    (deps.registerPwa ?? registerPwa)(win, doc);
     win.chassisRuntime = { get effects() { return effects.current(); } };
     return win.chassisRuntime;
 }

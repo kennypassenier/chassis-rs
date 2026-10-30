@@ -136,7 +136,9 @@ pub(super) fn build(
     #[cfg(feature = "notify")]
     let dash = dash
         .with_notify_card(extra.notify.is_some() && !extra.disabled.iter().any(|d| d == "status"));
-    let dash = dash.with_pages(&page_set);
+    let dash = dash
+        .with_pages(&page_set)
+        .with_pwa_head(extra.pwa_head.take());
     dash.spawn_uptime_sampler();
     Ok(Built {
         dash,

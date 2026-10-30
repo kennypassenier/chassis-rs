@@ -31,7 +31,7 @@ impl App {
         #[cfg(not(feature = "webapp"))]
         let webapp_at_root = false;
         self.validate_pages(webapp_at_root)?;
-        let dashboard_router = self.dashboard_with_webapp()?;
+        let (dashboard_router, pwa_routes, pwa_head) = self.dashboard_with_webapp()?;
         crate::app_dashboard::mount_with(
             crate::app_dashboard::MountInput {
                 spec: &self.spec,
@@ -55,6 +55,8 @@ impl App {
                 home: self.home.take(),
                 webapp_at_root,
                 kit_in_webapp: self.kit_pages_in_webapp,
+                pwa_routes,
+                pwa_head,
                 #[cfg(feature = "storage")]
                 storage: Some(stores.storage.clone()),
                 prefs: stores.prefs.clone(),
@@ -89,14 +91,21 @@ impl App {
         Ok(())
     }
 
-    /// The dashboard router with the project's web app merged in.
-    fn dashboard_with_webapp(&mut self) -> Result<Router, Error> {
+    /// The dashboard router with the project's web app merged in, plus the
+    /// app's public install routes and the tags for the kit's own pages
+    /// (feat-webapp-4; the routes must sit outside the login).
+    #[allow(clippy::type_complexity)]
+    fn dashboard_with_webapp(&mut self) -> Result<(Router, Option<Router>, Option<String>), Error> {
         let dashboard_router = std::mem::take(&mut self.dashboard_router);
         #[cfg(feature = "webapp")]
-        let dashboard_router = match self.webapp.take() {
-            Some(w) => dashboard_router.merge(w.router()?),
-            None => dashboard_router,
-        };
-        Ok(dashboard_router)
+        if let Some(w) = self.webapp.take() {
+            let brand = self
+                .brand_title
+                .clone()
+                .unwrap_or_else(|| self.spec.name.to_string());
+            let (routes, head) = (w.pwa_router(&brand), w.pwa_head_html());
+            return Ok((dashboard_router.merge(w.router()?), routes, head));
+        }
+        Ok((dashboard_router, None, None))
     }
 }
