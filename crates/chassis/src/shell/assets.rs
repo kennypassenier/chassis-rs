@@ -321,14 +321,39 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/chassis.js"),
     ),
     (
+        "chassis/actions.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/actions.js"),
+    ),
+    (
         "chassis/base.css",
         "text/css; charset=utf-8",
         include_bytes!("../../static/chassis/base.css"),
     ),
     (
+        "chassis/boot-kit.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/boot-kit.js"),
+    ),
+    (
+        "chassis/clients-config.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/clients-config.js"),
+    ),
+    (
+        "chassis/clients-first-call.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/clients-first-call.js"),
+    ),
+    (
         "chassis/clients-issue.css",
         "text/css; charset=utf-8",
         include_bytes!("../../static/chassis/clients-issue.css"),
+    ),
+    (
+        "chassis/clients-issue.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/clients-issue.js"),
     ),
     (
         "chassis/clients-list.css",
@@ -346,9 +371,39 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/chassis/clients-manage.css"),
     ),
     (
+        "chassis/clients-manage.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/clients-manage.js"),
+    ),
+    (
+        "chassis/clients-page.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/clients-page.js"),
+    ),
+    (
+        "chassis/clipboard.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/clipboard.js"),
+    ),
+    (
+        "chassis/format-text.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/format-text.js"),
+    ),
+    (
+        "chassis/json-api.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/json-api.js"),
+    ),
+    (
         "chassis/kp-gaps.css",
         "text/css; charset=utf-8",
         include_bytes!("../../static/chassis/kp-gaps.css"),
+    ),
+    (
+        "chassis/login-page.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/login-page.js"),
     ),
     (
         "chassis/login.css",
@@ -356,9 +411,54 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/chassis/login.css"),
     ),
     (
+        "chassis/notify-card-markup.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/notify-card-markup.js"),
+    ),
+    (
+        "chassis/page-parts.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/page-parts.js"),
+    ),
+    (
+        "chassis/passkeys-page.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/passkeys-page.js"),
+    ),
+    (
         "chassis/passkeys.css",
         "text/css; charset=utf-8",
         include_bytes!("../../static/chassis/passkeys.css"),
+    ),
+    (
+        "chassis/ready-signal.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/ready-signal.js"),
+    ),
+    (
+        "chassis/requests.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/requests.js"),
+    ),
+    (
+        "chassis/shell-connection.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/shell-connection.js"),
+    ),
+    (
+        "chassis/shell-dom.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/shell-dom.js"),
+    ),
+    (
+        "chassis/shell-error-page.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/shell-error-page.js"),
+    ),
+    (
+        "chassis/shell-palette.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/shell-palette.js"),
     ),
     (
         "chassis/shell.css",
@@ -366,9 +466,114 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         include_bytes!("../../static/chassis/shell.css"),
     ),
     (
+        "chassis/shell.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/shell.js"),
+    ),
+    (
+        "chassis/status-api.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/status-api.js"),
+    ),
+    (
+        "chassis/status-bodies.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/status-bodies.js"),
+    ),
+    (
+        "chassis/status-card-reads.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/status-card-reads.js"),
+    ),
+    (
+        "chassis/status-failure.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/status-failure.js"),
+    ),
+    (
+        "chassis/status-format.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/status-format.js"),
+    ),
+    (
+        "chassis/status-loading.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/status-loading.js"),
+    ),
+    (
+        "chassis/status-modules.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/status-modules.js"),
+    ),
+    (
+        "chassis/status-page.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/status-page.js"),
+    ),
+    (
+        "chassis/status-parts.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/status-parts.js"),
+    ),
+    (
         "chassis/status.css",
         "text/css; charset=utf-8",
         include_bytes!("../../static/chassis/status.css"),
+    ),
+    (
+        "chassis/storage-budget-form.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/storage-budget-form.js"),
+    ),
+    (
+        "chassis/storage-budget-html.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/storage-budget-html.js"),
+    ),
+    (
+        "chassis/storage-clean-form.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/storage-clean-form.js"),
+    ),
+    (
+        "chassis/storage-clean-html.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/storage-clean-html.js"),
+    ),
+    (
+        "chassis/storage-compact-card.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/storage-compact-card.js"),
+    ),
+    (
+        "chassis/storage-compact-html.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/storage-compact-html.js"),
+    ),
+    (
+        "chassis/storage-format.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/storage-format.js"),
+    ),
+    (
+        "chassis/storage-kinds.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/storage-kinds.js"),
+    ),
+    (
+        "chassis/storage-markup.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/storage-markup.js"),
+    ),
+    (
+        "chassis/storage-page.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/storage-page.js"),
+    ),
+    (
+        "chassis/storage-parts.js",
+        "text/javascript; charset=utf-8",
+        include_bytes!("../../static/chassis/storage-parts.js"),
     ),
     (
         "chassis/storage.css",
