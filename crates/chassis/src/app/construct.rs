@@ -4,6 +4,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use axum::Router;
@@ -49,76 +50,6 @@ impl App {
             #[cfg(feature = "notify")]
             notify,
         )
-    }
-
-    /// Parse `args` (argv[0] included) and load configuration with an
-    /// explicit environment map; the body of `App::from_args_with_env`.
-    pub(super) fn parse(
-        spec: AppSpec,
-        args: Vec<String>,
-        env: BTreeMap<String, String>,
-        router: Router,
-    ) -> Result<App, Error> {
-        let knobs = spec.knobs();
-        let matches = match cli::command(&spec, &knobs).try_get_matches_from(args) {
-            Ok(matches) => matches,
-            // 1.2.0: `--help` is an answer on stdout with exit 0, not a
-            // refusal — scripts and humans tell the two apart by exit code.
-            Err(e) if e.kind() == clap::error::ErrorKind::DisplayHelp => {
-                return Ok(App::bare(spec, router, Control::Help(e.to_string())));
-            }
-            Err(e) => {
-                return Err(Error::invalid(
-                    e.to_string().trim_end().to_string(),
-                    "run with --help for the flags this service accepts",
-                ));
-            }
-        };
-        if let Some(control) = cli::early_control(&matches) {
-            return Ok(App::bare(spec, router, control));
-        }
-        if let Some(cmd) = cli::backup_command(&matches) {
-            let mut app = App::bare(spec, router, Control::Version);
-            app.control = None;
-            app.backup_cmd = Some(cmd);
-            return Ok(app);
-        }
-
-        let loaded = crate::shell::config_load::load_with_env(
-            &spec.prefix(),
-            &knobs,
-            cli::knob_flags(&matches, &knobs),
-            &spec.state_dir_default(),
-            env.clone(),
-        )?;
-        let control = cli::requested_control(&matches);
-        let listen = parse_listen(&spec, &loaded)?;
-        let shutdown_timeout = lifecycle::parse_shutdown_timeout(
-            loaded.get("shutdown_timeout_ms").unwrap_or("10000"),
-        )?;
-        // Validated here so --check catches a bad value; the subscriber is
-        // installed in start() so control commands stay silent on stderr.
-        LogFormat::parse(loaded.get("log_format").unwrap_or("text"))?;
-        let limits = Limits::parse(&loaded)?;
-        limits.validate(&spec, &loaded)?;
-        #[cfg(feature = "notify")]
-        let notify = super::notify::prepare_notifier(&spec, &loaded, &env, &limits)?;
-        super::validate::validate_login_config(&spec, &loaded, &limits)?;
-
-        let core = Core {
-            loaded: Some(loaded),
-            listen,
-            shutdown_timeout,
-            limits,
-            control,
-        };
-        Ok(App::assemble(
-            spec,
-            router,
-            core,
-            #[cfg(feature = "notify")]
-            notify,
-        ))
     }
 
     /// The one place an `App` is written out in full: every registry empty,
@@ -207,6 +138,93 @@ impl App {
             notify_code_targets: None,
         }
     }
+
+    /// `from_args` on the real command line.
+    pub fn from_env_and_args(spec: AppSpec, router: Router) -> Result<App, Error> {
+        App::from_args(spec, std::env::args().collect(), router)
+    }
+
+    /// Parse `args` (argv[0] included) and load configuration. Nothing
+    /// here opens a socket or touches the state directory.
+    pub fn from_args(spec: AppSpec, args: Vec<String>, router: Router) -> Result<App, Error> {
+        Self::from_args_with_env(
+            spec,
+            args,
+            crate::shell::config_load::env_snapshot(),
+            router,
+        )
+    }
+
+    /// `from_args` with an explicit environment map instead of the
+    /// process's. Secrets travel only through the environment (S8), so
+    /// tests and embedders use this to supply them without `set_var`.
+    pub fn from_args_with_env(
+        spec: AppSpec,
+        args: Vec<String>,
+        env: BTreeMap<String, String>,
+        router: Router,
+    ) -> Result<App, Error> {
+        let knobs = spec.knobs();
+        let matches = match cli::command(&spec, &knobs).try_get_matches_from(args) {
+            Ok(matches) => matches,
+            // 1.2.0: `--help` is an answer on stdout with exit 0, not a
+            // refusal — scripts and humans tell the two apart by exit code.
+            Err(e) if e.kind() == clap::error::ErrorKind::DisplayHelp => {
+                return Ok(App::bare(spec, router, Control::Help(e.to_string())));
+            }
+            Err(e) => {
+                return Err(Error::invalid(
+                    e.to_string().trim_end().to_string(),
+                    "run with --help for the flags this service accepts",
+                ));
+            }
+        };
+        if let Some(control) = cli::early_control(&matches) {
+            return Ok(App::bare(spec, router, control));
+        }
+        if let Some(cmd) = cli::backup_command(&matches) {
+            let mut app = App::bare(spec, router, Control::Version);
+            app.control = None;
+            app.backup_cmd = Some(cmd);
+            return Ok(app);
+        }
+
+        let loaded = crate::shell::config_load::load_with_env(
+            &spec.prefix(),
+            &knobs,
+            cli::knob_flags(&matches, &knobs),
+            &spec.state_dir_default(),
+            env.clone(),
+        )?;
+        let control = cli::requested_control(&matches);
+        let listen = parse_listen(&spec, &loaded)?;
+        let shutdown_timeout = lifecycle::parse_shutdown_timeout(
+            loaded.get("shutdown_timeout_ms").unwrap_or("10000"),
+        )?;
+        // Validated here so --check catches a bad value; the subscriber is
+        // installed in start() so control commands stay silent on stderr.
+        LogFormat::parse(loaded.get("log_format").unwrap_or("text"))?;
+        let limits = Limits::parse(&loaded)?;
+        limits.validate(&spec, &loaded)?;
+        #[cfg(feature = "notify")]
+        let notify = super::notify::prepare_notifier(&spec, &loaded, &env, &limits)?;
+        super::validate::validate_login_config(&spec, &loaded, &limits)?;
+
+        let core = Core {
+            loaded: Some(loaded),
+            listen,
+            shutdown_timeout,
+            limits,
+            control,
+        };
+        Ok(App::assemble(
+            spec,
+            router,
+            core,
+            #[cfg(feature = "notify")]
+            notify,
+        ))
+    }
 }
 
 /// The `listen` knob as a socket address, or the config error saying how
@@ -222,4 +240,12 @@ fn parse_listen(spec: &AppSpec, loaded: &Loaded) -> Result<SocketAddr, Error> {
             ),
         )
     })
+}
+
+impl AppSpec {
+    fn state_dir_default(&self) -> PathBuf {
+        self.default_state_dir
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("/var/lib").join(self.name))
+    }
 }

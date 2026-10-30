@@ -1,9 +1,8 @@
 //! Self-update wiring on `App` at start: report the update mode and trust
-//! root, start the read-only release watch and feed the status card. The
-//! `Updater` itself is built in `build`; the project's hooks (gate, event
-//! listener, state copy) are declared on `App` in `app.rs`.
+//! root, start the read-only release watch and feed the status card, and
+//! the project's hooks (gate, event listener, state copy). The `Updater`
+//! itself is built in `build`.
 
-#[cfg(feature = "dashboard")]
 use std::sync::Arc;
 
 use super::App;
@@ -85,5 +84,46 @@ impl App {
                 }
             }));
         }
+    }
+
+    /// Say "not now" to the autonomous update loop (1.2.0). The closure
+    /// runs before every check; `Some(reason)` defers that check to the
+    /// next interval and logs the reason. For a service that must not
+    /// restart while an investigation is in progress (Almanac's captures,
+    /// a long-running import). Supervised updates (`<name> update`) are
+    /// the operator's decision and are not gated.
+    #[cfg(feature = "self-update")]
+    pub fn update_gate(
+        &mut self,
+        f: impl Fn() -> Option<String> + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.update_gate = Some(Arc::new(f));
+        self
+    }
+
+    /// Listen to the update events (1.3.0): `update.installed`, `update.ok`,
+    /// `update.failed`, `update.rolled_back`, `update.held`, whichever loop
+    /// or subcommand produced them. The kit still handles the event itself
+    /// (the `notify` feature's webhooks, or a log line); the hook runs
+    /// alongside, so a project can speak its own vocabulary to its own
+    /// notifier — Almanac's `almanac-update` / `-reverted` / `-unverified`.
+    #[cfg(feature = "self-update")]
+    pub fn on_update_event(
+        &mut self,
+        f: impl Fn(&crate::shell::update::Event) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.update_hook = Some(Arc::new(f));
+        self
+    }
+
+    /// How the project produces a consistent copy of its state into `dest`
+    /// before a binary swap (K21; kyu's `VACUUM INTO`).
+    #[cfg(feature = "self-update")]
+    pub fn state_copy(
+        &mut self,
+        f: impl Fn(&std::path::Path) -> Result<(), Error> + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.state_copy = Some(Arc::new(f));
+        self
     }
 }

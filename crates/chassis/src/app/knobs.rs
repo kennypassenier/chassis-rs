@@ -4,7 +4,7 @@
 
 use crate::core::config::Knob;
 
-use super::AppSpec;
+use super::{AppSpec, compiled_features};
 
 mod dashboard;
 mod guards;
@@ -140,4 +140,38 @@ pub(super) fn markdown<S: AsRef<str>>(spec: &AppSpec, features: &[S]) -> String 
         ));
     }
     out
+}
+
+impl AppSpec {
+    /// The kit's own knobs (AR3), in milestone order: listening and
+    /// logging first, then the guards, the dashboard, self-update and the
+    /// notifier. Milestones add rows here; `docs/CONFIGURATION.md` points
+    /// at `--knobs` instead of repeating the list (K31).
+    pub fn knobs(&self) -> Vec<Knob> {
+        rows(self.default_listen)
+    }
+
+    /// The knob table as Markdown (K31) for the features this binary was
+    /// built with (K36): one row per knob in `knobs()` order, with the
+    /// three names, the default (`—` when there is none, `(secret)` for the
+    /// two secrets, whose value never appears anywhere), the feature that
+    /// reads it and its one-sentence meaning. Printed by `--knobs`.
+    pub fn knobs_markdown(&self) -> String {
+        self.knobs_markdown_for(compiled_features())
+    }
+
+    /// [`AppSpec::knobs_markdown`] for a named set of features instead of
+    /// this binary's own (K36). `chassis sync` renders `docs/KIT.md` from
+    /// outside the service, so it passes the feature list it read from the
+    /// project's `Cargo.toml`; the `chassis` command's own features are
+    /// those of a scaffold tool and say nothing about the project.
+    ///
+    /// A knob whose `feature` is `None` is core and always listed. Note
+    /// that this filters the DOCUMENT, not [`AppSpec::knobs`] or
+    /// [`AppSpec::knob_keys`]: a knob of a feature the binary lacks is
+    /// still accepted and ignored in the config file, which is what
+    /// `docs/KIT.md` promises.
+    pub fn knobs_markdown_for<S: AsRef<str>>(&self, features: &[S]) -> String {
+        markdown(self, features)
+    }
 }

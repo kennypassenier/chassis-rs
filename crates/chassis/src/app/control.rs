@@ -12,53 +12,6 @@ use crate::core::error::Error;
 use crate::shell::health;
 
 impl App {
-    /// Answer the control command, if any. `Some(code)` means "exit now".
-    pub(super) async fn answer_control(&mut self) -> Result<Option<ExitCode>, Error> {
-        if let Some(cmd) = self.backup_cmd.take() {
-            let code = crate::shell::backup::client::run(self.spec.name, &cmd).await;
-            return Ok(Some(ExitCode::from(code)));
-        }
-        match self.control.clone() {
-            None => Ok(None),
-            Some(Control::Version) => {
-                println!("{} {}", self.spec.name, self.spec.version);
-                Ok(Some(ExitCode::SUCCESS))
-            }
-            Some(Control::Help(text)) => {
-                print!("{text}");
-                Ok(Some(ExitCode::SUCCESS))
-            }
-            Some(Control::Rekey) => self.control_rekey(),
-            Some(Control::GenSecret) => {
-                if !std::io::IsTerminal::is_terminal(&std::io::stdout()) {
-                    return Err(Error::invalid(
-                        "gen-secret prints secrets and stdout is not a terminal",
-                        "run it in a terminal and paste the two lines into the environment file; never pipe it into a log",
-                    ));
-                }
-                let prefix = self.spec.prefix();
-                println!("{prefix}_TOKEN={}", crate::shell::time::random_hex(24)?);
-                println!(
-                    "{prefix}_SECRET_KEY={}",
-                    crate::shell::time::random_hex(32)?
-                );
-                Ok(Some(ExitCode::SUCCESS))
-            }
-            Some(Control::PrintConfig) => {
-                let loaded = self.loaded.as_ref().expect("loaded for print-config");
-                print!("{}", render_table(&loaded.resolved));
-                Ok(Some(ExitCode::SUCCESS))
-            }
-            Some(Control::Knobs) => {
-                print!("{}", self.spec.knobs_markdown());
-                Ok(Some(ExitCode::SUCCESS))
-            }
-            Some(Control::Check) => self.control_check(),
-            Some(Control::Update) => self.control_update().await,
-            Some(Control::Healthcheck(url)) => self.control_healthcheck(url).await,
-        }
-    }
-
     /// `--check`: validate everything a start would, open no socket.
     fn control_check(&mut self) -> Result<Option<ExitCode>, Error> {
         #[cfg(feature = "dashboard")]
@@ -143,5 +96,52 @@ impl App {
         } else {
             ExitCode::FAILURE
         }))
+    }
+
+    /// Answer the control command, if any. `Some(code)` means "exit now".
+    pub async fn control(&mut self) -> Result<Option<ExitCode>, Error> {
+        if let Some(cmd) = self.backup_cmd.take() {
+            let code = crate::shell::backup::client::run(self.spec.name, &cmd).await;
+            return Ok(Some(ExitCode::from(code)));
+        }
+        match self.control.clone() {
+            None => Ok(None),
+            Some(Control::Version) => {
+                println!("{} {}", self.spec.name, self.spec.version);
+                Ok(Some(ExitCode::SUCCESS))
+            }
+            Some(Control::Help(text)) => {
+                print!("{text}");
+                Ok(Some(ExitCode::SUCCESS))
+            }
+            Some(Control::Rekey) => self.control_rekey(),
+            Some(Control::GenSecret) => {
+                if !std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+                    return Err(Error::invalid(
+                        "gen-secret prints secrets and stdout is not a terminal",
+                        "run it in a terminal and paste the two lines into the environment file; never pipe it into a log",
+                    ));
+                }
+                let prefix = self.spec.prefix();
+                println!("{prefix}_TOKEN={}", crate::shell::time::random_hex(24)?);
+                println!(
+                    "{prefix}_SECRET_KEY={}",
+                    crate::shell::time::random_hex(32)?
+                );
+                Ok(Some(ExitCode::SUCCESS))
+            }
+            Some(Control::PrintConfig) => {
+                let loaded = self.loaded.as_ref().expect("loaded for print-config");
+                print!("{}", render_table(&loaded.resolved));
+                Ok(Some(ExitCode::SUCCESS))
+            }
+            Some(Control::Knobs) => {
+                print!("{}", self.spec.knobs_markdown());
+                Ok(Some(ExitCode::SUCCESS))
+            }
+            Some(Control::Check) => self.control_check(),
+            Some(Control::Update) => self.control_update().await,
+            Some(Control::Healthcheck(url)) => self.control_healthcheck(url).await,
+        }
     }
 }
