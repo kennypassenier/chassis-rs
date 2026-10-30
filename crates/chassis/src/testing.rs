@@ -25,18 +25,21 @@
 //! release from a temporary directory, the way the kit's own update tests
 //! use it.
 
-use std::collections::BTreeMap;
+mod browser;
+mod launch;
+#[cfg(feature = "self-update")]
+mod release_server;
+
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use axum::Router;
 use reqwest::Method;
-use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderMap, HeaderValue, ORIGIN, REFERER};
+use reqwest::header::{ACCEPT, HeaderMap};
 
 use crate::app::{App, AppSpec, Running};
 use crate::core::error::Error;
-use crate::shell::time::random_hex;
 
 /// How long one request from a helper may take before the test fails with
 /// a timeout instead of hanging the whole suite. Change it per app with
@@ -160,79 +163,6 @@ impl TestApp {
     /// refuses to start without its secrets.
     pub async fn try_start_open(spec: AppSpec, router: Router) -> Result<TestApp, Error> {
         Self::launch(spec, router, false, &[], |_| {}).await
-    }
-
-    async fn launch(
-        spec: AppSpec,
-        router: Router,
-        with_secrets: bool,
-        extra_env: &[(&str, &str)],
-        configure: impl FnOnce(&mut App),
-    ) -> Result<TestApp, Error> {
-        let dir = tempfile::tempdir().map_err(|e| {
-            Error::internal(
-                format!("could not create a temporary state directory for the test app: {e}"),
-                "check that the system's temporary directory exists and is writable",
-            )
-        })?;
-        let prefix = spec.prefix();
-        let mut env: BTreeMap<String, String> = BTreeMap::new();
-        let state_key = format!("{prefix}_STATE_DIR");
-        env.insert(state_key.clone(), dir.path().display().to_string());
-        // Port 0: the kernel picks a free port and `Running::addr` reports
-        // it, so two suites never collide (K11).
-        env.insert(format!("{prefix}_LISTEN"), "127.0.0.1:0".into());
-        env.insert(format!("{prefix}_LOG"), "warn".into());
-        // The passkeys feature wants the public address at start when it is
-        // compiled in; no test request goes through it, so any address does.
-        env.insert(
-            format!("{prefix}_PUBLIC_URL"),
-            format!("https://{}.example.lan", spec.name),
-        );
-        let token_key = format!("{prefix}_TOKEN");
-        if with_secrets {
-            // The same shapes `gen-secret` prints: a long random token and a
-            // 32-byte hex key, fresh per app so no test depends on a value.
-            env.insert(token_key.clone(), random_hex(32)?);
-            env.insert(format!("{prefix}_SECRET_KEY"), random_hex(32)?);
-        }
-        for (key, value) in extra_env {
-            env.insert((*key).to_string(), (*value).to_string());
-        }
-        // The token the app actually starts with: read AFTER the overlay, so
-        // an `extra_env` entry that names `<PREFIX>_TOKEN` is what `token()`
-        // and `login()` use (live-found by kyu on 1.8.0: the harness logged
-        // in with the token it had generated, not the one it was given).
-        let token = env.get(&token_key).cloned();
-        let state_dir = env
-            .get(&state_key)
-            .map(PathBuf::from)
-            .unwrap_or_else(|| dir.path().to_path_buf());
-        let mut app =
-            App::from_args_with_env(spec.clone(), vec![spec.name.to_string()], env, router)?;
-        configure(&mut app);
-        let running = app.start().await?;
-        // Redirects stay visible: a login answers 303, a page behind the
-        // login answers 303 to /login, and a test asserts on exactly that.
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .map_err(|e| {
-                Error::internal(
-                    format!("could not build the test HTTP client: {e}"),
-                    "this is a reqwest/TLS setup problem on the machine running the tests, not the app's",
-                )
-            })?;
-        Ok(TestApp {
-            addr: running.addr,
-            _dir: dir,
-            state_dir,
-            token,
-            session: None,
-            running: Some(running),
-            client,
-            timeout: DEFAULT_REQUEST_TIMEOUT,
-        })
     }
 
     /// The address the app listens on (`127.0.0.1:<the port the kernel picked>`).
@@ -464,14 +394,14 @@ impl TestApp {
     /// and add the fields with `.form(&[...])`: the kit must accept it, and
     /// answer a refusal as a page, not JSON (CF-7).
     pub fn as_browser(&self) -> HeaderMap {
-        browser_headers("same-origin", &self.base_url())
+        browser::browser_headers("same-origin", &self.base_url())
     }
 
     /// The same headers from a form on another site (`Sec-Fetch-Site:
     /// cross-site`, a foreign `Origin` and `Referer`): the kit's CSRF rule
     /// must refuse a state-changing request that carries them.
     pub fn as_cross_site_browser(&self) -> HeaderMap {
-        browser_headers("cross-site", CROSS_SITE_ORIGIN)
+        browser::browser_headers("cross-site", CROSS_SITE_ORIGIN)
     }
 
     /// Stop the server the way SIGTERM would: drain in-flight requests and
@@ -483,38 +413,6 @@ impl TestApp {
             running.stop().await;
         }
     }
-}
-
-impl Drop for TestApp {
-    fn drop(&mut self) {
-        // Dropping `Running` drops the stop sender, and the server task
-        // treats a closed channel as the stop signal: it drains and ends on
-        // its own, without the flush hooks. Nothing keeps the task alive
-        // after that, and the `TempDir` field removes the state directory.
-        // A test that needs the flushes calls `shutdown()` before this.
-        drop(self.running.take());
-    }
-}
-
-fn browser_headers(site: &'static str, origin: &str) -> HeaderMap {
-    let value = |s: &str| {
-        HeaderValue::from_str(s).unwrap_or_else(|e| panic!("header value `{s}` is not ASCII: {e}"))
-    };
-    let mut headers = HeaderMap::new();
-    headers.insert(ORIGIN, value(origin));
-    headers.insert(REFERER, value(&format!("{origin}/")));
-    headers.insert("sec-fetch-site", HeaderValue::from_static(site));
-    headers.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
-    headers.insert("sec-fetch-dest", HeaderValue::from_static("document"));
-    headers.insert(
-        ACCEPT,
-        HeaderValue::from_static("text/html,application/xhtml+xml"),
-    );
-    headers.insert(
-        CONTENT_TYPE,
-        HeaderValue::from_static("application/x-www-form-urlencoded"),
-    );
-    headers
 }
 
 /// A signed fake release served in-process (K25, with `self-update`): a
@@ -555,67 +453,6 @@ impl FakeReleaseServer {
         asset: &str,
         trusted_comment: &str,
     ) -> FakeReleaseServer {
-        use std::sync::Arc;
-        use std::sync::atomic::{AtomicUsize, Ordering};
-
-        let dir = tempfile::tempdir().expect("a temporary directory for the fake release");
-        let keypair =
-            minisign::KeyPair::generate_unencrypted_keypair().expect("a throwaway minisign key");
-        let manifest = format!("{}  {}\n", crate::shell::update::sha256_hex(binary), asset);
-        let signature = minisign::sign(
-            Some(&keypair.pk),
-            &keypair.sk,
-            manifest.as_bytes(),
-            Some(trusted_comment),
-            None,
-        )
-        .expect("signing the fake manifest");
-        std::fs::write(dir.path().join("VERSION"), version).expect("write VERSION");
-        std::fs::write(dir.path().join("SHA256SUMS"), &manifest).expect("write SHA256SUMS");
-        std::fs::write(
-            dir.path().join("SHA256SUMS.minisig"),
-            signature.into_string(),
-        )
-        .expect("write SHA256SUMS.minisig");
-        std::fs::write(dir.path().join(asset), binary).expect("write the asset");
-        let root = dir.path().to_path_buf();
-        let version_hits = Arc::new(AtomicUsize::new(0));
-        let hits = version_hits.clone();
-        let app = Router::new().route(
-            "/{name}",
-            axum::routing::get(
-                move |axum::extract::Path(name): axum::extract::Path<String>| {
-                    let root = root.clone();
-                    let hits = hits.clone();
-                    async move {
-                        if name == "VERSION" {
-                            hits.fetch_add(1, Ordering::SeqCst);
-                        }
-                        match std::fs::read(root.join(&name)) {
-                            Ok(bytes) => (axum::http::StatusCode::OK, bytes),
-                            Err(_) => (axum::http::StatusCode::NOT_FOUND, Vec::new()),
-                        }
-                    }
-                },
-            ),
-        );
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind the fake release server on a free port");
-        let addr = listener
-            .local_addr()
-            .expect("the fake release server's address");
-        let task = tokio::spawn(async move {
-            axum::serve(listener, app)
-                .await
-                .expect("the fake release server serves until the runtime ends");
-        });
-        FakeReleaseServer {
-            url: format!("http://{addr}"),
-            pubkey: keypair.pk.to_base64(),
-            dir,
-            version_hits,
-            _task: task,
-        }
+        release_server::serve(version, binary, asset, trusted_comment).await
     }
 }
