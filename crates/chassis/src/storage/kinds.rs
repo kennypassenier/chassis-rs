@@ -19,7 +19,7 @@ use std::sync::Arc;
 use rusqlite::types::Value as Sql;
 use rusqlite::{Connection, Transaction};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value as Json, json};
+use serde_json::Value as Json;
 
 use crate::core::error::Error;
 
@@ -367,249 +367,14 @@ impl DataKind {
         matches!(&self.shape, Shape::Table { time: Some(_), .. }) || self.custom_time.is_some()
     }
 
-    /// Check the declaration against the real schema, so a typo is a start
-    /// error and not a failed delete.
-    pub(crate) fn validate(&self, conn: &Connection) -> Result<(), Error> {
-        let bad = |why: String| {
-            Error::config(
-                format!("storage kind `{}`: {why}", self.id),
-                "fix the DataKind declaration to match the app database's schema",
-            )
-        };
-        let id_ok = !self.id.is_empty()
-            && self.id.len() <= 32
-            && self
-                .id
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_ascii_lowercase())
-            && self
-                .id
-                .chars()
-                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
-        if !id_ok {
-            return Err(bad(
-                "the id must be 1-32 characters: lowercase letters, digits and `_`, starting with a letter"
-                    .into(),
-            ));
-        }
-        if matches!(self.id.as_str(), "compact" | "kit") {
-            return Err(bad(
-                "`compact` and `kit` are the Storage routes' own words; pick another id".into(),
-            ));
-        }
-        let mut names = std::collections::BTreeSet::new();
-        for f in &self.filters {
-            if !names.insert(&f.name) || !ident_ok(&f.name) {
-                return Err(bad(format!(
-                    "filter name `{}` is repeated or not an identifier",
-                    f.name
-                )));
-            }
-        }
-        let Shape::Table { table, time } = &self.shape else {
-            return Ok(());
-        };
-        if !ident_ok(table) {
-            return Err(bad(format!("`{table}` is not a table name")));
-        }
-        if table.starts_with("chassis_") || table.starts_with("sqlite_") {
-            return Err(bad(format!("`{table}` is reserved for the kit")));
-        }
-        let mut stmt = conn.prepare(&format!("PRAGMA table_info(\"{table}\")"))?;
-        let columns: Vec<String> = stmt
-            .query_map([], |r| r.get::<_, String>(1))?
-            .collect::<Result<_, _>>()?;
-        if columns.is_empty() {
-            return Err(bad(format!("the app database has no table `{table}`")));
-        }
-        let has = |c: &str| columns.iter().any(|x| x == c);
-        if let Some((col, _)) = time
-            && !(ident_ok(col) && has(col))
-        {
-            return Err(bad(format!("`{table}` has no time column `{col}`")));
-        }
-        // The samples' ordering must exist for this table (a WITHOUT ROWID
-        // table has no rowid): prove it now, not at the first preview.
-        let order = match time {
-            Some((c, _)) => format!("\"{c}\" ASC, {}", tiebreak(conn, table)?),
-            None => tiebreak(conn, table)?,
-        };
-        conn.prepare(&format!(
-            "SELECT * FROM \"{table}\" ORDER BY {order} LIMIT 0"
-        ))
-        .map_err(|e| bad(format!("the samples of `{table}` cannot be ordered: {e}")))?;
-        for f in &self.filters {
-            if !(ident_ok(&f.column) && has(&f.column)) {
-                return Err(bad(format!(
-                    "`{table}` has no column `{}` for filter `{}`",
-                    f.column, f.name
-                )));
-            }
-        }
-        Ok(())
-    }
-
-    /// Dry-run a finished-rows rule inside the caller's transaction, which
-    /// the caller then rolls back: syntax and names are proven, nothing is
-    /// kept.
-    pub(crate) fn validate_finished(&self, tx: &Transaction) -> Result<(), Error> {
-        if let Some(f) = &self.finished {
-            f(tx, &Now::at(0)).map_err(|e| {
-                Error::config(
-                    format!(
-                        "storage kind `{}`: its finished_by_definition rule does not run: {}",
-                        self.id, e.message
-                    ),
-                    "fix the SQL fragment",
-                )
-            })?;
-        }
-        Ok(())
-    }
-
-    // ---- selection ------------------------------------------------------
-
     /// Turn what a person asked into an absolute, validated selection.
     pub fn resolve(&self, sel: &Selector, now: &Now) -> Result<ResolvedSelector, Error> {
-        if sel.older_than_secs.is_some() && !self.supports_age() {
-            return Err(Error::invalid(
-                format!(
-                    "`{}` has no time to compare, so it cannot be limited by age",
-                    self.id
-                ),
-                "delete by a filter instead, or the whole kind",
-            ));
-        }
-        for (name, value) in &sel.filters {
-            let Some(f) = self.filters.iter().find(|f| &f.name == name) else {
-                return Err(Error::invalid(
-                    format!("`{}` has no filter `{name}`", self.id),
-                    format!(
-                        "use one of: {}",
-                        self.filters
-                            .iter()
-                            .map(|f| f.name.as_str())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
-                ));
-            };
-            match &f.kind {
-                FilterKind::Choice { values } if !values.contains(value) => {
-                    return Err(Error::invalid(
-                        format!("`{value}` is not a value of filter `{name}`"),
-                        format!("use one of: {}", values.join(", ")),
-                    ));
-                }
-                FilterKind::Flag if value != "true" && value != "false" => {
-                    return Err(Error::invalid(
-                        format!("filter `{name}` is true or false, not `{value}`"),
-                        "send \"true\" or \"false\"",
-                    ));
-                }
-                FilterKind::Text if value.is_empty() || value.len() > 200 => {
-                    return Err(Error::invalid(
-                        format!("filter `{name}` needs 1-200 characters"),
-                        "narrow the text or drop the filter",
-                    ));
-                }
-                _ => {}
-            }
-        }
-        Ok(ResolvedSelector {
-            cutoff_secs: sel.older_than_secs.map(|s| {
-                now.secs
-                    .saturating_sub(i64::try_from(s).unwrap_or(i64::MAX))
-            }),
-            filters: sel.filters.clone(),
-        })
-    }
-
-    fn supports_age(&self) -> bool {
-        matches!(&self.shape, Shape::Custom(_)) || self.has_time()
-    }
-
-    /// `WHERE ...` text and its bound values for a table kind.
-    fn where_sql(&self, sel: &ResolvedSelector) -> (String, Vec<Sql>) {
-        let Shape::Table { time, .. } = &self.shape else {
-            return (String::new(), Vec::new());
-        };
-        let mut parts: Vec<String> = Vec::new();
-        let mut args: Vec<Sql> = Vec::new();
-        if let (Some(cut), Some((col, fmt))) = (sel.cutoff_secs, time) {
-            parts.push(format!("\"{col}\" < ?"));
-            args.push(match fmt {
-                TimeFormat::UnixSeconds => Sql::Integer(cut),
-                TimeFormat::UnixMillis => Sql::Integer(cut.saturating_mul(1000)),
-                TimeFormat::Rfc3339 => Sql::Text(rfc3339(cut)),
-            });
-        }
-        for (name, value) in &sel.filters {
-            let Some(f) = self.filters.iter().find(|f| &f.name == name) else {
-                continue;
-            };
-            match &f.kind {
-                FilterKind::Choice { .. } => {
-                    parts.push(format!("\"{}\" = ?", f.column));
-                    args.push(Sql::Text(value.clone()));
-                }
-                FilterKind::Flag => parts.push(if value == "true" {
-                    format!("\"{}\" <> 0", f.column)
-                } else {
-                    format!("\"{}\" = 0", f.column)
-                }),
-                FilterKind::Text => {
-                    parts.push(format!("\"{}\" LIKE ? ESCAPE '\\'", f.column));
-                    let esc = value
-                        .replace('\\', "\\\\")
-                        .replace('%', "\\%")
-                        .replace('_', "\\_");
-                    args.push(Sql::Text(format!("%{esc}%")));
-                }
-            }
-        }
-        if parts.is_empty() {
-            (String::new(), args)
-        } else {
-            (format!(" WHERE {}", parts.join(" AND ")), args)
-        }
+        self.resolve_selection(sel, now)
     }
 
     /// Count, estimated bytes, oldest and newest of a selection.
     pub fn stats(&self, conn: &Connection, sel: &ResolvedSelector) -> Result<KindStats, Error> {
-        match &self.shape {
-            Shape::Custom(ops) => ops.stats(conn, sel),
-            Shape::Table { table, time } => {
-                let (w, args) = self.where_sql(sel);
-                let (min, max) = match time {
-                    Some((c, _)) => (format!("MIN(\"{c}\")"), format!("MAX(\"{c}\")")),
-                    None => ("NULL".into(), "NULL".into()),
-                };
-                let sql = format!("SELECT COUNT(*), {min}, {max} FROM \"{table}\"{w}");
-                let (rows, lo, hi): (i64, Sql, Sql) =
-                    conn.query_row(&sql, rusqlite::params_from_iter(args.iter()), |r| {
-                        Ok((r.get(0)?, r.get(1)?, r.get(2)?))
-                    })?;
-                let fmt = time.as_ref().map(|(_, f)| *f);
-                let total: i64 =
-                    conn.query_row(&format!("SELECT COUNT(*) FROM \"{table}\""), [], |r| {
-                        r.get(0)
-                    })?;
-                let table_bytes = table_bytes(conn, table).unwrap_or(0);
-                let bytes = if total <= 0 {
-                    0
-                } else {
-                    (table_bytes as u128 * rows.max(0) as u128 / total as u128) as u64
-                };
-                Ok(KindStats {
-                    rows: rows.max(0) as u64,
-                    bytes,
-                    oldest: show_time(&lo, fmt),
-                    newest: show_time(&hi, fmt),
-                })
-            }
-        }
+        self.stats_impl(conn, sel)
     }
 
     /// A few rows of a selection, oldest first, for a person to recognise.
@@ -619,76 +384,19 @@ impl DataKind {
         sel: &ResolvedSelector,
         limit: usize,
     ) -> Result<Vec<Json>, Error> {
-        match &self.shape {
-            Shape::Custom(ops) => ops.samples(conn, sel, limit),
-            Shape::Table { table, time } => {
-                let (w, args) = self.where_sql(sel);
-                let tie = tiebreak(conn, table)?;
-                let order = match time {
-                    Some((c, _)) => format!("\"{c}\" ASC, {tie}"),
-                    None => tie,
-                };
-                let sql = format!("SELECT * FROM \"{table}\"{w} ORDER BY {order} LIMIT {limit}");
-                let mut stmt = conn.prepare(&sql)?;
-                let names: Vec<String> =
-                    stmt.column_names().iter().map(|s| s.to_string()).collect();
-                let mut rows = stmt.query(rusqlite::params_from_iter(args.iter()))?;
-                let mut out = Vec::new();
-                while let Some(row) = rows.next()? {
-                    let mut o = serde_json::Map::new();
-                    for (i, n) in names.iter().enumerate() {
-                        let raw = row.get::<_, Sql>(i)?;
-                        // The time column is shown as an instant, whatever
-                        // the table stores, so a page never prints epoch digits.
-                        let shown = match time {
-                            Some((c, f)) if c == n => show_time(&raw, Some(*f)).map(Json::String),
-                            _ => None,
-                        };
-                        o.insert(n.clone(), shown.unwrap_or_else(|| sample_value(raw)));
-                    }
-                    out.push(Json::Object(o));
-                }
-                Ok(out)
-            }
-        }
+        self.samples_impl(conn, sel, limit)
     }
 
     /// The columns a sample row shows, in the table's order, and which of
     /// them is the time column (shown as an instant). A custom kind says neither:
     /// the page then reads the keys of its first sample.
     pub fn sample_layout(&self, conn: &Connection) -> Result<(Vec<String>, Option<String>), Error> {
-        match &self.shape {
-            Shape::Custom(_) => Ok((Vec::new(), self.custom_time.clone())),
-            Shape::Table { table, time } => {
-                let mut stmt = conn.prepare(&format!("PRAGMA table_info(\"{table}\")"))?;
-                // The integer primary key is the row's number in the file, not
-                // something a person reads: it stays out of the sample.
-                let mut columns = Vec::new();
-                let mut rows = stmt.query([])?;
-                while let Some(r) = rows.next()? {
-                    let (name, ty, pk): (String, String, i64) = (r.get(1)?, r.get(2)?, r.get(5)?);
-                    if !(pk > 0 && ty.eq_ignore_ascii_case("INTEGER")) {
-                        columns.push(name);
-                    }
-                }
-                Ok((columns, time.as_ref().map(|(c, _)| c.clone())))
-            }
-        }
+        self.sample_layout_impl(conn)
     }
 
     /// Delete a selection; returns the rows removed.
     pub fn delete(&self, tx: &Transaction, sel: &ResolvedSelector) -> Result<u64, Error> {
-        match &self.shape {
-            Shape::Custom(ops) => ops.delete(tx, sel),
-            Shape::Table { table, .. } => {
-                let (w, args) = self.where_sql(sel);
-                let n = tx.execute(
-                    &format!("DELETE FROM \"{table}\"{w}"),
-                    rusqlite::params_from_iter(args.iter()),
-                )?;
-                Ok(n as u64)
-            }
-        }
+        self.delete_impl(tx, sel)
     }
 
     /// Remove the rows finished by their own definition; `None` when this
@@ -701,73 +409,8 @@ impl DataKind {
     }
 }
 
-/// How samples of a table are put in a stable order after the time column:
-/// `rowid` for an ordinary table, the primary key for a `WITHOUT ROWID`
-/// one, which has no rowid (3.12.0, homelab gap 141).
-fn tiebreak(conn: &Connection, table: &str) -> Result<String, Error> {
-    let sql: String = conn
-        .query_row(
-            "SELECT COALESCE(sql, '') FROM sqlite_master WHERE type = 'table' AND name = ?1",
-            [table],
-            |r| r.get(0),
-        )
-        .unwrap_or_default();
-    if !sql.to_ascii_uppercase().contains("WITHOUT ROWID") {
-        return Ok("rowid ASC".into());
-    }
-    let mut stmt = conn.prepare(&format!("PRAGMA table_info(\"{table}\")"))?;
-    let mut pk: Vec<(i64, String)> = Vec::new();
-    let mut rows = stmt.query([])?;
-    while let Some(r) = rows.next()? {
-        let (name, rank): (String, i64) = (r.get(1)?, r.get(5)?);
-        if rank > 0 {
-            pk.push((rank, name));
-        }
-    }
-    pk.sort();
-    if pk.is_empty() {
-        return Ok("1 ASC".into());
-    }
-    Ok(pk
-        .iter()
-        .map(|(_, n)| format!("\"{n}\" ASC"))
-        .collect::<Vec<_>>()
-        .join(", "))
-}
+mod query;
+mod selection;
+mod validate;
 
-/// Bytes the table's pages take (dbstat), 0 when the vtab is unavailable.
-pub(super) fn table_bytes(conn: &Connection, table: &str) -> Option<u64> {
-    conn.query_row(
-        "SELECT COALESCE(SUM(pgsize), 0) FROM dbstat WHERE name = ?1",
-        [table],
-        |r| r.get::<_, i64>(0),
-    )
-    .ok()
-    .map(|n| n.max(0) as u64)
-}
-
-fn show_time(v: &Sql, fmt: Option<TimeFormat>) -> Option<String> {
-    match (v, fmt) {
-        (Sql::Null, _) | (_, None) => None,
-        (Sql::Integer(n), Some(TimeFormat::UnixSeconds)) => Some(rfc3339(*n)),
-        (Sql::Integer(n), Some(TimeFormat::UnixMillis)) => Some(rfc3339(*n / 1000)),
-        (Sql::Text(t), Some(TimeFormat::Rfc3339)) => Some(t.clone()),
-        (Sql::Integer(n), _) => Some(n.to_string()),
-        (Sql::Text(t), _) => Some(t.clone()),
-        (Sql::Real(f), _) => Some(f.to_string()),
-        (Sql::Blob(_), _) => None,
-    }
-}
-
-fn sample_value(v: Sql) -> Json {
-    match v {
-        Sql::Null => Json::Null,
-        Sql::Integer(n) => json!(n),
-        Sql::Real(f) => json!(f),
-        Sql::Text(t) if t.chars().count() > 200 => {
-            json!(format!("{}…", t.chars().take(200).collect::<String>()))
-        }
-        Sql::Text(t) => json!(t),
-        Sql::Blob(b) => json!(format!("<{} bytes>", b.len())),
-    }
-}
+pub(in crate::storage) use query::table_bytes;
