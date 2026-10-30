@@ -1,7 +1,8 @@
 //! The service side of the backup pause: [`Controller`] pauses, extends and
 //! resumes the process-wide gate and runs the project's hooks. Its own module
 //! so the gate and its tickets (the parent) stay small and the pause
-//! sequencing reads on its own.
+//! sequencing reads on its own. The public methods are declared in the parent
+//! (the API record keys on the declaring module) and delegate here.
 
 mod hooks;
 
@@ -19,41 +20,12 @@ enum Start {
 }
 
 impl Controller {
-    pub fn new(pause_hooks: Vec<PauseHook>, resume_hooks: Vec<ResumeHook>) -> Self {
-        Controller {
-            pause_hooks: Arc::new(pause_hooks),
-            resume_hooks: Arc::new(resume_hooks),
-            drain: DRAIN_TIMEOUT,
-            floor: Mode::Writes,
-            paths: Arc::new(Vec::new()),
-            started: Arc::new(std::sync::atomic::AtomicU64::new(0)),
-        }
-    }
-
-    /// The directories that stand still during a pause (the state root and
-    /// any the project added), printed by `backup-pause` one per line so
-    /// the backup can check it archives exactly these.
-    pub fn with_paths(mut self, paths: Vec<PathBuf>) -> Self {
-        self.paths = Arc::new(paths);
-        self
-    }
-
-    /// The directories a pause holds still.
-    pub fn paths(&self) -> &[PathBuf] {
-        &self.paths
-    }
-
-    /// The least this service needs; a caller asking for less gets this.
-    pub fn with_mode(mut self, floor: Mode) -> Self {
-        self.floor = floor;
-        self
-    }
-
-    /// Pause for `length` in at least `asked` (and at least the service's
-    /// own mode); returns the deadline as unix seconds and the mode in
-    /// force. Pausing while paused keeps the later deadline and the
-    /// larger mode.
-    pub async fn pause(&self, length: Duration, asked: Mode) -> Result<(u64, Mode), PauseError> {
+    /// The work behind [`Controller::pause`].
+    pub(super) async fn begin_pause(
+        &self,
+        length: Duration,
+        asked: Mode,
+    ) -> Result<(u64, Mode), PauseError> {
         if length.is_zero() || length > MAX_PAUSE {
             return Err(PauseError::Invalid(format!(
                 "a pause lasts 1 to {} seconds, not {}",
@@ -170,9 +142,8 @@ impl Controller {
         Ok(())
     }
 
-    /// End the pause, if one is in force; `reason` goes to the log.
-    /// Returns whether one was.
-    pub async fn resume(&self, reason: &str) -> bool {
+    /// The work behind [`Controller::resume`].
+    pub(super) async fn end_pause(&self, reason: &str) -> bool {
         let was = {
             let mut s = state();
             let was = s.paused;
@@ -189,25 +160,13 @@ impl Controller {
         was
     }
 
-    /// End the pause only if this controller began it.
-    pub async fn resume_own(&self, reason: &str) -> bool {
+    /// The work behind [`Controller::resume_own`].
+    pub(super) async fn end_own_pause(&self, reason: &str) -> bool {
         let own = {
             let s = state();
             s.paused && s.epoch == self.started.load(std::sync::atomic::Ordering::SeqCst)
         };
-        own && self.resume(reason).await
-    }
-
-    /// `None` when running, else the seconds left and the mode.
-    pub fn status(&self) -> Option<(u64, Mode)> {
-        let s = state();
-        if !s.paused {
-            return None;
-        }
-        let left = s
-            .until
-            .map_or(0, |u| u.saturating_duration_since(Instant::now()).as_secs());
-        Some((left, if s.full { Mode::Full } else { Mode::Writes }))
+        own && self.end_pause(reason).await
     }
 
     fn abort(&self, epoch: u64) -> usize {

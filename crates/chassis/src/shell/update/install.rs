@@ -113,11 +113,8 @@ impl Updater {
         Ok(())
     }
 
-    /// At startup, before the stores open (AR15): count the attempt and
-    /// revert if the previous start never became healthy. Returns whether
-    /// the process should exit (after a revert) so the supervisor starts
-    /// the restored binary.
-    pub fn handle_pending_update(&self) -> Result<bool, Error> {
+    /// The work behind [`Updater::handle_pending_update`].
+    pub(super) fn resolve_pending(&self) -> Result<bool, Error> {
         let state = read_state(&self.state_path());
         match decide_at_startup(
             state,
@@ -174,9 +171,8 @@ impl Updater {
         }
     }
 
-    /// The drill (K20, critic #6): only the version the marker names
-    /// breaks, and the marker is consumed so the restored version runs.
-    pub fn drill_kind(&self) -> Option<String> {
+    /// The work behind [`Updater::drill_kind`].
+    pub(super) fn consume_drill_marker(&self) -> Option<String> {
         let path = self.drill_path();
         let marker: Option<DrillMarker> = std::fs::read(&path)
             .ok()
@@ -188,9 +184,8 @@ impl Updater {
         kind
     }
 
-    /// Called once the service is bound and has served for `healthy_after`
-    /// (liveness only, critic #3): the probation is over.
-    pub fn confirm_healthy(&self) {
+    /// The work behind [`Updater::confirm_healthy`].
+    pub(super) fn end_probation(&self) {
         if read_state(&self.state_path()).is_some() {
             clear_state(&self.state_path());
             tracing::info!(version = %self.running, "update confirmed healthy");

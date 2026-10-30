@@ -5,9 +5,8 @@
 use super::*;
 
 impl Updater {
-    /// The read-only loop for `off` and `supervised` (K20): the card keeps
-    /// saying whether a newer release exists, one info line per tick.
-    pub async fn run_watch(self: Arc<Self>) {
+    /// The work behind [`Updater::run_watch`].
+    pub(super) async fn watch_loop(self: Arc<Self>) {
         tokio::time::sleep(self.cfg.startup_delay).await;
         loop {
             match self.watch_once().await {
@@ -22,10 +21,8 @@ impl Updater {
         }
     }
 
-    /// The autonomous loop (AR8): first tick after `startup_delay`, then
-    /// every `interval`; one info line per tick (rule 23). Returns when an
-    /// update was installed, so the caller can exit for the restart.
-    pub async fn run_autonomous(self: Arc<Self>) {
+    /// The work behind [`Updater::run_autonomous`].
+    pub(super) async fn autonomous_loop(self: Arc<Self>) {
         tokio::time::sleep(self.cfg.startup_delay).await;
         loop {
             if let Some(reason) = self.cfg.gate.as_ref().and_then(|gate| gate()) {

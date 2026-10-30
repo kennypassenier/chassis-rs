@@ -6,26 +6,9 @@
 use super::*;
 
 impl Updater {
-    /// What the status card shows (K17).
-    pub fn last_check(&self) -> LastCheck {
-        self.last.lock().expect("last lock").clone()
-    }
-
-    /// One check: compare, hold, install. Never restarts; the caller
-    /// decides what an `Installed` means in its mode.
-    pub async fn check_once(&self) -> Result<Outcome, Error> {
-        let result = self.check_inner().await;
-        let event = self.record_check(&result);
-        // Outside the lock: the sink may be a project's hook.
-        if let Some(event) = event {
-            (self.notify)(event);
-        }
-        result
-    }
-
     /// Fold one check's result into [`LastCheck`] and return the event the
     /// failure threshold calls for, if any. The lock is held only here.
-    fn record_check(&self, result: &Result<Outcome, Error>) -> Option<Event> {
+    pub(super) fn record_check(&self, result: &Result<Outcome, Error>) -> Option<Event> {
         let mut last = self.last.lock().expect("last lock");
         last.at = Some(now_rfc3339());
         let (failures, kind) = failure_transition(
@@ -101,10 +84,8 @@ impl Updater {
         })
     }
 
-    /// One read-only look at the release host (K20): what is the latest
-    /// version, is it newer than what runs. Nothing is downloaded or
-    /// installed; the status card shows the answer.
-    pub async fn watch_once(&self) -> Result<Version, Error> {
+    /// The work behind [`Updater::watch_once`].
+    pub(super) async fn watch_and_record(&self) -> Result<Version, Error> {
         let result = self.latest().await;
         let mut last = self.last.lock().expect("last lock");
         last.at = Some(now_rfc3339());

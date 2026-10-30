@@ -52,8 +52,8 @@ impl Updater {
         Ok(out)
     }
 
-    /// `VERSION` on the release host.
-    pub async fn latest(&self) -> Result<Version, Error> {
+    /// The work behind [`Updater::latest`].
+    pub(super) async fn fetch_latest(&self) -> Result<Version, Error> {
         let text = String::from_utf8(self.get("VERSION").await?).map_err(|_| {
             Error::dependency(
                 "VERSION is not text",
@@ -63,12 +63,8 @@ impl Updater {
         Version::parse(&text)
     }
 
-    /// Verify the manifest's signature with the trusted key BEFORE any hash
-    /// is trusted (AR8), then bind the signature to the version being
-    /// installed (S1): the trusted comment `sign-release.sh` writes reads
-    /// `<repo> v<version>`, so a genuine older manifest served under a
-    /// newer `VERSION` is refused instead of installed as a downgrade.
-    pub fn verify_manifest(
+    /// The work behind [`Updater::verify_manifest`].
+    pub(super) fn check_manifest(
         &self,
         manifest: &[u8],
         signature: &str,

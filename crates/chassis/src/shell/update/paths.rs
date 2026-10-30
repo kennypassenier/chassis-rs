@@ -6,7 +6,8 @@
 use super::*;
 
 impl Updater {
-    pub fn new(
+    /// The work behind [`Updater::new`].
+    pub(super) fn build(
         cfg: UpdateConfig,
         binary: PathBuf,
         state_dir: PathBuf,
@@ -46,10 +47,6 @@ impl Updater {
         })
     }
 
-    pub fn state_path(&self) -> PathBuf {
-        self.state_dir.join("update-state.json")
-    }
-
     pub(super) fn prev_path(&self) -> PathBuf {
         with_suffix(&self.binary, ".prev")
     }
@@ -60,11 +57,6 @@ impl Updater {
 
     pub(super) fn drill_path(&self) -> PathBuf {
         with_suffix(&self.binary, ".drill")
-    }
-
-    /// Versions that were installed and rolled back (CF-3): never retried.
-    pub fn skip_path(&self) -> PathBuf {
-        self.state_dir.join("update-skip.json")
     }
 
     pub(super) fn skipped_versions(&self) -> Vec<String> {
