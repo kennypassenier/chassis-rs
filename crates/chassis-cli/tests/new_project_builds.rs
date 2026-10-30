@@ -3,335 +3,40 @@
 //! every new service starts from. Uses `--chassis-path` so no git tag or
 //! network is needed, and shares the workspace's target directory so the
 //! kit's dependencies are compiled once.
+//!
+//! The phases of the first test are in `new_project_builds/generated_project.rs`,
+//! the foreign-git fixture in `foreign_git.rs`, the shared helpers in `support.rs`.
+
+#[path = "new_project_builds/foreign_git.rs"]
+mod foreign_git;
+#[path = "new_project_builds/generated_commands.rs"]
+mod generated_commands;
+#[path = "new_project_builds/generated_project.rs"]
+mod generated_project;
+#[path = "new_project_builds/support.rs"]
+mod support;
 
 use std::path::PathBuf;
 use std::process::Command;
 
-fn chassis() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_chassis"))
-}
-
-/// A command that acts on the repository at `dir`, whatever git exported
-/// to this test: from a pre-commit hook in a linked worktree the test
-/// inherits `GIT_DIR` (+ `GIT_INDEX_FILE`), and `git log` in a temp dir
-/// would otherwise read the kit's own history.
-fn in_repo(program: &str, dir: &std::path::Path) -> Command {
-    let mut cmd = Command::new(program);
-    cmd.current_dir(dir);
-    for var in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX"] {
-        cmd.env_remove(var);
-    }
-    cmd
-}
+use foreign_git::OuterRepo;
+use generated_commands::*;
+use generated_project::*;
+use support::chassis;
 
 #[test]
 fn a_new_project_compiles_and_answers_version() {
-    let kit = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../chassis");
-    let workspace_target = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target");
-    let dir = tempfile::tempdir().unwrap();
-    let project = dir.path().join("demo-svc");
-    // K34: the tag is the kit's version requirement in the generated
-    // Cargo.toml, and the smoke test's dev-dependency points at this same
-    // checkout, so a made-up tag would leave cargo with a requirement no
-    // local crate satisfies. The kit's crates carry the CLI's version —
-    // `with_chassis_path` writes that same one on the path dependency.
-    let local_tag = format!("v{}", env!("CARGO_PKG_VERSION"));
-
-    let out = chassis()
-        .args([
-            "new",
-            "demo-svc",
-            "--no-remote",
-            "--description",
-            "A demo service for the kit's own test",
-            "--dir",
-            project.to_str().unwrap(),
-            "--chassis-path",
-            kit.to_str().unwrap(),
-            "--chassis-tag",
-            local_tag.as_str(),
-        ])
-        .output()
-        .unwrap();
-    assert!(
-        out.status.success(),
-        "chassis new failed: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("first commit"), "{stdout}");
-    assert!(
-        stdout.contains("--no-remote"),
-        "tells how to create the remote later"
-    );
-
-    // K27: the kit documentation is part of the scaffold and names the
-    // project's admin token variable. Drilled red once by removing the
-    // scaffold entry, so `new` wrote no KIT.md.
-    let kit_md = std::fs::read_to_string(project.join("docs/KIT.md"))
-        .expect("docs/KIT.md is written by chassis new");
-    assert!(kit_md.contains("DEMO_SVC_TOKEN"), "{kit_md}");
-    assert!(kit_md.contains("| `DEMO_SVC_LISTEN` |"), "{kit_md}");
-
-    // K34: every new project ships the kit's smoke test, and its Cargo.toml
-    // gives the harness to the tests without putting it in the binary.
-    // Drilled red once by dropping the scaffold entry: `new` wrote no
-    // tests/kit_smoke.rs.
-    let smoke = std::fs::read_to_string(project.join("tests/kit_smoke.rs"))
-        .expect("tests/kit_smoke.rs is written by chassis new");
-    assert!(smoke.contains("chassis::testing::TestApp"), "{smoke}");
-    let cargo_toml_text = std::fs::read_to_string(project.join("Cargo.toml")).unwrap();
-    let (_, dev) = cargo_toml_text
-        .split_once("[dev-dependencies]")
-        .expect("the scaffold has a dev-dependencies section");
-    assert!(
-        dev.contains(r#"features = ["testing"]"#),
-        "the harness comes in as a dev-dependency: {dev}"
-    );
-
-    // H10: the generated project passes ITS OWN gates (fmt, clippy -D
-    // warnings, tests, clean tree) — what its first real commit will face.
-    let gates = project.join(".claude/hooks/gates.sh");
-    assert!(gates.exists(), "gates.sh is part of the scaffold");
-    let out = in_repo("bash", &project)
-        .arg(&gates)
-        // Since the gate cache defers test suites to the release, this test
-        // asks for them: it exists to prove the smoke test runs and is green.
-        .env("GATE_TESTS", "1")
-        .env("CARGO_TARGET_DIR", &workspace_target)
-        .output()
-        .unwrap();
-    let gates_out = format!(
-        "{}{}",
-        String::from_utf8_lossy(&out.stdout),
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert!(
-        out.status.success(),
-        "the generated project's gates failed:\n{gates_out}"
-    );
-    // K34: the gates RAN the smoke test and it was green — a scaffold that
-    // ships a test nobody runs proves nothing. Drilled red once by asserting
-    // on a misspelt test name: failed, restored.
-    assert!(
-        gates_out.contains("test kit_smoke_login_client_token_api_call_and_dashboard ... ok"),
-        "the project's own `cargo test` ran the kit smoke test:\n{gates_out}"
-    );
-
-    // CF-6 (2026-09-06): the generated project must also pass cargo-deny.
-    // The first remote project was red on it (a git dependency without a
-    // version requirement) while every local gate above was green; the
-    // gate that predicts the release has to run what the release runs.
-    // Runs when cargo-deny is installed (`chassis release` requires it) and
-    // says so loudly otherwise.
-    let deny_available = Command::new("cargo")
-        .args(["deny", "--version"])
-        .output()
-        .is_ok_and(|o| o.status.success());
-    if deny_available {
-        let out = Command::new("cargo")
-            .args(["deny", "check"])
-            .current_dir(&project)
-            .env("CARGO_TARGET_DIR", &workspace_target)
-            .output()
-            .unwrap();
-        assert!(
-            out.status.success(),
-            "the generated project fails cargo-deny:\n{}\n{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        );
-    } else {
-        eprintln!(
-            "new_project_builds: cargo-deny is not installed — the cargo-deny check on the generated project was SKIPPED (install it: cargo install cargo-deny --locked)"
-        );
-    }
-
-    // H10: the rendered systemd units parse (systemd-analyze, when present).
-    if let Ok(analyze) = Command::new("systemd-analyze")
-        .args([
-            "verify",
-            project.join("deploy/demo-svc.service").to_str().unwrap(),
-        ])
-        .output()
-    {
-        let text = format!(
-            "{}{}",
-            String::from_utf8_lossy(&analyze.stdout),
-            String::from_utf8_lossy(&analyze.stderr)
-        );
-        for line in text.lines().filter(|l| !l.trim().is_empty()) {
-            assert!(
-                line.contains("is not executable") || line.contains("No such file"),
-                "systemd-analyze verify complains about the unit itself: {line}"
-            );
-        }
-    }
-
-    // The scaffold's own sync sees no drift — in the files and (K32) in the
-    // kit tag, kp_themes and the path dependency it reports as a note.
-    // Drilled red once (misspelt the note's needle): failed, restored.
-    let out = chassis()
-        .args(["sync", "--dir", project.to_str().unwrap()])
-        .output()
-        .unwrap();
-    let sync_out = String::from_utf8_lossy(&out.stdout);
-    assert!(
-        out.status.success(),
-        "sync right after new must be clean: {sync_out}"
-    );
-    assert!(
-        sync_out.contains("in sync with the scaffold of chassis"),
-        "{sync_out}"
-    );
-    assert!(
-        sync_out.contains("path dependency"),
-        "a --chassis-path project is told its tag is not compared: {sync_out}"
-    );
-
-    // K34: the smoke test is the kit's, so a sync puts it back instead of
-    // leaving a project on a harness the kit no longer has. Drilled red once
-    // by listing the scaffold entry as `owned(...)`: sync reported the file
-    // and left the vandalised copy in place.
-    let smoke_path = project.join("tests/kit_smoke.rs");
-    std::fs::write(&smoke_path, "// gone\n").unwrap();
-    let out = chassis()
-        .args(["sync", "--write", "--dir", project.to_str().unwrap()])
-        .output()
-        .unwrap();
-    let sync_out = String::from_utf8_lossy(&out.stdout);
-    assert!(out.status.success(), "{sync_out}");
-    assert_eq!(
-        std::fs::read_to_string(&smoke_path).unwrap(),
-        smoke,
-        "sync rewrote the kit-owned smoke test: {sync_out}"
-    );
-
-    // D1 (K32, 2026-09-07): drift --write cannot fix exits 1 even with
-    // --write, so a script never reads "green" over a red line. A git
-    // dependency pinned to a foreign tag stands in for the real case
-    // (Almanac on v1.7.0 while .chassis.toml said v1.7.1). Drilled red once
-    // (the exit code still followed `changed && !write`): failed, restored.
-    let cargo_toml = project.join("Cargo.toml");
-    let pinned = std::fs::read_to_string(&cargo_toml).unwrap();
-    let foreign = regex_free_replace_path_dep(&pinned);
-    assert_ne!(foreign, pinned, "the kit dependency line was found");
-    std::fs::write(&cargo_toml, &foreign).unwrap();
-    let out = chassis()
-        .args(["sync", "--write", "--dir", project.to_str().unwrap()])
-        .output()
-        .unwrap();
-    let drift_out = String::from_utf8_lossy(&out.stdout);
-    assert_eq!(
-        out.status.code(),
-        Some(1),
-        "unresolved kit-tag drift must exit 1 under --write: {drift_out}"
-    );
-    assert!(drift_out.contains("! kit tag"), "{drift_out}");
-    std::fs::write(&cargo_toml, &pinned).unwrap();
-    let out = chassis()
-        .args(["sync", "--dir", project.to_str().unwrap()])
-        .output()
-        .unwrap();
-    assert!(
-        out.status.success(),
-        "clean again after restoring Cargo.toml"
-    );
-
-    // A release plan names every step without running any of them. (The
-    // `--dry-run` that runs the gate and builds the assets needs docker and
-    // a project that builds inside a container, which a `--chassis-path`
-    // project is not; release.rs pins its pieces instead.)
-    let out = chassis()
-        .args([
-            "release",
-            "0.2.0",
-            "--dir",
-            project.to_str().unwrap(),
-            "--plan",
-        ])
-        .output()
-        .unwrap();
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let plan = String::from_utf8_lossy(&out.stdout);
-    for needle in [
-        "Cargo.toml version = \"0.2.0\"",
-        "cargo deny check all",
-        "git tag v0.2.0",
-        "--target x86_64-unknown-linux-musl",
-        "--latest=false",
-        "sign-release.sh v0.2.0",
-        // 3.3.0: `chassis new` writes the native stack file, so a new
-        // project's release builds no container image.
-        "container image: no",
-    ] {
-        assert!(plan.contains(needle), "release plan lacks {needle}: {plan}");
-    }
-    assert!(
-        !plan.contains("docker push"),
-        "3.3.0: a native project pushes no image: {plan}"
-    );
-    assert!(
-        !plan.contains("release-0.2.0"),
-        "3.0.0: no release branch, no wait for CI: {plan}"
-    );
-    assert_eq!(
-        std::fs::read_to_string(project.join("Cargo.toml"))
-            .unwrap()
-            .matches("0.2.0")
-            .count(),
-        0,
-        "the plan wrote nothing"
-    );
-
-    // It builds and runs: the generated main.rs against this kit.
-    let build = Command::new("cargo")
-        .args(["build", "--quiet", "--offline"])
-        .env("CARGO_TARGET_DIR", &workspace_target)
-        .current_dir(&project)
-        .output()
-        .unwrap();
-    let build = if build.status.success() {
-        build
-    } else {
-        // The registry cache may lack a crate the generated project needs;
-        // one online build fills it and is what a real user gets anyway.
-        Command::new("cargo")
-            .args(["build", "--quiet"])
-            .env("CARGO_TARGET_DIR", &workspace_target)
-            .current_dir(&project)
-            .output()
-            .unwrap()
-    };
-    assert!(
-        build.status.success(),
-        "generated project does not build: {}",
-        String::from_utf8_lossy(&build.stderr)
-    );
-    let out = Command::new(workspace_target.join("debug").join("demo-svc"))
-        .args(["--version"])
-        .env_clear()
-        .output()
-        .unwrap();
-    assert!(out.status.success());
-    assert_eq!(
-        String::from_utf8_lossy(&out.stdout).trim(),
-        "demo-svc 0.1.0"
-    );
-
-    // --check without secrets refuses with the gen-secret remedy (W6) — the
-    // generated project carries the kit's behaviour unchanged.
-    let out = Command::new(workspace_target.join("debug").join("demo-svc"))
-        .args(["--check", "--state-dir", dir.path().to_str().unwrap()])
-        .env_clear()
-        .output()
-        .unwrap();
-    assert!(!out.status.success());
-    assert!(String::from_utf8_lossy(&out.stderr).contains("gen-secret"));
+    let p = Project::create();
+    let smoke = written_documents(&p);
+    passes_its_own_gates(&p);
+    passes_cargo_deny(&p);
+    systemd_unit_parses(&p);
+    sync_is_clean(&p);
+    sync_restores_the_smoke_test(&p, &smoke);
+    unfixable_drift_exits_one(&p);
+    release_plan_names_every_step(&p);
+    builds_and_answers_version(&p);
+    check_without_secrets_names_gen_secret(&p);
 }
 
 /// K23, live-found 2026-09-07: git exports `GIT_DIR` (absolute in a linked
@@ -345,27 +50,8 @@ fn a_new_project_compiles_and_answers_version() {
 fn k23_new_inside_a_foreign_git_context_touches_only_its_own_repository() {
     let kit = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../chassis");
     let dir = tempfile::tempdir().unwrap();
-    let outer = dir.path().join("outer");
-    std::fs::create_dir_all(&outer).unwrap();
-    let git = |args: &[&str]| {
-        let out = Command::new("git")
-            .args(["-c", "user.name=t", "-c", "user.email=t@example.invalid"])
-            .args(args)
-            .current_dir(&outer)
-            .output()
-            .unwrap();
-        assert!(
-            out.status.success(),
-            "{}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-        String::from_utf8_lossy(&out.stdout).trim().to_string()
-    };
-    git(&["init", "-q"]);
-    std::fs::write(outer.join("outer.txt"), "outer\n").unwrap();
-    git(&["add", "outer.txt"]);
-    git(&["commit", "-q", "-m", "outer"]);
-    let head_before = git(&["rev-parse", "HEAD"]);
+    let outer = OuterRepo::create(dir.path());
+    let head_before = outer.git(&["rev-parse", "HEAD"]);
 
     let project = dir.path().join("demo-svc");
     let out = chassis()
@@ -381,8 +67,8 @@ fn k23_new_inside_a_foreign_git_context_touches_only_its_own_repository() {
             "v0.0.0-test",
         ])
         // What a git hook's child sees.
-        .env("GIT_DIR", outer.join(".git"))
-        .env("GIT_INDEX_FILE", outer.join(".git/index"))
+        .env("GIT_DIR", outer.path.join(".git"))
+        .env("GIT_INDEX_FILE", outer.path.join(".git/index"))
         .output()
         .unwrap();
     assert!(
@@ -392,12 +78,12 @@ fn k23_new_inside_a_foreign_git_context_touches_only_its_own_repository() {
     );
 
     assert_eq!(
-        git(&["rev-parse", "HEAD"]),
+        outer.git(&["rev-parse", "HEAD"]),
         head_before,
         "the outer repository gained a commit"
     );
     assert_eq!(
-        git(&["status", "--porcelain"]),
+        outer.git(&["status", "--porcelain"]),
         "",
         "the outer repository's tree or index moved"
     );
@@ -416,21 +102,4 @@ fn k23_new_inside_a_foreign_git_context_touches_only_its_own_repository() {
         1,
         "the new project holds exactly its first commit"
     );
-}
-
-/// Turns the scaffold's `chassis = { path = "…", version = "…", … }` line into a
-/// git dependency pinned to a tag nobody has, without pulling in a regex crate.
-fn regex_free_replace_path_dep(cargo_toml: &str) -> String {
-    let Some(start) = cargo_toml.find("path = \"") else {
-        return cargo_toml.to_string();
-    };
-    let rest = &cargo_toml[start + "path = \"".len()..];
-    let Some(end) = rest.find('"') else {
-        return cargo_toml.to_string();
-    };
-    format!(
-        "{}git = \"https://example.invalid/kit.git\", tag = \"v0.0.9\"{}",
-        &cargo_toml[..start],
-        &rest[end + 1..]
-    )
 }
