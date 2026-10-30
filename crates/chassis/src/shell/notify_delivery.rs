@@ -17,8 +17,9 @@ mod outbox_loop;
 pub(crate) use outbox_loop::run;
 
 use crate::core::notify::Event;
+use crate::core::notify_token::refusal_sentence;
 use crate::shell::notify::redacted_url;
-use crate::shell::notify_channel::{Channel, Which};
+use crate::shell::notify_channel::{Channel, Credential, Which};
 use crate::storage::outbox::Waiting;
 
 /// What one target answered.
@@ -41,12 +42,16 @@ fn dedup_headers(key: Option<&str>, window: Option<&str>) -> Vec<(&'static str, 
     h
 }
 
-/// One request. The error is a sentence without the address in it.
+/// One request. `auth` is `Some` only for the primary target: its token
+/// (when set) goes out as a bearer header and a 401/403 gets the sentence
+/// that names the token. The error is a sentence with neither the address
+/// nor the token in it.
 pub(crate) async fn send_once(
     client: &reqwest::Client,
     url: &str,
     body: &str,
     dedup: (Option<&str>, Option<&str>),
+    auth: Option<&Credential>,
 ) -> Result<Reply, String> {
     let mut req = client
         .post(url)
@@ -54,6 +59,13 @@ pub(crate) async fn send_once(
         .body(body.to_string());
     for (k, v) in dedup_headers(dedup.0, dedup.1) {
         req = req.header(k, v);
+    }
+    if let Some(token) = auth.and_then(|a| a.token.as_ref()) {
+        let mut value = reqwest::header::HeaderValue::from_str(&token.bearer())
+            .map_err(|_| "the token cannot be sent as a header".to_string())?;
+        // Keep the secret out of any debug print of the request.
+        value.set_sensitive(true);
+        req = req.header(reqwest::header::AUTHORIZATION, value);
     }
     let res = req.send().await.map_err(|e| {
         if e.is_timeout() {
@@ -66,7 +78,13 @@ pub(crate) async fn send_once(
     })?;
     let status = res.status();
     if !status.is_success() {
-        return Err(format!("it answered HTTP {}", status.as_u16()));
+        let code = status.as_u16();
+        return Err(match auth {
+            Some(a) if code == 401 || code == 403 => {
+                refusal_sentence(code, a.token.is_some(), &a.env_name)
+            }
+            _ => format!("it answered HTTP {code}"),
+        });
     }
     let duplicate = res
         .headers()
@@ -87,6 +105,7 @@ async fn send_with_retries(
     body: &str,
     dedup: (Option<&str>, Option<&str>),
     retries: u32,
+    auth: Option<&Credential>,
 ) -> Result<Reply, String> {
     use backon::{ExponentialBuilder, Retryable};
     let cfg = &ch.config().send;
@@ -95,7 +114,7 @@ async fn send_with_retries(
         .with_max_delay(cfg.backoff_cap)
         .with_max_times(retries as usize)
         .with_jitter();
-    (|| send_once(client, url, body, dedup))
+    (|| send_once(client, url, body, dedup, auth))
         .retry(backoff)
         .await
 }
@@ -118,7 +137,8 @@ pub(crate) async fn deliver(
         } else {
             ch.config().send.retries
         };
-        match send_with_retries(client, ch, &url, &msg.body, dedup, retries).await {
+        let auth = (which == Which::Primary).then(|| ch.primary_credential());
+        match send_with_retries(client, ch, &url, &msg.body, dedup, retries, auth).await {
             Ok(reply) => {
                 if which == Which::Primary {
                     *primary_down = false;
@@ -164,7 +184,8 @@ pub(crate) async fn send_test(ch: &Channel, service: &str, version: &str) -> ser
             results.push(serde_json::json!({"target": which.as_str(), "outcome": "not_set", "detail": "No address is set for it."}));
             continue;
         };
-        let (outcome, detail) = match send_once(&client, &url, &body, (None, None)).await {
+        let auth = (which == Which::Primary).then(|| ch.primary_credential());
+        let (outcome, detail) = match send_once(&client, &url, &body, (None, None), auth).await {
             Ok(_) => (
                 "delivered",
                 "The target accepted the test message.".to_string(),

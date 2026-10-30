@@ -20,6 +20,14 @@ scaffold writes. A breaking change in either is a major and carries a
   budget), the messages waiting, the last error and a Test button. API:
   `/api/kit/notify`. `[[notify.webhook]]` keeps working and claims its
   events. A build older than 3.15.0 refuses a kit file at schema 2.
+- **`notify_token` knob** (secret, environment `<P>_NOTIFY_TOKEN`, no flag,
+  refused in the config file): the sender adds `Authorization: Bearer
+  <token>` to requests to the primary target (and the Test button's), which
+  the real kyu requires; the fallback never gets it. A token that is shorter
+  than 16 or longer than 512 characters, or holds whitespace, a control or a
+  non-ASCII character, refuses the start. A 401/403 from the primary records
+  a last error naming the missing or wrong token. The card shows only
+  "Token: set" / "Token: not set"; the value is masked everywhere.
 - **kyu damping**: `Notifier::emit_keyed` with `core::notify_target::Dedup`
   sends `Kyu-Dedup-Key` / `Kyu-Dedup-Window`, stored with the outbox row; a
   `Kyu-Duplicate: true` answer counts as delivered.

@@ -41,6 +41,7 @@ the outbox lives in the kit file that `dashboard` opens):
 | `notify_url` | none | Primary target, a kyu topic `http://<hub>/t/<topic>`. |
 | `notify_fallback_url` | none | Fallback target (a Home Assistant webhook address). |
 | `notify_outbox_max` | 5000 | Cap on unsent messages. |
+| `notify_token` | none | Secret. Client token for the primary target, sent as `Authorization: Bearer <token>`. Environment `<P>_NOTIFY_TOKEN` only. |
 
 The existing `notify_timeout_secs`, `notify_retries`, `notify_backoff_base_ms`
 and `notify_backoff_cap_ms` also govern the channel's sends.
@@ -71,6 +72,27 @@ contain an address: the last error is a sentence ("the connection failed"),
 and log lines use `redacted_url`. Addresses saved from the page sit in the
 kit file as plain text, like the budget setting; the kit file is the
 service's own state, readable by the service user only.
+
+**The primary's token** (Kenny, 2026-10-30, form `chassis-rs-3-15-0-release`,
+"from the environment"). kyu puts `POST /t/<topic>` behind `Authorization:
+Bearer <client token>`, so a sender without a token gets 401 from the real
+hub. `notify_token` is a secret knob like the admin token: environment only
+(latch puts it there), a value in the config file is refused at start, no
+flag, `(secret)` in `--knobs`, `***` in `--print-config`. When set, the
+bearer header goes to the PRIMARY target only (normal delivery and the Test
+button). The fallback is a Home Assistant webhook whose address is its own
+secret and never receives it. Held in `core::notify_token::NotifyToken`,
+whose `Debug` prints `***`, and set as a sensitive header value. Rule at
+start (a bad token refuses to start, naming `<P>_NOTIFY_TOKEN` and the
+rule, never the value): 16 to 512 characters, visible ASCII only (no space,
+tab, line break, control or non-ASCII character). kyu issues 64 hex
+characters, so the minimum leaves room for another hub's format while
+catching a truncated paste; an empty value means "no token". A 401/403 from
+the primary becomes the last-error sentence "it answered HTTP 401: the hub
+wants a token and none is set (set `<P>_NOTIFY_TOKEN`)" or, with a token,
+"the hub refused the token, which is probably wrong or revoked (check ...)".
+The card shows only "Token: set" / "Token: not set" with the variable's name
+(`token: {set, env}` in `GET /api/kit/notify`); it cannot be edited there.
 
 **Outbox.** Table `kit_outbox` (id, created_at, kind, body, attempts,
 next_try_at, dedup_key, dedup_window), schema step 2 of the kit file. It is in

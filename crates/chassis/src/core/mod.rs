@@ -14,5 +14,7 @@ pub mod error;
 pub mod notify;
 #[cfg(feature = "notify")]
 pub mod notify_target;
+#[cfg(feature = "notify")]
+pub(crate) mod notify_token;
 pub mod session;
 pub mod update;

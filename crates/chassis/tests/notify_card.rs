@@ -9,3 +9,5 @@ mod configuration;
 mod delivery;
 #[path = "notify_card/fixtures.rs"]
 mod fixtures;
+#[path = "notify_card/token.rs"]
+mod token;

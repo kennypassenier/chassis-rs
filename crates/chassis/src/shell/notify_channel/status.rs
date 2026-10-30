@@ -80,6 +80,8 @@ impl Channel {
             dropped_total: meta.dropped_total()?,
             last_error: meta.last_error()?,
             last_delivery: meta.last_delivery()?,
+            token_set: self.inner.auth.token.is_some(),
+            token_env: self.inner.auth.env_name.clone(),
         })
     }
 }

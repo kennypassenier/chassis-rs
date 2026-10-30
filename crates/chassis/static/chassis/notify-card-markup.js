@@ -62,12 +62,17 @@ export function factsHtml(d) {
   const errorHtml = err
     ? `<div class="kp-alert kp-alert--destructive" role="alert"><span class="kp-attention__icon" aria-hidden="true">!</span><div class="kp-attention__text"><strong>Last error</strong><span>${esc(err.message)}</span><time class="notify-card__when" datetime="${esc(err.at)}">${when(err.at)}</time></div></div>`
     : '<div class="kp-empty kp-stateplate kp-stateplate--empty" role="status"><strong class="kp-stateplate__title">No error recorded</strong><span class="kp-stateplate__text">The last error appears here with its time.</span></div>';
+  // Only whether a token is set, never its value; the server sends no value.
+  const tok = d.token ?? { set: false, env: '' };
+  const tokenHtml = `<div class="kp-kv__row"><dt>Token</dt><dd data-notify-token="${tok.set ? 'set' : 'unset'}">${tok.set ? 'Token: set' : 'Token: not set'}</dd></div>`;
+  const tokenNote = `The primary address’s token comes from the environment variable ${tok.env}; it is never shown or changed here.`;
   const last = d.last_delivery
     ? `${when(d.last_delivery.at)} <span class="kp-text-muted">via the ${esc(d.last_delivery.via)}</span>`
     : '<span class="kp-text-muted">Nothing delivered yet</span>';
   return `<div class="kp-kpis" role="group" aria-label="Messages waiting on disk" data-kp-kpis-columns="all 1"><div class="kp-kpi"${waiting > 0 ? ' data-kp-tone="warning"' : ''}><span class="kp-kpi__label">Waiting on disk</span><span class="kp-kpi__value">${num(waiting)}<small>${waiting === 1 ? 'message' : 'messages'}</small></span><span class="kp-kpi__trend">${esc(trend)}</span></div></div>
       <p class="kp-text-muted notify-card__note">${esc(kept)}</p>
-      <dl class="kp-kv kp-kv--lines"><div class="kp-kv__row"><dt>Last delivery</dt><dd>${last}</dd></div></dl>
+      <dl class="kp-kv kp-kv--lines"><div class="kp-kv__row"><dt>Last delivery</dt><dd>${last}</dd></div>${tokenHtml}</dl>
+      <p class="kp-text-muted notify-card__note" data-notify-token-note>${esc(tokenNote)}</p>
       ${errorHtml}`;
 }
 

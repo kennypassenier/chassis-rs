@@ -6,10 +6,11 @@ use std::sync::{Arc, Mutex};
 
 use tokio::sync::Notify;
 
-use super::{Channel, ChannelConfig, CodeTargets, Inner, Which};
+use super::{Channel, ChannelConfig, CodeTargets, Credential, Inner, Which};
 use crate::core::config::Source;
 use crate::core::error::Error;
 use crate::core::notify_target::{self as target, Fixed, Inputs, Target, check_url};
+use crate::core::notify_token::NotifyToken;
 use crate::shell::config_load::Loaded;
 use crate::storage::Db;
 use crate::storage::notify_meta::NotifyMeta;
@@ -52,8 +53,10 @@ impl Channel {
         let fixed = fixed_targets(loaded, prefix)?;
         let code = [code.primary, code.fallback];
         check_code_targets(&code)?;
+        let auth = credential(loaded, prefix)?;
         let channel = Channel {
             inner: Arc::new(Inner {
+                auth,
                 outbox: Outbox::new(kit_db.clone(), cfg.outbox_cap),
                 meta: NotifyMeta::new(kit_db),
                 cfg,
@@ -99,6 +102,15 @@ impl Channel {
         *guard = [primary, fallback];
         Ok(())
     }
+}
+
+/// The bearer token for the primary target, from `<P>_NOTIFY_TOKEN`. A token
+/// that is not usable stops the start; the message names the variable and
+/// the rule, never the value.
+fn credential(loaded: &Loaded, prefix: &str) -> Result<Credential, Error> {
+    let env_name = format!("{prefix}_NOTIFY_TOKEN");
+    let token = NotifyToken::parse(loaded.get("notify_token").unwrap_or(""), &env_name)?;
+    Ok(Credential { token, env_name })
 }
 
 /// The addresses the configuration fixes, one per target; a fixed address

@@ -49,6 +49,14 @@ pub(super) fn rows() -> Vec<Knob> {
             NOTIFY,
             "Fallback notification target, asked once when the primary does not take a message (for example a Home Assistant webhook address). Unset = no fallback. Same rules as notify_url.",
         ),
+        // A secret: environment only (latch puts it there), masked everywhere.
+        Knob {
+            key: "notify_token",
+            default: None,
+            secret: true,
+            doc: "Client token for the primary target, sent as `Authorization: Bearer` (kyu asks for one). Environment only; 16 to 512 visible characters. Never sent to the fallback. The Status page shows only whether it is set.",
+            feature: NOTIFY,
+        },
         k(
             "notify_outbox_max",
             Some("5000"),

@@ -117,7 +117,10 @@ OPERATIONS.md § Notifications). 3.15.0 adds the shared sender's knobs
 address set by flag, environment or file is locked on the Status page's
 Notifications card, then the value saved on the card applies, then
 `App::notify_targets`, then none. A webhook id comes in through `${VAR}` or
-the environment only. Design: docs/NOTIFY_DESIGN.md. Proven by:
+the environment only. `notify_token` (secret, environment only, 16 to 512
+visible characters) is the bearer token kyu asks for; it goes to the
+primary target only and the Status page shows just whether it is set.
+Design: docs/NOTIFY_DESIGN.md. Proven by:
 `app::tests::shipped_defaults_pass_their_own_validation` (the defaults
 survive their own parser; `--max-in-flight 0` is refused),
 `app::tests::k31_knob_table_lists_every_knob_once_and_no_secret_default`,

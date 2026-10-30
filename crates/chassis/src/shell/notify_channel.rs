@@ -16,6 +16,7 @@ use std::time::Duration;
 use tokio::sync::Notify;
 
 use crate::core::notify_target::{Fixed, KEY_FALLBACK, KEY_PRIMARY, Target};
+use crate::core::notify_token::NotifyToken;
 use crate::shell::notify::NotifyConfig;
 use crate::storage::notify_meta::{LastDelivery, LastError, NotifyMeta};
 use crate::storage::outbox::{Counts, Outbox};
@@ -74,7 +75,17 @@ impl ChannelConfig {
     pub(crate) const ROUND_CAP: Duration = Duration::from_secs(15 * 60);
 }
 
+/// What the sender shows the PRIMARY target: the bearer token (when one is
+/// set) and the variable it comes from, for the sentences that name it. The
+/// fallback is a webhook with its own secret address and gets nothing.
+#[derive(Debug, Clone)]
+pub(crate) struct Credential {
+    pub token: Option<NotifyToken>,
+    pub env_name: String,
+}
+
 struct Inner {
+    auth: Credential,
     cfg: ChannelConfig,
     outbox: Outbox,
     meta: NotifyMeta,
@@ -100,11 +111,19 @@ pub(crate) struct View {
     pub dropped_total: u64,
     pub last_error: Option<LastError>,
     pub last_delivery: Option<LastDelivery>,
+    /// Whether a primary token is set, and the variable it comes from.
+    pub token_set: bool,
+    pub token_env: String,
 }
 
 impl Channel {
     pub(crate) fn config(&self) -> &ChannelConfig {
         &self.inner.cfg
+    }
+
+    /// The primary target's credential (see [`Credential`]).
+    pub(crate) fn primary_credential(&self) -> &Credential {
+        &self.inner.auth
     }
 
     pub(crate) fn outbox(&self) -> &Outbox {
