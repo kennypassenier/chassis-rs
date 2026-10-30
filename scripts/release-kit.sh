@@ -83,6 +83,14 @@ else
 fi
 gate_s=$(( $(date +%s) - gate_started ))
 echo "release-kit: fmt · clippy · tests took $((gate_s / 60)) min $((gate_s % 60)) s (measured)"
+# The consumers enable narrow feature sets, and clippy above only sees all
+# of them at once; the 2026-10-30 file split once left `core` alone
+# uncompilable while every check here was green (arch-modular-1). Each set a
+# consumer can pick must at least build, outside the gate stamp too.
+for features in core core,storage core,notify core,self-update core,live core,request-guard core,assets dashboard; do
+  cargo check -q -p chassis --no-default-features --features "$features" ||
+    { echo "release-kit: chassis does not build with --features $features; nothing released" >&2; exit 1; }
+done
 cargo deny check
 cargo run -q -p chassis-cli -- --version
 cargo run -q -p inbox -- --version
