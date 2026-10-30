@@ -17,6 +17,7 @@ pub const SIG_ASSET: &str = "SHA256SUMS.minisig";
 /// Why a release is not trusted. Every variant carries a remedy through
 /// [`ReleaseError::remedy`]; none of them leaves anything installed.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ReleaseError {
     /// The release carries no `SHA256SUMS.minisig` (absent or empty): an
     /// unsigned release is never installed.
