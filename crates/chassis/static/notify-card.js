@@ -79,7 +79,7 @@ async function start(card) {
     const value = t.address ?? '';
     return `<div class="kp-field kp-formgrid__row">
       <label class="kp-formgrid__label" for="${id}">${label}</label>
-      <div class="kp-formgrid__control notify-card__control"><input class="kp-field__input" type="url" id="${id}" value="${esc(value)}" placeholder="${esc(placeholder)}" autocomplete="off" spellcheck="false" aria-describedby="${id}-note"${off ? ' disabled' : ''} data-notify-field="${which}" data-notify-original="${esc(value)}">
+      <div class="kp-formgrid__control notify-card__control" data-kp-formgrid-span="control-value"><input class="kp-field__input" type="url" id="${id}" value="${esc(value)}" placeholder="${esc(placeholder)}" autocomplete="off" spellcheck="false" aria-describedby="${id}-note"${off ? ' disabled' : ''} data-notify-field="${which}" data-notify-original="${esc(value)}">
         <p class="kp-field__help notify-card__note" id="${id}-note">${tag(t)}${esc(noteOf(t, which))}</p><span class="kp-field__error" data-notify-error="${which}" hidden></span></div>
     </div>`;
   }
@@ -109,7 +109,7 @@ async function start(card) {
     const err = d.last_error;
     const errorHtml = err
       ? `<div class="kp-alert kp-alert--destructive" role="alert"><span class="kp-attention__icon" aria-hidden="true">!</span><div class="kp-attention__text"><strong>Last error</strong><span>${esc(err.message)}</span><time class="notify-card__when" datetime="${esc(err.at)}">${when(err.at)}</time></div></div>`
-      : '<div class="kp-empty"><p class="kp-empty__title">No error recorded</p><p class="kp-empty__body">The last error appears here with its time.</p></div>';
+      : '<div class="kp-empty kp-stateplate kp-stateplate--empty" role="status"><strong class="kp-stateplate__title">No error recorded</strong><span class="kp-stateplate__text">The last error appears here with its time.</span></div>';
     const last = d.last_delivery
       ? `${when(d.last_delivery.at)} <span class="kp-text-muted">via the ${esc(d.last_delivery.via)}</span>`
       : '<span class="kp-text-muted">Nothing delivered yet</span>';
@@ -127,7 +127,10 @@ async function start(card) {
         <p class="kp-dialog__note" id="notify-test-why">${esc(why)}</p></div>
       <div class="notify-card__test-result" id="notify-test-result" data-notify-test-result role="status" aria-live="polite">${testIdle()}</div>`;
   }
-  const testIdle = () => '<div class="kp-empty"><p class="kp-empty__title">No test sent yet</p><p class="kp-empty__body">The answer of each address appears here.</p></div>';
+  // Until a test is sent the result area stays empty: the line under the
+  // button already says what the test does (an idle plate beside the button
+  // could not share its line; measured 2026-10-30).
+  const testIdle = () => '';
   const OUTCOME = { delivered: 'ok', failed: 'failed', not_set: 'warn' };
   const testResult = (r) =>
     `<ul class="kp-statuslist kp-statuslist--rows" aria-label="Test result">${r.results
@@ -192,7 +195,7 @@ async function start(card) {
       const test = body.querySelector('[data-notify-test]');
       const keep = test.querySelector('[data-notify-test-result]')?.innerHTML;
       test.innerHTML = testHtml(d);
-      if (keep && !keep.includes('No test sent yet')) test.querySelector('[data-notify-test-result]').innerHTML = keep;
+      if (keep) test.querySelector('[data-notify-test-result]').innerHTML = keep;
       await attach(test);
     }
     live();
