@@ -32,3 +32,12 @@ dashboard promises (K12); homelab keeps showing a token once, so the kit's
 revealable token is a superset it may simply not display. A failed-auth
 counter is a separate feature (it needs a place in `identify`); it is left for
 homelab to ask for with its own consumer report.
+
+## B. Install with `.prev` and roll back
+
+Homelab's `install_binary` (client/release.rs) is a plain write + rename with
+no `.prev`; its host and native-service installs keep a `.prev` by their own
+code. chassis had the hard-link + rename mechanism, but only inside `Updater`
+and only for the running binary. It now lives in `chassis::shell::install_binary`
+(`install_binary`, `rollback_binary`, `prev_path`) for any path, and `Updater`
+calls it.

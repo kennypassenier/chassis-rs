@@ -9,6 +9,12 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **`shell::install_binary`** (feature `self-update`, homelab-shared-2):
+  `install_binary(path, bytes)` installs a binary at any path atomically,
+  keeping the old one as `<path>.prev`, keeping its mode and fsyncing;
+  `rollback_binary(path)` restores `.prev`; `prev_path(path)`. `Updater` now
+  calls the same code (one implementation); its behaviour is unchanged except
+  that the new binary takes the old one's mode instead of always 0755.
 - **Client scopes** (`core::clients`, homelab-shared-1): `SCOPE_FIELD`,
   `Client::scope()`, `Client::has_scope_in()` and `ClientsFile::issue_scoped()`.
   A scope is the ordinary declared client field `scope`, so it is stored,

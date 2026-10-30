@@ -18,6 +18,8 @@ pub mod dashboard;
 pub mod guards;
 pub mod health;
 pub mod http;
+#[cfg(feature = "self-update")]
+pub mod install_binary;
 pub mod lifecycle;
 #[cfg(feature = "live")]
 pub mod live;
