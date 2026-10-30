@@ -72,6 +72,7 @@ contract, the `--version` smoke — before it tags.
 - **Anything Kenny ever said must hold gets a locking test right away**
   (Kenny, 2026-10-02: "Als we altijd in cirkels blijven gaan en fouten
   terugkomen…"). A correction lands with a test that fails if it regresses.
+- **Next kp-themes vendoring (kp-themes main, 2026-10-30, not yet released):** `js/controller.js` is new and shared; 51 modules are facades (`js/<name>.js` re-exports `js/<name>/*.js`), and `css/_rules.css` is generated from `css/rules/*.css`. Copy the folders, not only the facade files (the list is kp-themes `gates/checksums.mjs` FILES + `gates/checksums-parts.mjs` PART_FILES). The build.rs core list in chassis (17 `kp/js` files embedded in `ASSETS`) must then also take each core facade's folder and `controller.js`, or the core pages 404 on their parts.
 - Session title convention: `🏗️ chassis-rs - Fase <N> - <phase name>`.
 
 ## When tests run (Kenny, 2026-10-04, test report)
