@@ -46,17 +46,6 @@ pub struct Secrets {
     pub key: Key,
 }
 
-impl Secrets {
-    /// Both or neither: a dashboard never starts half-locked (W6 = Don't do).
-    pub fn parse(
-        prefix: &str,
-        token: Option<&str>,
-        key_hex: Option<&str>,
-    ) -> Result<Option<Secrets>, Error> {
-        Self::parse_checked(prefix, token, key_hex)
-    }
-}
-
 /// Everything the auth middlewares and handlers share.
 #[derive(Clone)]
 pub struct AuthState {
@@ -70,12 +59,6 @@ pub struct AuthState {
     pub session_ttl_secs: u64,
     pub remember_me_secs: u64,
     pub guards: Guards,
-}
-
-impl AuthState {
-    pub fn cookie_name(&self) -> String {
-        format!("{}_session", self.name.replace('-', "_"))
-    }
 }
 
 /// Who a handler is talking to.

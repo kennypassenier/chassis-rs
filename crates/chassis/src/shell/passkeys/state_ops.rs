@@ -62,25 +62,10 @@ impl PasskeyState {
             .take(id, Instant::now())
     }
 
-    pub(super) fn list_views(&self) -> Vec<PasskeyView> {
-        self.store
-            .lock()
-            .expect("passkeys lock")
-            .passkeys
-            .iter()
-            .map(|p| PasskeyView {
-                id: p.id.clone(),
-                label: p.label.clone(),
-                created_at: p.created_at.clone(),
-                last_used_at: p.last_used_at.clone(),
-            })
-            .collect()
-    }
-
     /// Every passkey, with `current` set on the one whose store id is
     /// `current` (the passkey this session logged in with).
     pub fn list_for(&self, current: Option<&str>) -> Vec<PasskeyListing> {
-        self.list_views()
+        self.list()
             .into_iter()
             .map(|view| PasskeyListing {
                 current: current == Some(view.id.as_str()),
@@ -131,5 +116,20 @@ impl PasskeyState {
             _ => None,
         };
         self.list_for(current.as_deref())
+    }
+
+    pub fn list(&self) -> Vec<PasskeyView> {
+        self.store
+            .lock()
+            .expect("passkeys lock")
+            .passkeys
+            .iter()
+            .map(|p| PasskeyView {
+                id: p.id.clone(),
+                label: p.label.clone(),
+                created_at: p.created_at.clone(),
+                last_used_at: p.last_used_at.clone(),
+            })
+            .collect()
     }
 }

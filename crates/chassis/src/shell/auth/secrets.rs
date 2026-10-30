@@ -16,8 +16,8 @@ impl std::fmt::Debug for Secrets {
 }
 
 impl Secrets {
-    /// Body of [`Secrets::parse`].
-    pub(super) fn parse_checked(
+    /// Both or neither: a dashboard never starts half-locked (W6 = Don't do).
+    pub fn parse(
         prefix: &str,
         token: Option<&str>,
         key_hex: Option<&str>,

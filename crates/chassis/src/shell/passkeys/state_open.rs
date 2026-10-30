@@ -12,36 +12,6 @@ use crate::shell::auth::AuthState;
 use crate::shell::store::EncryptedFile;
 
 impl PasskeyState {
-    pub(super) fn open_file(
-        webauthn: Webauthn,
-        auth: AuthState,
-        file: EncryptedFile,
-        limits: CeremonyLimits,
-        guards: crate::shell::guards::Guards,
-    ) -> Result<Self, Error> {
-        let loaded: PasskeysFile = file.load()?.unwrap_or_default();
-        if loaded.v != PASSKEYS_FORMAT {
-            return Err(Error::config(
-                format!(
-                    "passkeys store is format {} but this build reads {}",
-                    loaded.v, PASSKEYS_FORMAT
-                ),
-                "restore the pre-update copy or upgrade",
-            ));
-        }
-        Ok(Self {
-            webauthn: Arc::new(webauthn),
-            auth,
-            file: Some(file),
-            #[cfg(feature = "dashboard")]
-            kit: None,
-            store: Arc::new(Mutex::new(loaded)),
-            pending: Arc::new(Mutex::new(Ceremonies::new(limits))),
-            guards,
-            logins: Arc::default(),
-        })
-    }
-
     /// Passkeys in the kit database (3.11.0); the credential is sealed per
     /// row with the same key.
     #[cfg(feature = "dashboard")]
@@ -79,6 +49,36 @@ impl PasskeyState {
                 v: PASSKEYS_FORMAT,
                 passkeys,
             })),
+            pending: Arc::new(Mutex::new(Ceremonies::new(limits))),
+            guards,
+            logins: Arc::default(),
+        })
+    }
+
+    pub fn open(
+        webauthn: Webauthn,
+        auth: AuthState,
+        file: EncryptedFile,
+        limits: CeremonyLimits,
+        guards: crate::shell::guards::Guards,
+    ) -> Result<Self, Error> {
+        let loaded: PasskeysFile = file.load()?.unwrap_or_default();
+        if loaded.v != PASSKEYS_FORMAT {
+            return Err(Error::config(
+                format!(
+                    "passkeys store is format {} but this build reads {}",
+                    loaded.v, PASSKEYS_FORMAT
+                ),
+                "restore the pre-update copy or upgrade",
+            ));
+        }
+        Ok(Self {
+            webauthn: Arc::new(webauthn),
+            auth,
+            file: Some(file),
+            #[cfg(feature = "dashboard")]
+            kit: None,
+            store: Arc::new(Mutex::new(loaded)),
             pending: Arc::new(Mutex::new(Ceremonies::new(limits))),
             guards,
             logins: Arc::default(),

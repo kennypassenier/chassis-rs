@@ -31,6 +31,7 @@ use crate::shell::store::Clients;
 
 mod builders;
 mod clients;
+mod definitions;
 mod environment;
 mod errors;
 mod login;
@@ -41,6 +42,7 @@ mod status;
 mod tests;
 mod theme_registry;
 mod views;
+use definitions::capitalise;
 use errors::{capitalised, error_look, sentence, template_error};
 pub use sections::{Check, CheckState, FlashAction, JsonRender, Kpi, KpiTone, SectionBody};
 use sections::{Sample, UptimeHistory};
@@ -80,28 +82,6 @@ pub struct Section {
 pub struct SectionAssets {
     pub module_scripts: Vec<String>,
     pub stylesheets: Vec<String>,
-}
-
-impl SectionAssets {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// A JavaScript module to load with `<script type="module">`.
-    pub fn module_script(mut self, path: &str) -> Self {
-        self.module_scripts.push(path.to_string());
-        self
-    }
-
-    /// A stylesheet to load with `<link rel="stylesheet">`.
-    pub fn stylesheet(mut self, path: &str) -> Self {
-        self.stylesheets.push(path.to_string());
-        self
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.module_scripts.is_empty() && self.stylesheets.is_empty()
-    }
 }
 
 /// Is `path` a plain same-origin absolute path the CSP allows (`/…`, not
@@ -189,42 +169,6 @@ pub struct Vocabulary {
     pub plural_cap: String,
 }
 
-impl Vocabulary {
-    pub fn new(singular: &str, plural: &str) -> Self {
-        Self {
-            singular: singular.to_string(),
-            plural: plural.to_string(),
-            singular_cap: capitalise(singular),
-            plural_cap: capitalise(plural),
-        }
-    }
-}
-
-impl Vocabulary {
-    /// The shell variable the copy-paste command names its token with
-    /// (`SOURCE_TOKEN` for "source"): the singular word, upper-cased, every
-    /// run of characters outside A-Z and 0-9 collapsed to one `_`, and
-    /// prefixed `KIT_` when it would not start with a letter.
-    pub fn token_var(&self) -> String {
-        let mut name = String::new();
-        for c in self.singular.chars() {
-            if c.is_ascii_alphanumeric() {
-                name.push(c.to_ascii_uppercase());
-            } else if !name.ends_with('_') && !name.is_empty() {
-                name.push('_');
-            }
-        }
-        let name = name.trim_matches('_');
-        let name = if name.is_empty() { "CLIENT" } else { name };
-        let prefix = if name.starts_with(|c: char| c.is_ascii_uppercase()) {
-            ""
-        } else {
-            "KIT_"
-        };
-        format!("{prefix}{name}_TOKEN")
-    }
-}
-
 impl Default for Vocabulary {
     fn default() -> Self {
         Self::new("client", "clients")
@@ -254,14 +198,6 @@ pub fn article_for(word: &str) -> &'static str {
     match w.chars().next() {
         Some('a' | 'e' | 'i' | 'o' | 'u') => "an",
         _ => "a",
-    }
-}
-
-fn capitalise(word: &str) -> String {
-    let mut chars = word.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => String::new(),
     }
 }
 
@@ -295,38 +231,6 @@ pub type SectionAction = Action;
 /// The confirm phrase a destructive action gets when it names none.
 pub const DEFAULT_CONFIRM: &str = "Are you sure? This cannot be undone.";
 
-impl Action {
-    /// A plain POST button.
-    pub fn post(label: &str, route: &str) -> Self {
-        Self {
-            label: label.to_string(),
-            route: route.to_string(),
-            method: "POST".to_string(),
-            destructive: false,
-            confirm: None,
-            busy_label: None,
-        }
-    }
-
-    /// Mark the action destructive with the phrase the armed button shows.
-    pub fn destructive(mut self, confirm: &str) -> Self {
-        self.destructive = true;
-        self.confirm = Some(confirm.to_string());
-        self
-    }
-
-    /// `DELETE` instead of `POST`.
-    pub fn method(mut self, method: &str) -> Self {
-        self.method = method.to_string();
-        self
-    }
-
-    pub fn busy_label(mut self, label: &str) -> Self {
-        self.busy_label = Some(label.to_string());
-        self
-    }
-}
-
 /// An extra column on the clients table (K16). `cell` returns HTML the
 /// project vouches for; the kit escapes nothing here, so escape yourself.
 pub trait ClientColumn: Send + Sync {
@@ -357,32 +261,6 @@ pub enum FieldKind {
     Select {
         options: Arc<dyn Fn() -> Vec<(String, String)> + Send + Sync>,
     },
-}
-
-impl ClientFormField {
-    pub fn text(name: &str, label: &str, placeholder: &str) -> Self {
-        Self {
-            name: name.into(),
-            label: label.into(),
-            kind: FieldKind::Text {
-                placeholder: placeholder.into(),
-            },
-        }
-    }
-
-    pub fn select(
-        name: &str,
-        label: &str,
-        options: impl Fn() -> Vec<(String, String)> + Send + Sync + 'static,
-    ) -> Self {
-        Self {
-            name: name.into(),
-            label: label.into(),
-            kind: FieldKind::Select {
-                options: Arc::new(options),
-            },
-        }
-    }
 }
 
 /// A problem the project wants shown on the status page (K17): some
@@ -490,193 +368,6 @@ pub(crate) type UpdateCheck = Arc<
         + Send
         + Sync,
 >;
-
-impl Dashboard {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        app_name: &'static str,
-        version: &'static str,
-        prefix: String,
-        listen: String,
-        clients_label: Option<String>,
-        reveal_seconds: u64,
-        capture_body_bytes: usize,
-        capture_ttl_minutes: u64,
-        remember_me_days: u64,
-        has_test_route: bool,
-        passkeys_enabled: bool,
-        public_url: String,
-        mut nav: Vec<NavEntry>,
-        sections: Vec<Arc<dyn StatusSection>>,
-        columns: Vec<Arc<dyn ClientColumn>>,
-        form_fields: Vec<ClientFormField>,
-        problems: Arc<dyn Fn() -> Vec<Problem> + Send + Sync>,
-        update: Arc<dyn Fn() -> UpdateView + Send + Sync>,
-        health: Health,
-        clients: Clients,
-        auth: AuthState,
-        open: bool,
-    ) -> Result<Self, Error> {
-        let clients_label = clients_label.unwrap_or_else(|| "Clients".to_string());
-        let mut kit_nav = vec![
-            NavEntry {
-                label: "Status".into(),
-                href: "/".into(),
-            },
-            NavEntry {
-                label: clients_label.clone(),
-                href: "/clients".into(),
-            },
-        ];
-        if passkeys_enabled {
-            kit_nav.push(NavEntry {
-                label: "Passkeys".into(),
-                href: "/passkeys".into(),
-            });
-        }
-        kit_nav.append(&mut nav);
-        let vocab = Vocabulary::default();
-        let env = environment::build(app_name, open, &prefix, &kit_nav, &clients_label, &vocab)?;
-        Ok(Self {
-            app_name,
-            version,
-            prefix,
-            listen,
-            started_at: crate::shell::time::now_rfc3339(),
-            clients_label,
-            reveal_seconds,
-            capture_body_bytes,
-            capture_ttl_minutes,
-            remember_me_days,
-            has_test_route,
-            passkeys_enabled,
-            public_url,
-            nav: kit_nav,
-            sections: Arc::new(sections),
-            columns: Arc::new(columns),
-            form_fields: Arc::new(form_fields),
-            client_actions: Arc::new(Vec::new()),
-            vocab,
-            problems,
-            update,
-            health,
-            clients,
-            auth,
-            open,
-            command_template: Arc::from(""),
-            test_body: Arc::from(""),
-            test_json: false,
-            env: Arc::new(env),
-            uptime: UptimeHistory::default(),
-            clients_href: Some("/clients".to_string()),
-            check_update: None,
-            repository_url: None,
-            notify_card: false,
-        })
-    }
-
-    /// K28: what this service calls a client, for every template
-    /// (`vocab.singular`, `vocab.plural`, `vocab.singular_cap`,
-    /// `vocab.plural_cap`) and for the clients API's messages. Set once at
-    /// mount, before any handler holds a clone.
-    pub fn with_vocabulary(mut self, vocab: Vocabulary) -> Self {
-        let env = Arc::make_mut(&mut self.env);
-        env.add_global("vocab", minijinja::Value::from_serialize(&vocab));
-        env.add_global("token_var", vocab.token_var());
-        let article = article_for(&vocab.singular).to_string();
-        self.vocab = vocab;
-        self.with_vocabulary_article(&article)
-    }
-
-    /// K29: the project's buttons on every active client row.
-    pub fn with_client_actions(mut self, actions: Vec<ClientAction>) -> Self {
-        self.client_actions = Arc::new(actions);
-        self
-    }
-
-    /// Render a project's own page inside the kit's layout (K16): the
-    /// template `{% extends "layout.html" %}` and fills `content`; the
-    /// project passes any serialisable context (a `serde_json::json!`
-    /// object is fine). `active_nav` is the href of its nav entry, so the
-    /// menu highlights it. Handlers get the `Dashboard` as an axum
-    /// `Extension` on every route registered with `dashboard_routes`.
-    pub fn render_project<C: serde::Serialize>(
-        &self,
-        active_nav: &str,
-        source: &str,
-        ctx: C,
-    ) -> Result<Html<String>, Error> {
-        let mut env = (*self.env).clone();
-        env.add_template("__project.html", source)
-            .map_err(template_error)?;
-        let tmpl = env.get_template("__project.html").map_err(template_error)?;
-        let own = minijinja::Value::from_serialize(&ctx);
-        let full = context! {
-            logged_in => true,
-            idle_clients => self.idle_clients(),
-            active_nav => active_nav,
-            ..own
-        };
-        Ok(Html(tmpl.render(full).map_err(template_error)?))
-    }
-
-    /// CF-7: a refusal shown to a browser as a page in the layout — the
-    /// kit's error and remedy, with the navigation around it and a way
-    /// back — instead of a JSON document on its own tab.
-    ///
-    /// kit-kp11: the page also says why in plain words, draws the kind of
-    /// error, carries the request id to quote in a report, and draws the
-    /// navigation when the browser is signed in. The id and the session
-    /// come from [`crate::shell::http::error_context`], set for this call.
-    pub fn render_error(&self, status: StatusCode, message: &str, remedy: &str) -> Option<String> {
-        let ctx = crate::shell::http::error_context();
-        let signed_in =
-            ctx.trusted || crate::shell::auth::still_valid_now(&self.auth, &ctx.headers);
-        let (art, why) = error_look(status);
-        self.render(
-            "error.html",
-            context! {
-                logged_in => signed_in,
-                idle_clients => if signed_in { self.idle_clients() } else { 0 },
-                active_nav => "",
-                status => status.as_u16(),
-                reason => status.canonical_reason().unwrap_or(""),
-                message => capitalised(message),
-                remedy => sentence(remedy),
-                why => why,
-                art => art,
-                request_id => ctx.request_id,
-                when => crate::shell::time::now_rfc3339(),
-            },
-        )
-        .ok()
-        .map(|h| h.0)
-    }
-
-    /// Whether this request came through the TLS proxy (AR6).
-    pub fn is_https(&self, peer: std::net::SocketAddr, headers: &HeaderMap) -> bool {
-        crate::shell::guards::is_https(peer, headers, &self.auth.guards.trusted_proxies)
-    }
-
-    /// The passkeys page (K9); `passkeys` is what the store holds.
-    pub fn passkeys_page(
-        &self,
-        https: bool,
-        passkeys: Vec<impl Serialize>,
-    ) -> Result<Html<String>, Error> {
-        self.render(
-            "passkeys.html",
-            context! {
-                logged_in => true,
-                idle_clients => self.idle_clients(),
-                active_nav => "/passkeys",
-                https => https,
-                public_url => self.public_url,
-                passkeys => passkeys,
-            },
-        )
-    }
-}
 
 /// `GET /login`.
 pub async fn login_get(
