@@ -2,6 +2,7 @@
 //! merging and the theme registry. The markup and script lints are in `assets`.
 
 mod assets;
+mod templates;
 
 use super::*;
 use clients::{calls_path, usual_values};

@@ -11,6 +11,7 @@ use crate::storage::kinds::{DataKind, Now, Selector};
 use crate::storage::kinds::{Filter, TimeFormat};
 
 mod import;
+mod storage_maintenance;
 mod storage_page;
 
 pub(super) const T0: i64 = 1_800_000_000;
