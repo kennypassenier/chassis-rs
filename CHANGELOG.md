@@ -9,6 +9,14 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **`chassis release` for a multi-binary workspace** (CLI only,
+  homelab-shared-4): an optional `[release]` table in `.chassis.toml` with
+  `binaries`, `build = "glibc"` (+ `glibc_image`), `sign`, `notes`, and
+  `[release.hooks]` `pre_gate` / `post_gate` / `tag_notes` (an annotated tag).
+  A workspace root's `[workspace.package]` version is bumped when there is no
+  `[package]`. Every key defaults to the old behaviour; documented in
+  scaffold/README.md. The logic sits in `manifest_version.rs`,
+  `release_config.rs` and `release_hooks.rs`.
 - **`shell::release_verify`** (feature `self-update`, homelab-shared-3):
   `verify_release_asset(sums, minisig, pubkey, asset, bytes)` verifies a
   downloaded release without an `Updater`: signature over `SHA256SUMS` first,

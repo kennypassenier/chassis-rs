@@ -57,3 +57,25 @@ Compared with homelab `core/src/release_sig.rs` (`verify_release`) and
 | Pre-release tolerant `version_newer` | yes | `Version::parse` refuses suffixes ("a release is a release") | not changed |
 
 `chassis::shell::release_verify::verify_release_asset` is the single call.
+
+## D. `chassis release` for a workspace like homelab
+
+Homelab step by step against `chassis release` (keys in scaffold/README.md):
+
+| Homelab step | chassis |
+|---|---|
+| 1 semver, 2 clean tree, 3 main, 4 tag free | already checks these |
+| 5 measure-due, 6 register overrides | `[release.hooks] pre_gate` (5) and `tag_notes` (6, annotates the tag) |
+| 7 `DRY=1` stops after deny/gitleaks/MSRV | `--dry-run` runs the whole gate and the builds and stops before commit/tag/push; a different cut-off. gitleaks and MSRV stay project hooks |
+| 8 gate with Playwright | `.claude/hooks/gates.project.sh` (already run) and gate-stamp (already skipped when fresh) |
+| 9 host-drift | `post_gate` |
+| 10 version in workspace Cargo.toml, `cargo update`, commit | `[workspace.package]` is bumped; `cargo update -w`; commit subject is `chore(release): X [meta]` (not `release: vX [meta]`) |
+| 11 Debian docker build, three binaries, SHA256SUMS | `build = "glibc"`, `binaries = [...]` |
+| 12 annotated tag with the record | `tag_notes` |
+| 13 push | pushes main and the tag (same effect as `--follow-tags`) |
+| 14 `gh release create` with generated notes | `notes = "generated"`; assets are the binaries and SHA256SUMS |
+| 15 owner signs | `sign = false` |
+| 16 rollout | outside |
+
+Not covered, on purpose: the commit subject wording, and a cut-off like
+`DRY=1`'s "before the gate".

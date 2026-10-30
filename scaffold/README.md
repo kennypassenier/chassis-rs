@@ -25,6 +25,52 @@ existing one against. Each file is a minijinja template rendered with:
 | `vmid` / `stack` | for `service.yml`; placeholders until adoption | `0` / `inbox` |
 | `knobs_table` | the kit's knob table as Markdown, pre-rendered from `AppSpec::knobs()` for `docs/KIT.md` (K27, K31) | `\| Key \| Env \| …` |
 
+### `[release]` in `.chassis.toml` (homelab-shared-4)
+
+How `chassis release` differs from "one static musl binary named like the
+project". The table is optional; every key has a default that is the
+behaviour before it existed, and an unchanged record is written without it.
+None of these reach a rendered template.
+
+| Key | Meaning | Default |
+|---|---|---|
+| `binaries` | the binaries one release ships, each built with `--bin <name>`, copied to `dist/<name>`, listed in `SHA256SUMS` and uploaded; the first one answers `--version` in the gate | `[]` = the one binary named like the project, built with no `--bin` |
+| `build` | `"musl"`: static, built in `rust:<toolchain>-slim-trixie`, refused if it links dynamically. `"glibc"`: dynamically linked, built in a Debian image into `target-glibc/` (add it to `.gitignore`), no `ldd` refusal | `"musl"` |
+| `glibc_image` | the image of the glibc build | `rust:<toolchain>-slim-bookworm` |
+| `sign` | whether `scripts/sign-release.sh` runs at the end (and must exist). `false`: the release stays unsigned and you sign it yourself | `true` |
+| `notes` | `"local"`: the text `chassis release` writes. `"generated"`: `gh release create --generate-notes` | `"local"` |
+
+A workspace root with no `[package]` keeps its one shared version under
+`[workspace.package]`; `chassis release` writes the new version there, and
+`[package]` still wins when both exist. No key is needed.
+
+`[release.hooks]` names the project's own scripts. Each entry is one command
+line (split on whitespace), run from the project root with
+`CHASSIS_RELEASE_VERSION`, `CHASSIS_RELEASE_TAG` and
+`CHASSIS_RELEASE_DRY_RUN` (`1`/`0`) set; a non-zero exit stops the release
+before anything is changed, and a relative path such as `scripts/x` is
+resolved against the project root. The kit knows nothing about what they
+check.
+
+| Key | Runs | Default |
+|---|---|---|
+| `pre_gate` | a list; after the tree, branch and tag checks, before the gate | `[]` |
+| `post_gate` | a list; after the gate is green, before the version is written | `[]` |
+| `tag_notes` | one command whose stdout becomes the tag's annotation (`git tag -a -F`), run right after `pre_gate`; it must print something | unset = the plain lightweight tag |
+
+```toml
+[release]
+binaries = ["homelab-host", "homelab", "homelab-admin"]
+build = "glibc"
+sign = false
+notes = "generated"
+
+[release.hooks]
+pre_gate = ["scripts/measure-due.py --run"]
+post_gate = ["scripts/host-drift.sh"]
+tag_notes = ".githooks/check-register.py --release-text"
+```
+
 Rendered paths mirror this directory: `scaffold/.claude/hooks/gates.sh`
 lands at `.claude/hooks/gates.sh`. A file named `*.tmpl` loses the
 suffix (`Cargo.toml.tmpl` → `Cargo.toml`), which keeps editors from
