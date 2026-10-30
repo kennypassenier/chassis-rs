@@ -24,17 +24,23 @@
 //! * with the kit's kp-themes runtime added to every HTML page
 //!   (`/static/chassis/webapp-runtime.js`), unless [`WebApp::without_kit_runtime`].
 //!
+//! * installable on a phone or desktop (a manifest, icons and a service worker
+//!   that never serves a stale page), unless [`WebApp::without_pwa`].
+//!
 //! The kit's own routes cannot be shadowed: a mount path that is `/` or
 //! starts with one of them is refused at start and at `--check`.
 
 mod files;
 mod inject;
 mod paths;
+mod pwa;
 mod router;
 mod serving;
 mod validate;
 
 use std::path::PathBuf;
+
+pub use pwa::{Display, Pwa};
 
 /// The policy a web app gets unless it names its own: the kit's pages'
 /// policy. `'unsafe-inline'` for styles covers `style=""` attributes that
@@ -76,6 +82,8 @@ pub struct WebApp {
     csp: String,
     /// Whether the file server adds the kit's runtime script to HTML pages.
     kit_runtime: bool,
+    /// feat-webapp-4: the install settings; `None` after `without_pwa()`.
+    pwa: Option<Pwa>,
 }
 
 impl WebApp {
@@ -88,6 +96,7 @@ impl WebApp {
             source: Source::Embedded(files),
             csp: DEFAULT_CSP.to_string(),
             kit_runtime: true,
+            pwa: Some(Pwa::new()),
         }
     }
 
@@ -99,6 +108,7 @@ impl WebApp {
             source: Source::Dir(dir.into()),
             csp: DEFAULT_CSP.to_string(),
             kit_runtime: true,
+            pwa: Some(Pwa::new()),
         }
     }
 
@@ -124,6 +134,21 @@ impl WebApp {
         self
     }
 
+    /// Change how the app installs (feat-webapp-4): its name, display mode
+    /// and colours. Without this call the app is installable with the
+    /// defaults, so this is only for what should differ.
+    pub fn pwa(mut self, pwa: Pwa) -> Self {
+        self.pwa = Some(pwa);
+        self
+    }
+
+    /// Do not make the app installable: no manifest, no service worker, no
+    /// tags in the pages.
+    pub fn without_pwa(mut self) -> Self {
+        self.pwa = None;
+        self
+    }
+
     /// The mount path, without a trailing slash; `/` for the root.
     pub fn mount(&self) -> &str {
         if self.mount.is_empty() {
@@ -139,6 +164,8 @@ impl WebApp {
     }
 }
 
+#[cfg(test)]
+mod pwa_tests;
 #[cfg(test)]
 mod runtime_tests;
 #[cfg(test)]

@@ -9,7 +9,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
 
 use super::files::{content_type, read};
-use super::inject::with_runtime;
+use super::inject::with_head_tags;
 use super::paths::relative_path;
 use super::{DEFAULT_CSP, RESERVED, WebApp};
 
@@ -81,8 +81,8 @@ pub(super) async fn serve(
     };
     // The runtime script goes into HTML before the ETag is computed over the
     // served bytes, so the tag and the validator always agree.
-    let body = if app.kit_runtime && content_type(&served).starts_with("text/html") {
-        with_runtime(body)
+    let body = if content_type(&served).starts_with("text/html") {
+        with_head_tags(body, app.kit_runtime, app.page_tags().as_deref())
     } else {
         body
     };
@@ -92,7 +92,7 @@ pub(super) async fn serve(
 
 /// The answer for a found file: its type, a cache policy, a strong ETag
 /// (304 when the browser already has it) and the app's CSP.
-fn file_response(
+pub(super) fn file_response(
     served: &str,
     body: Cow<'static, [u8]>,
     versioned: bool,

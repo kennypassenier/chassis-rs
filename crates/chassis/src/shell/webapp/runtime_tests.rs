@@ -1,6 +1,7 @@
 //! Locks the injected kp-themes runtime: one tag per HTML page, nothing
 //! else touched, caching that follows the injected bytes, an opt-out and
-//! sub-path mounts.
+//! sub-path mounts. The PWA tags are switched off in the tests that compare
+//! bytes, so they see the runtime alone (pwa_tests.rs covers the rest).
 
 use super::tests::{body, get_path};
 use super::*;
@@ -21,7 +22,7 @@ fn count(haystack: &str) -> usize {
 
 #[tokio::test]
 async fn html_gets_the_tag_once_before_the_head_end() {
-    let r = WebApp::embedded(FILES).router().unwrap();
+    let r = WebApp::embedded(FILES).without_pwa().router().unwrap();
     let res = get_path(&r, "/", &[]).await;
     let len: usize = res.headers()["content-length"]
         .to_str()
@@ -44,7 +45,7 @@ async fn html_gets_the_tag_once_before_the_head_end() {
 
 #[tokio::test]
 async fn a_page_that_loads_the_runtime_itself_is_left_alone() {
-    let r = WebApp::embedded(FILES).router().unwrap();
+    let r = WebApp::embedded(FILES).without_pwa().router().unwrap();
     let html = body(get_path(&r, "/own.html", &[]).await).await;
     assert_eq!(html.as_bytes(), HAS_TAG);
     assert_eq!(count(&html), 1);

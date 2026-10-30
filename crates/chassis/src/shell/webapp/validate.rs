@@ -24,6 +24,9 @@ impl WebApp {
                 "mount it at the root (the default) or elsewhere, e.g. `/app`; the kit's routes are /status, /login, /logout, /static, /api, /clients, /passkeys, /healthz, /readyz and /metrics",
             ));
         }
+        if let Some(p) = &self.pwa {
+            p.validate()?;
+        }
         match &self.source {
             Source::Embedded(files) => {
                 if !files.iter().any(|(p, _)| *p == "index.html") {

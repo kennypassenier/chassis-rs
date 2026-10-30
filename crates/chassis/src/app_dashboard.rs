@@ -70,6 +70,11 @@ pub(crate) struct MountExtra {
     pub home: Option<String>,
     pub webapp_at_root: bool,
     pub kit_in_webapp: bool,
+    /// feat-webapp-4: the web app's public install routes (manifest, worker,
+    /// icons), merged outside the login, and the tags that link the manifest
+    /// from the kit's own pages (the login page).
+    pub pwa_routes: Option<Router>,
+    pub pwa_head: Option<String>,
     /// Kenny, 2026-10-02: every kit page is optional per app.
     pub disabled: Vec<String>,
     /// 3.11.0: the budget monitor and the app database; its problems join
@@ -210,6 +215,9 @@ pub(crate) async fn mount_with(
         .merge(kit.prefs_api)
         .merge(project_pages)
         .merge(api_routes);
+    if let Some(pwa) = extra.pwa_routes.take() {
+        all = all.merge(pwa);
+    }
     #[cfg(feature = "notify")]
     {
         all = all.merge(kit.notify_api);

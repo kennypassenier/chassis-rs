@@ -84,6 +84,67 @@ demand specific markup, so a page that wants them still calls them.
 - `.without_kit_runtime()` opts out, for an app that runs the
   runtime itself.
 
+## Installable (PWA) (feat-webapp-4)
+
+A web app at the root is installable with no code of its own: the kit
+serves a manifest, icons and a service worker, and adds the tags to the
+pages. `WebApp::without_pwa()` opts out.
+
+```rust
+use chassis::shell::webapp::{Display, Pwa, WebApp};
+
+// Defaults are complete; change only what should differ.
+app.webapp(WebApp::embedded(FILES).pwa(
+    Pwa::new()
+        .name("Medicine Cabinet")        // default: the brand title
+        .short_name("Meds")              // default: the name cut at 12 characters
+        .display(Display::Standalone)    // or Fullscreen, MinimalUi
+        .theme_color("#223659")          // default: kp-themes formal's navy
+        .background_color("#faf8f5"),    // default: formal's paper
+));
+```
+
+- **Routes (public, no login).** `/manifest.webmanifest`
+  (`application/manifest+json`: `start_url` and `scope` `/`, the display
+  mode, colours, icons 192, 512 and a maskable 512), `/sw.js`
+  (`Cache-Control: no-cache`, scope `/`), `/pwa/icon-{180,192,512,maskable-512}.png`,
+  `/pwa/offline` and `/pwa/offline.js`. The browser fetches these without a
+  session, and a worker is installed before any login. Nothing else becomes
+  public; the app and its files still ask for the login.
+- **Tags.** Every HTML page gets `<link rel="manifest">`, `<meta
+  name="theme-color">` and an `apple-touch-icon` before `</head>`; a tag the
+  page already has is skipped. The kit's login page links the manifest too, so
+  an installed app can sign in. The worker is registered by
+  `webapp-runtime.js`, so the CSP stays `script-src 'self'`, and only on a page
+  that links the manifest.
+- **Own icons.** Put PNG files in the web app at `pwa/icon-180.png`,
+  `pwa/icon-192.png`, `pwa/icon-512.png` and `pwa/icon-maskable-512.png`
+  (the maskable one needs its artwork inside the central 60 %, the rest is
+  cropped). Each file you supply replaces the generated one, independently;
+  a file that is not a PNG is ignored. Without them the kit draws the brand's
+  first letter on the theme colour (generated at start, no image library).
+- **The worker never serves a stale page.** Network first for pages, scripts,
+  styles and other same-origin GETs: the cache is used only when the network
+  fails. Never handled: `/api`, `/login`, `/logout`, non-GET requests and range
+  requests. Never stored: anything but a plain 200 of this origin (no 303, no
+  opaque answer, nothing reached through a redirect such as the login page,
+  no event stream, no `Cache-Control: no-store`). The cache is named after the
+  kit's asset version and the web app's own build (a hash of its files), so
+  a release drops the old caches when its worker activates; at most 200 entries
+  are kept. An offline navigation without a stored copy shows a small offline
+  page that retries by itself.
+- **Updates.** The worker activates at once (`skipWaiting`, `clients.claim`)
+  and tells open pages; a page that was already controlled reloads once per
+  release (remembered in `sessionStorage`), so there is no reload loop.
+- **Conditions.** Only an app at the root (`.at("/x")` has no scope to claim)
+  and with the kit runtime (`without_kit_runtime()` also leaves the install
+  out, because the runtime registers the worker). Android offers the install
+  only over HTTPS (or `localhost`): behind Traefik with a certificate that is
+  the case; plain `http://` on a LAN address is not.
+- **Privacy note.** A page the user saw while logged in can be shown again
+  offline from the cache; `/api` data is never kept. A shared device should
+  clear site data after logging out.
+
 ## Pages and the navigation (feat-pages-1)
 
 One list holds every page the service shows, the kit's and the project's,
