@@ -9,20 +9,25 @@
 //! handler, which does not always have the id at hand, while the header
 //! is added by a layer that always does.
 
-use std::time::Instant;
+mod access_log_line;
+mod error_page;
+mod error_response;
+mod hygiene;
+
+pub(crate) use error_page::error_context;
 
 use axum::Router;
 use axum::body::Body;
-use axum::extract::{MatchedPath, Request, State};
+use axum::extract::{Request, State};
 use axum::http::{HeaderName, HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::request_id::{
     MakeRequestId, PropagateRequestIdLayer, RequestId, SetRequestIdLayer,
 };
 
-use crate::core::error::{Error, Kind};
+use crate::core::error::Kind;
 use crate::shell::guards::{Guards, csrf_guard, in_flight_guard, timeout_guard};
 
 static X_REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
@@ -51,30 +56,6 @@ pub struct AccessState {
 pub type HtmlErrorRenderer =
     std::sync::Arc<dyn Fn(StatusCode, &str, &str) -> Option<String> + Send + Sync>;
 
-/// kit-kp11: what an error page knows about the request it answers, set
-/// for the one call of the [`HtmlErrorRenderer`] so the renderer's
-/// signature stays what it was: the request id to quote in a report, and
-/// the request's headers, from which the dashboard tells whether the
-/// browser is signed in (the page then draws the navigation and Log out,
-/// as on every other page).
-#[derive(Debug, Clone, Default)]
-pub(crate) struct ErrorContext {
-    pub(crate) request_id: Option<String>,
-    pub(crate) headers: axum::http::HeaderMap,
-    /// trusted-sources: the request came from a trusted admin.
-    pub(crate) trusted: bool,
-}
-
-thread_local! {
-    static ERROR_CONTEXT: std::cell::RefCell<ErrorContext> = std::cell::RefCell::new(ErrorContext::default());
-}
-
-/// The context of the error page being rendered right now (empty outside
-/// a render).
-pub(crate) fn error_context() -> ErrorContext {
-    ERROR_CONTEXT.with(|c| c.borrow().clone())
-}
-
 /// Whether the request is a browser navigation — a page load or a form
 /// submit — as opposed to a script or API call: `Sec-Fetch-Mode: navigate`
 /// (every modern browser), else an `Accept` that asks for HTML.
@@ -102,55 +83,7 @@ pub async fn html_errors(
     req: Request,
     next: Next,
 ) -> Response {
-    let wants_page = render.is_some() && is_navigation(req.headers());
-    let context = wants_page.then(|| ErrorContext {
-        request_id: req
-            .headers()
-            .get(&X_REQUEST_ID)
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_string),
-        headers: req.headers().clone(),
-        #[cfg(feature = "dashboard")]
-        trusted: crate::shell::trusted::is_trusted(req.extensions()),
-        #[cfg(not(feature = "dashboard"))]
-        trusted: false,
-    });
-    let res = next.run(req).await;
-    let Some(render) = render else { return res };
-    if !wants_page || !res.status().is_client_error() && !res.status().is_server_error() {
-        return res;
-    }
-    let is_json = res
-        .headers()
-        .get(axum::http::header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|ct| ct.starts_with("application/json"));
-    if !is_json {
-        return res;
-    }
-    let (mut parts, body) = res.into_parts();
-    // Kit errors are two short strings; anything larger is not one.
-    let bytes = match axum::body::to_bytes(body, 64 * 1024).await {
-        Ok(b) => b,
-        Err(_) => return Response::from_parts(parts, Body::empty()),
-    };
-    let parsed: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or_default();
-    let message = parsed["error"].as_str().unwrap_or("request refused");
-    let remedy = parsed["remedy"].as_str().unwrap_or("");
-    ERROR_CONTEXT.with(|c| *c.borrow_mut() = context.unwrap_or_default());
-    let page = render(parts.status, message, remedy);
-    ERROR_CONTEXT.with(|c| *c.borrow_mut() = ErrorContext::default());
-    match page {
-        Some(html) => {
-            parts.headers.remove(axum::http::header::CONTENT_LENGTH);
-            parts.headers.insert(
-                axum::http::header::CONTENT_TYPE,
-                HeaderValue::from_static("text/html; charset=utf-8"),
-            );
-            Response::from_parts(parts, Body::from(html))
-        }
-        None => Response::from_parts(parts, Body::from(bytes)),
-    }
+    error_page::html_errors(State(render), req, next).await
 }
 
 /// Wrap a router with the kit's layers. Order, outermost first as a
@@ -196,51 +129,14 @@ pub fn with_kit_layers(
 /// policy can be strict; `'unsafe-inline'` for styles covers the templates'
 /// small `style=""` attributes and nothing else.
 pub async fn security_headers(req: Request, next: Next) -> Response {
-    let mut res = next.run(req).await;
-    let h = res.headers_mut();
-    let put = |h: &mut axum::http::HeaderMap, k: &'static str, v: &'static str| {
-        h.entry(k)
-            .or_insert(axum::http::HeaderValue::from_static(v));
-    };
-    put(
-        h,
-        "content-security-policy",
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
-    );
-    put(h, "x-content-type-options", "nosniff");
-    put(h, "x-frame-options", "DENY");
-    // CF-7 (2026-09-06): `same-origin`, not `no-referrer`. Under
-    // `no-referrer` a browser sends `Origin: null` on every form submit (a
-    // navigation, per the Fetch standard) and the CSRF rule refused every
-    // dashboard form — login included — from Chrome. `same-origin` keeps
-    // the referrer inside this host and still blanks it towards others.
-    put(h, "referrer-policy", "same-origin");
-    res
+    hygiene::security_headers(req, next).await
 }
 
 /// AR4, one error shape: the body-limit layer answers a declared oversize
 /// with a bare 413; this turns that into the kit's JSON error with a
 /// remedy, like every other refusal.
 pub async fn json_413(req: Request, next: Next) -> Response {
-    let res = next.run(req).await;
-    if res.status() != axum::http::StatusCode::PAYLOAD_TOO_LARGE {
-        return res;
-    }
-    let is_json = res
-        .headers()
-        .get(axum::http::header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|ct| ct.starts_with("application/json"));
-    if is_json {
-        return res;
-    }
-    let mut out = Error::invalid(
-        "the request body is larger than this service accepts",
-        "send a body within max_body_bytes (the knob <PREFIX>_MAX_BODY_BYTES sets it)",
-    )
-    .into_response();
-    *out.status_mut() = axum::http::StatusCode::PAYLOAD_TOO_LARGE;
-    out
+    hygiene::json_413(req, next).await
 }
 
 /// S8: a caller-supplied `x-request-id` is echoed into every log line, so
@@ -263,6 +159,21 @@ pub async fn sanitize_request_id(mut req: Request, next: Next) -> Response {
     next.run(req).await
 }
 
+impl Kind {
+    /// The status each kind answers with (AR4).
+    pub fn status(self) -> StatusCode {
+        match self {
+            Kind::Config => StatusCode::SERVICE_UNAVAILABLE,
+            Kind::Unauthorized => StatusCode::UNAUTHORIZED,
+            Kind::NotFound => StatusCode::NOT_FOUND,
+            Kind::Invalid => StatusCode::BAD_REQUEST,
+            Kind::Overloaded => StatusCode::SERVICE_UNAVAILABLE,
+            Kind::Dependency => StatusCode::BAD_GATEWAY,
+            Kind::Internal => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
 /// The bare layers for tests that need no guards.
 pub fn with_request_id_only(router: Router) -> Router {
     router
@@ -281,265 +192,8 @@ pub fn with_request_id_only(router: Router) -> Router {
 /// `route` label is the matched route pattern, not the raw path, so an
 /// id in the URL cannot multiply the series.
 async fn access_log(State(access): State<AccessState>, req: Request<Body>, next: Next) -> Response {
-    let method = req.method().clone();
-    let path = req.uri().path().to_string();
-    let route = req
-        .extensions()
-        .get::<MatchedPath>()
-        .map(|m| m.as_str().to_string())
-        .unwrap_or_else(|| "unmatched".to_string());
-    let request_id = req
-        .extensions()
-        .get::<RequestId>()
-        .and_then(|id| id.header_value().to_str().ok())
-        .unwrap_or("-")
-        .to_string();
-    let started = Instant::now();
-    let response = next.run(req).await;
-    let status = response.status().as_u16();
-    if !access.requests_total.is_empty() {
-        metrics::counter!(
-            access.requests_total.clone(),
-            "route" => route.clone(),
-            "status" => status.to_string()
-        )
-        .increment(1);
-    }
-    tracing::info!(
-        method = %method,
-        path = %path,
-        route = %route,
-        status,
-        duration_ms = started.elapsed().as_millis() as u64,
-        request_id = %request_id,
-        "request"
-    );
-    response
-}
-
-impl Kind {
-    /// The status each kind answers with (AR4).
-    pub fn status(self) -> StatusCode {
-        match self {
-            Kind::Config => StatusCode::SERVICE_UNAVAILABLE,
-            Kind::Unauthorized => StatusCode::UNAUTHORIZED,
-            Kind::NotFound => StatusCode::NOT_FOUND,
-            Kind::Invalid => StatusCode::BAD_REQUEST,
-            Kind::Overloaded => StatusCode::SERVICE_UNAVAILABLE,
-            Kind::Dependency => StatusCode::BAD_GATEWAY,
-            Kind::Internal => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-}
-
-impl IntoResponse for Error {
-    /// `{"error": …, "remedy": …}` with the kind's status. Internal errors
-    /// keep their remedy but the message is logged, not leaked: the caller
-    /// cannot act on a stack of ours, and it may name paths.
-    fn into_response(self) -> Response {
-        let status = self.kind.status();
-        let message = if self.kind == Kind::Internal {
-            tracing::error!(error = %self, "internal error");
-            "internal error".to_string()
-        } else {
-            self.message
-        };
-        let body = serde_json::json!({ "error": message, "remedy": self.remedy });
-        // feat-backup-1: a write held past its limit by a backup says when
-        // to come back.
-        if self.kind == Kind::Overloaded
-            && let Some(left) = crate::shell::backup::seconds_left()
-        {
-            return (
-                status,
-                [(axum::http::header::RETRY_AFTER, left.to_string())],
-                axum::Json(body),
-            )
-                .into_response();
-        }
-        (status, axum::Json(body)).into_response()
-    }
+    access_log_line::run(State(access), req, next).await
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use axum::routing::get;
-    use tower::ServiceExt;
-
-    #[tokio::test]
-    async fn request_id_is_generated_or_echoed() {
-        let app = with_request_id_only(Router::new().route("/", get(|| async { "ok" })));
-        let res = app
-            .clone()
-            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-        let generated = res
-            .headers()
-            .get("x-request-id")
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string();
-        assert_eq!(generated.len(), 36, "uuid v4 text form");
-
-        let res = app
-            .oneshot(
-                Request::builder()
-                    .uri("/")
-                    .header("x-request-id", "abc-123")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(res.headers().get("x-request-id").unwrap(), "abc-123");
-    }
-
-    #[tokio::test]
-    async fn error_renders_json_with_remedy_and_status() {
-        async fn failing() -> Result<&'static str, Error> {
-            Err(Error::new(
-                Kind::NotFound,
-                "no such client",
-                "issue one on /clients first",
-            ))
-        }
-        let app = Router::new().route("/", get(failing));
-        let res = app
-            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-        assert_eq!(res.status(), StatusCode::NOT_FOUND);
-        let bytes = axum::body::to_bytes(res.into_body(), 4096).await.unwrap();
-        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(v["error"], "no such client");
-        assert_eq!(v["remedy"], "issue one on /clients first");
-    }
-
-    #[tokio::test]
-    async fn internal_error_hides_its_message() {
-        async fn failing() -> Result<&'static str, Error> {
-            Err(Error::internal(
-                "/var/lib/secret/path exploded",
-                "retry; if it persists read the log",
-            ))
-        }
-        let app = Router::new().route("/", get(failing));
-        let res = app
-            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-        let bytes = axum::body::to_bytes(res.into_body(), 4096).await.unwrap();
-        let text = String::from_utf8(bytes.to_vec()).unwrap();
-        assert!(!text.contains("/var/lib"));
-        assert!(text.contains("retry"));
-    }
-
-    /// CF-7: a browser navigation gets the refusal as a page, a script the JSON.
-    #[tokio::test]
-    async fn navigations_get_errors_as_pages_and_scripts_get_json() {
-        let render: HtmlErrorRenderer = std::sync::Arc::new(|status, msg, remedy| {
-            Some(format!(
-                "<html>{} · {msg} · {remedy}</html>",
-                status.as_u16()
-            ))
-        });
-        let app = Router::new()
-            .route(
-                "/act",
-                axum::routing::post(|| async {
-                    (
-                        StatusCode::FORBIDDEN,
-                        axum::Json(serde_json::json!({
-                            "error": "cross-site request refused",
-                            "remedy": "use the dashboard"
-                        })),
-                    )
-                }),
-            )
-            .layer(middleware::from_fn_with_state(Some(render), html_errors));
-        let nav = Request::builder()
-            .method("POST")
-            .uri("/act")
-            .header("sec-fetch-mode", "navigate")
-            .body(Body::empty())
-            .unwrap();
-        let res = app.clone().oneshot(nav).await.unwrap();
-        assert_eq!(res.status(), StatusCode::FORBIDDEN, "the status is kept");
-        assert!(
-            res.headers()[axum::http::header::CONTENT_TYPE]
-                .to_str()
-                .unwrap()
-                .starts_with("text/html")
-        );
-        let body = axum::body::to_bytes(res.into_body(), 4096).await.unwrap();
-        let body = String::from_utf8(body.to_vec()).unwrap();
-        assert!(
-            body.contains("403 · cross-site request refused · use the dashboard"),
-            "{body}"
-        );
-
-        let script = Request::builder()
-            .method("POST")
-            .uri("/act")
-            .body(Body::empty())
-            .unwrap();
-        let res = app.oneshot(script).await.unwrap();
-        assert!(
-            res.headers()[axum::http::header::CONTENT_TYPE]
-                .to_str()
-                .unwrap()
-                .starts_with("application/json"),
-            "a script keeps the JSON shape"
-        );
-        let body = axum::body::to_bytes(res.into_body(), 4096).await.unwrap();
-        assert!(String::from_utf8_lossy(&body).contains("\"remedy\""));
-    }
-
-    /// kit-kp11: the renderer sees the request id and the headers of the
-    /// request it answers, and nothing of them afterwards.
-    #[tokio::test]
-    async fn the_error_page_renderer_sees_the_request_id_and_cookie() {
-        let render: HtmlErrorRenderer = std::sync::Arc::new(|_, _, _| {
-            let ctx = error_context();
-            Some(format!(
-                "<html>{} · {}</html>",
-                ctx.request_id.unwrap_or_default(),
-                ctx.headers
-                    .get("cookie")
-                    .and_then(|v| v.to_str().ok())
-                    .unwrap_or("none")
-            ))
-        });
-        let app = Router::new()
-            .route(
-                "/act",
-                axum::routing::get(|| async {
-                    (
-                        StatusCode::NOT_FOUND,
-                        axum::Json(serde_json::json!({ "error": "gone", "remedy": "look again" })),
-                    )
-                }),
-            )
-            .layer(middleware::from_fn_with_state(Some(render), html_errors));
-        let req = Request::builder()
-            .uri("/act")
-            .header("sec-fetch-mode", "navigate")
-            .header("x-request-id", "req-42")
-            .header("cookie", "inbox_session=abc")
-            .body(Body::empty())
-            .unwrap();
-        let res = app.oneshot(req).await.unwrap();
-        let body = axum::body::to_bytes(res.into_body(), 4096).await.unwrap();
-        assert_eq!(
-            String::from_utf8(body.to_vec()).unwrap(),
-            "<html>req-42 · inbox_session=abc</html>"
-        );
-        assert!(
-            error_context().request_id.is_none() && error_context().headers.is_empty(),
-            "the context ends with the render"
-        );
-    }
-}
+mod tests;

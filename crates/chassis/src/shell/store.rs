@@ -9,6 +9,10 @@
 //! implementation and an in-memory one, and one suite drives both
 //! (rule 7g).
 
+mod atomic;
+mod clients;
+mod rekey;
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -86,174 +90,23 @@ impl EncryptedFile {
 /// #11). A file that already opens with `new` is left alone, so a rerun
 /// after a partial failure is safe. Returns how many files were re-sealed.
 pub fn rekey_dir(dir: &Path, old: &Key, new: &Key) -> Result<usize, Error> {
-    let entries = std::fs::read_dir(dir).map_err(|e| {
-        Error::config(
-            format!("cannot read the state directory {}: {e}", dir.display()),
-            "check the path and its permissions",
-        )
-    })?;
-    let mut done = 0;
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        if !name.ends_with(".json.enc") {
-            continue;
-        }
-        let with_new = EncryptedFile::new(path.clone(), new.clone(), "store");
-        if with_new.load::<serde_json::Value>().is_ok() {
-            continue; // already under the new key
-        }
-        let with_old = EncryptedFile::new(path.clone(), old.clone(), "store");
-        let value: serde_json::Value = with_old
-            .load()
-            .map_err(|e| {
-                Error::config(
-                    format!("{name} opens with neither the old nor the new key: {}", e.message),
-                    "the OLD_SECRET_KEY is not the key this file was sealed with; find the key that wrote it (the environment file before the rotation)",
-                )
-            })?
-            .unwrap_or(serde_json::Value::Null);
-        with_new.save(&value)?;
-        done += 1;
-    }
-    Ok(done)
-}
-
-/// The last store write that failed, if the most recent write failed
-/// (H11): `/healthz` reports it through `StoreSubsystem`, so a state
-/// directory that turned unwritable after start shows as degraded.
-/// Failed writes by path. A path leaves the map only when a write to that
-/// same path succeeds: a good write elsewhere never heals a store that is
-/// still broken (1.5.1 — before, any success cleared the one global slot,
-/// which also made the health check race between parallel writers).
-static LAST_WRITE_ERROR: std::sync::Mutex<std::collections::BTreeMap<PathBuf, String>> =
-    std::sync::Mutex::new(std::collections::BTreeMap::new());
-
-fn record_write(path: &Path, result: &Result<(), Error>) {
-    let mut failed = LAST_WRITE_ERROR.lock().expect("write-error lock");
-    match result {
-        Ok(()) => {
-            failed.remove(path);
-        }
-        Err(e) => {
-            failed.insert(path.to_path_buf(), e.to_string());
-        }
-    }
+    rekey::run(dir, old, new)
 }
 
 /// Built-in `/healthz` subsystem: is the state root taking writes? Ok until
 /// a write fails, failing until the next write succeeds.
 pub struct StoreSubsystem;
 
-impl crate::shell::health::Subsystem for StoreSubsystem {
-    fn name(&self) -> &str {
-        "store"
-    }
-    fn check(&self) -> crate::shell::health::SubsystemStatus {
-        let failed = LAST_WRITE_ERROR.lock().expect("write-error lock");
-        match failed.iter().next() {
-            None => crate::shell::health::SubsystemStatus::ok("writable"),
-            Some((_, e)) if failed.len() == 1 => {
-                crate::shell::health::SubsystemStatus::failing(format!("last write failed: {e}"))
-            }
-            Some((_, e)) => crate::shell::health::SubsystemStatus::failing(format!(
-                "last write failed: {e} (and {} more path(s))",
-                failed.len() - 1
-            )),
-        }
-    }
-}
-
 /// Prove the state directory takes a write (H11, rule 12 fail-closed):
 /// create it when `create` (start), refuse a missing one otherwise
 /// (`--check` never creates), then write and remove a zero-byte probe.
 pub fn probe_state_dir(dir: &Path, create: bool) -> Result<(), Error> {
-    if !dir.exists() {
-        if !create {
-            return Err(Error::config(
-                format!("state directory {} does not exist", dir.display()),
-                "create it, make the service user its owner (chown), and make the unit's ReadWritePaths cover it",
-            ));
-        }
-        std::fs::create_dir_all(dir).map_err(|e| {
-            Error::config(
-                format!("cannot create the state directory {}: {e}", dir.display()),
-                "create it by hand and make the service user its owner",
-            )
-        })?;
-    }
-    let probe = dir.join(".chassis-probe");
-    let res = std::fs::write(&probe, b"").map_err(|e| {
-        Error::config(
-            format!("the state directory {} is not writable: {e}", dir.display()),
-            "make the service user its owner (chown -R <user> <dir>); under systemd also list it in ReadWritePaths; for a docker bind mount chown the host directory",
-        )
-    });
-    let _ = std::fs::remove_file(&probe);
-    record_write(&probe, &res);
-    res
+    atomic::probe(dir, create)
 }
 
 /// temp + fsync + rename, then fsync the directory (rule 12).
 pub fn write_atomic(path: &Path, bytes: &[u8], what: &str) -> Result<(), Error> {
-    // feat-backup-1: a backup pause holds every write of the kit's state,
-    // for at most HELD_WRITE_LIMIT; then the write fails with a 503 the
-    // caller can retry, instead of hanging.
-    let _ticket =
-        crate::shell::backup::writing_blocking_within(crate::shell::backup::HELD_WRITE_LIMIT)?;
-    let res = write_atomic_inner(path, bytes, what);
-    record_write(path, &res);
-    res
-}
-
-fn write_atomic_inner(path: &Path, bytes: &[u8], what: &str) -> Result<(), Error> {
-    use std::io::Write;
-    let dir = path.parent().ok_or_else(|| {
-        Error::internal(
-            format!("{} has no parent directory", path.display()),
-            "report this",
-        )
-    })?;
-    std::fs::create_dir_all(dir).map_err(|e| {
-        Error::config(
-            format!("cannot create {} for {what}: {e}", dir.display()),
-            "create the state directory and make the service user its owner",
-        )
-    })?;
-    let tmp = dir.join(format!(
-        ".{}.tmp-{}",
-        path.file_name().and_then(|n| n.to_str()).unwrap_or("store"),
-        std::process::id()
-    ));
-    let io = |e: std::io::Error| {
-        Error::config(
-            format!("cannot write {what} to {}: {e}", path.display()),
-            "check free space and the state directory's permissions",
-        )
-    };
-    // S8: 0600 regardless of the umask — the content is sealed, but a
-    // plaintext neighbour (update-state.json) goes through here too.
-    #[cfg(unix)]
-    let mut f = {
-        use std::os::unix::fs::OpenOptionsExt;
-        std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .open(&tmp)
-            .map_err(io)?
-    };
-    #[cfg(not(unix))]
-    let mut f = std::fs::File::create(&tmp).map_err(io)?;
-    f.write_all(bytes).map_err(io)?;
-    f.sync_all().map_err(io)?;
-    drop(f);
-    std::fs::rename(&tmp, path).map_err(io)?;
-    if let Ok(d) = std::fs::File::open(dir) {
-        let _ = d.sync_all();
-    }
-    Ok(())
+    atomic::write(path, bytes, what)
 }
 
 /// The seam for client persistence (K12). Methods are synchronous and
@@ -291,33 +144,6 @@ impl FileClientStore {
     }
 }
 
-impl ClientStore for FileClientStore {
-    fn snapshot(&self) -> ClientsFile {
-        self.state.read().expect("clients lock").clone()
-    }
-
-    fn update(
-        &self,
-        f: &mut dyn FnMut(&mut ClientsFile) -> Result<Client, Error>,
-    ) -> Result<Client, Error> {
-        let mut guard = self.state.write().expect("clients lock");
-        let mut working = guard.clone();
-        let client = f(&mut working)?;
-        self.file.save(&working)?;
-        *guard = working;
-        Ok(client)
-    }
-
-    fn touch(&self, id: &str, now: &str) {
-        self.state.write().expect("clients lock").touch(id, now);
-    }
-
-    fn persist(&self) -> Result<(), Error> {
-        let snapshot = self.state.read().expect("clients lock").clone();
-        self.file.save(&snapshot)
-    }
-}
-
 /// Clients in the kit database (`<name>-kit.db`, 3.11.0): the same
 /// in-memory model as [`FileClientStore`], persisted as rows with the token
 /// and the project's field values sealed per field.
@@ -327,76 +153,11 @@ pub(crate) struct DbClientStore {
     state: std::sync::RwLock<ClientsFile>,
 }
 
-#[cfg(feature = "dashboard")]
-impl DbClientStore {
-    pub(crate) fn open(kit: crate::storage::KitDb) -> Result<Self, Error> {
-        let loaded = kit.load_clients()?;
-        loaded.check_format()?;
-        Ok(Self {
-            kit,
-            state: std::sync::RwLock::new(loaded),
-        })
-    }
-}
-
-#[cfg(feature = "dashboard")]
-impl ClientStore for DbClientStore {
-    fn snapshot(&self) -> ClientsFile {
-        self.state.read().expect("clients lock").clone()
-    }
-
-    fn update(
-        &self,
-        f: &mut dyn FnMut(&mut ClientsFile) -> Result<Client, Error>,
-    ) -> Result<Client, Error> {
-        let mut guard = self.state.write().expect("clients lock");
-        let mut working = guard.clone();
-        let client = f(&mut working)?;
-        self.kit.save_clients(&working)?;
-        *guard = working;
-        Ok(client)
-    }
-
-    fn touch(&self, id: &str, now: &str) {
-        self.state.write().expect("clients lock").touch(id, now);
-    }
-
-    fn persist(&self) -> Result<(), Error> {
-        let snapshot = self.state.read().expect("clients lock").clone();
-        self.kit.save_clients(&snapshot)
-    }
-}
-
 /// Clients in memory only: tests, and the second implementation the
 /// shared suite needs (rule 7g).
 #[derive(Default)]
 pub struct MemoryClientStore {
     state: std::sync::RwLock<ClientsFile>,
-}
-
-impl ClientStore for MemoryClientStore {
-    fn snapshot(&self) -> ClientsFile {
-        self.state.read().expect("clients lock").clone()
-    }
-
-    fn update(
-        &self,
-        f: &mut dyn FnMut(&mut ClientsFile) -> Result<Client, Error>,
-    ) -> Result<Client, Error> {
-        let mut guard = self.state.write().expect("clients lock");
-        let mut working = guard.clone();
-        let client = f(&mut working)?;
-        *guard = working;
-        Ok(client)
-    }
-
-    fn touch(&self, id: &str, now: &str) {
-        self.state.write().expect("clients lock").touch(id, now);
-    }
-
-    fn persist(&self) -> Result<(), Error> {
-        Ok(())
-    }
 }
 
 /// Shared handle type the handlers use.
@@ -458,202 +219,4 @@ impl SessionStore {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn key() -> Key {
-        Key::from_bytes([3u8; 32])
-    }
-
-    #[test]
-    fn encrypted_file_round_trips_and_is_unreadable_as_plaintext() {
-        let dir = tempfile::tempdir().unwrap();
-        let f = EncryptedFile::new(dir.path().join("clients.json.enc"), key(), "clients");
-        assert!(f.load::<ClientsFile>().unwrap().is_none());
-        let mut c = ClientsFile::default();
-        c.issue_with_fields(
-            "ha",
-            "id".into(),
-            "very-secret-token".into(),
-            "2026-09-05T07:00:00Z",
-            Default::default(),
-        )
-        .unwrap();
-        f.save(&c).unwrap();
-        let raw = std::fs::read_to_string(f.path()).unwrap();
-        assert!(
-            !raw.contains("very-secret-token"),
-            "plaintext must never touch disk"
-        );
-        assert!(raw.contains("\"v\": 1"));
-        let back: ClientsFile = f.load().unwrap().unwrap();
-        assert_eq!(back, c);
-        // No temp file left behind.
-        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
-    }
-
-    #[test]
-    fn wrong_key_is_a_config_error_naming_rekey() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("s.enc");
-        EncryptedFile::new(path.clone(), key(), "s")
-            .save(&ClientsFile::default())
-            .unwrap();
-        let err = EncryptedFile::new(path, Key::from_bytes([4u8; 32]), "s")
-            .load::<ClientsFile>()
-            .unwrap_err();
-        assert!(err.remedy.contains("rekey"));
-    }
-
-    /// H11 (rule 12): a missing state dir is refused by --check, created at
-    /// start; an unwritable one is refused by both with the chown remedy; a
-    /// failed write flips the built-in store subsystem to failing until a
-    /// write succeeds again.
-    #[test]
-    fn state_dir_probe_fails_closed_and_the_store_subsystem_follows_writes() {
-        use crate::shell::health::Subsystem;
-        let dir = tempfile::tempdir().unwrap();
-        let missing = dir.path().join("fresh");
-        let err = probe_state_dir(&missing, false).unwrap_err();
-        assert!(err.message.contains("does not exist"), "{}", err.message);
-        assert!(!missing.exists(), "--check creates nothing");
-        probe_state_dir(&missing, true).unwrap();
-        assert!(missing.is_dir(), "start creates the state root");
-        assert!(
-            !missing.join(".chassis-probe").exists(),
-            "the probe is removed"
-        );
-        assert!(StoreSubsystem.check().ok);
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let ro = dir.path().join("ro");
-            std::fs::create_dir(&ro).unwrap();
-            std::fs::set_permissions(&ro, std::fs::Permissions::from_mode(0o555)).unwrap();
-            if std::fs::write(ro.join("x"), b"").is_ok() {
-                // Running as root: the permission bits do not bind; nothing to prove here.
-                return;
-            }
-            let err = probe_state_dir(&ro, true).unwrap_err();
-            assert!(err.message.contains("not writable"), "{}", err.message);
-            assert!(err.remedy.contains("chown"), "{}", err.remedy);
-            let status = StoreSubsystem.check();
-            assert!(!status.ok, "a failed write shows in /healthz");
-            assert!(status.detail.contains("last write failed"));
-            // A successful write elsewhere does NOT clear it (1.5.1): the
-            // broken directory is still broken.
-            write_atomic(&dir.path().join("ok.json"), b"{}", "test").unwrap();
-            assert!(
-                !StoreSubsystem.check().ok,
-                "another path's success is not a cure"
-            );
-            // A successful write to the same path does.
-            std::fs::set_permissions(&ro, std::fs::Permissions::from_mode(0o755)).unwrap();
-            probe_state_dir(&ro, true).unwrap();
-            assert!(StoreSubsystem.check().ok);
-        }
-    }
-
-    /// K8 / critic #11: rotating the secret key re-seals every store; a
-    /// rerun touches nothing; the wrong old key is refused with a remedy.
-    #[test]
-    fn rekey_reseals_every_store_once_and_refuses_a_wrong_old_key() {
-        let dir = tempfile::tempdir().unwrap();
-        let old = Key::from_bytes([7u8; 32]);
-        let new = Key::from_bytes([9u8; 32]);
-        for name in ["clients.json.enc", "sessions.json.enc"] {
-            EncryptedFile::new(dir.path().join(name), old.clone(), "s")
-                .save(&serde_json::json!({"v": name}))
-                .unwrap();
-        }
-        std::fs::write(dir.path().join("update-state.json"), b"{}").unwrap();
-        assert_eq!(rekey_dir(dir.path(), &old, &new).unwrap(), 2);
-        for name in ["clients.json.enc", "sessions.json.enc"] {
-            let v: serde_json::Value = EncryptedFile::new(dir.path().join(name), new.clone(), "s")
-                .load()
-                .unwrap()
-                .unwrap();
-            assert_eq!(v["v"], name);
-            assert!(
-                EncryptedFile::new(dir.path().join(name), old.clone(), "s")
-                    .load::<serde_json::Value>()
-                    .is_err(),
-                "the old key no longer opens {name}"
-            );
-        }
-        assert_eq!(
-            rekey_dir(dir.path(), &old, &new).unwrap(),
-            0,
-            "rerun is a no-op"
-        );
-        let wrong = Key::from_bytes([1u8; 32]);
-        let err = rekey_dir(dir.path(), &wrong, &Key::from_bytes([2u8; 32])).unwrap_err();
-        assert!(err.remedy.contains("OLD_SECRET_KEY"), "{}", err.remedy);
-    }
-
-    // Rule 7g: one suite, every implementation.
-    fn drive(store: &dyn ClientStore) {
-        let now = "2026-09-05T07:00:00Z";
-        let c = store
-            .update(&mut |f| {
-                f.issue_with_fields("ha", "id-1".into(), "tok".into(), now, Default::default())
-                    .cloned()
-            })
-            .unwrap();
-        assert_eq!(c.name, "ha");
-        assert!(store.snapshot().by_token("tok").is_some());
-        // A failing change persists nothing.
-        let err = store
-            .update(&mut |f| {
-                f.issue_with_fields("ha", "id-2".into(), "tok2".into(), now, Default::default())
-                    .cloned()
-            })
-            .unwrap_err();
-        assert!(err.message.contains("already"));
-        assert_eq!(store.snapshot().clients.len(), 1);
-        store.touch("id-1", now);
-        assert_eq!(store.snapshot().get("id-1").unwrap().uses, 1);
-        store.persist().unwrap();
-        store
-            .update(&mut |f| f.revoke("id-1", now).cloned())
-            .unwrap();
-        assert!(store.snapshot().by_token("tok").is_none());
-    }
-
-    #[test]
-    fn file_and_memory_stores_pass_the_same_suite() {
-        let dir = tempfile::tempdir().unwrap();
-        let file = EncryptedFile::new(dir.path().join("clients.json.enc"), key(), "clients");
-        let store = FileClientStore::open(file.clone()).unwrap();
-        drive(&store);
-        // Reopen: the revoke survived, the touch was persisted.
-        let reopened = FileClientStore::open(file).unwrap();
-        let snap = reopened.snapshot();
-        assert!(snap.get("id-1").unwrap().revoked_at.is_some());
-        assert_eq!(snap.get("id-1").unwrap().uses, 1);
-
-        drive(&MemoryClientStore::default());
-    }
-
-    /// Rule 7g again: the kit-database implementation passes the very same
-    /// suite and its changes survive a reopen.
-    #[cfg(feature = "dashboard")]
-    #[test]
-    fn the_database_store_passes_the_same_suite() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("svc-kit.db");
-        let open = || {
-            crate::storage::KitDb::new(
-                crate::storage::Db::open(&path, &crate::storage::kit_migrations()).unwrap(),
-                key(),
-            )
-        };
-        let store = DbClientStore::open(open()).unwrap();
-        drive(&store);
-        let reopened = DbClientStore::open(open()).unwrap();
-        let snap = reopened.snapshot();
-        assert!(snap.get("id-1").unwrap().revoked_at.is_some());
-        assert_eq!(snap.get("id-1").unwrap().uses, 1);
-    }
-}
+mod tests;

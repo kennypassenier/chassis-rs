@@ -12,35 +12,38 @@
 //! points at `gen-secret` rather than printing a value into the journal
 //! (critic #12).
 
+mod caller;
+mod limits;
+mod lookup;
+mod secrets;
+mod session;
+#[cfg(test)]
+mod tests;
+
 use std::sync::Arc;
 
 use axum::body::Body;
-use axum::extract::{ConnectInfo, FromRequestParts, Request, State};
-use axum::http::request::Parts;
-use axum::http::{HeaderMap, StatusCode, header};
+use axum::extract::{ConnectInfo, Request, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Redirect, Response};
-use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
-use secrecy::{ExposeSecret, SecretString};
+use axum_extra::extract::cookie::{Cookie, CookieJar};
+use secrecy::SecretString;
 use serde::Deserialize;
 
-use crate::core::crypto::{Key, ct_eq};
+use crate::core::crypto::Key;
 use crate::core::error::{Error, Kind};
-use crate::shell::guards::{Guards, IpLimit, client_ip, is_https};
+use crate::shell::guards::{Guards, IpLimit};
 use crate::shell::store::{Clients, SessionStore};
-use crate::shell::time::{now_epoch, now_rfc3339, random_hex};
+
+use caller::bearer;
+pub(crate) use lookup::{identify_request, still_valid_now};
 
 /// The two secrets, parsed. Built by `App` from the knobs.
 #[derive(Clone)]
 pub struct Secrets {
     pub login_token: SecretString,
     pub key: Key,
-}
-
-impl std::fmt::Debug for Secrets {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Secrets(***)")
-    }
 }
 
 impl Secrets {
@@ -50,38 +53,7 @@ impl Secrets {
         token: Option<&str>,
         key_hex: Option<&str>,
     ) -> Result<Option<Secrets>, Error> {
-        let token_env = format!("{prefix}_TOKEN");
-        let key_env = format!("{prefix}_SECRET_KEY");
-        match (token, key_hex) {
-            (None, None) => Ok(None),
-            (Some(_), None) | (None, Some(_)) => {
-                let (set, missing) = if token.is_some() {
-                    (token_env.clone(), key_env.clone())
-                } else {
-                    (key_env.clone(), token_env.clone())
-                };
-                Err(Error::config(
-                    format!("{set} is set but {missing} is not; the dashboard needs both"),
-                    format!(
-                        "run `<binary> gen-secret` on a terminal to get a value for {missing}, then set it in the environment file"
-                    ),
-                ))
-            }
-            (Some(t), Some(k)) => {
-                if t.len() < 16 {
-                    return Err(Error::config(
-                        format!("{token_env} is shorter than 16 characters"),
-                        "use a long random value; `<binary> gen-secret` prints one",
-                    ));
-                }
-                let candidate = random_hex(32)?;
-                let key = Key::parse_hex(&key_env, k, &candidate)?;
-                Ok(Some(Secrets {
-                    login_token: SecretString::from(t.to_string()),
-                    key,
-                }))
-            }
-        }
+        Self::parse_checked(prefix, token, key_hex)
     }
 }
 
@@ -115,75 +87,10 @@ pub enum Caller {
     Client { id: String, name: String },
 }
 
-impl<S: Send + Sync> FromRequestParts<S> for Caller {
-    type Rejection = Response;
-
-    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
-        parts.extensions.get::<Caller>().cloned().ok_or_else(|| {
-            Error::new(
-                Kind::Unauthorized,
-                "this route requires authentication",
-                "log in on /login, or send Authorization: Bearer <token>",
-            )
-            .into_response()
-        })
-    }
-}
-
-fn bearer(headers: &HeaderMap) -> Option<String> {
-    headers
-        .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
-        .map(|t| t.trim().to_string())
-}
-
 /// Resolve the caller from a bearer token or a session cookie; `None`
 /// when neither is valid. Touches the client's usage in memory.
 pub async fn identify(state: &AuthState, headers: &HeaderMap) -> Option<Caller> {
-    // An open dashboard has no door: whoever reached the port is the admin.
-    let Some(secrets) = &state.secrets else {
-        return Some(Caller::Admin);
-    };
-    if let Some(token) = bearer(headers) {
-        if ct_eq(
-            token.as_bytes(),
-            secrets.login_token.expose_secret().as_bytes(),
-        ) {
-            return Some(Caller::Admin);
-        }
-        let snapshot = state.clients.snapshot();
-        if let Some(c) = snapshot.by_token(&token) {
-            state.clients.touch(&c.id, &now_rfc3339());
-            return Some(Caller::Client {
-                id: c.id.clone(),
-                name: c.name.clone(),
-            });
-        }
-        return None;
-    }
-    let jar = CookieJar::from_headers(headers);
-    if let Some(cookie) = jar.get(&state.cookie_name()) {
-        let mut sessions = state.sessions.state.write().await;
-        if sessions.touch(cookie.value(), now_epoch(), state.session_ttl_secs) {
-            return Some(Caller::Admin);
-        }
-    }
-    None
-}
-
-/// [`identify`] for a whole request: a request the trusted-sources layer
-/// marked is the admin when it sends no bearer (a bearer still decides, so a
-/// script on that machine keeps its own identity).
-pub(crate) async fn identify_request(
-    state: &AuthState,
-    trusted: bool,
-    headers: &HeaderMap,
-) -> Option<Caller> {
-    if trusted && bearer(headers).is_none() {
-        return Some(Caller::Admin);
-    }
-    identify(state, headers).await
+    lookup::identify(state, headers).await
 }
 
 /// Whether the caller these headers identified is still allowed in, read
@@ -191,25 +98,7 @@ pub(crate) async fn identify_request(
 /// last-used time moves. For checks that repeat by themselves (feat-live-1:
 /// an open stream ends at logout, expiry or revocation).
 pub async fn still_valid(state: &AuthState, headers: &HeaderMap) -> bool {
-    let Some(secrets) = &state.secrets else {
-        return true;
-    };
-    if let Some(token) = bearer(headers) {
-        return ct_eq(
-            token.as_bytes(),
-            secrets.login_token.expose_secret().as_bytes(),
-        ) || state.clients.snapshot().by_token(&token).is_some();
-    }
-    let jar = CookieJar::from_headers(headers);
-    match jar.get(&state.cookie_name()) {
-        Some(cookie) => state
-            .sessions
-            .state
-            .read()
-            .await
-            .is_live(cookie.value(), now_epoch()),
-        None => false,
-    }
+    lookup::still_valid(state, headers).await
 }
 
 /// Middleware for API routes: any authenticated caller passes and is
@@ -231,30 +120,6 @@ pub async fn require_caller(
             "send Authorization: Bearer <client token>, or log in on /login",
         )
         .into_response(),
-    }
-}
-
-/// [`still_valid`] for a caller that cannot wait (the error page is rendered
-/// by a plain function): the session store's lock is tried, not awaited. A
-/// store that is busy answers `false`, which draws the page without the
-/// navigation; the next page load is right again.
-pub(crate) fn still_valid_now(state: &AuthState, headers: &HeaderMap) -> bool {
-    let Some(secrets) = &state.secrets else {
-        return true;
-    };
-    if let Some(token) = bearer(headers) {
-        return ct_eq(
-            token.as_bytes(),
-            secrets.login_token.expose_secret().as_bytes(),
-        );
-    }
-    let jar = CookieJar::from_headers(headers);
-    match (
-        jar.get(&state.cookie_name()),
-        state.sessions.state.try_read(),
-    ) {
-        (Some(cookie), Ok(sessions)) => sessions.is_live(cookie.value(), now_epoch()),
-        _ => false,
     }
 }
 
@@ -319,47 +184,7 @@ pub async fn login(
     peer: std::net::SocketAddr,
     headers: &HeaderMap,
 ) -> Result<LoginOutcome, Error> {
-    let Some(secrets) = &state.secrets else {
-        return Err(Error::invalid(
-            "this dashboard is open; there is no token to log in with",
-            "set the service's _TOKEN and _SECRET_KEY to close it, then log in",
-        ));
-    };
-    if !ct_eq(
-        form.token.as_bytes(),
-        secrets.login_token.expose_secret().as_bytes(),
-    ) {
-        tracing::warn!(from = %client_ip(peer, headers, &state.guards.trusted_proxies), "login refused");
-        return Ok(LoginOutcome::Wrong(
-            "That token is not right. Check the service's login token and try again.",
-        ));
-    }
-    let remember = form.remember.is_some();
-    let value = random_hex(32)?;
-    let ttl = if remember {
-        state.remember_me_secs
-    } else {
-        state.session_ttl_secs
-    };
-    {
-        let mut sessions = state.sessions.state.write().await;
-        sessions.prune(now_epoch());
-        sessions.create(&value, now_epoch(), ttl, remember);
-    }
-    state.sessions.save().await?;
-    let mut cookie = Cookie::new(state.cookie_name(), value);
-    cookie.set_http_only(true);
-    cookie.set_same_site(SameSite::Lax);
-    cookie.set_path("/");
-    cookie.set_secure(is_https(peer, headers, &state.guards.trusted_proxies));
-    if remember {
-        cookie.set_max_age(time_duration(state.remember_me_secs));
-    }
-    Ok(LoginOutcome::Ok(cookie))
-}
-
-fn time_duration(secs: u64) -> time::Duration {
-    time::Duration::seconds(secs as i64)
+    session::login(state, form, peer, headers).await
 }
 
 /// Remove the session server-side and expire the cookie.
@@ -368,22 +193,7 @@ pub async fn logout(
     headers: &HeaderMap,
     https: bool,
 ) -> Result<Cookie<'static>, Error> {
-    let jar = CookieJar::from_headers(headers);
-    if let Some(cookie) = jar.get(&state.cookie_name()) {
-        let removed = state.sessions.state.write().await.remove(cookie.value());
-        if removed {
-            state.sessions.save().await?;
-        }
-    }
-    let mut gone = Cookie::new(state.cookie_name(), "");
-    gone.set_path("/");
-    gone.set_http_only(true);
-    // S8: same attributes as the session cookie, so the browser matches
-    // and clears exactly that cookie.
-    gone.set_same_site(SameSite::Lax);
-    gone.set_secure(https);
-    gone.set_max_age(time_duration(0));
-    Ok(gone)
+    session::logout(state, headers, https).await
 }
 
 /// JSON login handler (the HTML page wraps this in L4): POST form.
@@ -417,10 +227,7 @@ pub async fn logout_handler(
 
 /// The IP-keyed limit for `/login` (K10), built from the knobs.
 pub fn login_limit(guards: Guards, per_min: u32, burst: u32) -> Result<IpLimit, Error> {
-    let limiter =
-        crate::shell::guards::keyed_limiter(per_min, std::time::Duration::from_secs(60), burst)?;
-    crate::shell::guards::spawn_limiter_pruner(limiter.clone(), std::time::Duration::from_secs(60));
-    Ok(IpLimit { limiter, guards })
+    limits::login_limit(guards, per_min, burst)
 }
 
 /// Middleware state for the per-client-token API limit (K10, H3).
@@ -432,10 +239,7 @@ pub struct TokenLimit {
 
 /// `per_sec` requests per second per client token, bursts of `burst`.
 pub fn token_limit(guards: Guards, per_sec: u32, burst: u32) -> Result<TokenLimit, Error> {
-    let limiter =
-        crate::shell::guards::keyed_limiter(per_sec, std::time::Duration::from_secs(1), burst)?;
-    crate::shell::guards::spawn_limiter_pruner(limiter.clone(), std::time::Duration::from_secs(60));
-    Ok(TokenLimit { limiter, guards })
+    limits::token_limit(guards, per_sec, burst)
 }
 
 /// Rate-limit API calls per client (after `require_caller` identified it);
@@ -445,57 +249,5 @@ pub async fn token_rate_limit(
     req: Request<Body>,
     next: Next,
 ) -> Response {
-    let key = match req.extensions().get::<Caller>() {
-        Some(Caller::Client { id, .. }) => id.clone(),
-        _ => return next.run(req).await,
-    };
-    match l.limiter.check_key(&key) {
-        Ok(()) => next.run(req).await,
-        Err(_) => {
-            let mut res = Error::new(
-                Kind::Overloaded,
-                "this client token is over its rate limit",
-                "slow down: the limit is rate_limit_token_per_sec with a burst of rate_limit_token_burst; Retry-After says when",
-            )
-            .into_response();
-            *res.status_mut() = axum::http::StatusCode::TOO_MANY_REQUESTS;
-            res.headers_mut().insert(
-                axum::http::header::RETRY_AFTER,
-                axum::http::HeaderValue::from_str(&l.guards.retry_after.as_secs().to_string())
-                    .expect("digits"),
-            );
-            res
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn secrets_need_both_or_neither_and_point_at_gen_secret() {
-        assert!(Secrets::parse("X", None, None).unwrap().is_none());
-        let err = Secrets::parse("X", Some("a-long-enough-login-token"), None).unwrap_err();
-        assert!(
-            err.message
-                .contains("X_TOKEN is set but X_SECRET_KEY is not")
-        );
-        assert!(err.remedy.contains("gen-secret"));
-        let err = Secrets::parse("X", Some("short"), Some(&"ab".repeat(32))).unwrap_err();
-        assert!(err.message.contains("16 characters"));
-        let ok = Secrets::parse(
-            "X",
-            Some("a-long-enough-login-token"),
-            Some(&"ab".repeat(32)),
-        )
-        .unwrap();
-        assert!(ok.is_some());
-        // A generated value never appears in the error text (critic #12).
-        let err = Secrets::parse("X", Some("a-long-enough-login-token"), Some("zz")).unwrap_err();
-        assert!(
-            err.remedy.contains("e.g. "),
-            "the remedy carries a pasteable candidate for a MALFORMED key"
-        );
-    }
+    limits::token_rate_limit(State(l), req, next).await
 }
