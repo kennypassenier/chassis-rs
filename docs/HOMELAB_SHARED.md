@@ -41,3 +41,19 @@ code. chassis had the hard-link + rename mechanism, but only inside `Updater`
 and only for the running binary. It now lives in `chassis::shell::install_binary`
 (`install_binary`, `rollback_binary`, `prev_path`) for any path, and `Updater`
 calls it.
+
+## A. Release verification
+
+Compared with homelab `core/src/release_sig.rs` (`verify_release`) and
+`client/src/release.rs` (`sha_listed`, `stage_asset_proven`):
+
+| Check | homelab | chassis before | now |
+|---|---|---|---|
+| Missing/blank `SHA256SUMS.minisig` refused as "not signed" | yes | a blank signature read as "malformed" | `ReleaseError::NotSigned` |
+| Signature over SHA256SUMS before any hash | yes | yes (`verify_signature`) | same |
+| Asset listed with the matching hash, `*name`, any hash case | yes | `hash_for` + `hash_matches` (first line for the name) | `NotListed` / `HashMismatch`, separate |
+| Trusted comment bound to repo and version | no | only inside `Updater` | `verify_release_asset_for` |
+| Proof recording per installed binary (`record_proof`, `running_verdict`) | yes (host state) | none | not added: homelab policy about its state dir, built on `verify_release_asset` |
+| Pre-release tolerant `version_newer` | yes | `Version::parse` refuses suffixes ("a release is a release") | not changed |
+
+`chassis::shell::release_verify::verify_release_asset` is the single call.

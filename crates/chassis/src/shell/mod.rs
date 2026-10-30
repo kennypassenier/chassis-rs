@@ -31,6 +31,8 @@ pub mod notify;
 pub mod pages;
 #[cfg(feature = "passkeys")]
 pub mod passkeys;
+#[cfg(feature = "self-update")]
+pub mod release_verify;
 #[cfg(feature = "request-guard")]
 pub mod request_guard;
 pub mod store;

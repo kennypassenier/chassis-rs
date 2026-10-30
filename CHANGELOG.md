@@ -9,6 +9,14 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **`shell::release_verify`** (feature `self-update`, homelab-shared-3):
+  `verify_release_asset(sums, minisig, pubkey, asset, bytes)` verifies a
+  downloaded release without an `Updater`: signature over `SHA256SUMS` first,
+  then the asset against it; `verify_release_asset_for` also binds the
+  signature's trusted comment to a repo and version. Errors are the typed
+  `ReleaseError` (`NotSigned`, `Signature`, `NotListed`, `HashMismatch`,
+  `WrongRelease`), each with a remedy, convertible to `Error`.
+  `Updater::verify_manifest` shares the trusted-comment check.
 - **`shell::install_binary`** (feature `self-update`, homelab-shared-2):
   `install_binary(path, bytes)` installs a binary at any path atomically,
   keeping the old one as `<path>.prev`, keeping its mode and fsyncing;

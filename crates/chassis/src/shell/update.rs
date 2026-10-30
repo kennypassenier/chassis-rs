@@ -34,6 +34,7 @@ use crate::core::update::{
     decide_at_startup, drill_applies, effective_mode, hash_for, hash_matches, should_update,
 };
 use crate::shell::install_binary::{install_staged, restore_from, with_suffix};
+use crate::shell::release_verify::check_trusted_comment;
 use crate::shell::store::write_atomic;
 use crate::shell::time::now_rfc3339;
 
@@ -329,21 +330,12 @@ impl Updater {
         version: Version,
     ) -> Result<(), Error> {
         let sig = verify_signature(&self.cfg.pubkey, manifest, signature)?;
-        let comment = sig.trusted_comment().trim();
-        let want_suffix = format!(" v{version}");
-        let ok = match &self.cfg.repo {
-            Some(repo) => comment == format!("{repo} v{version}"),
-            None => comment.ends_with(&want_suffix),
-        };
-        if !ok {
-            return Err(Error::config(
-                format!(
-                    "the release signature is for `{comment}`, not for {} v{version}",
-                    self.cfg.repo.as_deref().unwrap_or("this service")
-                ),
+        check_trusted_comment(&sig, self.cfg.repo.as_deref(), version).map_err(|e| {
+            Error::config(
+                e.message(),
                 "VERSION and the signed manifest disagree: the host may be replaying an older release under a newer version number; nothing was installed",
-            ));
-        }
+            )
+        })?;
         Ok(())
     }
 
