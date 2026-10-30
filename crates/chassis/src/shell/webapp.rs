@@ -21,10 +21,14 @@
 //!   without a session is sent to `/login`, a script without the login
 //!   token gets a 401.
 //!
+//! * with the kit's kp-themes runtime added to every HTML page
+//!   (`/static/chassis/webapp-runtime.js`), unless [`WebApp::without_kit_runtime`].
+//!
 //! The kit's own routes cannot be shadowed: a mount path that is `/` or
 //! starts with one of them is refused at start and at `--check`.
 
 mod files;
+mod inject;
 mod paths;
 mod router;
 mod serving;
@@ -70,6 +74,8 @@ pub struct WebApp {
     mount: String,
     source: Source,
     csp: String,
+    /// Whether the file server adds the kit's runtime script to HTML pages.
+    kit_runtime: bool,
 }
 
 impl WebApp {
@@ -81,6 +87,7 @@ impl WebApp {
             mount: String::new(),
             source: Source::Embedded(files),
             csp: DEFAULT_CSP.to_string(),
+            kit_runtime: true,
         }
     }
 
@@ -91,6 +98,7 @@ impl WebApp {
             mount: String::new(),
             source: Source::Dir(dir.into()),
             csp: DEFAULT_CSP.to_string(),
+            kit_runtime: true,
         }
     }
 
@@ -105,6 +113,14 @@ impl WebApp {
     /// Replace [`DEFAULT_CSP`] for this app's responses.
     pub fn csp(mut self, policy: &str) -> Self {
         self.csp = policy.to_string();
+        self
+    }
+
+    /// Do not add the kit's runtime script (`/static/chassis/webapp-runtime.js`:
+    /// kp-themes' effects and remembered choices) to the app's HTML pages.
+    /// For an app that attaches kp-themes' runtime itself.
+    pub fn without_kit_runtime(mut self) -> Self {
+        self.kit_runtime = false;
         self
     }
 
@@ -123,5 +139,7 @@ impl WebApp {
     }
 }
 
+#[cfg(test)]
+mod runtime_tests;
 #[cfg(test)]
 mod tests;

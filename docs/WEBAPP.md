@@ -62,6 +62,28 @@ app.webapp(WebApp::embedded(FILES));            // served at the root (3.1.0)
   `/clients`, `/passkeys`, `/healthz`, `/readyz`, `/metrics`); an embedded
   app without `index.html`; a directory without `index.html`.
 
+## The kp-themes runtime is loaded for you (feat-webapp-3)
+
+Every HTML page the web app serves (`index.html` and the client-route
+fallback) gets `<script type="module" src="/static/chassis/webapp-runtime.js?v=…">`
+right before `</head>` (else before `</body>`, else at the end). The module
+attaches kp-themes' effects (the dark theme's background glow that follows
+the pointer, the reveals, the caret hook) and routes `data-kp-remember`
+through the database store when the server provides one. Theme pickers,
+confirmations, contracts and skip links are not attached: they rewrite or
+demand specific markup, so a page that wants them still calls them.
+
+- Only `text/html` is touched; every other file is served byte for byte. The
+  `ETag` is computed over the injected bytes.
+- The path is absolute (`/static/…`), so an app mounted with `.at("/ui")`
+  works. It is the same origin, so the default CSP allows it; a custom
+  `.csp(…)` must keep `script-src 'self'`.
+- A page that already mentions `webapp-runtime.js` is left alone, and the
+  module attaches once per page however it was loaded
+  (`window.chassisRuntime = { effects }` reaches the effects handle).
+- `.without_kit_runtime()` opts out, for an app that runs the
+  runtime itself.
+
 ## Pages and the navigation (feat-pages-1)
 
 One list holds every page the service shows, the kit's and the project's,
