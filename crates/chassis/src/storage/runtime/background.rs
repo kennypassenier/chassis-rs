@@ -1,10 +1,12 @@
 //! The monitor's background tasks: the ten-minute budget check and the
 //! daily removal of rows finished by their own definition. Its own module
-//! because it is the only code of the monitor that runs on a timer.
+//! because it is the only code of the monitor that runs on a timer; the
+//! public `prune_finished` the daily task calls sits beside it.
 
 use std::time::Duration;
 
 use super::{CHECK_EVERY, PRUNE_EVERY, Storage};
+use crate::core::error::Error;
 
 impl Storage {
     /// The background work: the ten-minute budget check and the daily
@@ -49,5 +51,23 @@ impl Storage {
             }
         }));
         tasks
+    }
+
+    /// Remove, on the app's side, the rows of declared kinds that are
+    /// finished by their own definition, and, on the kit's side, the
+    /// sessions that expired. Nothing else is ever removed on its own.
+    pub fn prune_finished(&self) -> Result<(), Error> {
+        if let Some(app) = &self.inner.app {
+            app.prune_finished()?;
+        }
+        let kit_prune = self.inner.kit_prune.lock().expect("prune lock").clone();
+        if let Some(f) = kit_prune {
+            let removed = f()?;
+            tracing::info!(
+                removed,
+                "storage: removed expired sessions from the kit database"
+            );
+        }
+        Ok(())
     }
 }

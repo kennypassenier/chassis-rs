@@ -1,11 +1,14 @@
 //! Measuring the files against the budget: the report, the level, the warn
 //! hook and the problems the status page shows. Its own module because it
 //! is the read side of the monitor; the setting it measures against and the
-//! timers that call it live elsewhere.
+//! timers that call it live elsewhere. The public `check`, `report` and
+//! `problems` of `Storage` and the constructors of the two report types
+//! sit here.
 
 use super::{FileReport, Level, MB, Storage, StorageReport, name_of};
 use crate::core::error::Error;
 use crate::storage::app_db::StorageProblem;
+use crate::storage::db::FileSizes;
 
 impl Storage {
     /// Fold each write-ahead log into its database and trim it to nothing,
@@ -21,8 +24,35 @@ impl Storage {
         }
     }
 
-    /// The body of [`Storage::check`].
-    pub(super) fn measure(&self) -> Result<StorageReport, Error> {
+    /// One report per open file: the app's (cleanable) and the kit's.
+    fn file_reports(&self) -> Result<Vec<FileReport>, Error> {
+        let mut files = Vec::new();
+        if let Some(app) = self.inner.app.as_ref().and_then(|a| a.db().ok()) {
+            let sizes = app.sizes()?;
+            files.push(FileReport {
+                role: "app",
+                file: name_of(app),
+                sizes,
+                total_bytes: sizes.total(),
+                cleanable: true,
+            });
+        }
+        if let Some(kit) = &self.inner.kit {
+            let sizes = kit.sizes()?;
+            files.push(FileReport {
+                role: "kit",
+                file: name_of(kit),
+                sizes,
+                total_bytes: sizes.total(),
+                cleanable: false,
+            });
+        }
+        Ok(files)
+    }
+
+    /// Measure both files, remember the result, and run the warn hook when
+    /// the level rose. Blocks briefly (two `PRAGMA`s per file).
+    pub fn check(&self) -> Result<StorageReport, Error> {
         let files = self.file_reports()?;
         let total: u64 = files.iter().map(|f| f.total_bytes).sum();
         let cfg = self.config();
@@ -63,34 +93,16 @@ impl Storage {
         Ok(report)
     }
 
-    /// One report per open file: the app's (cleanable) and the kit's.
-    fn file_reports(&self) -> Result<Vec<FileReport>, Error> {
-        let mut files = Vec::new();
-        if let Some(app) = self.inner.app.as_ref().and_then(|a| a.db().ok()) {
-            let sizes = app.sizes()?;
-            files.push(FileReport {
-                role: "app",
-                file: name_of(app),
-                sizes,
-                total_bytes: sizes.total(),
-                cleanable: true,
-            });
+    /// The last check, measuring now when there is none yet.
+    pub fn report(&self) -> Result<StorageReport, Error> {
+        if let Some(r) = self.inner.report.lock().expect("report lock").clone() {
+            return Ok(r);
         }
-        if let Some(kit) = &self.inner.kit {
-            let sizes = kit.sizes()?;
-            files.push(FileReport {
-                role: "kit",
-                file: name_of(kit),
-                sizes,
-                total_bytes: sizes.total(),
-                cleanable: false,
-            });
-        }
-        Ok(files)
+        self.check()
     }
 
-    /// The body of [`Storage::problems`].
-    pub(super) fn collect_problems(&self) -> Vec<StorageProblem> {
+    /// Everything the status page should say about storage.
+    pub fn problems(&self) -> Vec<StorageProblem> {
         let mut out = self
             .inner
             .kit_problems
@@ -115,5 +127,42 @@ impl Storage {
             });
         }
         out
+    }
+}
+
+impl FileReport {
+    /// A file's share, for a project's own test of what it hangs on
+    /// [`crate::App::on_storage_warn`] (3.12.0).
+    pub fn new(role: &'static str, file: &str, sizes: FileSizes, cleanable: bool) -> Self {
+        FileReport {
+            role,
+            file: file.to_string(),
+            total_bytes: sizes.total(),
+            sizes,
+            cleanable,
+        }
+    }
+}
+
+impl StorageReport {
+    /// A report built by hand, so a project can unit-test the code it hangs
+    /// on [`crate::App::on_storage_warn`] without a database near the
+    /// budget (3.12.0, homelab gap 139).
+    pub fn new(
+        files: Vec<FileReport>,
+        total_bytes: u64,
+        budget_bytes: u64,
+        warn_bytes: u64,
+        level: Level,
+        checked_at: u64,
+    ) -> Self {
+        StorageReport {
+            files,
+            total_bytes,
+            budget_bytes,
+            warn_bytes,
+            level,
+            checked_at,
+        }
     }
 }

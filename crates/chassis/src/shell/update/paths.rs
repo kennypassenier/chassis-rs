@@ -6,8 +6,40 @@
 use super::*;
 
 impl Updater {
+    pub(super) fn prev_path(&self) -> PathBuf {
+        with_suffix(&self.binary, ".prev")
+    }
+
+    pub(super) fn staging_path(&self) -> PathBuf {
+        with_suffix(&self.binary, ".staging")
+    }
+
+    pub(super) fn drill_path(&self) -> PathBuf {
+        with_suffix(&self.binary, ".drill")
+    }
+
+    pub(super) fn skipped_versions(&self) -> Vec<String> {
+        std::fs::read(self.skip_path())
+            .ok()
+            .and_then(|b| serde_json::from_slice::<Vec<String>>(&b).ok())
+            .unwrap_or_default()
+    }
+
+    pub(super) fn is_skipped(&self, v: Version) -> bool {
+        self.skipped_versions().contains(&v.to_string())
+    }
+
+    pub(super) fn remember_skip(&self, version: &str) -> Result<(), Error> {
+        let mut v = self.skipped_versions();
+        if !v.iter().any(|s| s == version) {
+            v.push(version.to_string());
+        }
+        let bytes = serde_json::to_vec_pretty(&v).expect("skip list serialises");
+        write_atomic(&self.skip_path(), &bytes, "update skip list")
+    }
+
     /// The work behind [`Updater::new`].
-    pub(super) fn build(
+    pub fn new(
         cfg: UpdateConfig,
         binary: PathBuf,
         state_dir: PathBuf,
@@ -47,35 +79,12 @@ impl Updater {
         })
     }
 
-    pub(super) fn prev_path(&self) -> PathBuf {
-        with_suffix(&self.binary, ".prev")
+    pub fn state_path(&self) -> PathBuf {
+        self.state_dir.join("update-state.json")
     }
 
-    pub(super) fn staging_path(&self) -> PathBuf {
-        with_suffix(&self.binary, ".staging")
-    }
-
-    pub(super) fn drill_path(&self) -> PathBuf {
-        with_suffix(&self.binary, ".drill")
-    }
-
-    pub(super) fn skipped_versions(&self) -> Vec<String> {
-        std::fs::read(self.skip_path())
-            .ok()
-            .and_then(|b| serde_json::from_slice::<Vec<String>>(&b).ok())
-            .unwrap_or_default()
-    }
-
-    pub(super) fn is_skipped(&self, v: Version) -> bool {
-        self.skipped_versions().contains(&v.to_string())
-    }
-
-    pub(super) fn remember_skip(&self, version: &str) -> Result<(), Error> {
-        let mut v = self.skipped_versions();
-        if !v.iter().any(|s| s == version) {
-            v.push(version.to_string());
-        }
-        let bytes = serde_json::to_vec_pretty(&v).expect("skip list serialises");
-        write_atomic(&self.skip_path(), &bytes, "update skip list")
+    /// Versions that were installed and rolled back (CF-3): never retried.
+    pub fn skip_path(&self) -> PathBuf {
+        self.state_dir.join("update-skip.json")
     }
 }

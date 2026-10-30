@@ -113,29 +113,6 @@ impl Updater {
         Ok(())
     }
 
-    /// The work behind [`Updater::handle_pending_update`].
-    pub(super) fn resolve_pending(&self) -> Result<bool, Error> {
-        let state = read_state(&self.state_path());
-        match decide_at_startup(
-            state,
-            &self.running.to_string(),
-            self.cfg.max_start_attempts,
-        ) {
-            StartAction::Normal => Ok(false),
-            StartAction::Stale(s) => {
-                tracing::warn!(pending = %s.to_version, running = %self.running, "update state names another version; clearing it");
-                clear_state(&self.state_path());
-                Ok(false)
-            }
-            StartAction::Probation(s) => {
-                tracing::info!(to = %s.to_version, attempt = s.attempts, "new version on probation");
-                write_state(&self.state_path(), &s)?;
-                Ok(false)
-            }
-            StartAction::Revert(s) => Ok(self.revert(&s)),
-        }
-    }
-
     /// Put `bin.prev` back after a version that never became healthy,
     /// remember the version so it is not retried, and say what happened.
     /// Returns whether the process should exit for the supervisor.
@@ -171,8 +148,35 @@ impl Updater {
         }
     }
 
-    /// The work behind [`Updater::drill_kind`].
-    pub(super) fn consume_drill_marker(&self) -> Option<String> {
+    /// At startup, before the stores open (AR15): count the attempt and
+    /// revert if the previous start never became healthy. Returns whether
+    /// the process should exit (after a revert) so the supervisor starts
+    /// the restored binary.
+    pub fn handle_pending_update(&self) -> Result<bool, Error> {
+        let state = read_state(&self.state_path());
+        match decide_at_startup(
+            state,
+            &self.running.to_string(),
+            self.cfg.max_start_attempts,
+        ) {
+            StartAction::Normal => Ok(false),
+            StartAction::Stale(s) => {
+                tracing::warn!(pending = %s.to_version, running = %self.running, "update state names another version; clearing it");
+                clear_state(&self.state_path());
+                Ok(false)
+            }
+            StartAction::Probation(s) => {
+                tracing::info!(to = %s.to_version, attempt = s.attempts, "new version on probation");
+                write_state(&self.state_path(), &s)?;
+                Ok(false)
+            }
+            StartAction::Revert(s) => Ok(self.revert(&s)),
+        }
+    }
+
+    /// The drill (K20, critic #6): only the version the marker names
+    /// breaks, and the marker is consumed so the restored version runs.
+    pub fn drill_kind(&self) -> Option<String> {
         let path = self.drill_path();
         let marker: Option<DrillMarker> = std::fs::read(&path)
             .ok()
@@ -184,8 +188,9 @@ impl Updater {
         kind
     }
 
-    /// The work behind [`Updater::confirm_healthy`].
-    pub(super) fn end_probation(&self) {
+    /// Called once the service is bound and has served for `healthy_after`
+    /// (liveness only, critic #3): the probation is over.
+    pub fn confirm_healthy(&self) {
         if read_state(&self.state_path()).is_some() {
             clear_state(&self.state_path());
             tracing::info!(version = %self.running, "update confirmed healthy");

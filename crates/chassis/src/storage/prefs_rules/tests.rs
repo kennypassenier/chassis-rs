@@ -1,6 +1,8 @@
 //! Tests of the browser-key declaration, the shared fixture and the rules
 //! `Prefs` applies to keys and values.
 
+use serde_json::Value as Json;
+
 use super::*;
 use crate::storage::MemoryPrefStore;
 

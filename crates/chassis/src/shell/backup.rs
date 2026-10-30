@@ -59,6 +59,7 @@ use gate::{
     NOTIFY, held_error, state, try_ticket, wait_for_ticket, wait_off_the_runtime, wake_all,
 };
 mod metrics;
+mod mode;
 pub(crate) use layer::full_pause_layer;
 pub(crate) use metrics::PauseMetrics;
 
@@ -88,23 +89,6 @@ pub enum Mode {
     /// `/metrics` is answered 503 with `Retry-After`; pause hooks stop the
     /// project's background work.
     Full,
-}
-
-impl Mode {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Mode::Writes => "writes",
-            Mode::Full => "full",
-        }
-    }
-
-    pub fn parse(s: &str) -> Option<Mode> {
-        match s {
-            "writes" => Some(Mode::Writes),
-            "full" => Some(Mode::Full),
-            _ => None,
-        }
-    }
 }
 
 #[must_use = "the write is only covered while the ticket is held"]
@@ -240,69 +224,6 @@ pub struct Controller {
     /// ends only its own pause, never one another service in the same
     /// process (the kit's tests run many) holds.
     started: Arc<std::sync::atomic::AtomicU64>,
-}
-
-impl Controller {
-    pub fn new(pause_hooks: Vec<PauseHook>, resume_hooks: Vec<ResumeHook>) -> Self {
-        Controller {
-            pause_hooks: Arc::new(pause_hooks),
-            resume_hooks: Arc::new(resume_hooks),
-            drain: DRAIN_TIMEOUT,
-            floor: Mode::Writes,
-            paths: Arc::new(Vec::new()),
-            started: Arc::new(std::sync::atomic::AtomicU64::new(0)),
-        }
-    }
-
-    /// The directories that stand still during a pause (the state root and
-    /// any the project added), printed by `backup-pause` one per line so
-    /// the backup can check it archives exactly these.
-    pub fn with_paths(mut self, paths: Vec<PathBuf>) -> Self {
-        self.paths = Arc::new(paths);
-        self
-    }
-
-    /// The directories a pause holds still.
-    pub fn paths(&self) -> &[PathBuf] {
-        &self.paths
-    }
-
-    /// The least this service needs; a caller asking for less gets this.
-    pub fn with_mode(mut self, floor: Mode) -> Self {
-        self.floor = floor;
-        self
-    }
-
-    /// Pause for `length` in at least `asked` (and at least the service's
-    /// own mode); returns the deadline as unix seconds and the mode in
-    /// force. Pausing while paused keeps the later deadline and the
-    /// larger mode.
-    pub async fn pause(&self, length: Duration, asked: Mode) -> Result<(u64, Mode), PauseError> {
-        self.begin_pause(length, asked).await
-    }
-
-    /// End the pause, if one is in force; `reason` goes to the log.
-    /// Returns whether one was.
-    pub async fn resume(&self, reason: &str) -> bool {
-        self.end_pause(reason).await
-    }
-
-    /// End the pause only if this controller began it.
-    pub async fn resume_own(&self, reason: &str) -> bool {
-        self.end_own_pause(reason).await
-    }
-
-    /// `None` when running, else the seconds left and the mode.
-    pub fn status(&self) -> Option<(u64, Mode)> {
-        let s = state();
-        if !s.paused {
-            return None;
-        }
-        let left = s
-            .until
-            .map_or(0, |u| u.saturating_duration_since(Instant::now()).as_secs());
-        Some((left, if s.full { Mode::Full } else { Mode::Writes }))
-    }
 }
 
 /// Where the service listens: `$RUNTIME_DIRECTORY` (systemd's

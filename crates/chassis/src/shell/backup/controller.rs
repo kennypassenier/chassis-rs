@@ -1,8 +1,7 @@
 //! The service side of the backup pause: [`Controller`] pauses, extends and
 //! resumes the process-wide gate and runs the project's hooks. Its own module
 //! so the gate and its tickets (the parent) stay small and the pause
-//! sequencing reads on its own. The public methods are declared in the parent
-//! (the API record keys on the declaring module) and delegate here.
+//! sequencing reads on its own. The type is declared in the parent.
 
 mod hooks;
 
@@ -20,46 +19,6 @@ enum Start {
 }
 
 impl Controller {
-    /// The work behind [`Controller::pause`].
-    pub(super) async fn begin_pause(
-        &self,
-        length: Duration,
-        asked: Mode,
-    ) -> Result<(u64, Mode), PauseError> {
-        if length.is_zero() || length > MAX_PAUSE {
-            return Err(PauseError::Invalid(format!(
-                "a pause lasts 1 to {} seconds, not {}",
-                MAX_PAUSE.as_secs(),
-                length.as_secs()
-            )));
-        }
-        let mode = asked.max(self.floor);
-        let until = Instant::now() + length;
-        let epoch = match self.begin_or_extend(mode, until) {
-            Start::New(epoch) => epoch,
-            Start::Extend {
-                epoch,
-                later,
-                raise,
-            } => return self.extend(epoch, later, raise).await,
-        };
-        self.drain_writers(epoch).await?;
-        if let Err(e) = self.run_pause_hooks(mode).await {
-            self.abort(epoch);
-            self.run_resume_hooks().await;
-            tracing::warn!("backup pause refused: a pause hook failed: {e}");
-            return Err(PauseError::Hook(e));
-        }
-        self.arm_deadline(epoch);
-        tracing::info!(
-            seconds = length.as_secs(),
-            until = unix_secs(until),
-            mode = mode.as_str(),
-            "backup pause: holding"
-        );
-        Ok((unix_secs(until), mode))
-    }
-
     /// Flip the gate: start a new pause, or move the deadline and mode of
     /// the one in force. The state lock is held only for this decision.
     fn begin_or_extend(&self, mode: Mode, until: Instant) -> Start {
@@ -142,8 +101,91 @@ impl Controller {
         Ok(())
     }
 
-    /// The work behind [`Controller::resume`].
-    pub(super) async fn end_pause(&self, reason: &str) -> bool {
+    fn abort(&self, epoch: u64) -> usize {
+        let mut s = state();
+        let busy = s.writers;
+        if s.epoch == epoch {
+            s.paused = false;
+            s.full = false;
+            s.until = None;
+        }
+        drop(s);
+        wake_all();
+        busy
+    }
+
+    pub fn new(pause_hooks: Vec<PauseHook>, resume_hooks: Vec<ResumeHook>) -> Self {
+        Controller {
+            pause_hooks: Arc::new(pause_hooks),
+            resume_hooks: Arc::new(resume_hooks),
+            drain: DRAIN_TIMEOUT,
+            floor: Mode::Writes,
+            paths: Arc::new(Vec::new()),
+            started: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        }
+    }
+
+    /// The directories that stand still during a pause (the state root and
+    /// any the project added), printed by `backup-pause` one per line so
+    /// the backup can check it archives exactly these.
+    pub fn with_paths(mut self, paths: Vec<PathBuf>) -> Self {
+        self.paths = Arc::new(paths);
+        self
+    }
+
+    /// The directories a pause holds still.
+    pub fn paths(&self) -> &[PathBuf] {
+        &self.paths
+    }
+
+    /// The least this service needs; a caller asking for less gets this.
+    pub fn with_mode(mut self, floor: Mode) -> Self {
+        self.floor = floor;
+        self
+    }
+
+    /// Pause for `length` in at least `asked` (and at least the service's
+    /// own mode); returns the deadline as unix seconds and the mode in
+    /// force. Pausing while paused keeps the later deadline and the
+    /// larger mode.
+    pub async fn pause(&self, length: Duration, asked: Mode) -> Result<(u64, Mode), PauseError> {
+        if length.is_zero() || length > MAX_PAUSE {
+            return Err(PauseError::Invalid(format!(
+                "a pause lasts 1 to {} seconds, not {}",
+                MAX_PAUSE.as_secs(),
+                length.as_secs()
+            )));
+        }
+        let mode = asked.max(self.floor);
+        let until = Instant::now() + length;
+        let epoch = match self.begin_or_extend(mode, until) {
+            Start::New(epoch) => epoch,
+            Start::Extend {
+                epoch,
+                later,
+                raise,
+            } => return self.extend(epoch, later, raise).await,
+        };
+        self.drain_writers(epoch).await?;
+        if let Err(e) = self.run_pause_hooks(mode).await {
+            self.abort(epoch);
+            self.run_resume_hooks().await;
+            tracing::warn!("backup pause refused: a pause hook failed: {e}");
+            return Err(PauseError::Hook(e));
+        }
+        self.arm_deadline(epoch);
+        tracing::info!(
+            seconds = length.as_secs(),
+            until = unix_secs(until),
+            mode = mode.as_str(),
+            "backup pause: holding"
+        );
+        Ok((unix_secs(until), mode))
+    }
+
+    /// End the pause, if one is in force; `reason` goes to the log.
+    /// Returns whether one was.
+    pub async fn resume(&self, reason: &str) -> bool {
         let was = {
             let mut s = state();
             let was = s.paused;
@@ -160,25 +202,24 @@ impl Controller {
         was
     }
 
-    /// The work behind [`Controller::resume_own`].
-    pub(super) async fn end_own_pause(&self, reason: &str) -> bool {
+    /// End the pause only if this controller began it.
+    pub async fn resume_own(&self, reason: &str) -> bool {
         let own = {
             let s = state();
             s.paused && s.epoch == self.started.load(std::sync::atomic::Ordering::SeqCst)
         };
-        own && self.end_pause(reason).await
+        own && self.resume(reason).await
     }
 
-    fn abort(&self, epoch: u64) -> usize {
-        let mut s = state();
-        let busy = s.writers;
-        if s.epoch == epoch {
-            s.paused = false;
-            s.full = false;
-            s.until = None;
+    /// `None` when running, else the seconds left and the mode.
+    pub fn status(&self) -> Option<(u64, Mode)> {
+        let s = state();
+        if !s.paused {
+            return None;
         }
-        drop(s);
-        wake_all();
-        busy
+        let left = s
+            .until
+            .map_or(0, |u| u.saturating_duration_since(Instant::now()).as_secs());
+        Some((left, if s.full { Mode::Full } else { Mode::Writes }))
     }
 }

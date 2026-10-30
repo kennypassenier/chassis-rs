@@ -96,36 +96,6 @@ pub struct Ceremonies<P> {
     limits: CeremonyLimits,
 }
 
-impl<P> Ceremonies<P> {
-    pub fn new(limits: CeremonyLimits) -> Self {
-        Self {
-            map: HashMap::new(),
-            limits,
-        }
-    }
-
-    /// Admit a ceremony, evicting what must go: expired ones first, then
-    /// this IP's oldest when the IP is at its share, then the oldest of all
-    /// when the table is at its cap.
-    pub fn put(&mut self, now: Instant, ip: IpAddr, id: String, p: P) {
-        ceremonies::put(self, now, ip, id, p);
-    }
-
-    /// Take a ceremony out; `None` when unknown or expired.
-    pub fn take(&mut self, id: &str, now: Instant) -> Option<P> {
-        let (t, _, p) = self.map.remove(id)?;
-        (now.duration_since(t) < self.limits.ttl).then_some(p)
-    }
-
-    pub fn len(&self) -> usize {
-        self.map.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.map.is_empty()
-    }
-}
-
 /// Router state for the passkey routes.
 #[derive(Clone)]
 pub struct PasskeyState {
@@ -143,22 +113,6 @@ pub struct PasskeyState {
     logins: Arc<Mutex<HashMap<String, (u64, String)>>>,
 }
 
-impl PasskeyState {
-    pub fn open(
-        webauthn: Webauthn,
-        auth: AuthState,
-        file: EncryptedFile,
-        limits: CeremonyLimits,
-        guards: crate::shell::guards::Guards,
-    ) -> Result<Self, Error> {
-        Self::open_file(webauthn, auth, file, limits, guards)
-    }
-
-    pub fn list(&self) -> Vec<PasskeyView> {
-        self.list_views()
-    }
-}
-
 /// How many passkey logins `PasskeyState` remembers for `current`.
 const LOGINS_CAP: usize = 256;
 
@@ -170,8 +124,6 @@ pub fn build_webauthn(
 ) -> Result<Webauthn, Error> {
     relying_party::build(app_name, prefix, public_url)
 }
-
-impl PasskeyState {}
 
 /// Middleware: passkey routes exist only over HTTPS (K9).
 pub async fn require_https(

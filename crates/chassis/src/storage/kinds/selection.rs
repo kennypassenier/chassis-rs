@@ -9,34 +9,6 @@ use super::{DataKind, FilterKind, Now, ResolvedSelector, Selector, Shape, TimeFo
 use crate::core::error::Error;
 
 impl DataKind {
-    /// The body of [`DataKind::resolve`]: the age needs a time to compare,
-    /// every filter must exist and carry an acceptable value.
-    pub(super) fn resolve_selection(
-        &self,
-        sel: &Selector,
-        now: &Now,
-    ) -> Result<ResolvedSelector, Error> {
-        if sel.older_than_secs.is_some() && !self.supports_age() {
-            return Err(Error::invalid(
-                format!(
-                    "`{}` has no time to compare, so it cannot be limited by age",
-                    self.id
-                ),
-                "delete by a filter instead, or the whole kind",
-            ));
-        }
-        for (name, value) in &sel.filters {
-            self.check_filter(name, value)?;
-        }
-        Ok(ResolvedSelector {
-            cutoff_secs: sel.older_than_secs.map(|s| {
-                now.secs
-                    .saturating_sub(i64::try_from(s).unwrap_or(i64::MAX))
-            }),
-            filters: sel.filters.clone(),
-        })
-    }
-
     /// One filter of a selection: it must be declared, and its value must
     /// fit the filter's kind.
     fn check_filter(&self, name: &str, value: &str) -> Result<(), Error> {
@@ -120,5 +92,47 @@ impl DataKind {
         } else {
             (format!(" WHERE {}", parts.join(" AND ")), args)
         }
+    }
+
+    /// Turn what a person asked into an absolute, validated selection.
+    pub fn resolve(&self, sel: &Selector, now: &Now) -> Result<ResolvedSelector, Error> {
+        if sel.older_than_secs.is_some() && !self.supports_age() {
+            return Err(Error::invalid(
+                format!(
+                    "`{}` has no time to compare, so it cannot be limited by age",
+                    self.id
+                ),
+                "delete by a filter instead, or the whole kind",
+            ));
+        }
+        for (name, value) in &sel.filters {
+            self.check_filter(name, value)?;
+        }
+        Ok(ResolvedSelector {
+            cutoff_secs: sel.older_than_secs.map(|s| {
+                now.secs
+                    .saturating_sub(i64::try_from(s).unwrap_or(i64::MAX))
+            }),
+            filters: sel.filters.clone(),
+        })
+    }
+}
+
+impl Selector {
+    /// The whole kind.
+    pub fn all() -> Self {
+        Selector::default()
+    }
+
+    /// Only rows at least this many seconds old.
+    pub fn older_than(mut self, secs: u64) -> Self {
+        self.older_than_secs = Some(secs);
+        self
+    }
+
+    /// Narrow by a declared filter.
+    pub fn with_filter(mut self, name: &str, value: &str) -> Self {
+        self.filters.insert(name.into(), value.into());
+        self
     }
 }

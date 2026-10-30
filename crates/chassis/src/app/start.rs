@@ -23,52 +23,6 @@ mod serve;
 mod stores;
 
 impl App {
-    /// Install logging and metrics, bind, announce readiness, serve.
-    #[cfg_attr(not(feature = "notify"), allow(unused_mut))]
-    pub(super) async fn start_server(mut self) -> Result<Running, Error> {
-        let loaded = self.loaded.clone().ok_or_else(|| {
-            Error::internal(
-                "start() called on a control-command app",
-                "call run() instead",
-            )
-        })?;
-        self.init_runtime(&loaded)?;
-        let mut stores = self.open_stores(&loaded)?;
-        #[cfg(feature = "self-update")]
-        self.wire_updater()?;
-        let (metrics, health) = self.install_telemetry()?;
-        let guards = self.build_guards();
-        let access = AccessState {
-            requests_total: metrics.requests_total(),
-        };
-        let (listener, addr) = self.bind().await?;
-
-        let mounted = self
-            .mount_routes(&loaded, &guards, &health, addr, &mut stores, metrics)
-            .await?;
-        let router = self.layer_router(mounted.router, guards, access, mounted.html_errors)?;
-        let (stop_tx, task) = serve::spawn_server(listener, router);
-        lifecycle::notify_ready();
-        #[cfg(feature = "notify")]
-        self.announce_started(addr, &health);
-        #[cfg(unix)]
-        let backup = self.start_backup_server(&loaded);
-        for hook in self.start_hooks.drain(..) {
-            hook();
-        }
-        Ok(Running {
-            addr,
-            stop: stop_tx,
-            task,
-            shutdown_timeout: self.shutdown_timeout,
-            flushes: mounted.flushes,
-            #[cfg(unix)]
-            backup,
-            #[cfg(feature = "storage")]
-            storage_tasks: stores.storage.spawn(),
-        })
-    }
-
     /// Logging, the state directory and the startup warnings: the first
     /// things a start does, before any store opens.
     fn init_runtime(&self, loaded: &Loaded) -> Result<(), Error> {
@@ -117,5 +71,51 @@ impl App {
             kit_problems: Arc::new(std::sync::Mutex::new(Vec::new())),
             untrusted_proxy_warned: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
+    }
+
+    /// Install logging and metrics, bind, announce readiness, serve.
+    #[allow(unused_mut)]
+    pub async fn start(mut self) -> Result<Running, Error> {
+        let loaded = self.loaded.clone().ok_or_else(|| {
+            Error::internal(
+                "start() called on a control-command app",
+                "call run() instead",
+            )
+        })?;
+        self.init_runtime(&loaded)?;
+        let mut stores = self.open_stores(&loaded)?;
+        #[cfg(feature = "self-update")]
+        self.wire_updater()?;
+        let (metrics, health) = self.install_telemetry()?;
+        let guards = self.build_guards();
+        let access = AccessState {
+            requests_total: metrics.requests_total(),
+        };
+        let (listener, addr) = self.bind().await?;
+
+        let mounted = self
+            .mount_routes(&loaded, &guards, &health, addr, &mut stores, metrics)
+            .await?;
+        let router = self.layer_router(mounted.router, guards, access, mounted.html_errors)?;
+        let (stop_tx, task) = serve::spawn_server(listener, router);
+        lifecycle::notify_ready();
+        #[cfg(feature = "notify")]
+        self.announce_started(addr, &health);
+        #[cfg(unix)]
+        let backup = self.start_backup_server(&loaded);
+        for hook in self.start_hooks.drain(..) {
+            hook();
+        }
+        Ok(Running {
+            addr,
+            stop: stop_tx,
+            task,
+            shutdown_timeout: self.shutdown_timeout,
+            flushes: mounted.flushes,
+            #[cfg(unix)]
+            backup,
+            #[cfg(feature = "storage")]
+            storage_tasks: stores.storage.spawn(),
+        })
     }
 }

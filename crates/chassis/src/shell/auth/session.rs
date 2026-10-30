@@ -85,3 +85,9 @@ pub(super) async fn logout(
     gone.set_max_age(time_duration(0));
     Ok(gone)
 }
+
+impl AuthState {
+    pub fn cookie_name(&self) -> String {
+        format!("{}_session", self.name.replace('-', "_"))
+    }
+}

@@ -59,6 +59,24 @@ impl App {
             version: self.spec.version,
         })
     }
+
+    /// The handle to send the project's own events through (K22). Valid
+    /// right after `from_args`; delivery starts with `start`.
+    #[cfg(feature = "notify")]
+    pub fn notifier(&self) -> crate::shell::notify::Notifier {
+        self.notifier.clone()
+    }
+
+    /// 3.15.0: the app's default notification addresses: the primary target
+    /// (a kyu topic) and an optional fallback. They sit below configuration
+    /// and below what the owner saved on the Status page, and above the
+    /// kit's default of no target. Keep a webhook id out of code: give the
+    /// fallback through `<P>_NOTIFY_FALLBACK_URL` instead.
+    #[cfg(feature = "notify")]
+    pub fn notify_targets(&mut self, primary: &str, fallback: Option<&str>) -> &mut Self {
+        self.notify_code_targets = Some((primary.to_string(), fallback.map(str::to_string)));
+        self
+    }
 }
 
 impl NotifyKnobs {

@@ -1,7 +1,8 @@
 //! The budget setting the Storage page keeps: where it is stored, how it is
 //! read and applied under the precedence, how a change is validated and
 //! written, and how it is shown. Its own module because it is the only code
-//! of the monitor that writes to a database.
+//! of the monitor that writes to a database. The public `setting`,
+//! `set_budget` and `config` of `Storage` sit here.
 
 use super::budget::{eighty_percent, validate_mb, warn_fits};
 use super::{
@@ -50,74 +51,6 @@ impl Storage {
             *self.inner.cfg.lock().expect("cfg lock") = cfg;
         }
         *self.inner.stored.lock().expect("stored lock") = stored;
-    }
-
-    /// The body of [`Storage::setting`].
-    pub(super) fn setting_json(&self) -> serde_json::Value {
-        let cfg = self.config();
-        let stored = *self.inner.stored.lock().expect("stored lock");
-        let setup = &self.inner.setup;
-        let (dbud, dwarn) = setup.defaults();
-        let fixed = |f: &Option<Fixed>| match f {
-            Some(f) => serde_json::json!({"by": f.by, "name": f.name, "reason": f.reason()}),
-            None => serde_json::Value::Null,
-        };
-        serde_json::json!({
-            "budget_mb": cfg.budget_bytes / MB,
-            "warn_mb": cfg.warn_bytes / MB,
-            "default_budget_mb": dbud,
-            "default_warn_mb": dwarn,
-            "stored": stored.budget_mb.is_some() || stored.warn_mb.is_some(),
-            "budget_fixed": fixed(&setup.fixed_budget),
-            "warn_fixed": fixed(&setup.fixed_warn),
-            "min_mb": 1,
-            "max_mb": MAX_BUDGET_MB,
-            "can_store": self.settings_db().is_some(),
-        })
-    }
-
-    /// The body of [`Storage::set_budget`].
-    pub(super) fn change_budget(
-        &self,
-        budget_mb: Option<u64>,
-        warn_mb: Option<u64>,
-        reset: bool,
-    ) -> Result<StorageReport, Error> {
-        let db = self.settings_db().ok_or_else(|| {
-            Error::config(
-                "this service has no database to keep the budget in",
-                "the setting is kept in the application's or the sign-in database; neither is open",
-            )
-        })?;
-        let before = self.config();
-        let stored = if reset {
-            Stored::default()
-        } else {
-            self.next_stored(budget_mb, warn_mb)?
-        };
-        db.write_blocking(move |tx| {
-            for (key, value) in [(META_BUDGET, stored.budget_mb), (META_WARN, stored.warn_mb)] {
-                match value {
-                    Some(v) => meta_set(tx, key, &v.to_string())?,
-                    None => {
-                        tx.execute("DELETE FROM chassis_meta WHERE key = ?1", [key])?;
-                    }
-                }
-            }
-            Ok(())
-        })?;
-        self.apply(stored);
-        let after = self.config();
-        tracing::info!(
-            audit = true,
-            action = if reset { "reset" } else { "set" },
-            budget_mb_before = before.budget_bytes / MB,
-            warn_mb_before = before.warn_bytes / MB,
-            budget_mb = after.budget_bytes / MB,
-            warn_mb = after.warn_bytes / MB,
-            "storage: the budget was changed from the Storage page"
-        );
-        self.check()
     }
 
     /// The setting a change would store: refuse a fixed value, apply the
@@ -178,5 +111,79 @@ impl Storage {
             .unwrap_or_else(|| setup.default_warn(budget));
         validate_mb(budget, warn)?;
         Ok(next)
+    }
+
+    /// The setting as the Storage API shows it.
+    pub fn setting(&self) -> serde_json::Value {
+        let cfg = self.config();
+        let stored = *self.inner.stored.lock().expect("stored lock");
+        let setup = &self.inner.setup;
+        let (dbud, dwarn) = setup.defaults();
+        let fixed = |f: &Option<Fixed>| match f {
+            Some(f) => serde_json::json!({"by": f.by, "name": f.name, "reason": f.reason()}),
+            None => serde_json::Value::Null,
+        };
+        serde_json::json!({
+            "budget_mb": cfg.budget_bytes / MB,
+            "warn_mb": cfg.warn_bytes / MB,
+            "default_budget_mb": dbud,
+            "default_warn_mb": dwarn,
+            "stored": stored.budget_mb.is_some() || stored.warn_mb.is_some(),
+            "budget_fixed": fixed(&setup.fixed_budget),
+            "warn_fixed": fixed(&setup.fixed_warn),
+            "min_mb": 1,
+            "max_mb": MAX_BUDGET_MB,
+            "can_store": self.settings_db().is_some(),
+        })
+    }
+
+    /// Store a new budget and/or warn line (whole MB), or with `reset` remove
+    /// the page setting. A value the environment or a flag fixes is refused;
+    /// the budget is checked again at once. Returns the new report.
+    pub fn set_budget(
+        &self,
+        budget_mb: Option<u64>,
+        warn_mb: Option<u64>,
+        reset: bool,
+    ) -> Result<StorageReport, Error> {
+        let db = self.settings_db().ok_or_else(|| {
+            Error::config(
+                "this service has no database to keep the budget in",
+                "the setting is kept in the application's or the sign-in database; neither is open",
+            )
+        })?;
+        let before = self.config();
+        let stored = if reset {
+            Stored::default()
+        } else {
+            self.next_stored(budget_mb, warn_mb)?
+        };
+        db.write_blocking(move |tx| {
+            for (key, value) in [(META_BUDGET, stored.budget_mb), (META_WARN, stored.warn_mb)] {
+                match value {
+                    Some(v) => meta_set(tx, key, &v.to_string())?,
+                    None => {
+                        tx.execute("DELETE FROM chassis_meta WHERE key = ?1", [key])?;
+                    }
+                }
+            }
+            Ok(())
+        })?;
+        self.apply(stored);
+        let after = self.config();
+        tracing::info!(
+            audit = true,
+            action = if reset { "reset" } else { "set" },
+            budget_mb_before = before.budget_bytes / MB,
+            warn_mb_before = before.warn_bytes / MB,
+            budget_mb = after.budget_bytes / MB,
+            warn_mb = after.warn_bytes / MB,
+            "storage: the budget was changed from the Storage page"
+        );
+        self.check()
+    }
+
+    pub fn config(&self) -> StorageConfig {
+        *self.inner.cfg.lock().expect("cfg lock")
     }
 }

@@ -4,52 +4,12 @@
 
 use std::process::ExitCode;
 
-use super::App;
+use axum::Router;
+
+use super::{App, AppSpec};
 use crate::shell::lifecycle;
 
 impl App {
-    /// Control command or full lifecycle; errors are printed with their
-    /// remedy and turn into exit 1.
-    pub(super) async fn run_lifecycle(mut self) -> ExitCode {
-        match self.control().await {
-            Ok(Some(code)) => return code,
-            Ok(None) => {}
-            Err(e) => {
-                eprintln!("{e}");
-                return ExitCode::FAILURE;
-            }
-        }
-        #[cfg(feature = "self-update")]
-        let (updater, drill) = match self.decide_pending_update() {
-            Ok(decided) => decided,
-            Err(code) => return code,
-        };
-        // Registered before the bind so no SIGTERM can slip in unhandled
-        // between "listening" and the first poll of the listener (rule 8a).
-        let stop = lifecycle::stop_signals();
-        match self.start().await {
-            Ok(running) => {
-                #[cfg(feature = "self-update")]
-                let restart = update_restart(&updater, drill.as_deref());
-                #[cfg(feature = "self-update")]
-                tokio::select! {
-                    _ = stop.wait() => {}
-                    _ = restart => {
-                        tracing::info!("stopping for the update restart");
-                    }
-                }
-                #[cfg(not(feature = "self-update"))]
-                stop.wait().await;
-                running.stop().await;
-                ExitCode::SUCCESS
-            }
-            Err(e) => {
-                eprintln!("{e}");
-                ExitCode::FAILURE
-            }
-        }
-    }
-
     /// AR15: the pending-update decision runs before anything opens a
     /// store (critic #2), and the drill marker breaks only the version it
     /// names (critic #6). `Err(code)` means "exit now with this code".
@@ -87,6 +47,60 @@ impl App {
             return Err(ExitCode::FAILURE);
         }
         Ok((updater, drill))
+    }
+
+    /// The whole lifecycle for a `main` that registers no hooks.
+    pub async fn main(spec: AppSpec, router: Router) -> ExitCode {
+        match App::from_env_and_args(spec, router) {
+            Ok(app) => app.run().await,
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::FAILURE
+            }
+        }
+    }
+
+    /// Control command or full lifecycle; errors are printed with their
+    /// remedy and turn into exit 1.
+    #[allow(unused_mut)]
+    pub async fn run(mut self) -> ExitCode {
+        match self.control().await {
+            Ok(Some(code)) => return code,
+            Ok(None) => {}
+            Err(e) => {
+                eprintln!("{e}");
+                return ExitCode::FAILURE;
+            }
+        }
+        #[cfg(feature = "self-update")]
+        let (updater, drill) = match self.decide_pending_update() {
+            Ok(decided) => decided,
+            Err(code) => return code,
+        };
+        // Registered before the bind so no SIGTERM can slip in unhandled
+        // between "listening" and the first poll of the listener (rule 8a).
+        let stop = lifecycle::stop_signals();
+        match self.start().await {
+            Ok(running) => {
+                #[cfg(feature = "self-update")]
+                let restart = update_restart(&updater, drill.as_deref());
+                #[cfg(feature = "self-update")]
+                tokio::select! {
+                    _ = stop.wait() => {}
+                    _ = restart => {
+                        tracing::info!("stopping for the update restart");
+                    }
+                }
+                #[cfg(not(feature = "self-update"))]
+                stop.wait().await;
+                running.stop().await;
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::FAILURE
+            }
+        }
     }
 }
 

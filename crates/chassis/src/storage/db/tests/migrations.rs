@@ -1,7 +1,10 @@
 //! Tests of the numbered migrations, the refusal of a newer database and
 //! the read-only inspection.
 
+use rusqlite::TransactionBehavior;
+
 use super::*;
+use crate::core::error::Kind;
 
 #[test]
 fn migrations_run_once_in_order_and_a_reopen_applies_nothing() {
