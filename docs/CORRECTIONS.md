@@ -785,3 +785,35 @@ Reported by the local-builds thread after http-switchboard's 3.0.0 sync.
 | Fallback | The workaround stays in the admin. |
 | Review | At the next chassis major. |
 
+
+## fix-16 · 3.14.0 shipped while an item still waited on an explanation (2026-10-30)
+
+| Field | |
+|---|---|
+| What went wrong | Kenny answered the 3.14.0 form with "via-proxy: Leg beter uit" and "release-3140: Uitbrengen"; 3.14.0 was tagged (`4e1d3a3`) without via-proxy, so a 3.14.1 is needed for an item that could have shipped together. |
+| Which gate let it through | Reading the answer: "Uitbrengen" was taken literally and the open "Leg beter uit" item was not weighed against it. |
+| Where else the same fault sits | Searched the session transcript for every "Leg beter uit" answer: `grep -oE "[a-z0-9-]+: Leg beter uit" 08f2bd4c-….jsonl`, 1 hit (via-proxy). Nowhere else. |
+| Prevention | An item answered "Leg beter uit" holds the release: deep-dive first, build the answer, ship everything in one version (central memory `feedback_explain_then_include_in_release`). |
+| What it costs | A release can wait one round longer on Kenny's answer. |
+| Enforced by | Discipline: the memory rule, applied when reading every answer form. |
+| Measured when | At the next release form where Kenny asks for an explanation on an item: the release waits on that item. |
+| Fallback | Stop before tagging and ask with a form whether the release waits. |
+| Review | At the next chassis-rs retrospective. |
+
+Kenny approved the correction as proposed (form via-route-en-correcties, 2026-10-30: "release-zonder-uitleg: Klopt").
+
+## fix-17 · A form claimed the PC's address reaches the app through the hostname (2026-10-30)
+
+| Field | |
+|---|---|
+| What went wrong | The 3.14.0 form and its deep-dive said Traefik sees 10.10.10.10 for a request through `kitchen.kp-soft.dev`; the hostname resolves to Cloudflare (172.67.171.36, 104.21.47.127), so the PC's address never arrives. Kenny caught it. |
+| Which gate let it through | The proposal rested on an unmeasured assumption about another system (FORM_PROTOCOL 5.6a): how the hostname resolves from the PC was not measured. |
+| Where else the same fault sits | `grep -c "via de hostnaam gaat je aanvraag eerst door Traefik"` in the transcript: 2 hits (the 3.14.0 form, the deep-dive). The homelab register row trusted-admin-via-proxy-1 says "through Traefik the peer is CT 104", half right: the tunnel comes first. |
+| Prevention | Any proposal about a network path measures the path first (DNS lookup and a request) and puts the measurement in the form. |
+| What it costs | One or two commands per form. |
+| Enforced by | Discipline, under the existing rule 5.6a. |
+| Measured when | The next form about a network path carries its measurement; checked before posting. |
+| Fallback | Withdraw the item, measure, post it again. |
+| Review | At the next chassis-rs retrospective. |
+
+Kenny approved the correction as proposed (form via-route-en-correcties, 2026-10-30: "fout-voorbeeld: Klopt").
