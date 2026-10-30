@@ -64,7 +64,7 @@ export function factsHtml(d) {
     : '<div class="kp-empty kp-stateplate kp-stateplate--empty" role="status"><strong class="kp-stateplate__title">No error recorded</strong><span class="kp-stateplate__text">The last error appears here with its time.</span></div>';
   // Only whether a token is set, never its value; the server sends no value.
   const tok = d.token ?? { set: false, env: '' };
-  const tokenHtml = `<div class="kp-kv__row"><dt>Token</dt><dd data-notify-token="${tok.set ? 'set' : 'unset'}">${tok.set ? 'Token: set' : 'Token: not set'}</dd></div>`;
+  const tokenHtml = `<div class="kp-kv__row"><dt>Token</dt><dd data-notify-token="${tok.set ? 'set' : 'unset'}">${tok.set ? 'Set' : 'Not set'}</dd></div>`;
   const tokenNote = `The primary address’s token comes from the environment variable ${tok.env}; it is never shown or changed here.`;
   const last = d.last_delivery
     ? `${when(d.last_delivery.at)} <span class="kp-text-muted">via the ${esc(d.last_delivery.via)}</span>`
