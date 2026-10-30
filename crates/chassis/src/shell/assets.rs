@@ -4,7 +4,8 @@
 //! stylesheet and the woff2 files behind it (S8: nothing loads from a third
 //! party), seventeen JavaScript modules (since kp-themes 7.0.0 the effect
 //! hooks are separate files `js/effects.js` imports on demand, with
-//! `js/as-of.js` beside them) — plus the kit's own CSS/JS,
+//! `js/as-of.js` beside them) — plus the kit's own CSS/JS (split by page into
+//! `static/chassis/`, pulled in by `chassis.css` and `chassis.js`),
 //! embedded with `include_bytes!` and served under a content-hash query so
 //! browsers may cache them for a year.
 //!
@@ -318,6 +319,61 @@ pub const ASSETS: &[(&str, &str, &[u8])] = &[
         "chassis.js",
         "text/javascript; charset=utf-8",
         include_bytes!("../../static/chassis.js"),
+    ),
+    (
+        "chassis/base.css",
+        "text/css; charset=utf-8",
+        include_bytes!("../../static/chassis/base.css"),
+    ),
+    (
+        "chassis/clients-issue.css",
+        "text/css; charset=utf-8",
+        include_bytes!("../../static/chassis/clients-issue.css"),
+    ),
+    (
+        "chassis/clients-list.css",
+        "text/css; charset=utf-8",
+        include_bytes!("../../static/chassis/clients-list.css"),
+    ),
+    (
+        "chassis/clients-manage-phone.css",
+        "text/css; charset=utf-8",
+        include_bytes!("../../static/chassis/clients-manage-phone.css"),
+    ),
+    (
+        "chassis/clients-manage.css",
+        "text/css; charset=utf-8",
+        include_bytes!("../../static/chassis/clients-manage.css"),
+    ),
+    (
+        "chassis/kp-gaps.css",
+        "text/css; charset=utf-8",
+        include_bytes!("../../static/chassis/kp-gaps.css"),
+    ),
+    (
+        "chassis/login.css",
+        "text/css; charset=utf-8",
+        include_bytes!("../../static/chassis/login.css"),
+    ),
+    (
+        "chassis/passkeys.css",
+        "text/css; charset=utf-8",
+        include_bytes!("../../static/chassis/passkeys.css"),
+    ),
+    (
+        "chassis/shell.css",
+        "text/css; charset=utf-8",
+        include_bytes!("../../static/chassis/shell.css"),
+    ),
+    (
+        "chassis/status.css",
+        "text/css; charset=utf-8",
+        include_bytes!("../../static/chassis/status.css"),
+    ),
+    (
+        "chassis/storage.css",
+        "text/css; charset=utf-8",
+        include_bytes!("../../static/chassis/storage.css"),
     ),
     (
         "notify-card.css",

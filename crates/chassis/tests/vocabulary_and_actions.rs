@@ -4,6 +4,8 @@
 //! case throughout: its clients are "sources", its status section has a
 //! "Reload profiles from disk" button, and a source's row gets a "Sync now".
 
+mod support;
+
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
@@ -916,7 +918,7 @@ async fn kit_r4_an_html_only_section_has_no_empty_rows_list() {
     assert!(html_only.contains("id=\"own-body\""), "{html_only}");
     assert!(!html_only.contains("data-chassis-rows"), "{html_only}");
     assert!(card("quiet").contains("data-chassis-rows"));
-    let js = include_str!("../static/chassis.js");
+    let js = support::kit_bundle("static/chassis.js");
     assert!(
         js.contains("!pairs.length ? ''"),
         "the live redraw draws no empty list either"

@@ -1,0 +1,114 @@
+/* The shell: bar, palette keys, phone tab bar and error page.
+   Imported by ../chassis.css; the import order is the cascade order. */
+
+/* ===================================================================== shell ==
+   kit-kp11: the bar, the palette's keys, the phone's tab bar and the error
+   page. What the demo's page.css called its shell rules, moved here with
+   media queries where the demo answered to its frame. Stands alone at the end
+   of the file; tokens only. */
+
+/* A phone: the tab bar carries the pages (kp-themes shows it below 40rem), so
+   the bar keeps the brand, Search as an icon and the theme menu. */
+@media (max-width: 39.99rem) {
+    .kp-nav__links,
+    .chassis-logout,
+    .chassis-search-word {
+        display: none;
+    }
+    /* Signed out, the bar is the brand and the theme menu only: with the
+       links gone, the brand keeps the spacer's job so the menu stays at the
+       end of the bar, as in the approved login demo. */
+    .kp-nav:not([data-kp-nav-fold]) .kp-nav__brand {
+        margin-inline-end: auto;
+    }
+}
+
+/* The count stands beside its icon, not on its corner: text never lies over
+   a drawing (measure-gaps). Every digit shows; the tab does not grow. */
+.chassis-tabbar .kp-tabbar__badge {
+    inset-inline-start: calc(50% + var(--kp-tabbar-icon, 1.5rem) / 2 + var(--kp-space-xs, 0.25rem));
+}
+
+/* The connection line stands on the phone's tab bar, not behind it
+   (js/tabbar.js writes the bar's measured height). */
+.kp-connection:not([data-kp-placement='top']) {
+    inset-block-end: var(--kp-tabbar-height, 0px);
+}
+
+/* A chord such as "g c" stays on one line. */
+.kp-palette__keys {
+    white-space: nowrap;
+}
+
+/* Search: the word and the key on a screen with a keyboard, the icon alone on
+   a phone (kp-themes draws the search button as a word and a key). */
+/* Same row, same top and bottom: the trigger is as tall as the theme menu and
+   Log out beside it (36 px), not the 38.5 px of a nav link. */
+.kp-nav__search-trigger {
+    block-size: var(--kit-bar-button, 2.25rem);
+    min-block-size: 0;
+    box-sizing: border-box;
+}
+.kp-nav__search-trigger svg {
+    display: none;
+    flex: none;
+    inline-size: 1.25em;
+    block-size: 1.25em;
+}
+@media (max-width: 39.99rem) {
+    .kp-nav__search-trigger svg {
+        display: block;
+    }
+    /* Search is one square button like the theme menu beside it, the same
+       size, on the bar's end edge (approved round 3: 36 px). The icon has a
+       size of its own; without one the trigger collapses. */
+    .kp-nav__search-trigger {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        inline-size: var(--kit-bar-button, 2.25rem);
+        block-size: var(--kit-bar-button, 2.25rem);
+        min-inline-size: 0;
+        min-block-size: 0;
+        padding: 0;
+        gap: 0;
+    }
+    .kp-nav__search-trigger svg {
+        inline-size: 1.25rem;
+        block-size: 1.25rem;
+    }
+    .kp-nav__search-trigger .kp-palette__keys {
+        display: none;
+    }
+}
+
+/* The error page: the plate is centred in its card, the facts use one label
+   column, the two ways out stand on one grid row. */
+.chassis-error__actions {
+    align-items: center;
+    /* The plate's words are centred, so the ways out stand on the same axis. */
+    justify-content: center;
+    margin-block-start: var(--kp-space-md, 1rem);
+}
+@media (max-width: 39.99rem) {
+    .chassis-error__actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+/* The request id wraps inside its own column and its Copy button keeps its word. */
+.chassis-error__facts .kp-copyable {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--kp-space-sm, 0.5rem);
+}
+.chassis-error__facts .kp-copyable__value {
+    overflow-wrap: anywhere;
+}
+.chassis-error__facts .kp-copyable__button {
+    white-space: nowrap;
+}
+.chassis-error__facts {
+    margin-block-start: var(--kp-space-md, 1rem);
+}

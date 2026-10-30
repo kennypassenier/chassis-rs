@@ -1,0 +1,95 @@
+/* The login page.
+   Imported by ../chassis.css; the import order is the cascade order. */
+
+/* ==========================================================================
+   login (kit-kp11, approved demo "login")
+   The intro on the left and the sign-in card on the right on a wide page,
+   one column on a phone. Tokens only; every control is a kp-themes part.
+   The frame is the container the arrangement answers to, so the page is
+   right at any window width. Uses logical properties and no `max-width:`
+   (tests/kenny_rules.rs keeps chassis.css from narrowing a page).
+   ========================================================================== */
+
+.kit-frame {
+  container: kit / inline-size;
+  min-inline-size: 0;
+}
+
+.kit-login {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 28rem);
+  gap: var(--kp-space-xl, 2rem);
+  /* The intro's title and the card's title stand on one line. */
+  align-items: first baseline;
+  max-inline-size: 64rem;
+  margin-inline: auto;
+}
+
+@container kit (max-width: 44rem) {
+  .kit-login { grid-template-columns: minmax(0, 1fr); }
+}
+
+.kit-login__intro > * { margin-block: 0; }
+.kit-login__intro > .kp-lede { margin-block-start: var(--kp-space-sm, 0.5rem); }
+
+.kit-login__state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kp-space-xs, 0.25rem) var(--kp-space-md, 1rem);
+  margin: var(--kp-space-md, 1rem) 0 0;
+  /* Room for the failed state's Try again, which may wrap to a second row,
+     so the line never changes height. */
+  min-block-size: 3.5rem;
+  align-content: start;
+}
+
+.kit-login__card > .kp-card__title { margin-block: 0 var(--kp-space-md, 1rem); }
+
+/* The or-line between the passkey and the token. */
+.kit-login__or {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--kp-space-sm, 0.5rem);
+  margin-block: var(--kp-space-md, 1rem);
+  color: var(--muted-foreground);
+}
+.kit-login__or::before,
+.kit-login__or::after {
+  content: '';
+  border-block-start: 1px solid var(--border);
+}
+
+/* The card is one form grid: each row is the label across, then the field
+   and its action on the next line (label above the field), every cell on the
+   grid's named lines. It never stacks, so Show stays beside the token at any
+   width. */
+.kit-login__grid {
+  --kp-formgrid-value: 0fr;
+  --kp-formgrid-column-gap: var(--kp-space-sm, 0.5rem);
+}
+.kit-login__grid .kp-formgrid__row > .kp-formgrid__label {
+  grid-column: label-start / actions-end;
+}
+.kit-login__grid .kp-formgrid__row > :is(.kp-formgrid__control, .kp-formgrid__value):not([data-kp-formgrid-span]) {
+  grid-column: label-start / value-end;
+}
+/* The one primary action of the card fills its width; its hint stands under
+   it on the same edge. */
+.kit-login__grid .kp-formgrid__control > [data-kit-fill] {
+  justify-self: stretch;
+  inline-size: 100%;
+}
+/* Show and Hide are one width, so the token field does not move. */
+.kit-login__grid .kp-formgrid__actions > .kp-button { min-inline-size: 4.5rem; }
+/* Log in keeps its width while it says it is logging in. */
+.kit-login__grid .kp-formgrid__buttons > [data-kp-submit] { min-inline-size: 8.5rem; }
+/* The grid's rows set the rhythm; a hint carries no margin of its own. */
+.kit-login__grid .kp-field__help { margin: 0; }
+/* The passkey button, the switch and Log in stand on the grid's start edge. */
+.kit-login__grid .kp-switch,
+.kit-login__grid .kp-formgrid__buttons { justify-self: start; }
+
+/* The service's health line: the words keep their height while they load. */
+.kit-login__state .kp-skeleton { inline-size: 11rem; block-size: 1lh; }

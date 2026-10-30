@@ -1,0 +1,56 @@
+/* The manage dialog's phone arrangement.
+   Imported by ../chassis.css; the import order is the cascade order. */
+
+/* The phone: its own arrangement. */
+@container managed (max-width: 39.99rem) {
+  .manage-dialog .kp-dialog__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .manage-dialog .kp-dialog__actions > :only-child { grid-column: 1 / -1; }
+
+  .manage-grid {
+    grid-template-rows: auto;
+    grid-template-areas:
+      'id id id id id id id id id id id id'
+      'facts facts facts facts facts facts facts facts facts facts facts facts'
+      'rail rail rail rail rail rail rail rail rail rail rail rail'
+      'test test test test test test test test test test test test'
+      'req req req req req req req req req req req req'
+      'dh dh dh dh dh dh dh dh dh dh dh dh'
+      'acts acts acts acts acts acts acts acts acts acts acts acts';
+  }
+  .manage-requests { min-block-size: 24rem; }
+
+  /* The facts: the last call is the tall tile, requests and the third fact stand stacked beside it. */
+  .manage-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      'req last'
+      'third last';
+    gap: var(--kp-space-sm, 0.5rem);
+  }
+  .manage-facts > :nth-child(1) { grid-area: req; }
+  .manage-facts > :nth-child(2) { grid-area: last; }
+  .manage-facts > :nth-child(3) { grid-area: third; }
+
+  /* The test row on a phone: the label and Send test share the first line
+     (the action has its own track at the end of the label's line), the field
+     is the whole width under them, the note under the field. */
+  .manage-test__grid { grid-template-columns: minmax(0, 1fr); }
+  .manage-test__grid > .kp-formgrid__row {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'label send'
+      'field field'
+      'note note';
+    align-items: center;
+    row-gap: var(--kp-space-xs, 0.25rem);
+  }
+  .manage-test__grid > .kp-formgrid__row > .kp-formgrid__label { grid-area: label; }
+  .manage-test__grid > .kp-formgrid__row > .kp-formgrid__control { grid-area: field; }
+  .manage-test__grid > .kp-formgrid__row > .manage-test__send { display: contents; }
+  .manage-test__send > .kp-button { grid-area: send; justify-self: end; }
+  .manage-test__send > .kp-dialog__note { grid-area: note; contain: none; }
+}

@@ -8,17 +8,16 @@
 //! the palette, the tab bar and the phone's More drawer all show it.
 #![cfg(all(feature = "testing", feature = "storage"))]
 
-use std::path::Path;
-
 use axum::Router;
 use chassis::AppSpec;
 use chassis::storage::{AppDbSpec, DataKind, Filter, Migration, TimeFormat};
 use chassis::testing::TestApp;
 use serde_json::json;
 
+mod support;
+
 fn kit_file(rel: &str) -> String {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("{rel}: {e}"))
+    support::kit_bundle(rel)
 }
 
 async fn start(name: &'static str) -> TestApp {
