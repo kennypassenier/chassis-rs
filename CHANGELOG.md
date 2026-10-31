@@ -7,6 +7,16 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed
+
+- **The 4.0.0 migration said "names unchanged" for the switch to the
+  kp-themes bundle; that was not true for every name.** kp-themes 12.0.0's
+  bundle lacked a few exports whose names collide between modules
+  (`sourceColour`, `setProgress`, `OPEN_EVENT`). kp-themes 12.1.0 adds
+  them under prefixed names (for example `progressbarSetProgress`,
+  `PALETTE_OPEN_EVENT`); an app that imported one of the colliding names
+  from a module path imports the prefixed name from the bundle instead.
+
 ## [4.0.0] - 2026-10-31
 
 ### Migration
