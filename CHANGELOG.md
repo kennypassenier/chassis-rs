@@ -13,10 +13,16 @@ scaffold writes. A breaking change in either is a major and carries a
 
 1. Both chassis lines in `Cargo.toml` (the kit and the `testing` one) move to
    `tag = "v4.0.0", version = "4.0.0"`.
-2. **kp-themes 12** (see its MIGRATION.md): a page that imports kp-themes
-   modules from `/static/kp/js/…` keeps working through the same file names
-   (the moved modules are re-exported from their old paths), and the kit
-   serves the new folders and `js/controller.js` by itself.
+2. **kp-themes 12 comes as one bundle** (see its MIGRATION.md). The kit's
+   own JavaScript imports only `/static/kp/dist/kp-themes.min.js`, and static
+   files are served gzip. Rewrite every import of `/static/kp/js/<x>.js` in
+   the app to `/static/kp/dist/kp-themes.min.js` (names unchanged), in the
+   same release as this bump: a page that mixes the module tree and the
+   bundle loads every kp-themes singleton twice (listeners, auto-attach).
+   One sed does it for `.js` and `.html` files:
+   `sed -E 's#/static/kp/js/[A-Za-z0-9_/.-]+\.js#/static/kp/dist/kp-themes.min.js#g'`.
+   Measured on Kitchen's front page: 451 requests and 2076 KB cold before,
+   155 requests and 1831 KB after. The module tree is still served.
 3. **A web app no longer attaches kp-themes effects itself.** The kit puts
    `/static/chassis/webapp-runtime.js` into every page of the web app. Remove
    your own `attachEffects(...)` call, or keep it and call
