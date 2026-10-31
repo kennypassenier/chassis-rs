@@ -7,6 +7,35 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Migration
+
+4.0.0 carries everything 3.15.0 would have, plus kp-themes 12. Per project:
+
+1. Both chassis lines in `Cargo.toml` (the kit and the `testing` one) move to
+   `tag = "v4.0.0", version = "4.0.0"`.
+2. **kp-themes 12** (see its MIGRATION.md): a page that imports kp-themes
+   modules from `/static/kp/js/…` keeps working through the same file names
+   (the moved modules are re-exported from their old paths), and the kit
+   serves the new folders and `js/controller.js` by itself.
+3. **A web app no longer attaches kp-themes effects itself.** The kit puts
+   `/static/chassis/webapp-runtime.js` into every page of the web app. Remove
+   your own `attachEffects(...)` call, or keep it and call
+   `WebApp::without_kit_runtime()`; with both, effects attach twice.
+4. **A web app at the root is installable (PWA) by default**: manifest,
+   service worker and icons are served without a login. Put your own icons
+   at `pwa/icon-192.png`, `pwa/icon-512.png` (and optionally
+   `icon-maskable-512.png`, `icon-180.png`) in the web app's folder, or opt
+   out with `WebApp::without_pwa()`.
+5. **Notifications to kyu need a token**: set `<P>_NOTIFY_TOKEN` (a kyu
+   client token, through latch) when `<P>_NOTIFY_URL` points at a kyu topic;
+   without it every message gets 401 and goes to the fallback.
+6. **A web app at the root registers its own pages** with
+   `app.page(Page::new(id, title, path))`, or the kit's pages show only the
+   kit's links (the start now warns about it).
+7. **Recognised through Traefik**: behind the home route add Traefik's
+   address to `<P>_TRUSTED_PROXIES` (10.10.10.4) so `<P>_TRUSTED_ADMINS`
+   also works on the hostname.
+
 ### Added
 
 - **Every web app is installable** (`webapp`, feat-webapp-4): at the root,
