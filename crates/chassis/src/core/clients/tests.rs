@@ -176,19 +176,6 @@ fn feat_clients_2_declared_fields_survive_the_round_trip() {
     );
 }
 
-/// feat-api-2, used for the first time: the shape this version replaces
-/// still works for one version. Drilled red by making the wrapper
-/// `unimplemented!()`.
-#[test]
-#[allow(deprecated)]
-fn feat_api_2_the_previous_issue_still_works_for_one_version() {
-    let mut f = ClientsFile::default();
-    let c = f
-        .issue("kyu-runner", "id-1".into(), "tok".into(), T0)
-        .expect("the previous shape still issues");
-    assert!(c.fields.is_empty(), "and it issues without fields");
-}
-
 #[test]
 fn homelab_shared_1_a_scope_is_stored_read_and_checked() {
     let mut f = ClientsFile::default();

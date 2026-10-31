@@ -52,7 +52,10 @@ scaffold writes. A breaking change in either is a major and carries a
 7. **A web app at the root registers its own pages** with
    `app.page(Page::new(id, title, path))`, or the kit's pages show only the
    kit's links (the start now warns about it).
-8. **Recognised through Traefik**: behind the home route add Traefik's
+8. **`ClientsFile::issue` is gone** (deprecated since 2.0.0): call
+   `issue_with_fields(name, id, token, now, BTreeMap::new())` instead, which
+   is what it did. No app in this workspace still calls it.
+9. **Recognised through Traefik**: behind the home route add Traefik's
    address to `<P>_TRUSTED_PROXIES` (10.10.10.4) so `<P>_TRUSTED_ADMINS`
    also works on the hostname.
 

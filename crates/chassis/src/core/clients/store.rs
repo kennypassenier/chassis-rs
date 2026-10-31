@@ -77,32 +77,6 @@ impl ClientsFile {
         self.issue_with_fields(name, id, token, now, fields)
     }
 
-    /// [`ClientsFile::issue_with_fields`] with no fields.
-    ///
-    /// Kept beside the new shape (feat-api-2, the first time that rule is
-    /// used): a consumer calling this still compiles and is told where to
-    /// go. It goes at 3.0.0 and not before — the recorded surface is a
-    /// contract frozen for the life of a major, so removing it in a minor
-    /// would break the promise the contract makes. The row that says so is
-    /// in `docs/REMOVALS.md`, and the release refuses a deprecation that is
-    /// missing there.
-    ///
-    /// `since` says 2.0.0 because 1.9.0 was never released: the chain
-    /// refused it as a mislabelled minor and it went out as the major.
-    #[deprecated(
-        since = "2.0.0",
-        note = "use issue_with_fields; a client now carries the project's declared fields"
-    )]
-    pub fn issue(
-        &mut self,
-        name: &str,
-        id: String,
-        token: String,
-        now: &str,
-    ) -> Result<&Client, Error> {
-        self.issue_with_fields(name, id, token, now, BTreeMap::new())
-    }
-
     /// Replace the token of an active client (the old one stops working
     /// at once).
     pub fn reissue(&mut self, id: &str, token: String, now: &str) -> Result<&Client, Error> {
