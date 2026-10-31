@@ -28,6 +28,12 @@
 // scrolls sideways inside its block (a focusable region, so a keyboard can
 // scroll it too). Nothing is ever cut.
 //
+// A masked token [kyu gap 15]: mark the secret part of the command with `<span data-kp-command-secret="kyu token">…</span>`
+// inside the code. It is drawn masked (`data-kp-command-secret-mask`: `dots`, the default, eight dots whatever its length, or
+// `tail`, the dots and its last four characters), Copy copies the command with the real value, and a Show button before Copy
+// shows it while pressed in (`data-kp-command-secret-reveal="off"` leaves Show out). A block without a marked secret is as
+// before (js/command/secret.js).
+//
 // Terminals the dictionary names: `wsl`, `powershell`, `cmd`, `garuda`,
 // `bash`. Another value is shown as written, or as `data-kp-command-label`.
 //

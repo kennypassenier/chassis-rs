@@ -10,6 +10,7 @@ import { layout, paint, tick } from './paint.js';
 import { weeks } from './state.js';
 import { upcomingOn } from './upcoming.js';
 import { newModel } from './model.js';
+import { watchOptions } from '../live-options.js';
 /** @typedef {import('./types.js').WeekOptions} WeekOptions */
 
 /** Where in its day a pill stands when it is not found, for the sideways move: the middle. */
@@ -51,6 +52,7 @@ export class WeekControl extends Controller {
         this.listen(el, 'click', (event) => this.onClick(/** @type {MouseEvent} */ (event)));
         this.listen(el, 'keydown', (event) => this.onKey(/** @type {KeyboardEvent} */ (event)));
         this.listen(el, 'click', (event) => this.onNav(event));
+        this.own(watchOptions(el, ['data-kp-week-off'], () => paint(c)));
     }
 
     /** The pill's height is the CSS's; a change of width can flip grid and list, a font arriving changes the pill. */

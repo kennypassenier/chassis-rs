@@ -10,6 +10,10 @@
 // `all` makes every choice a chip, which leaves no field. A group that already holds chips keeps them. `data-kp-segmented-field="always"` keeps the field
 // anyway. While the field is on the page and has no placeholder of its own it says "Search all 9". The options are read at attach and when these two
 // attributes change.
+//
+// A group drawn after load [fix-1031]: attachSegmented(root) watches its root, so a linked group that arrives under a root that is attached is linked
+// as it arrives (one attachSegmented(document) is enough); a group under no attached root is linked by calling attachSegmented on that root again.
+// The attribute is read when the group is first wired, so it must be in the group's markup when it arrives.
 
 import { Controller } from '../controller.js';
 import { combobox } from '../combobox/handle.js';

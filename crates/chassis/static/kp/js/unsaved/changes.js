@@ -2,6 +2,11 @@
 
 import { CONTROL, ROW } from './config.js';
 import { readDefault, readValue } from './values.js';
+import { COMBOBOX } from '../combobox/constants.js';
+import { WIDGET, isWidget, showWidget, widgetOf } from './widgets.js';
+
+/** What the bar can track: the plain controls and the package's composite fields. */
+const TRACKABLE = `${CONTROL}, ${WIDGET}`;
 
 /** @typedef {import('./config.js').UnsavedChange} UnsavedChange */
 
@@ -11,20 +16,42 @@ export class ChangeTracker {
      * @param {HTMLElement} el the bar
      * @param {HTMLElement} scope the form or area to watch
      * @param {import('../strings.js').Strings} s
+     * @param {import('./config.js').UnsavedShow} [words] the page's own words for a value, if it gave any
      */
-    constructor(el, scope, s) {
+    constructor(el, scope, s, words) {
         this.el = el;
         this.scope = scope;
         this.s = s;
+        this.words = words;
         /** What each tracked control held when the bar looked (the markup's value). @type {Map<HTMLElement, string>} */
         this.baseline = new Map();
     }
 
-    /** The controls in the scope that count, the bar's own and the `data-kp-untracked` ones left out. */
+    /**
+     * Whether a control counts: not the bar's own, not `data-kp-untracked`, and not an input inside a composite field (the
+     * field itself counts instead, unless it opted out).
+     * @param {Element} c
+     */
+    counts(c) {
+        if (this.el.contains(c) || c.hasAttribute('data-kp-untracked')) return false;
+        return isWidget(c) ? widgetOf(c) === c : c.matches(CONTROL) && c.parentElement?.closest(WIDGET) == null;
+    }
+
+    /**
+     * The control an event stands for, if it counts: the composite field it came from, else the control itself, else (a plain
+     * combobox's choice, fired on its wrapper) the control inside the element it came from.
+     * @param {EventTarget | null} target
+     * @returns {HTMLInputElement | null}
+     */
+    controlFor(target) {
+        if (!(target instanceof Element)) return null;
+        const c = widgetOf(target) ?? (target.matches(TRACKABLE) ? target : target.matches(COMBOBOX) ? target.querySelector(CONTROL) : null);
+        return c && this.scope.contains(c) && this.counts(c) ? /** @type {HTMLInputElement} */ (c) : null;
+    }
+
+    /** The controls in the scope that count, in document order. */
     tracked() {
-        return /** @type {HTMLInputElement[]} */ ([...this.scope.querySelectorAll(CONTROL)]).filter(
-            (c) => !this.el.contains(c) && !c.hasAttribute('data-kp-untracked'),
-        );
+        return /** @type {HTMLInputElement[]} */ ([...this.scope.querySelectorAll(TRACKABLE)]).filter((c) => this.counts(c));
     }
 
     /** Take the markup's values as the baseline. */
@@ -46,7 +73,8 @@ export class ChangeTracker {
 
     /** The controls of a row. @param {HTMLElement} row */
     controlsOf(row) {
-        return /** @type {HTMLInputElement[]} */ (row.matches(CONTROL) ? [row] : [...row.querySelectorAll(CONTROL)]);
+        if (row.matches(TRACKABLE)) return /** @type {HTMLInputElement[]} */ ([row]);
+        return /** @type {HTMLInputElement[]} */ ([...row.querySelectorAll(TRACKABLE)]).filter((c) => this.counts(c));
     }
 
     /** The name a row goes by in the list: its `data-kp-name`, its label, else what its control is called. @param {HTMLElement} row */
@@ -68,6 +96,9 @@ export class ChangeTracker {
         const s = this.s;
         if (control instanceof HTMLInputElement && control.type === 'password') return s.unsavedSecret;
         if (control.matches('[data-kp-secret]')) return s.unsavedSecret;
+        const own = this.words?.(control, value, this.rowOf(control));
+        if (typeof own === 'string') return own;
+        if (isWidget(control)) value = showWidget(control, value);
         if (control instanceof HTMLInputElement && control.type === 'checkbox') return value === 'on' ? s.unsavedOn : s.unsavedOff;
         if (control instanceof HTMLSelectElement) return [...control.options].find((o) => o.value === value)?.textContent?.trim() ?? value;
         return value === '' ? s.unsavedEmpty : value;

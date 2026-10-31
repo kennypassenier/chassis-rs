@@ -7,6 +7,7 @@ import { DEFAULT_WAIT_ROWS, PASSKEYS_REGISTER_EVENT, PASSKEYS_REMOVE_EVENT, PASS
 import { actionOf } from './dom.js';
 import { passkeyOptions } from './options.js';
 import { draw, drawLoading } from './paint.js';
+import { watchOptions } from '../live-options.js';
 
 /** What a thrown value says: its message, or the fallback words. @param {unknown} error @param {string} fallback */
 const reasonOf = (error, fallback) => (error instanceof Error && error.message ? error.message : fallback);
@@ -46,6 +47,12 @@ export class PasskeysController extends Controller {
     connect() {
         this.listen(this.host, 'click', (event) => this.onClick(event));
         this.listen(this.host, 'keydown', (event) => this.onKeydown(/** @type {KeyboardEvent} */ (event)));
+        // The options added for homelab's tokens are read again when their attribute changes [homelab gap 70].
+        this.own(
+            watchOptions(this.host, ['data-kp-rename', 'data-kp-missing-use'], () => {
+                if ((this.spec.state ?? 'ready') === 'ready' && !this.card) draw(this);
+            }),
+        );
     }
 
     /** Whether removing a row would leave no way in. */

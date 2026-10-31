@@ -16,7 +16,9 @@
 // a shortcut lets it: "Esc closes the change form" [wish-1120, homelab 122]); a step
 // with `Mod` still does. The scope is a name (a page's keys) or an element (keys that only live while that element is on
 // screen, such as a table's j/k/x). Kenny, 2026-10-17: a key that needs AltGr on his AZERTY keyboard (`[`, `]`, `{`, `@`)
-// is warned about at registration, not refused (`layoutGuard`, default `warn`). Two registrations of one key in one
+// is warned about at registration, not refused (`layoutGuard`, default `warn`). A digit step ("Alt 1", "2") is matched by the
+// key's place on the digit row (`event.code`) as well as by `event.key`, so it works on AZERTY, where that row types `&`, `é` …
+// without Shift; Shift must still be as the step says [homelab 69]. Two registrations of one key in one
 // scope are a fault: in development they throw and list both, elsewhere they log and the first one wins. Nothing runs on
 // import; the key listener is added with the first registration and removed with the last.
 //

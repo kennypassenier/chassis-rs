@@ -1,6 +1,6 @@
 // Where the bar stands: in the header, or docked to the screen once the header is out of view; and when it goes compact.
 
-import { COMPACT_BELOW_PX } from './config.js';
+import { COMPACT_BELOW_PX, readPlacement } from './config.js';
 import { arriveShown } from '../motion.js';
 
 /** Docks one bar and folds Discard behind More when there is little room. */
@@ -15,7 +15,8 @@ export class BarDock {
     /** Watch the header's visibility and the room the bar has; the observers go with the controller. */
     connect() {
         const { el, settings, parts } = this.ctl;
-        if (typeof IntersectionObserver !== 'undefined' && settings.placement === 'header+sticky') {
+        // Watched whatever the placement, so a placement changed at runtime to header+sticky docks without a new observer.
+        if (typeof IntersectionObserver !== 'undefined') {
             this.ctl
                 .observe(
                     new IntersectionObserver(
@@ -35,6 +36,16 @@ export class BarDock {
             size.observe(this.roomBox());
             size.observe(parts.bar);
         }
+    }
+
+    /** Take a `data-kp-placement` changed at runtime: stand where it now says [homelab 38]. */
+    place() {
+        const { el, settings } = this.ctl;
+        const next = readPlacement(el);
+        if (next === settings.placement) return;
+        settings.placement = next;
+        this.dock();
+        this.compact();
     }
 
     /** The box whose width is the room the bar has when it is not docked. */

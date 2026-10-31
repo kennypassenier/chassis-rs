@@ -6,7 +6,6 @@ import { attachMenuButtons, setMenu, MENU_SELECT_EVENT } from '../menu-button.js
 import { Controller } from '../controller.js';
 import {
     ANNOUNCE_DELAY_MS,
-    CONTROL,
     SAVED_TOAST_MS,
     UNSAVED_CHANGE_EVENT,
     UNSAVED_DISCARD_EVENT,
@@ -24,6 +23,7 @@ import { ChangeTracker } from './changes.js';
 import { ChangeKeeper } from './keeper.js';
 import { ChangesPanel } from './panel.js';
 import { BarDock } from './dock.js';
+import { WIDGET_EVENTS } from './widgets.js';
 import { LeaveGuard } from './leave.js';
 
 /** @typedef {import('./config.js').UnsavedChange} UnsavedChange */
@@ -71,7 +71,7 @@ export class UnsavedController extends Controller {
         const { el } = this;
         this.id = el.id || `kp-unsaved-${nextBarNumber()}`;
         this.settings = readSettings(el, this.id);
-        this.tracker = new ChangeTracker(el, this.settings.scope, this.s);
+        this.tracker = new ChangeTracker(el, this.settings.scope, this.s, /** @type {import('./config.js').UnsavedConfig} */ (this.options).show);
         this.keeper.connect();
         el.classList.add('kp-unsaved');
         el.dataset.kpUnsavedAttached = '';
@@ -132,9 +132,12 @@ export class UnsavedController extends Controller {
                 }),
             );
             mutation.observe(scope, { attributes: true, attributeFilter: ['data-kp-changed'], subtree: true });
+            this.observe(new MutationObserver(() => this.dock.place())).observe(this.el, { attributes: true, attributeFilter: ['data-kp-placement'] });
         }
         this.listen(scope, 'input', (event) => this.onEdit(event));
         this.listen(scope, 'change', (event) => this.onEdit(event));
+        // A quantity, a time field and a combobox write their inputs silently and say what changed in their own event [homelab 37].
+        for (const name of WIDGET_EVENTS) this.listen(scope, name, (event) => this.onEdit(event));
         this.listen(this.doc, 'keydown', (event) => this.onKey(/** @type {KeyboardEvent} */ (event)));
         this.listen(this.doc, 'pointerdown', (event) => this.onOutside(/** @type {PointerEvent} */ (event)), true);
         this.guard.connect();
@@ -143,9 +146,9 @@ export class UnsavedController extends Controller {
     /** @param {Event} event */
     onEdit(event) {
         if (!this.settings.auto) return;
-        const c = event.target;
-        if (!(c instanceof HTMLElement) || !c.matches(CONTROL) || this.el.contains(c) || c.hasAttribute('data-kp-untracked')) return;
-        this.tracker.track(/** @type {HTMLInputElement} */ (c));
+        const c = this.tracker.controlFor(event.target);
+        if (!c) return;
+        this.tracker.track(c);
         this.paint();
     }
 

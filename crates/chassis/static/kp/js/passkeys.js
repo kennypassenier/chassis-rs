@@ -34,7 +34,19 @@
 //                 `note` (the button gives way to the reason in its place);
 //   markCurrent   `data-kp-mark-current`   on by default, `off` leaves the badge out;
 //   neverUsedAfter `data-kp-never-used-after` days (default 90): a way not used for
-//                 that long is flagged as a candidate to remove (0 = never flag).
+//                 that long is flagged as a candidate to remove (0 = never flag);
+//   rename        `data-kp-rename`  a function (or the event, below) by default;
+//                 `false` / `off` leaves Rename out, for a host that cannot rename,
+//                 and Remove stands alone in the column [homelab gap 70];
+//   missingUse    `data-kp-missing-use`  what a row without `lastUsedAt` says:
+//                 `never` (default, "Never used"), `unknown` ("Last use not
+//                 recorded", for a machine token whose use is not kept; it is then
+//                 never flagged as unused) or `none` (no last-use words)
+//                 [homelab gap 70].
+//
+// A row's `extra` is a free slot beside its badges [homelab gap 39]: a string is
+// drawn as a plain badge (a token's scope, "read:stacks"), a function
+// `(doc, row) => Node` returns what to show.
 //
 // Removing asks `remove(row)`; when it rejects, its message is the server's why
 // and is shown on the row ("Not removed: …") and the row stays; when it resolves,

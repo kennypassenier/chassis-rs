@@ -26,8 +26,10 @@
 //            words it), `data-kp-chart-runs="mark"` marks the points of every
 //            run of six or more on one side of it, and `data-kp-chart-min-points
 //            ="7"` shows "3 of 7 readings needed before a trend means
-//            something" (`data-kp-chart-min-unit` names them) over the faint
-//            points already known, until there are enough
+//            something" (`data-kp-chart-min-unit` names them) over the faint,
+//            empty plot (no line and no dot), until there are enough; with
+//            `onePointNote` a single reading is the one-reading state below
+//            instead (its dot and its words), the sentence starts at two
 //   spark    `data-kp-chart="spark"`: the 24 h line of a tile, drawn by
 //            drawSparkline() (js/kpi.js), on the group's crosshair
 //   trend    the spark variant in a key figure (`.kp-kpi--trend`):
@@ -82,7 +84,8 @@
 // loading` (the plot pulses, the legend row is kept for
 // `data-kp-chart-sources="N"`), no readings (the `chartEmpty` words), an
 // error (`{ error }` in the data), one reading (a dot, and with
-// `onePointNote` the `chartOnePoint` words).
+// `onePointNote` the `chartOnePoint` words, which then win over
+// `minPoints`).
 //
 // `unitKind` prints values the dashboard's way: `bytes` and `bytes/s` in
 // binary steps (`1.5 GiB`, `3.2 MiB/s`), `percent` (`7.5%`, an axis of 10,

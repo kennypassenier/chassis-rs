@@ -56,7 +56,7 @@ import { DEFAULT_STRINGS, getStrings } from '../strings.js';
  * @property {Record<string, { label?: string, tone?: 'critical' | 'warning' | 'info' }>} [kinds] what each event `kind` is called in the key, and its tone
  * @property {boolean | string} [median] a dashed median line per shown source; a string is the words in front of its value (`data-kp-chart-median`, `-median-label`)
  * @property {'off' | 'mark'} [runs] `mark` rings the points of every run of six or more on one side of the median (`data-kp-chart-runs`)
- * @property {number} [minPoints] below this many readings the chart says it is too early for a trend (`data-kp-chart-min-points`)
+ * @property {number} [minPoints] below this many readings the chart says it is too early for a trend (`data-kp-chart-min-points`); a single reading with `onePointNote` is drawn as its dot instead
  * @property {string} [minUnit] what the readings are called in that sentence ("days"; `data-kp-chart-min-unit`)
  * @property {'tint' | 'hatch' | 'bracket'} [band] how a band is drawn: a `tint` across the plot (default), `hatch` diagonal lines (readable without colour) or a `bracket` along the top with short ticks (`data-kp-chart-band`)
  * @property {boolean} [annotationKey] false leaves the key above the plot out (`data-kp-chart-annotation-key="off"`)

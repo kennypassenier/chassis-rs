@@ -4,6 +4,10 @@ import { leave } from '../motion.js';
 import { QUESTION_ANSWER_EVENT, QUESTION_DISMISS_EVENT, QUESTION_EXPIRE_EVENT } from './values.js';
 import { paintTitle, trackOpen, untrackOpen } from './title.js';
 import { QuestionCore } from './core.js';
+import { buildMeasure } from './build.js';
+
+/** The ways the time left may be drawn; anything else in `data-kp-measure` is left alone. */
+const MEASURES = ['bar', 'ring', 'text'];
 
 export class QuestionRun extends QuestionCore {
     /**
@@ -27,6 +31,20 @@ export class QuestionRun extends QuestionCore {
         this.paintTime();
         if (!this.frozen) this.startClock();
         this.own(() => this.stop());
+        // The measure is switchable at runtime (DEMO_RULES ch. 7): a page that sets `data-kp-measure` gets it drawn [homelab 23].
+        this.observe(new MutationObserver(() => this.remeasure())).observe(card, { attributes: true, attributeFilter: ['data-kp-measure'] });
+    }
+
+    /** Draw the measure `data-kp-measure` now names (ring, bar or text), in place of the one standing, part-way in as before. */
+    remeasure() {
+        const card = this.host;
+        const next = /** @type {'bar' | 'ring' | 'text'} */ (card.getAttribute('data-kp-measure') ?? '');
+        if (!MEASURES.includes(next) || next === this.q.countdown) return;
+        this.q.countdown = next;
+        card.querySelector(':scope .kp-question__time > .kp-question__ring, :scope .kp-question__time > .kp-question__bar')?.remove();
+        const measure = buildMeasure(card.ownerDocument, next);
+        if (measure) card.querySelector('.kp-question__time')?.prepend(measure);
+        this.run();
     }
 
     /** @returns {import('../question-card.js').QuestionHandle & { stop: () => void }} */

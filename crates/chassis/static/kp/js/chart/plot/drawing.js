@@ -40,7 +40,10 @@ export class PlotDrawing extends PlotFrame {
         super(...args);
         /** The most readings any source has, and whether that is too few for a trend. */
         this.have = Math.max(0, ...this.chart.points.map((p) => p.length));
-        this.few = this.opt.minPoints > 0 && this.have < this.opt.minPoints;
+        // A page that asks for `onePointNote` asks for the one-reading state: with a single reading it draws the dot and says the line
+        // grows, even below `minPoints`; the too-few sentence starts at the second reading [homelab 62].
+        const lone = this.have === 1 && this.chart.data.onePointNote === true;
+        this.few = this.opt.minPoints > 0 && this.have < this.opt.minPoints && !lone;
         /** The median of each shown source in this drawing. @type {PlotMedian[]} */
         this.medians = [];
     }

@@ -24,7 +24,7 @@ const make = (doc, tag, className, text = '') => {
 };
 
 /** The ring or the bar that shrinks over the whole wait; none for `text`. @param {Document} doc @param {ResolvedQuestion['countdown']} countdown */
-function buildMeasure(doc, countdown) {
+export function buildMeasure(doc, countdown) {
     if (countdown === 'bar') {
         const measure = make(doc, 'span', 'kp-question__bar');
         measure.setAttribute('aria-hidden', 'true');

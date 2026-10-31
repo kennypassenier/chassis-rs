@@ -7,6 +7,17 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed
+
+- **kp-themes 12.1.0 vendored** (`scripts/vendor-kp-themes.sh 12.1.0`, 1215
+  files checked against the release's SHA256SUMS). A minor: every new
+  option is opt-in. The bundle now also exports the names that clashed
+  between modules, under a module prefix (`progressbarSetProgress`,
+  `PALETTE_OPEN_EVENT`, `DATATABLE_REORDER_EVENT`, …), and `js/log.js`
+  (`sourceColour`, `sourceIndex`). The kit's own JavaScript uses none of the
+  renamed names; Status, Clients and Storage measure clear in formal and
+  dark at 1280 and 390.
+
 ### Fixed
 
 - **The 4.0.0 migration said "names unchanged" for the switch to the

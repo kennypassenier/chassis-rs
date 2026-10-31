@@ -1,4 +1,7 @@
 // What a form control holds: reading the live value, the markup's value, and putting a value back.
+// A composite field (a quantity, a time field, a tag input) counts as one control, read and written through js/unsaved/widgets.js.
+
+import { isWidget, readWidget, writeWidget } from './widgets.js';
 
 /** @typedef {HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement} Field */
 
@@ -14,6 +17,7 @@ const radioGroup = (c) => (c.name ? radiosNamed(c) : [c]);
 
 /** What a control holds, as a string; a radio group by its checked value. @param {Field} c */
 export function readValue(c) {
+    if (isWidget(c)) return readWidget(/** @type {HTMLElement} */ (/** @type {unknown} */ (c)));
     if (c instanceof HTMLInputElement && c.type === 'checkbox') return c.checked ? 'on' : 'off';
     if (c instanceof HTMLInputElement && c.type === 'radio') {
         return /** @type {HTMLInputElement | undefined} */ (radioGroup(c).find((r) => /** @type {HTMLInputElement} */ (r).checked))?.value ?? '';
@@ -27,6 +31,8 @@ export function readValue(c) {
  * @param {Field} c
  */
 export function readDefault(c) {
+    // A composite field is built by script, so there is no markup value a browser could have restored over: what it holds when the bar looks is its saved state.
+    if (isWidget(c)) return readWidget(/** @type {HTMLElement} */ (/** @type {unknown} */ (c)));
     if (c instanceof HTMLInputElement && c.type === 'checkbox') return c.defaultChecked ? 'on' : 'off';
     if (c instanceof HTMLInputElement && c.type === 'radio') {
         return (
@@ -39,7 +45,8 @@ export function readDefault(c) {
 
 /** Put a value back into a control. @param {Field} c @param {string} value */
 export function writeValue(c, value) {
-    if (c instanceof HTMLInputElement && c.type === 'checkbox') c.checked = value === 'on';
+    if (isWidget(c)) writeWidget(/** @type {HTMLElement} */ (/** @type {unknown} */ (c)), value);
+    else if (c instanceof HTMLInputElement && c.type === 'checkbox') c.checked = value === 'on';
     else if (c instanceof HTMLInputElement && c.type === 'radio') {
         for (const r of radiosNamed(c)) /** @type {HTMLInputElement} */ (r).checked = /** @type {HTMLInputElement} */ (r).value === value;
     } else c.value = value;

@@ -64,7 +64,9 @@
 // `aria-busy="true"` on the group (the counts show a placeholder while their
 // numbers load, so nothing moves when they arrive).
 //
-// Nothing runs on import; attachSegmented(root) returns a detach.
+// Nothing runs on import; attachSegmented(root) returns a detach. While it is
+// live, groups the page draws later under `root` are wired as they arrive,
+// `data-kp-segmented-for` links included (js/segmented/root.js) [fix-1031].
 //
 // The module is a facade: a group is a `SegmentedGroup` and an attach is a `SegmentedRoot` (closure-pattern B, js/controller.js) in `js/segmented/`, one file per concern.
 

@@ -4,6 +4,8 @@ import { Controller } from '../controller.js';
 import { buildHead, buildWhere } from './head.js';
 import { attachPatterns } from '../patterns.js';
 import { layoutLines } from './lines.js';
+import { placeSecrets, revealButton, showSecrets, takeSecrets } from './secret.js';
+import { getStrings } from '../strings.js';
 import { COMMAND_SHELLS, OTHER_SHELL, SCROLL_EDGE } from './values.js';
 
 /** The ids of command blocks made so far: every block gets its own. */
@@ -36,10 +38,12 @@ export class CommandBlock extends Controller {
         el.dataset.kpCommandShell = key in COMMAND_SHELLS ? key : 'other';
         pre.classList.add('kp-command__code');
         code.id ||= `${id}-code`;
+        const secrets = takeSecrets(code);
         layoutLines(el.ownerDocument, code, shell.continues);
 
         const { head, name } = buildHead(el, { id, key, shell, codeId: code.id });
         this.head = head;
+        if (secrets.length) this.secrets(code, secrets, head);
         this.where = buildWhere(el);
         if (el.dataset.kpCommandWrap === 'scroll') this.scrollable(pre, name.id);
         el.setAttribute('role', 'group');
@@ -48,6 +52,34 @@ export class CommandBlock extends Controller {
         if (this.where) el.append(this.where);
         el.dataset.kpCommandReady = '';
         this.own(attachPatterns(head));
+    }
+
+    /**
+     * The masked secrets [kyu gap 15]: drawn masked, Copy given the real command, and a Show button unless
+     * `data-kp-command-secret-reveal="off"`.
+     * @param {Element} code @param {import('./secret.js').CommandSecret[]} secrets @param {HTMLElement} head
+     */
+    secrets(code, secrets, head) {
+        const el = this.host;
+        const s = getStrings();
+        const look = el.getAttribute('data-kp-command-secret-mask') === 'tail' ? 'tail' : 'dots';
+        const copied = placeSecrets(el.ownerDocument, code, secrets, { look, hidden: s.commandSecretHidden });
+        const copy = /** @type {HTMLElement | null} */ (head.querySelector('.kp-command__copy:not(.kp-command__ghost)'));
+        // Copy takes the real command, never the dots it sees on screen.
+        if (copy) {
+            copy.dataset.kpCopy = '';
+            copy.dataset.kpCopyValue = copied;
+        }
+        el.toggleAttribute('data-kp-command-secret-on', true);
+        this.own(() => el.removeAttribute('data-kp-command-secret-on'));
+        if (el.getAttribute('data-kp-command-secret-reveal') === 'off') return;
+        const reveal = revealButton(el.ownerDocument, { show: s.commandSecretShow, hide: s.commandSecretHide, label: s.commandSecretShowLabel }, code.id);
+        head.querySelector('.kp-command__copy-slot')?.before(reveal);
+        this.listen(reveal, 'click', () => {
+            const shown = reveal.getAttribute('aria-pressed') !== 'true';
+            reveal.setAttribute('aria-pressed', String(shown));
+            showSecrets(code, secrets, shown, look, s.commandSecretHidden);
+        });
     }
 
     /**

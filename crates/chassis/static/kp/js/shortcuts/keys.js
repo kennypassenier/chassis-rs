@@ -62,7 +62,22 @@ export function matches(step, event) {
     // A symbol such as "?" is typed with Shift on most keyboards; a letter must say it.
     if (letter && step.mods.includes('shift') !== event.shiftKey) return false;
     if (!letter && step.mods.includes('shift') && !event.shiftKey) return false;
-    return key.toLowerCase() === step.key.toLowerCase();
+    return key.toLowerCase() === step.key.toLowerCase() || digitRowPresses(step, event);
+}
+
+/** A digit key on the main row, by its physical place: `Digit0` to `Digit9`. */
+const DIGIT_CODE = /^Digit([0-9])$/;
+
+/**
+ * Does this event press a digit step on the digit row, whatever the layout puts on that key [homelab 69]? On a Belgian or
+ * French AZERTY keyboard the row types `&`, `é`, `"` … without Shift (and Alt keeps them), so "Alt 1" never saw a `1` in
+ * `event.key`. A digit step is matched by `event.code` too, with Shift exactly as the step says, so QWERTY's Shift+1 (`!`)
+ * still does not press "1". Every other step is matched by `event.key` alone, as before.
+ * @param {Step} step @param {KeyboardEvent} event
+ */
+function digitRowPresses(step, event) {
+    const digit = DIGIT_CODE.exec(event.code ?? '')?.[1];
+    return digit !== undefined && digit === step.key && step.mods.includes('shift') === event.shiftKey;
 }
 
 /** The keys that are never a shortcut's own: composing, repeating, dead keys and the modifiers alone. @param {KeyboardEvent} event */

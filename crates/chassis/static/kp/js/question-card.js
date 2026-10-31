@@ -24,7 +24,8 @@
 //   urgent-at        seconds (default 30): from here the card is stronger and its time bold, announced once
 //   expired          keep (default; Kenny, 2026-10-17: "Kaart blijft met de uitkomst") | remove: what the card does at zero
 //   measure          ring (default, Kenny 2026-10-17) | bar | text: how the time left is drawn (`countdown` in the JS options; not
-//                    `data-kp-countdown`, which is the digit timer's)
+//                    `data-kp-countdown`, which is the digit timer's); the card writes it as `data-kp-measure`, and a page
+//                    that sets `data-kp-measure` on a running card has it redrawn at once, part-way in [homelab 23]
 //
 // States (`data-kp-state`): waiting; urgent; sending (the buttons busy); answered ("Allowed. The operation goes on.");
 // refused ("Not sent: why. Nothing changed; answer again."); expired (the default answer's outcome, the buttons off).
@@ -33,6 +34,11 @@
 // What it does for the person: each button's consequence is in its aria-describedby; keys 1 to n answer when the card has
 // the focus; the tab title carries "(1) waiting" while a question is open (`data-kp-title="off"` on the container leaves it
 // alone); on a phone the buttons are full width with their consequences under them.
+//
+// Answering in one go [homelab gap 22], opt-in on the container: `data-kp-questions-batch="on"` (or `confirm`, which asks first)
+// puts a bar over the cards, "Answer 3 with their default", once `data-kp-questions-batch-min` (default 2) open questions have a
+// default answer; one press answers each of them with its default, as if the person had pressed that button on every card
+// (js/question-card/batch.js). Absent or "off" (the default): no bar.
 //
 // Events (bubbling, on the card):
 //   kp-question-answer   { id, value, respond(ok, why?) }   the person answered; the app sends and calls respond
@@ -47,6 +53,7 @@
 import { attachOne, controllerOf, hostsOf } from './controller.js';
 import { getStrings } from './strings.js';
 import { buildCard } from './question-card/build.js';
+import { QuestionBatch } from './question-card/batch.js';
 import { QuestionRun } from './question-card/run.js';
 import { resolveQuestion } from './question-card/spec.js';
 import { QUESTIONS } from './question-card/values.js';
@@ -114,8 +121,10 @@ export function attachQuestions(root = document) {
         if (!container.hasAttribute('role')) container.setAttribute('role', 'region');
         if (!container.hasAttribute('aria-label') && !container.hasAttribute('aria-labelledby'))
             container.setAttribute('aria-label', getStrings().questionsLabel);
+        attachOne(container, QuestionBatch);
     }
     return () => {
+        for (const container of found) controllerOf(container, QuestionBatch)?.destroy();
         for (const container of found)
             for (const card of container.querySelectorAll(':scope > .kp-question')) controllerOf(card, QuestionRun)?.stop();
     };

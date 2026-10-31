@@ -17,7 +17,20 @@ export function passkeyOptions(el, spec) {
         refuseLook: /** @type {'button' | 'note'} */ ((spec.refuseLook ?? attr('refuse-look')) === 'note' ? 'note' : 'button'),
         markCurrent: spec.markCurrent ?? attr('mark-current') !== 'off',
         neverUsedAfter: Number.isFinite(days) && days >= 0 ? days : DEFAULT_NEVER_USED_DAYS,
+        // `rename: false` or `data-kp-rename="off"` leaves Rename out: the host cannot rename [homelab gap 70].
+        rename: spec.rename !== false && attr('rename') !== 'off',
+        missingUse: missingUseOf(spec.missingUse ?? attr('missing-use')),
     };
+}
+
+/**
+ * What a row without `lastUsedAt` says [homelab gap 70]: `never` (default, "Never used"), `unknown` ("Last use not recorded", for a
+ * machine token whose use the host does not keep) or `none` (no last-use words at all).
+ * @param {string | null | undefined} value
+ * @returns {MissingUse}
+ */
+function missingUseOf(value) {
+    return value === 'unknown' || value === 'none' ? value : 'never';
 }
 
 /**
@@ -35,14 +48,20 @@ export function sortPasskeys(rows) {
     );
 }
 
+/** @typedef {import('./constants.js').MissingUse} MissingUse */
+
 /**
  * Whole days a way has gone unused (since it was added when never used), or
- * null when it was used within `limit` days or the flag is off.
+ * null when it was used within `limit` days or the flag is off. A row without
+ * `lastUsedAt` counts from when it was added only when a missing use means
+ * never used (`missing` is `never`, the default); an unknown use flags nothing.
  * @param {import('./constants.js').PasskeyRow} row @param {number} now @param {number} limit
+ * @param {MissingUse} [missing]
  * @returns {number | null}
  */
-export function unusedDays(row, now, limit) {
+export function unusedDays(row, now, limit, missing = 'never') {
     if (!(limit > 0)) return null;
+    if (missing !== 'never' && row.lastUsedAt == null) return null;
     const since = row.lastUsedAt ?? row.createdAt;
     if (since == null || !Number.isFinite(since)) return null;
     const days = Math.floor((now - since) / DAY_MS);

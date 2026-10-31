@@ -17,7 +17,10 @@ import { DetailState } from './detail-state.js';
 import { Folding } from './folding.js';
 import { columns, DetailParts, paneOf } from './parts.js';
 
-/** The controller of one `[data-kp-master-detail]` layout that has a list pane, a detail pane and a window. */
+/**
+ * The controller of one `[data-kp-master-detail]` layout that has a detail pane and a window, and a list pane, or, without one, an
+ * aside: the detail + aside variant [homelab gap 73], where the detail always shows and only the aside folds.
+ */
 export class MasterDetailController extends Controller {
     /**
      * @param {HTMLElement} host
@@ -27,11 +30,12 @@ export class MasterDetailController extends Controller {
         super(host, options);
         this.doc = host.ownerDocument;
         this.view = /** @type {Window} */ (this.doc.defaultView);
-        this.list = /** @type {HTMLElement} */ (paneOf(host, 'list'));
+        /** The list pane, or null in the detail + aside variant. */
+        this.list = paneOf(host, 'list');
         this.detail = /** @type {HTMLElement} */ (paneOf(host, 'detail'));
         this.aside = paneOf(host, 'aside');
         this.useHistory = options.history ?? host.getAttribute('data-kp-pane-history') !== 'off';
-        this.folding = new Folding(host);
+        this.folding = new Folding(host, this.list === null);
         this.parts = new DetailParts(this.detail);
         this.detailState = new DetailState(host, this.detail, this.parts);
         /** The key of the selected item. @type {string | null} */
@@ -55,6 +59,7 @@ export class MasterDetailController extends Controller {
 
     connect() {
         const root = this.host;
+        root.toggleAttribute('data-kp-pane-listless', this.list === null);
         this.setColumns();
         this.readItems();
         this.folding.measure();
@@ -68,22 +73,25 @@ export class MasterDetailController extends Controller {
         this.own(() => this.detailState.release());
         this.paint();
         this.sync();
-        // Nothing selected: the detail says what to do rather than stand blank.
-        if (!this.selected && !root.hasAttribute('data-kp-state')) this.detailState.setState('empty');
+        // Nothing selected: the detail says what to do rather than stand blank. Without a list there is nothing to select: the detail is ready.
+        if (!this.selected && !root.hasAttribute('data-kp-state') && this.list) this.detailState.setState('empty');
         else if (root.hasAttribute('data-kp-state')) this.detailState.setState(/** @type {import('./constants.js').PaneState} */ (root.getAttribute('data-kp-state')));
     }
 
     /** The columns, from `data-kp-pane-widths` or the defaults. */
     setColumns() {
         const root = this.host;
-        const widths = root.getAttribute('data-kp-pane-widths') ?? (this.aside ? `${PANE_WIDTHS} ${PANE_ASIDE_WIDTH}` : PANE_WIDTHS);
+        const fallback = this.list ? (this.aside ? `${PANE_WIDTHS} ${PANE_ASIDE_WIDTH}` : PANE_WIDTHS) : this.aside ? `1fr ${PANE_ASIDE_WIDTH}` : '1fr';
+        const widths = root.getAttribute('data-kp-pane-widths') ?? fallback;
         root.style.setProperty('--kp-pane-columns', columns(widths));
+        if (!this.list) return;
         const [listWidth = DEFAULT_LIST_WIDTH] = widths.trim().split(/\s+/);
         root.style.setProperty('--kp-pane-list', listWidth);
     }
 
     /** The list as a listbox: roles on the list and its items, and the item the markup already selected. */
     readItems() {
+        if (!this.list) return;
         const listbox = /** @type {HTMLElement} */ (this.list.querySelector('[role="listbox"]') ?? this.list);
         if (!listbox.hasAttribute('role')) listbox.setAttribute('role', 'listbox');
         for (const item of this.items()) {
@@ -98,12 +106,13 @@ export class MasterDetailController extends Controller {
         root.removeAttribute('data-kp-pane-shown');
         root.removeAttribute('data-kp-narrow-on');
         root.removeAttribute('data-kp-aside-folded');
+        root.removeAttribute('data-kp-pane-listless');
         root.style.removeProperty('--kp-pane-columns');
         root.style.removeProperty('--kp-pane-list');
     }
 
     items() {
-        return /** @type {HTMLElement[]} */ ([...this.list.querySelectorAll(ITEM)]);
+        return /** @type {HTMLElement[]} */ (this.list ? [...this.list.querySelectorAll(ITEM)] : []);
     }
 
     /** @param {string | null} key */
@@ -129,7 +138,7 @@ export class MasterDetailController extends Controller {
         const { narrow, asideNarrow, shown } = this.folding;
         root.toggleAttribute('data-kp-narrow-on', narrow);
         root.toggleAttribute('data-kp-aside-folded', Boolean(this.aside) && asideNarrow && !narrow);
-        if (narrow && this.folding.mode() !== 'stack') root.setAttribute('data-kp-pane-shown', shown);
+        if (this.folding.oneAtATime()) root.setAttribute('data-kp-pane-shown', shown);
         else root.removeAttribute('data-kp-pane-shown');
         this.detailState.reseatBusy();
     }
@@ -162,7 +171,7 @@ export class MasterDetailController extends Controller {
     /** The detail replaces the list: arrive, push a history entry, focus the heading. @param {string} key @param {HTMLElement} item */
     showDetail(key, item) {
         this.opener = item;
-        this.listScroll = this.list.scrollTop;
+        this.listScroll = this.list?.scrollTop ?? 0;
         this.folding.shown = 'detail';
         this.sync();
         arriveShown(this.detail);
@@ -186,8 +195,10 @@ export class MasterDetailController extends Controller {
         if (!(this.folding.oneAtATime() && this.folding.shown === 'detail')) return;
         this.folding.shown = 'list';
         this.sync();
-        arriveShown(this.list);
-        this.list.scrollTop = this.listScroll;
+        if (this.list) {
+            arriveShown(this.list);
+            this.list.scrollTop = this.listScroll;
+        }
         if (this.pushed && !fromHistory) {
             this.pushed = false;
             try {
@@ -216,7 +227,7 @@ export class MasterDetailController extends Controller {
             return;
         }
         const item = target.closest(ITEM);
-        if (item instanceof HTMLElement && this.list.contains(item)) this.open(item.getAttribute('data-kp-pane-key') ?? '');
+        if (item instanceof HTMLElement && this.list?.contains(item)) this.open(item.getAttribute('data-kp-pane-key') ?? '');
     }
 
     /** The arrow keys, Home and End move the selection; Enter and Space open; Esc closes the aside or the folded detail. @param {KeyboardEvent} event */
@@ -224,7 +235,7 @@ export class MasterDetailController extends Controller {
         const target = event.target instanceof Element ? event.target : null;
         if (!target) return;
         const item = target.closest(ITEM);
-        if (item instanceof HTMLElement && this.list.contains(item)) {
+        if (item instanceof HTMLElement && this.list?.contains(item)) {
             this.onItemKey(event, item);
             return;
         }

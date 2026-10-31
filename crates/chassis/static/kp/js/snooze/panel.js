@@ -33,7 +33,7 @@ export class SnoozePanel extends Controller {
         this.morning = el.dataset.kpSnoozeMorning;
         this.evening = el.dataset.kpSnoozeEvening;
         this.max = el.dataset.kpSnoozeMax ?? MAX_DEFAULT;
-        this.chips = el.dataset.kpLook !== 'menu';
+        this.chips = el.getAttribute('data-kp-look') !== 'menu';
         this.fixed = Date.parse(el.dataset.kpNow ?? '');
         this.nowGiven = options.now;
         const fixed = this.fixed;
@@ -49,6 +49,22 @@ export class SnoozePanel extends Controller {
         this.lower = null;
         this.bar = buildBar(this.doc, this.s, this.id, this.chips);
         this.p = buildPanel(this.doc, this.s, this.id);
+    }
+
+    /**
+     * Take a `data-kp-look` changed at runtime: rebuild the bar as chips or a menu button and put it where the old one stood
+     * [homelab 23]. The status line is rebuilt with it (same id); the panel stays.
+     * @returns {boolean} whether the look changed
+     */
+    takeLook() {
+        const chips = this.host.getAttribute('data-kp-look') !== 'menu';
+        if (chips === this.chips) return false;
+        const old = this.bar;
+        this.chips = chips;
+        this.bar = buildBar(this.doc, this.s, this.id, chips);
+        old.bar.replaceWith(this.bar.bar);
+        old.status.replaceWith(this.bar.status);
+        return true;
     }
 
     /** The element the panel stands under: the menu button, or the picker. */

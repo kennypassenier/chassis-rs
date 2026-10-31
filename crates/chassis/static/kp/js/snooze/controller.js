@@ -16,6 +16,8 @@ export class SnoozePicker extends SnoozePanel {
     /** @param {HTMLElement} el @param {{ now?: () => number }} [options] */
     constructor(el, options = {}) {
         super(el, options);
+        /** Takes the menu button of the bar now standing apart; a no-op for chips. @type {() => void} */
+        this.barOff = () => undefined;
         /** @type {SnoozeHandle} */
         this.handle = {
             element: el,
@@ -30,7 +32,7 @@ export class SnoozePicker extends SnoozePanel {
 
     connect() {
         const el = this.host;
-        const { bar, status, end, wrapper, row } = this.bar;
+        const { bar, status } = this.bar;
         const p = this.p;
         el.classList.add('kp-snooze');
         el.dataset.kpSnoozeAttached = '';
@@ -43,20 +45,15 @@ export class SnoozePicker extends SnoozePanel {
             delete el.dataset.kpSnoozedState;
         });
         this.own(attachDatePickers(p.panel));
-        this.own(wrapper ? attachMenuButtons(el) : () => undefined);
+        this.own(() => this.barOff());
         this.own(() => this.lower?.());
-        if (wrapper) {
-            this.listen(wrapper, MENU_SELECT_EVENT, (event) => this.pick(String(/** @type {CustomEvent} */ (event).detail?.value ?? '')));
-            // The moments are worked out as the menu is asked for, not when the page was drawn.
-            this.listen(wrapper, 'pointerdown', () => this.fill(), true);
-            this.listen(wrapper, 'keydown', () => this.fill(), true);
-        }
-        if (row) this.listen(row, 'click', (event) => this.onChip(event));
-        this.listen(end, 'click', () => this.onEnd());
+        this.wireBar();
         this.listen(p.cancel, 'click', () => void this.closePanel());
         this.listen(p.apply, 'click', () => this.onApply());
         this.listen(p.panel, 'keydown', (event) => this.onKey(/** @type {KeyboardEvent} */ (event)));
         this.listen(this.doc, 'pointerdown', (event) => this.onOutside(event), true);
+        // The look is switchable at runtime (DEMO_RULES ch. 7): the bar is rebuilt in place [homelab 23].
+        this.observe(new MutationObserver(() => this.relook())).observe(el, { attributes: true, attributeFilter: ['data-kp-look'] });
         this.setUntil(el.dataset.kpSnoozedUntil ?? null);
         this.paintStatus();
         this.fill();
@@ -65,6 +62,31 @@ export class SnoozePicker extends SnoozePanel {
             const tick = window.setInterval(() => (this.paintStatus(), this.fill()), TICK_MS);
             this.own(() => clearInterval(tick));
         }
+    }
+
+    /** The listeners of the bar now standing: the menu button (its own teardown, kept for a change of look), the chips, End snooze. */
+    wireBar() {
+        const { end, wrapper, row } = this.bar;
+        this.barOff = wrapper ? attachMenuButtons(this.bar.bar) : () => undefined;
+        if (wrapper) {
+            this.listen(wrapper, MENU_SELECT_EVENT, (event) => this.pick(String(/** @type {CustomEvent} */ (event).detail?.value ?? '')));
+            // The moments are worked out as the menu is asked for, not when the page was drawn.
+            this.listen(wrapper, 'pointerdown', () => this.fill(), true);
+            this.listen(wrapper, 'keydown', () => this.fill(), true);
+        }
+        if (row) this.listen(row, 'click', (event) => this.onChip(event));
+        this.listen(end, 'click', () => this.onEnd());
+    }
+
+    /** `data-kp-look` changed: close the panel (it stands under the old trigger), rebuild the bar and paint it. */
+    relook() {
+        if (!this.p.panel.hidden) void this.closePanel(false);
+        const off = this.barOff;
+        if (!this.takeLook()) return;
+        off();
+        this.wireBar();
+        this.paintStatus();
+        this.fill();
     }
 
     /** The last moment picked, kept across visits when the picker asks to be remembered. */

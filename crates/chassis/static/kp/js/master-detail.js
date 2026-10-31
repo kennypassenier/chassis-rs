@@ -17,7 +17,10 @@
 //       <aside class="kp-split__pane" data-kp-pane="aside" aria-label="History">…</aside>
 //   </div>
 //
-// Panes: `list` and `detail` are required; `aside` is optional. Options, each
+// Panes: `detail` is required, with `list`, `aside` or both. Without a list pane it is the detail + aside variant
+// [homelab gap 73]: one item's detail with its aside (a stack's secrets and their drawer), columns "1fr 24rem" by default,
+// the detail always shown (no Back, no empty "Pick an item" plate at first: it starts ready), and only the aside folding under
+// it (`data-kp-aside-fold-at`, and below `data-kp-fold-at` one column); the script writes `data-kp-pane-listless`. Options, each
 // an attribute and a JS option of attachMasterDetails(root, options):
 //
 //   data-kp-pane-widths      "17rem 1fr" (+ " 24rem" with an aside): the columns

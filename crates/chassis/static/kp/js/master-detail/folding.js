@@ -4,9 +4,10 @@ import { PANE_ASIDE_FOLD_AT, PANE_FOLD_AT } from './constants.js';
 
 /** The fold state of one layout. */
 export class Folding {
-    /** @param {HTMLElement} root */
-    constructor(root) {
+    /** @param {HTMLElement} root @param {boolean} [listless] the detail + aside variant: the detail never gives way to a list */
+    constructor(root, listless = false) {
         this.root = root;
+        this.listless = listless;
         this.foldAt = root.getAttribute('data-kp-fold-at') ?? PANE_FOLD_AT;
         this.asideFoldAt = root.getAttribute('data-kp-aside-fold-at') ?? PANE_ASIDE_FOLD_AT;
         // The panes fold by the layout's own width, not the window's: a master-detail in a drawer, or a phone-width frame on a wide
@@ -56,6 +57,6 @@ export class Folding {
 
     /** Whether the detail replaces the list now (folded, and not stacked). */
     oneAtATime() {
-        return this.narrow && this.mode() !== 'stack';
+        return this.narrow && !this.listless && this.mode() !== 'stack';
     }
 }

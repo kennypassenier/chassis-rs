@@ -32,8 +32,9 @@ function markButton(doc, t, key, read) {
 /**
  * One notice: its mark, what happened since when, what it affects and what to do, and its actions.
  * @param {Document} doc @param {Strings} t @param {Notice} n @param {boolean} read
+ * @param {boolean} [readOnly] the preview: no Mark read, the fix alone in the actions
  */
-export function noticeRow(doc, t, n, read) {
+export function noticeRow(doc, t, n, read, readOnly = false) {
     const li = make(doc, 'li', 'kp-notices__item');
     li.setAttribute('data-kp-key', n.key);
     li.setAttribute('data-kp-severity', n.severity);
@@ -51,7 +52,7 @@ export function noticeRow(doc, t, n, read) {
     if (n.consequence) text.append(make(doc, 'span', 'kp-notices__consequence', n.consequence));
     if (n.remedy) text.append(make(doc, 'span', 'kp-notices__remedy', n.remedy));
     const actions = make(doc, 'div', 'kp-notices__actions');
-    actions.append(markButton(doc, t, n.key, read));
+    if (!readOnly) actions.append(markButton(doc, t, n.key, read));
     if (n.fix) {
         const fix = /** @type {HTMLButtonElement} */ (make(doc, 'button', 'kp-button kp-button--sm kp-notices__fix', n.fix.label));
         fix.type = 'button';

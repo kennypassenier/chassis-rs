@@ -50,8 +50,8 @@ function timeOf(doc, at, text) {
     return node;
 }
 
-/** The facts line: the kind, when it was added and when it was last used. @param {Document} doc @param {import('./constants.js').PasskeyRow} row @param {import('./constants.js').PasskeyKind} kind @param {number} now */
-function metaLine(doc, row, kind, now) {
+/** The facts line: the kind, when it was added and when it was last used. @param {Document} doc @param {import('./constants.js').PasskeyRow} row @param {import('./constants.js').PasskeyKind} kind @param {number} now @param {import('./constants.js').MissingUse} missing */
+function metaLine(doc, row, kind, now, missing) {
     const strings = getStrings();
     const meta = make(doc, 'kp-passkeys__meta', 'p');
     const kindWord = make(doc, 'kp-passkeys__kind');
@@ -62,9 +62,9 @@ function metaLine(doc, row, kind, now) {
     }
     if (row.lastUsedAt != null && Number.isFinite(row.lastUsedAt)) {
         meta.append(timeOf(doc, row.lastUsedAt, agoText(strings.passkeysLastUsedVerb, row.lastUsedAt, now)));
-    } else {
+    } else if (missing !== 'none') {
         const used = make(doc, 'kp-passkeys__when', 'time');
-        used.textContent = strings.passkeysNeverUsed;
+        used.textContent = missing === 'unknown' ? strings.passkeysUseUnknown : strings.passkeysNeverUsed;
         meta.append(used);
     }
     return meta;
@@ -80,14 +80,29 @@ function flagsOf(doc, row, { options, now }) {
         badge.title = strings.passkeysCurrentTitle;
         flags.append(badge);
     }
-    const days = row.current ? null : unusedDays(row, now, options.neverUsedAfter);
+    const days = row.current ? null : unusedDays(row, now, options.neverUsedAfter, options.missingUse);
     if (days !== null) {
         const badge = make(doc, 'kp-badge kp-badge--warning kp-passkeys__unused');
         badge.textContent = strings.passkeysUnused(days);
         badge.title = strings.passkeysUnusedTitle;
         flags.append(badge);
     }
+    const extra = extraOf(doc, row);
+    if (extra) flags.append(extra);
     return flags;
+}
+
+/** The app's own slot [homelab gap 39]: a string as a plain badge, or the node a function makes. @param {Document} doc @param {import('./constants.js').PasskeyRow} row */
+function extraOf(doc, row) {
+    if (row.extra === undefined || row.extra === '') return null;
+    const slot = make(doc, 'kp-passkeys__extra');
+    if (typeof row.extra === 'function') slot.append(row.extra(doc, row));
+    else {
+        const badge = make(doc, 'kp-badge');
+        badge.textContent = row.extra;
+        slot.append(badge);
+    }
+    return slot;
 }
 
 /** The line under the facts: the reason a button is off, or what the server said. @param {Document} doc @param {string} id @param {string | undefined} refused @param {RowContext} context */
@@ -154,13 +169,15 @@ function actionsOf(doc, row, id, renaming, busy, { options, last }) {
     }
     const refuseLast = last && options.protectLast === 'refuse';
     const { rename, del } = restingButtons(doc, row, id, busy, refuseLast);
+    // Without renaming, Remove is the only button and the column is as wide as it [homelab gap 70].
+    const lead = options.rename ? [rename] : [];
     if (refuseLast && options.refuseLook === 'note') {
         // The button gives way to the reason, in its place.
         const only = make(doc, 'kp-passkeys__only');
         only.textContent = strings.passkeysOnlyWay;
         only.title = strings.passkeysLastWay;
-        actions.append(rename, only);
-    } else actions.append(rename, del);
+        actions.append(...lead, only);
+    } else actions.append(...lead, del);
     return actions;
 }
 
@@ -185,7 +202,7 @@ export function rowItem(doc, c, row, context) {
     const way = make(doc, 'kp-passkeys__way');
     way.append(glyph(doc, /** @type {import('./constants.js').PasskeyKind} */ (kind)));
     const what = make(doc, 'kp-passkeys__what');
-    what.append(nameBlock(doc, row, id, renaming, busy, refused), metaLine(doc, row, /** @type {import('./constants.js').PasskeyKind} */ (kind), context.now));
+    what.append(nameBlock(doc, row, id, renaming, busy, refused), metaLine(doc, row, /** @type {import('./constants.js').PasskeyKind} */ (kind), context.now, context.options.missingUse));
     const flags = flagsOf(doc, row, context);
     what.append(hintOf(doc, id, refused, context));
     li.append(way, what, flags, actionsOf(doc, row, id, renaming, busy, context));

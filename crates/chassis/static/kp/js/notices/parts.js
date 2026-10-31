@@ -66,13 +66,15 @@ export function buildParts(doc, id, listLabel) {
 /** @typedef {ReturnType<typeof buildParts>} NoticeParts */
 
 /**
- * Put the parts in the host: the page look as a section, the other looks as a counter that opens an anchored panel.
- * @param {HTMLElement} el @param {NoticeParts} p @param {boolean} isPage
+ * Put the parts in the host: the page look as a section, the preview as the same section without its head and switches but with
+ * the Inbox link, the other looks as a counter that opens an anchored panel.
+ * @param {HTMLElement} el @param {NoticeParts} p @param {boolean} isPage @param {boolean} [isPreview]
  */
-export function mountParts(el, p, isPage) {
+export function mountParts(el, p, isPage, isPreview = false) {
     if (isPage) {
         const wrap = make(el.ownerDocument, 'section', 'kp-notices__page');
-        wrap.append(p.head, p.body, p.sourcesBox);
+        if (isPreview) wrap.append(p.body, p.foot);
+        else wrap.append(p.head, p.body, p.sourcesBox);
         el.replaceChildren(wrap, p.voice);
         return;
     }

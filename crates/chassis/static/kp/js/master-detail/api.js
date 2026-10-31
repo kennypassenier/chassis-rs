@@ -40,11 +40,11 @@ export function closePane(root) {
     masterDetail(root)?.close();
 }
 
-/** Whether a layout has what it needs: a list pane, a detail pane and a window. @param {HTMLElement} el */
-const wireable = (el) => Boolean(paneOf(el, 'list') && paneOf(el, 'detail') && el.ownerDocument.defaultView);
+/** Whether a layout has what it needs: a detail pane, a list pane or an aside (the detail + aside variant), and a window. @param {HTMLElement} el */
+const wireable = (el) => Boolean((paneOf(el, 'list') || paneOf(el, 'aside')) && paneOf(el, 'detail') && el.ownerDocument.defaultView);
 
 /**
- * Wire every master-detail layout under `root`; one without a list pane and a detail pane is left alone.
+ * Wire every master-detail layout under `root`; one without a detail pane, or with neither a list pane nor an aside, is left alone.
  * @param {ParentNode} [root]
  * @param {{ history?: boolean }} [options] `history: false` leaves the browser's history alone
  * @returns {() => void} detach

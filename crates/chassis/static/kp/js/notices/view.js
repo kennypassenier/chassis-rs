@@ -48,6 +48,14 @@ export class NoticesView extends Controller {
     isPage() {
         return this.look() === 'page';
     }
+    /** The embedded read-only preview [homelab gap 26]: in the page like `page`, without the heading, Mark all read, Mark read and the switches. */
+    isPreview() {
+        return this.look() === 'preview';
+    }
+    /** Whether the list stands in the page (no counter, no panel). */
+    inPage() {
+        return this.isPage() || this.isPreview();
+    }
     items() {
         return this.model.items ?? [];
     }
@@ -139,14 +147,16 @@ export class NoticesView extends Controller {
         p.readAll.disabled = this.unread().length === 0 || st !== 'ready';
         p.inbox.textContent = t.noticesAllInInbox(this.items().length);
         p.inbox.href = this.host.getAttribute('data-kp-inbox-href') ?? '#';
-        p.foot.hidden = this.look() !== 'both';
+        // The preview links to the full Inbox only when the page says where it is.
+        p.foot.hidden = !(this.look() === 'both' || (this.isPreview() && this.host.hasAttribute('data-kp-inbox-href')));
     }
 
     /** The rows when ready, else the empty or error plate in their place. @param {ReturnType<typeof getStrings>} t @param {string} st */
     renderList(t, st) {
         const { list, state } = this.p;
         const visible = this.isPage() ? this.ordered() : panelSlice(this.ordered(), this.host.getAttribute('data-kp-panel-max'));
-        list.replaceChildren(...(st === 'ready' ? visible.map((n) => noticeRow(this.doc, t, n, this.isRead(n))) : []));
+        const readOnly = this.isPreview();
+        list.replaceChildren(...(st === 'ready' ? visible.map((n) => noticeRow(this.doc, t, n, this.isRead(n), readOnly)) : []));
         list.hidden = st !== 'ready';
         state.hidden = st === 'ready' || st === 'loading';
         if (st === 'empty') state.replaceChildren(statePlate(this.doc, { kind: 'empty', title: t.noticesEmpty, text: t.noticesEmptyText }));
@@ -207,9 +217,9 @@ export class NoticesView extends Controller {
         if (target instanceof HTMLElement) target.focus({ preventScroll: true });
     }
 
-    /** "(5) " in front of the tab title while there are unread notices, unless `data-kp-count-in-title="off"`. */
+    /** "(5) " in front of the tab title while there are unread notices, unless `data-kp-count-in-title="off"`; a preview leaves it alone. */
     paintTitle() {
-        if (this.host.getAttribute('data-kp-count-in-title') === 'off') return;
+        if (this.host.getAttribute('data-kp-count-in-title') === 'off' || this.isPreview()) return;
         const n = this.model.state === 'ready' ? this.countNow() : 0;
         if (!this.titled && n > 0) this.baseTitle = this.doc.title;
         if (n > 0) this.doc.title = `(${n}) ${this.baseTitle}`;
@@ -224,7 +234,8 @@ export class NoticesView extends Controller {
         const t = getStrings();
         this.p.voice.setAttribute('role', worst.severity === 'critical' ? 'alert' : 'status');
         this.p.voice.textContent = fresh.length > 1 ? t.noticesNewMany(fresh.length, worst.title) : t.noticesNew(worst.title);
-        const mode = this.host.getAttribute('data-kp-toast-new') ?? 'severe';
+        // A preview stands beside the page's own counter, which already toasts: it toasts only when its attribute asks.
+        const mode = this.host.getAttribute('data-kp-toast-new') ?? (this.isPreview() ? 'none' : 'severe');
         const toasted = mode === 'all' ? fresh : mode === 'severe' ? fresh.filter((n) => n.severity === 'critical') : [];
         for (const n of toasted) toast(n.title, { live: n.severity === 'critical' ? 'assertive' : 'polite', close: true, ms: TOAST_MS });
     }

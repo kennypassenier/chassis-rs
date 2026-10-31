@@ -70,7 +70,10 @@ export function paint(c) {
     const doc = c.el.ownerDocument;
     const byDay = new Map(c.cols.map((col) => [col.iso, /** @type {WeekItem[]} */ ([])]));
     const live = new Set();
+    // `data-kp-week-off="hide"` leaves the items that are off out of the week [homelab gap 43]; `show`, the default, draws them muted.
+    const hideOff = c.el.getAttribute('data-kp-week-off') === 'hide';
     for (const event of c.events) {
+        if (hideOff && event.state === 'off') continue;
         const ms = toMs(event.start);
         if (!Number.isFinite(ms)) continue;
         const day = dayKey(ms, c.zone);

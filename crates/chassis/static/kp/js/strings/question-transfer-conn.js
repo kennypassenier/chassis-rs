@@ -15,6 +15,11 @@
  * @property {(why: string) => string} questionRefused  The note when the app could not send the answer, "Not sent: why. Nothing changed; answer again." [kpadopt5-question-card]
  * @property {string} questionDismiss  The button that takes a finished card away [kpadopt5-question-card]
  * @property {(count: number) => string} questionWaiting  The tab title's prefix while questions wait, "(1) waiting" [kpadopt5-question-card]
+ * @property {(count: number) => string} questionBatch  The batch bar's button, "Answer 3 with their default" (js/question-card/batch.js) [homelab gap 22]
+ * @property {(count: number) => string} questionBatchNote  The batch bar's line, "3 questions wait and each has a default answer." [homelab gap 22]
+ * @property {(count: number) => string} questionBatchConfirm  The line while the bar asks to confirm, "Answer 3 questions with their default now?" [homelab gap 22]
+ * @property {string} questionBatchYes  The button that confirms the batch [homelab gap 22]
+ * @property {string} questionBatchCancel  The button that leaves the batch unanswered [homelab gap 22]
  * @property {string} transferBar  The accessible name of a transfer's bar when it has no file name (js/transfer.js) [kpadopt5-transfer]
  * @property {(done: string, total: string) => string} transferOf  The reading of a transfer with a known size, "1.2 GB of 4.1 GB" [kpadopt5-transfer]
  * @property {(done: string) => string} transferSoFar  The reading of a transfer of unknown size, "1.2 GB so far" [kpadopt5-transfer]
@@ -111,6 +116,11 @@ export const QUESTION_TRANSFER_CONN_STRINGS = {
     questionRefused: (why) => `Not sent: ${why}. Nothing changed; answer again.`,
     questionDismiss: 'Dismiss',
     questionWaiting: (count) => `(${count}) waiting`,
+    questionBatch: (count) => `Answer ${count} with their default`,
+    questionBatchNote: (count) => `${count} ${count === 1 ? 'question waits and has' : 'questions wait and each has'} a default answer.`,
+    questionBatchConfirm: (count) => `Answer ${count} ${count === 1 ? 'question' : 'questions'} with their default now?`,
+    questionBatchYes: 'Answer all',
+    questionBatchCancel: 'Cancel',
     // kpadopt5-ops:question-card:end
     // kpadopt5-ops:transfer:start
     // A transfer with its speed and the time left (js/transfer.js) [kpadopt5-ops].

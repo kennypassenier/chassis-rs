@@ -12,6 +12,10 @@
 //   both    the default: the counter opens a panel with the newest notices and a link "All 37 in the Inbox"
 //   panel   the same panel without that link
 //   page    no counter and no panel: the list stands in the page, with the per-source switches (the Inbox page)
+//   preview an embedded read-only preview [homelab gap 26]: the list in the page like `page`, the newest per severity
+//           (`data-kp-panel-max`), without the Inbox heading, Mark all read, Mark read and the switches; a row keeps its Fix; the
+//           link "All 37 in the Inbox" under it when `data-kp-inbox-href` is given; it leaves the tab title alone and toasts
+//           nothing unless `data-kp-toast-new` asks (the page's own counter does both)
 //
 // Options, each an attribute and a JS option of attachNotices(root, options):
 //

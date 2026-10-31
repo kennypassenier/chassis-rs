@@ -21,7 +21,10 @@
 //   series   1 to 5: the pill's colour, from `--chart-1` to `--chart-5`; the
 //            colour never carries the meaning alone, the label does
 //   state    `next` (a ring), `off` and `skipped` (muted, struck through),
-//            `reference` (dashed, not a button: the host's own round)
+//            `reference` (dashed, not a button: the host's own round);
+//            `data-kp-week-off="hide"` leaves the `off` items out of the week
+//            (default `show`: drawn muted and struck through), read again when
+//            it changes [homelab gap 43]
 //   crowd    a column holds as many pills as its height fits at one pill's
 //            height; what does not fit is folded into a `+N` menu button at
 //            the end of the stack, and its menu lists them. The page never

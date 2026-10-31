@@ -4,6 +4,21 @@ import { buildTypeConfirm } from './type-confirm.js';
 
 /** Ids for the dialog's title and description, unique per page. */
 let dialogSeq = 0;
+
+/** The fields a rich description may hold that take the first focus [fix-1031]: a quantity's number, an input, a choice. */
+const DESCRIPTION_FIELD = 'input:not([type="hidden"]):not(:disabled), select:not(:disabled), textarea:not(:disabled), [contenteditable="true"]';
+
+/**
+ * The first field a rich description holds that a person can reach, or null.
+ * @param {Element} description
+ * @returns {HTMLElement | null}
+ */
+function firstDescriptionField(description) {
+    for (const field of description.querySelectorAll(DESCRIPTION_FIELD)) {
+        if (field instanceof HTMLElement && field.getClientRects().length > 0 && !field.closest('[inert]')) return field;
+    }
+    return null;
+}
 /**
  * Open the modal confirmation for `button`, and call `onAccept` if it is
  * taken [TH107, T14, AR28].
@@ -41,6 +56,8 @@ let dialogSeq = 0;
  * Rich content [mc-1030]: `description` may be a node or a list of nodes (several paragraphs, a list) in place of the dictionary's sentence,
  * and `acceptLook: 'primary'` draws Confirm as a primary button when what it does is not destructive (take a dose anyway, add stock).
  * `className: 'kp-dialog--wide'` gives it a wider step; the default is the narrow question width.
+ * When that description holds a field (a quantity's number, an input, a select), the first one that can be reached takes the first focus,
+ * whatever `initialFocus` says, as the typed name's field does [fix-1031]; a description without one keeps the rules above.
  * A dialog whose body holds a quantity [mc-r2]: `acceptFollows` (the quantity's id, or the quantity itself) makes Confirm say what will happen with the
  * amount chosen ("Add 3 boxes") and go off, with its reason, while the amount makes no sense; `acceptVerb` is the verb ("Add"). The two are written as
  * `data-kp-accept-follows` / `data-kp-accept-verb` on Confirm, and the page wires them with `attachAcceptFollows(dialog)` (js/accept-follows.js) next
@@ -150,7 +167,7 @@ export function openConfirmation(
 
     // The typed name, opt-in: `typeName` or the button's `data-kp-confirm-type`.
     const name = typeName ?? button.getAttribute('data-kp-confirm-type') ?? '';
-    /** @type {HTMLInputElement | null} */
+    /** @type {HTMLElement | null} */
     let field = null;
     if (name.trim() !== '' && stop === null) {
         dialog.classList.add('kp-confirm--typed');
@@ -206,6 +223,8 @@ export function openConfirmation(
     // The destructive answer must not be the one a stray Enter takes.
     // A consumer whose confirmation is not destructive says so [KT6].
     // A typed confirmation starts in its field: typing is the question; a notice on its one button.
+    // A rich description that holds a field (a quantity, an input) starts in that field: choosing it is the question [fix-1031].
+    field ??= stop === null && rich ? firstDescriptionField(description) : null;
     (field ?? (initialFocus === 'accept' && stop === null ? accept : cancel)).focus();
     return dialog;
 }

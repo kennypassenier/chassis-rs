@@ -31,7 +31,7 @@ export class NoticesCentre extends NoticesView {
         const el = this.host;
         el.classList.add('kp-notices');
         this.p = buildParts(this.doc, `kp-notices-${(idSeq += 1)}`, getStrings().noticesList);
-        mountParts(el, this.p, this.isPage());
+        mountParts(el, this.p, this.inPage(), this.isPreview());
         // Registered first, so it runs last: the busy card goes and the tab title is put back once the listeners are gone.
         this.own(() => {
             this.busy?.remove();

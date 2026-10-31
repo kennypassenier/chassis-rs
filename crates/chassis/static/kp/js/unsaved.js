@@ -15,10 +15,14 @@
 // at work (the spinner in Save); the page saves and answers with unsavedSaved(el, { refused: { key: 'why' } }): the changes that
 // went through stop counting, the ones refused stay marked and the bar says why ("1 saved, 1 refused"). Discard puts every
 // value back and offers Undo for `data-kp-undo-ms` (6000; 0 offers none). Ctrl or Cmd+S saves.
+// The package's own composite fields count as one control each [homelab 37]: a quantity (`kp-quantity-change`), a time
+// field (`kp-time-change`) and a tag input (`kp-combobox-change`) mark their row with their own value ("2 → 3", "a → a, b"),
+// and Discard and Revert put it back through the field's own setter; the inputs inside them are not tracked. A field marked
+// `data-kp-untracked` (on itself or on an input inside it) is left out, for a page that keeps its own mirror.
 //
 // Options (markup, each with a default [KT6]):
 //   data-kp-unsaved-for    a selector for the form or the area to watch                   the nearest form, else the page's main
-//   data-kp-placement      header | sticky-bottom | header+sticky                        header+sticky
+//   data-kp-placement      header | sticky-bottom | header+sticky (switchable at runtime)  header+sticky
 //   data-kp-dock           viewport (fixed to the screen) | container (absolute in the nearest positioned ancestor)   viewport
 //   data-kp-scroll-root    a selector: the box that scrolls the header out of view        the window
 //   data-kp-track          auto (the bar marks the rows as they are edited) | app (the page marks them)   auto
@@ -36,6 +40,8 @@
 // browser `Storage` a consumer hands in, once for the page with configureUnsaved({ storage }) (the way configureRemember does it) or
 // for one call with attachUnsaved(root, { storage }). `storage: null` keeps nothing. Browser storage only: a Storage-shaped object a
 // page writes itself works too, nothing here talks to a server.
+// The list words each value itself ("On", "(empty)", an option's text); a page whose control is a mirror of its own editor
+// names the values with attachUnsaved(root, { show }) [homelab 71].
 // Nothing runs on import; attachUnsaved(root) returns a detach.
 //
 // The module is a facade: the bar is `UnsavedController` (closure-pattern B, js/controller.js) in `js/unsaved/`, one file per concern.
@@ -101,6 +107,8 @@ export function setUnsavedSaving(element, saving) {
  * Wire every unsaved-changes bar under `root`.
  * @param {ParentNode} [root]
  * @param {UnsavedConfig} [options] `storage`: where this call's bars keep their changes (a browser Storage, or null for nowhere)
+ *   and `show(control, value, row)`: the page's own words for a value in the list of changes, asked for "was" and "now" alike;
+ *   a string is shown, anything else keeps the bar's words (for a mirrored editor whose raw value means nothing to a person) [homelab 71]
  * @returns {() => void} detach
  */
 export const attachUnsaved = (root = document, options = {}) => attachAll(root, UNSAVED, UnsavedController, options);

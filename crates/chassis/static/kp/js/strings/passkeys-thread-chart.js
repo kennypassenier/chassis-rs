@@ -13,6 +13,7 @@
  * @property {(date: string) => string} passkeysAdded  When a way was added, "Added 12/10/2026"
  * @property {string} passkeysLastUsedVerb  The verb of the last-used line, "Last used" (then "3 days ago")
  * @property {string} passkeysNeverUsed  A way that was never used
+ * @property {string} passkeysUseUnknown  A way whose last use the host does not record, `missingUse: 'unknown'` [homelab gap 70]
  * @property {string} passkeysCurrent  The badge on the way this session signed in with
  * @property {string} passkeysCurrentTitle  Its tooltip
  * @property {(days: number) => string} passkeysUnused  The badge on a way unused for long, "Unused for 120 days"
@@ -87,6 +88,7 @@ export const PASSKEYS_THREAD_CHART_STRINGS = {
     passkeysAdded: (date) => `Added ${date}`,
     passkeysLastUsedVerb: 'Last used',
     passkeysNeverUsed: 'Never used',
+    passkeysUseUnknown: 'Last use not recorded',
     passkeysCurrent: 'This device',
     passkeysCurrentTitle: 'You are signed in with this one',
     passkeysUnused: (days) => `Unused for ${days} days`,

@@ -116,6 +116,17 @@ export class SegmentedRoot extends Controller {
  * roving tab stop, its clicks and its arrow keys, and the plate under the
  * chosen segment. A group rendered later is picked up on its first use, or
  * by calling this again on its subtree.
+ *
+ * Groups added later, linked ones too [fix-1031]: while this attach is
+ * live, a group that arrives anywhere under `root` is wired as it arrives,
+ * and a `data-kp-segmented-for` group is linked to its field then, so one
+ * `attachSegmented(document)` at start links every chip group the page draws
+ * afterwards. A group outside every attached root is wired by calling this
+ * again on that root (or on the group's subtree). The link is read once,
+ * when a group is first wired: `data-kp-segmented-for` belongs in the
+ * group's markup when it arrives, and set later on a wired group it links
+ * nothing (draw the group again as a new element). The field is found by id
+ * at every change, so it may arrive in the same frame as the group.
  * @param {ParentNode} [root]
  * @returns {() => void} detach
  */

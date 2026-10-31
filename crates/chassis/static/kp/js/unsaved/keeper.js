@@ -30,9 +30,13 @@ export class ChangeKeeper {
         }
     }
 
-    /** The key a control is kept under, or '' when it has none. @param {HTMLElement} c */
+    /**
+     * The key a control is kept under, or '' when it has none. A composite field goes by its posted name (`data-kp-name`,
+     * or the `name` of an input inside it), else its id.
+     * @param {HTMLElement} c
+     */
     keyOf(c) {
-        return c.getAttribute('name') ?? c.id;
+        return c.getAttribute('name') ?? c.getAttribute('data-kp-name') ?? c.querySelector('[name]')?.getAttribute('name') ?? c.id;
     }
 
     /** Write the changed values (all of them, or none when nothing is changed). */
