@@ -48,7 +48,11 @@ scaffold writes. A breaking change in either is a major and carries a
    `data-kp-form-native-submit` (or `nativeSubmit: true`), as the kit's
    login and logout already have; a failing element is reported with
    `reportError` instead of aborting the whole attach; the form grid aligns
-   to the start edge and reserves the error line.
+   to the start edge and reserves the error line. The bundle attaches the
+   page's components on load, so markup copied from the live page after
+   that carries the attached marker and is skipped on a later attach (the
+   kit's Storage table lost its loading state this way): keep a skeleton you
+   clone in an inert `<template>`.
 7. **A web app at the root registers its own pages** with
    `app.page(Page::new(id, title, path))`, or the kit's pages show only the
    kit's links (the start now warns about it).
