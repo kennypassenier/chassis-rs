@@ -24,6 +24,9 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 kp="$root/crates/chassis/static/kp"
 manifest="$kp/KP_THEMES.sha256"
 assets_rs="$root/crates/chassis/src/shell/assets.rs"
+# The CLI records the kp-themes version it scaffolds against (K32); it must
+# move with the vendored files or the drift check refuses the release.
+cli_rs="$root/crates/chassis-cli/src/recorded.rs"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -65,6 +68,10 @@ done < "$work/files"
 sed -i -E "s/^pub const KP_THEMES_VERSION: &str = \"[^\"]+\";/pub const KP_THEMES_VERSION: \&str = \"$version\";/" "$assets_rs"
 grep -q "KP_THEMES_VERSION: &str = \"$version\"" "$assets_rs" ||
   { echo "vendor-kp-themes: could not set KP_THEMES_VERSION in $assets_rs" >&2; exit 1; }
+
+sed -i -E "s/^pub\(crate\) const KP_THEMES: &str = \"[^\"]+\";/pub(crate) const KP_THEMES: \&str = \"$version\";/" "$cli_rs"
+grep -q "KP_THEMES: &str = \"$version\"" "$cli_rs" ||
+  { echo "vendor-kp-themes: could not set KP_THEMES in $cli_rs" >&2; exit 1; }
 
 echo "vendor-kp-themes: v$version vendored, $count files checked against SHA256SUMS"
 echo "vendor-kp-themes: next, check the core module list in crates/chassis/build.rs (CORE_KP_JS) against the new js/ tree"
