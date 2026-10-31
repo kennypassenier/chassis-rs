@@ -17,6 +17,8 @@ scaffold writes. A breaking change in either is a major and carries a
   (`sourceColour`, `sourceIndex`). The kit's own JavaScript uses none of the
   renamed names; Status, Clients and Storage measure clear in formal and
   dark at 1280 and 390.
+- **Dependencies updated within their semver ranges** (`cargo update`: 72
+  crates updated, 3 added, 1 removed; no advisory among them).
 
 ### Fixed
 
