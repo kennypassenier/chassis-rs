@@ -33,6 +33,7 @@
 // watch). `setActionSize(el, size)` writes it for a script that would rather not touch an attribute by hand.
 
 import { getStrings } from './strings.js';
+import { Controller } from './controller.js';
 
 /** The tiles this module looks after. */
 export const ACTION_TILE = '.kp-action';
@@ -72,6 +73,34 @@ const span = (className) => {
     return el;
 };
 
+/** A busy tile: its mark with the spinner in it, and the hidden spoken word after it. @param {Element} tile */
+function showBusy(tile) {
+    let mark = tile.querySelector(':scope > .kp-action__mark');
+    if (!mark) {
+        mark = span('kp-action__mark');
+        mark.setAttribute('aria-hidden', 'true');
+        tile.querySelector(':scope > .kp-action__title')?.after(mark) ?? tile.prepend(mark);
+    }
+    if (!mark.querySelector('.kp-spinner')) {
+        const wheel = span('kp-spinner');
+        wheel.setAttribute('aria-hidden', 'true');
+        mark.replaceChildren(wheel);
+    }
+    let word = tile.querySelector(':scope > .kp-action__state');
+    if (!word) {
+        word = span('kp-action__state');
+        tile.append(word);
+    }
+    word.textContent = `, ${getStrings().busy}`;
+}
+
+/** A tile that is no longer busy loses its spinner and its spoken word. @param {Element} tile */
+function hideBusy(tile) {
+    const mark = tile.querySelector(':scope > .kp-action__mark');
+    if (mark?.querySelector('.kp-spinner')) mark.replaceChildren();
+    tile.querySelector(':scope > .kp-action__state')?.remove();
+}
+
 /**
  * Bring a tile's spinner and spoken word in step with `aria-busy`.
  * @param {Element} tile
@@ -79,29 +108,8 @@ const span = (className) => {
  */
 function syncTile(tile, { announce = false } = {}) {
     const busy = tile.getAttribute('aria-busy') === 'true';
-    let mark = tile.querySelector(':scope > .kp-action__mark');
-    const spinner = mark?.querySelector('.kp-spinner') ?? null;
-    if (busy) {
-        if (!mark) {
-            mark = span('kp-action__mark');
-            mark.setAttribute('aria-hidden', 'true');
-            tile.querySelector(':scope > .kp-action__title')?.after(mark) ?? tile.prepend(mark);
-        }
-        if (!spinner) {
-            const wheel = span('kp-spinner');
-            wheel.setAttribute('aria-hidden', 'true');
-            mark.replaceChildren(wheel);
-        }
-        let word = tile.querySelector(':scope > .kp-action__state');
-        if (!word) {
-            word = span('kp-action__state');
-            tile.append(word);
-        }
-        word.textContent = `, ${getStrings().busy}`;
-    } else {
-        if (spinner) mark?.replaceChildren();
-        tile.querySelector(':scope > .kp-action__state')?.remove();
-    }
+    if (busy) showBusy(tile);
+    else hideBusy(tile);
     const before = synced.get(tile);
     synced.set(tile, busy);
     if (announce && before !== undefined && before !== busy) {
@@ -124,6 +132,41 @@ export function setActionBusy(tile, busy = true) {
     return tile;
 }
 
+/** The guard and the watch of one root: it stops presses on inert tiles and keeps every tile's spinner in step with `aria-busy`. */
+class ActionTilesController extends Controller {
+    connect() {
+        const root = /** @type {ParentNode} */ (/** @type {unknown} */ (this.host));
+        this.listen(/** @type {EventTarget} */ (root), 'click', (event) => this.guard(event), true);
+        const tiles = /** @type {Element[]} */ ([
+            ...(root instanceof Element && root.matches(ACTION_TILE) ? [root] : []),
+            ...root.querySelectorAll(ACTION_TILE),
+        ]);
+        for (const tile of tiles) syncTile(tile);
+        if (typeof MutationObserver === 'undefined') return;
+        const watch = this.observe(
+            new MutationObserver((records) => {
+                for (const record of records) {
+                    const target = /** @type {Element} */ (record.target);
+                    if (target.matches(ACTION_TILE)) syncTile(target, { announce: true });
+                }
+            }),
+        );
+        watch.observe(root instanceof Document ? root.documentElement : /** @type {Node} */ (root), {
+            attributes: true,
+            attributeFilter: ['aria-busy'],
+            subtree: true,
+        });
+    }
+
+    /** A press on a busy or disabled tile goes nowhere, so the page's own handler never runs for it. @param {Event} event */
+    guard(event) {
+        const tile = event.target instanceof Element ? event.target.closest(ACTION_TILE) : null;
+        if (!tile || !inert(tile)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+    }
+}
+
 /**
  * Stop a press on a busy or disabled tile, and keep every tile's spinner in
  * step with `aria-busy`, under `root` and for tiles added to it later.
@@ -132,36 +175,8 @@ export function setActionBusy(tile, busy = true) {
  * @returns {() => void} detach
  */
 export function attachActionTiles(root = document) {
-    /** @param {Event} event */
-    const guard = (event) => {
-        const tile = event.target instanceof Element ? event.target.closest(ACTION_TILE) : null;
-        if (!tile || !inert(tile)) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-    };
-    root.addEventListener('click', guard, true);
-    const tiles = /** @type {Element[]} */ ([
-        ...(root instanceof Element && root.matches(ACTION_TILE) ? [root] : []),
-        ...root.querySelectorAll(ACTION_TILE),
-    ]);
-    for (const tile of tiles) syncTile(tile);
-    /** @type {MutationObserver | null} */
-    let watch = null;
-    if (typeof MutationObserver !== 'undefined') {
-        watch = new MutationObserver((records) => {
-            for (const record of records) {
-                const target = /** @type {Element} */ (record.target);
-                if (target.matches(ACTION_TILE)) syncTile(target, { announce: true });
-            }
-        });
-        watch.observe(root instanceof Document ? root.documentElement : root, {
-            attributes: true,
-            attributeFilter: ['aria-busy'],
-            subtree: true,
-        });
-    }
-    return () => {
-        root.removeEventListener('click', guard, true);
-        watch?.disconnect();
-    };
+    // Built directly, not keyed on the root: every attach call guards and watches on its own, as it always did.
+    const controller = new ActionTilesController(/** @type {HTMLElement} */ (/** @type {unknown} */ (root)));
+    controller.connect();
+    return () => controller.destroy();
 }

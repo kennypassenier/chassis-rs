@@ -40,7 +40,7 @@ export function watchForFirstCall(root, modules, one) {
     const what = root.querySelector('[data-clients-what]');
     if (what) {
       // The package's own plate, redrawn in place with the "done" picture.
-      const [{ statePlate }, { drawArt }] = await Promise.all([import('../kp/js/state-plate.js'), import('../kp/js/art.js')]);
+      const { statePlate, drawArt } = await import('../kp/dist/kp-themes.min.js');
       what.removeAttribute('data-kp-art');
       statePlate(document, {
         kind: 'empty',

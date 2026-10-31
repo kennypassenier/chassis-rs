@@ -4,12 +4,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 // A page that already carries the runtime: importing the module is a no-op,
-// so no real DOM is needed to load it.
+// so no real DOM is needed to load it. There is deliberately no `document`:
+// kp-themes' bundle boots itself on import when one exists (saved theme,
+// auto-attach), and without one it only defines its exports.
 globalThis.window = { chassisRuntime: { marker: true } };
-globalThis.document = {};
+
 const { installRuntime } = await import('../../static/chassis/webapp-runtime.js');
 delete globalThis.window;
-delete globalThis.document;
 
 function deps() {
     const calls = { attach: 0, remember: [] };

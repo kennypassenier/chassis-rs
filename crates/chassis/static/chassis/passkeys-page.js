@@ -55,7 +55,7 @@ async function initPasskeys(root) {
   // moment (its busy card, the theme's own loading animation) instead of an empty box
   // while their modules load; the QR code is drawn here, so its loading ends
   // the moment its module attached.
-  const [{ setPasskeys }, qrModule] = await Promise.all([import('../kp/js/passkeys.js'), qr ? import('../kp/js/qr.js') : null]);
+  const [{ setPasskeys }, qrModule] = await Promise.all([import('../kp/dist/kp-themes.min.js'), qr ? import('../kp/dist/kp-themes.min.js') : null]);
   const dialog = document.getElementById('passkey-register');
   const base = {
     markCurrent: true,

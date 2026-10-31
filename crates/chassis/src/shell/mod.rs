@@ -12,6 +12,8 @@ pub mod captures;
 pub(crate) mod client_list;
 #[cfg(feature = "dashboard")]
 pub mod clients_api;
+#[cfg(feature = "dashboard")]
+pub(crate) mod compress;
 pub mod config_load;
 #[cfg(feature = "dashboard")]
 pub mod dashboard;

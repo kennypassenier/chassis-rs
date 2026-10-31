@@ -36,18 +36,11 @@
 //
 // Every word is in js/strings.js. Nothing runs on import; attachConnection(root) returns a detach.
 
-import { arriveShown, leave } from './motion.js';
-import { humanDuration } from './freshness.js';
-import { getStrings } from './strings.js';
+import { attachAll, controllerOf } from './controller.js';
+import { ConnectionBanner } from './connection/controller.js';
+import { CONNECTION } from './connection/values.js';
 
-/** A connection banner. */
-export const CONNECTION = '[data-kp-connection]';
-/** Fired when the shown state changed. */
-export const CONNECTION_STATE_EVENT = 'kp-connection-state';
-/** Fired when a try should be made. */
-export const CONNECTION_RETRY_EVENT = 'kp-connection-retry';
-/** The states. */
-export const CONNECTION_STATES = /** @type {const} */ (['online', 'offline', 'reconnecting', 'back', 'refused']);
+export { CONNECTION, CONNECTION_STATE_EVENT, CONNECTION_RETRY_EVENT, CONNECTION_STATES } from './connection/values.js';
 
 /**
  * @typedef {'online' | 'offline' | 'reconnecting' | 'back' | 'refused'} ConnectionState
@@ -61,18 +54,15 @@ export const CONNECTION_STATES = /** @type {const} */ (['online', 'offline', 're
  * @property {(state: ConnectionState, detail?: ConnectionDetail) => void} set
  */
 
-/** @type {WeakMap<Element, ConnectionHandle>} */
-const handles = new WeakMap();
-
-/** The handle of an attached banner. @param {Element} element */
-export const connectionOf = (element) => handles.get(element) ?? null;
+/** The handle of an attached banner. @param {Element} element @returns {ConnectionHandle | null} */
+export const connectionOf = (element) => controllerOf(element, ConnectionBanner)?.handle ?? null;
 
 /**
  * Report the connection from the app.
  * @param {Element} element @param {ConnectionState} state @param {ConnectionDetail} [detail]
  */
 export function setConnection(element, state, detail) {
-    handles.get(element)?.set(state, detail);
+    connectionOf(element)?.set(state, detail);
 }
 
 /**
@@ -81,233 +71,5 @@ export function setConnection(element, state, detail) {
  * @returns {() => void} detach
  */
 export function attachConnection(root = document) {
-    const found = /** @type {HTMLElement[]} */ ([
-        ...(root instanceof Element && root.matches(CONNECTION) ? [root] : []),
-        ...root.querySelectorAll(CONNECTION),
-    ]);
-    /** @type {(() => void)[]} */
-    const undo = [];
-    for (const el of found) if (!handles.has(el)) undo.push(wire(el));
-    return () => undo.forEach((u) => u());
-}
-
-/** @param {HTMLElement} el @returns {() => void} */
-function wire(el) {
-    const doc = el.ownerDocument;
-    const view = /** @type {Window} */ (doc.defaultView);
-    const s = () => getStrings();
-    const make = (/** @type {string} */ tag, /** @type {string} */ className) => {
-        const node = doc.createElement(tag);
-        node.className = className;
-        return node;
-    };
-    const source = () => el.getAttribute('data-kp-connection-source') ?? 'both';
-    const grace = () => {
-        const n = Number(el.getAttribute('data-kp-connection-grace') ?? 3000);
-        return Number.isFinite(n) && n >= 0 ? n : 3000;
-    };
-    const backMs = () => {
-        const n = Number(el.getAttribute('data-kp-back-ms') ?? 3000);
-        return Number.isFinite(n) && n >= 0 ? n : 3000;
-    };
-    const delays = () => {
-        const raw = el.getAttribute('data-kp-retry-delays');
-        if (raw === 'off') return [];
-        const list = (raw ?? '3,10,30,60')
-            .split(/[\s,]+/)
-            .map(Number)
-            .filter((n) => Number.isFinite(n) && n > 0);
-        return list.length ? list : [3, 10, 30, 60];
-    };
-
-    el.classList.add('kp-connection');
-    el.hidden = true;
-    const band = make('div', 'kp-alert kp-connection__band');
-    const mark = make('span', 'kp-connection__mark');
-    mark.setAttribute('aria-hidden', 'true');
-    const body = make('div', 'kp-alert__body kp-connection__body');
-    const title = make('strong', 'kp-connection__title');
-    const why = make('span', 'kp-connection__why');
-    const meta = make('span', 'kp-connection__meta');
-    body.append(title, why, meta);
-    const retry = /** @type {HTMLButtonElement} */ (make('button', 'kp-button kp-connection__retry'));
-    retry.type = 'button';
-    band.append(mark, body, retry);
-    const voice = make('span', 'kp-sr-only');
-    voice.setAttribute('role', 'status');
-    el.replaceChildren(band, voice);
-    if (el.getAttribute('data-kp-placement') !== 'top') el.setAttribute('data-kp-placement', 'bottom');
-
-    /** @type {ConnectionState} */
-    let shown = 'online';
-    let pending = Number(el.getAttribute('data-kp-pending') ?? 0) || 0;
-    let attempt = 0;
-    let nextAt = 0;
-    let graceTimer = 0;
-    let backTimer = 0;
-    let tickTimer = 0;
-    let leaving = false;
-
-    const stopTick = () => {
-        view.clearInterval(tickTimer);
-        tickTimer = 0;
-    };
-    const countdown = () => {
-        const left = Math.max(0, Math.ceil((nextAt - Date.now()) / 1000));
-        meta.textContent =
-            pendingText() + (shown === 'offline' && nextAt ? `${pendingText() ? ' · ' : ''}${s().connNextTry(humanDuration(left, s()))}` : '');
-        if (nextAt && Date.now() >= nextAt && shown === 'offline') {
-            nextAt = 0;
-            stopTick();
-            tryNow(true);
-        }
-    };
-    const pendingText = () => (pending > 0 ? s().connPending(pending) : '');
-    /** @param {boolean} auto */
-    function tryNow(auto) {
-        attempt += 1;
-        stopTick();
-        nextAt = 0;
-        draw('reconnecting');
-        el.dispatchEvent(new CustomEvent(CONNECTION_RETRY_EVENT, { bubbles: true, detail: { attempt, auto } }));
-    }
-    /** @param {ConnectionState} state */
-    function draw(state) {
-        const previous = shown;
-        shown = state;
-        el.setAttribute('data-kp-state', state);
-        band.classList.toggle('kp-alert--warning', state === 'offline' || state === 'reconnecting');
-        band.classList.toggle('kp-alert--success', state === 'back');
-        band.classList.toggle('kp-alert--destructive', state === 'refused');
-        mark.replaceChildren();
-        if (state === 'reconnecting') mark.append(make('span', 'kp-spinner'));
-        else mark.textContent = state === 'back' ? '✓' : '!';
-        const t = s();
-        const text =
-            state === 'offline'
-                ? [t.connOffline, t.connOfflineWhy]
-                : state === 'reconnecting'
-                  ? [t.connReconnecting, attempt > 1 ? t.connAttempt(attempt) : t.connReconnectingWhy]
-                  : state === 'back'
-                    ? [t.connBack, pending > 0 ? t.connBackSending(pending) : t.connBackWhy]
-                    : [t.connRefused, refusedWhy || t.connRefusedWhy];
-        title.textContent = text[0] ?? '';
-        why.textContent = text[1] ?? '';
-        meta.textContent = state === 'back' ? '' : pendingText();
-        retry.textContent = t.connRetry;
-        retry.hidden = el.getAttribute('data-kp-retry') === 'off';
-        retry.toggleAttribute('data-kp-idle', state === 'back' || state === 'reconnecting');
-        retry.tabIndex = state === 'back' || state === 'reconnecting' ? -1 : 0;
-        retry.disabled = false;
-        if (state === 'offline') {
-            const list = delays();
-            if (list.length && el.getAttribute('data-kp-retry-delays') !== 'off') {
-                const wait = list[Math.min(attempt, list.length - 1)] ?? list[0] ?? 3;
-                nextAt = Date.now() + wait * 1000;
-                stopTick();
-                countdown();
-                tickTimer = view.setInterval(countdown, 500);
-            }
-        }
-        if (el.getAttribute('data-kp-announce') !== 'off') {
-            voice.setAttribute('role', state === 'offline' ? 'alert' : 'status');
-            voice.textContent = `${text[0]}. ${text[1]}`;
-        }
-        if (previous !== state) el.dispatchEvent(new CustomEvent(CONNECTION_STATE_EVENT, { bubbles: true, detail: { state, previous, pending } }));
-    }
-    let refusedWhy = '';
-    const show = () => {
-        view.clearTimeout(backTimer);
-        if (leaving) el.removeAttribute('data-kp-leaving');
-        leaving = false;
-        band.hidden = false;
-        if (el.hidden) {
-            el.hidden = false;
-            arriveShown(band);
-        }
-    };
-    const hide = () => {
-        if (el.hidden || leaving) return;
-        leaving = true;
-        el.setAttribute('data-kp-leaving', '');
-        void leave(band, { hide: true }).then(() => {
-            if (!leaving) {
-                band.hidden = false;
-                return;
-            }
-            leaving = false;
-            el.removeAttribute('data-kp-leaving');
-            el.hidden = true;
-            band.hidden = false;
-        });
-    };
-
-    /** @param {ConnectionState} state @param {ConnectionDetail} [detail] */
-    const set = (state, detail = {}) => {
-        if (!CONNECTION_STATES.includes(state)) return;
-        if (detail.pending !== undefined) pending = Math.max(0, Math.round(detail.pending));
-        if (detail.attempt !== undefined) attempt = detail.attempt;
-        refusedWhy = detail.why ?? (state === 'refused' ? refusedWhy : '');
-        view.clearTimeout(graceTimer);
-        graceTimer = 0;
-        if (state === 'offline' || state === 'refused' || state === 'reconnecting') {
-            if (state === 'offline' && shown === 'online' && grace() > 0) {
-                // A drop shorter than the grace shows nothing.
-                graceTimer = view.setTimeout(() => {
-                    show();
-                    draw('offline');
-                }, grace());
-                return;
-            }
-            if (state === 'refused') attempt = 0;
-            show();
-            draw(state);
-            return;
-        }
-        if (state === 'online') {
-            stopTick();
-            nextAt = 0;
-            const wasShown = shown !== 'online' && !el.hidden;
-            attempt = 0;
-            if (!wasShown) {
-                shown = 'online';
-                return;
-            }
-            show();
-            draw('back');
-            backTimer = view.setTimeout(() => {
-                shown = 'online';
-                el.setAttribute('data-kp-state', 'online');
-                hide();
-                el.dispatchEvent(new CustomEvent(CONNECTION_STATE_EVENT, { bubbles: true, detail: { state: 'online', previous: 'back', pending } }));
-            }, backMs());
-        }
-    };
-
-    const onRetry = () => {
-        if (shown === 'offline' || shown === 'refused') tryNow(false);
-    };
-    retry.addEventListener('click', onRetry);
-    const onOffline = () => {
-        if (source() !== 'app') set('offline');
-    };
-    const onOnline = () => {
-        if (source() !== 'app') set('online');
-    };
-    view.addEventListener('offline', onOffline);
-    view.addEventListener('online', onOnline);
-    if (source() !== 'app' && view.navigator.onLine === false) set('offline');
-
-    /** @type {ConnectionHandle} */
-    const handle = { element: el, state: () => shown, set };
-    handles.set(el, handle);
-    return () => {
-        view.clearTimeout(graceTimer);
-        view.clearTimeout(backTimer);
-        stopTick();
-        retry.removeEventListener('click', onRetry);
-        view.removeEventListener('offline', onOffline);
-        view.removeEventListener('online', onOnline);
-        handles.delete(el);
-    };
+    return attachAll(root, CONNECTION, ConnectionBanner);
 }

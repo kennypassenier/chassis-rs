@@ -108,10 +108,7 @@ pub(super) fn file_response(
     } else {
         "no-cache"
     };
-    let matches = headers
-        .get(header::IF_NONE_MATCH)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|v| v.split(',').any(|t| t.trim() == etag));
+    let matches = crate::shell::assets::etag_matches(headers, &etag);
     let mut res = if matches {
         StatusCode::NOT_MODIFIED.into_response()
     } else {

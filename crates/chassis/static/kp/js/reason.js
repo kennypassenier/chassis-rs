@@ -16,6 +16,7 @@
 // enabled ones above and below it.
 
 import { attachTooltips } from './overlays.js';
+import { Controller, attachOne } from './controller.js';
 
 /** A control that carries a reason. */
 export const DISABLED_REASON = '[data-kp-disabled-reason]';
@@ -25,6 +26,81 @@ let counter = 0;
 /** @param {Element} el */
 const isOff = (el) => el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true';
 
+/** The attributes of the control that change what the wrapper and the tooltip say. */
+const WATCHED = ['disabled', 'aria-disabled', 'data-kp-disabled-reason', 'data-kp-action'];
+
+/** One control with a reason: wrapped in an anchor with a tooltip, kept in step with its attributes, and unwrapped on destroy. */
+class DisabledReasonController extends Controller {
+    /**
+     * @param {HTMLElement} host
+     * @param {Record<string, unknown>} [options]
+     */
+    constructor(host, options) {
+        super(host, options);
+        const doc = host.ownerDocument;
+        this.anchor = doc.createElement('span');
+        this.anchor.className = 'kp-tooltip-anchor kp-reason';
+        this.tip = doc.createElement('span');
+        this.tip.className = 'kp-popover kp-tooltip';
+        this.tip.setAttribute('role', 'tooltip');
+        /** The description the control had before the reason was added to it. */
+        this.before = host.getAttribute('aria-describedby');
+    }
+
+    connect() {
+        const control = this.host;
+        control.dataset.kpReasonAttached = '';
+        this.own(() => {
+            delete control.dataset.kpReasonAttached;
+        });
+        this.tip.id = `kp-reason-${++counter}`;
+        const parent = control.parentNode;
+        if (!parent) return;
+        parent.insertBefore(this.anchor, control);
+        this.anchor.append(control, this.tip);
+        this.own(() => this.restoreDescription());
+        this.own(() => this.tip.remove());
+        this.own(() => {
+            if (this.anchor.parentNode) this.anchor.replaceWith(control);
+        });
+        this.own(attachTooltips(/** @type {ParentNode} */ (parent)));
+        this.mirrorRole();
+        this.sync();
+        const observer = this.observe(new MutationObserver(() => this.sync()));
+        observer.observe(control, { attributes: true, attributeFilter: WATCHED });
+    }
+
+    /** The role the control plays in a column of buttons, worn by the wrapper that stands in the row in its place. */
+    mirrorRole() {
+        const role = this.host.getAttribute('data-kp-action');
+        if (role === null) this.anchor.removeAttribute('data-kp-action');
+        else this.anchor.setAttribute('data-kp-action', role);
+    }
+
+    /** Show or hide the tooltip and add or take out its id in the control's description. */
+    sync() {
+        if (this.destroyed) return;
+        const control = this.host;
+        const { anchor, tip } = this;
+        this.mirrorRole();
+        const text = control.getAttribute('data-kp-disabled-reason') ?? '';
+        const shown = text !== '' && isOff(control);
+        tip.textContent = shown ? text : '';
+        if (!shown) tip.hidden = true;
+        anchor.toggleAttribute('data-kp-reason-off', shown);
+        const ids = (control.getAttribute('aria-describedby') ?? '').split(/\s+/).filter((id) => id !== '' && id !== tip.id);
+        if (shown) ids.push(tip.id);
+        if (ids.length > 0) control.setAttribute('aria-describedby', ids.join(' '));
+        else control.removeAttribute('aria-describedby');
+    }
+
+    /** Give the control back the description it had. */
+    restoreDescription() {
+        if (this.before === null) this.host.removeAttribute('aria-describedby');
+        else this.host.setAttribute('aria-describedby', this.before);
+    }
+}
+
 /**
  * Wire every control under `root` that carries `data-kp-disabled-reason`.
  *
@@ -32,61 +108,16 @@ const isOff = (el) => el.matches(':disabled') || el.getAttribute('aria-disabled'
  * @returns {() => void} detach
  */
 export function attachDisabledReasons(root = document) {
-    /** @type {(() => void)[]} */
-    const cleanups = [];
+    /** @type {DisabledReasonController[]} */
+    const made = [];
     for (const found of root.querySelectorAll(DISABLED_REASON)) {
         const control = /** @type {HTMLElement} */ (found);
+        // Tested one by one: wrapping a control changes what the next one sits in.
         if (control.dataset.kpReasonAttached !== undefined || control.closest('.kp-tooltip-anchor') !== null) continue;
-        control.dataset.kpReasonAttached = '';
-        const doc = control.ownerDocument;
-        const anchor = doc.createElement('span');
-        anchor.className = 'kp-tooltip-anchor kp-reason';
-        const tip = doc.createElement('span');
-        tip.className = 'kp-popover kp-tooltip';
-        tip.setAttribute('role', 'tooltip');
-        tip.id = `kp-reason-${++counter}`;
-        const parent = control.parentNode;
-        if (!parent) continue;
-        parent.insertBefore(anchor, control);
-        anchor.append(control, tip);
-        const detachTip = attachTooltips(/** @type {ParentNode} */ (parent));
-        const before = control.getAttribute('aria-describedby');
-        /** The role the control plays in a column of buttons, worn by the wrapper that stands in the row in its place. */
-        const mirrorRole = () => {
-            const role = control.getAttribute('data-kp-action');
-            if (role === null) anchor.removeAttribute('data-kp-action');
-            else anchor.setAttribute('data-kp-action', role);
-        };
-        mirrorRole();
-
-        const sync = () => {
-            mirrorRole();
-            const text = control.getAttribute('data-kp-disabled-reason') ?? '';
-            const shown = text !== '' && isOff(control);
-            tip.textContent = shown ? text : '';
-            if (!shown) tip.hidden = true;
-            anchor.toggleAttribute('data-kp-reason-off', shown);
-            const ids = (control.getAttribute('aria-describedby') ?? '').split(/\s+/).filter((id) => id !== '' && id !== tip.id);
-            if (shown) ids.push(tip.id);
-            if (ids.length > 0) control.setAttribute('aria-describedby', ids.join(' '));
-            else control.removeAttribute('aria-describedby');
-        };
-        sync();
-        const observer = new MutationObserver(sync);
-        observer.observe(control, { attributes: true, attributeFilter: ['disabled', 'aria-disabled', 'data-kp-disabled-reason', 'data-kp-action'] });
-        cleanups.push(() => {
-            observer.disconnect();
-            detachTip();
-            if (anchor.parentNode) {
-                anchor.replaceWith(control);
-            }
-            tip.remove();
-            if (before === null) control.removeAttribute('aria-describedby');
-            else control.setAttribute('aria-describedby', before);
-            delete control.dataset.kpReasonAttached;
-        });
+        const controller = attachOne(control, DisabledReasonController);
+        if (controller) made.push(controller);
     }
     return () => {
-        for (const clean of cleanups) clean();
+        for (const controller of made) controller.destroy();
     };
 }

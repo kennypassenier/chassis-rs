@@ -19,7 +19,7 @@
 // This works because every register is already in dist/kp-themes.css: the
 // knob is readable the moment the theme attribute changes (D2).
 
-import { attachEffects } from '../kp/js/effects.js';
+import { attachEffects } from '../kp/dist/kp-themes.min.js';
 
 /**
  * Attach the effects to `doc` and watch for a caret theme.

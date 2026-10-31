@@ -45,18 +45,14 @@
 // nothing). The attribute wins when it is not empty. The card is never
 // filled with markup text: a string is text, and anything richer is built
 // as nodes, so a cell's content can never inject HTML.
+//
+// One card per root is one HoverCard controller (js/hovercard/controller.js over touch.js, show.js and core.js, on js/controller.js; the root is its
+// host); the parts are listed in js/README.md.
 
-import { playEntranceBackwards, stopReversing } from './motion.js';
-import { layoutRect, placeBlockSide, raiseOverlay } from './top-layer.js';
+import { controllerOf, attachOne } from './controller.js';
+import { HoverCard } from './hovercard/controller.js';
 
-/** The attribute that makes an element an anchor; its value is the card's text when not empty. */
-export const HOVERCARD_ATTRIBUTE = 'data-kp-hovercard';
-/** Dispatched on the anchor, bubbling, when the card opens or closes: `{ open, card, anchor }`. */
-export const HOVERCARD_EVENT = 'kp-hovercard';
-/** Written on the one shared card node. */
-export const HOVERCARD_CARD = 'data-kp-hovercard-card';
-/** The distance from the window's edge the card keeps, in px. */
-const EDGE = 8;
+export { HOVERCARD_ATTRIBUTE, HOVERCARD_CARD, HOVERCARD_EVENT } from './hovercard/values.js';
 
 /** @typedef {string | Node | readonly Node[] | null | undefined | false} HoverCardContent */
 
@@ -79,12 +75,6 @@ const EDGE = 8;
  * `anchor()` is the anchor it is open for.
  */
 
-let made = 0;
-/** @type {WeakMap<Document | Element, { cfg: HoverCardOptions, handle: HoverCardHandle }>} */
-const attached = new WeakMap();
-/** @param {HoverCardOptions} o */
-const stripped = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
-
 /**
  * Attach the page's hover card to `root`.
  *
@@ -96,309 +86,14 @@ export function attachHoverCards(root = document, options = {}) {
     // One card per root. A second call (a page that attaches with a `fill`
     // after `js/auto.js` attached with none) hands its options to the card
     // that is there and returns the same handle, so a page never gets two.
-    const held = attached.get(root);
+    // A document is a host too: the controllers are keyed on any object.
+    const host = /** @type {HTMLElement} */ (/** @type {unknown} */ (root));
+    const held = controllerOf(host, HoverCard);
     if (held !== undefined) {
-        for (const [key, value] of Object.entries(options)) if (value !== undefined) /** @type {any} */ (held.cfg)[key] = value;
+        held.merge(options);
         return held.handle;
     }
-    /** @type {HoverCardOptions & { selector: string }} */
-    const cfg = { selector: `[${HOVERCARD_ATTRIBUTE}]`, openDelayMs: 300, closeDelayMs: 100, closeOnEscape: true, touch: true, ...stripped(options) };
-    const doc = root instanceof Document ? root : root.ownerDocument;
-    const card = doc.createElement('div');
-    card.className = `kp-popover kp-tooltip${cfg.cardClass ? ` ${cfg.cardClass}` : ''}`;
-    card.setAttribute('role', 'tooltip');
-    card.setAttribute(HOVERCARD_CARD, '');
-    card.id = `kp-hovercard-${(made += 1)}-${Math.random().toString(36).slice(2, 8)}`;
-    card.hidden = true;
-    doc.body.append(card);
-
-    /** @type {HTMLElement | null} */
-    let current = null; // the anchor the card is open for
-    /** @type {HTMLElement | null} */
-    let wanted = null; // the anchor a pending open is for
-    /** @type {string | null} */
-    let described = null; // the anchor's own aria-describedby, put back on close
-    let timer = 0;
-    let openedAt = 0; // when the card last opened, so the tap that focus already answered is not taken twice
-    let going = false;
-    let overCard = false;
-    /** @type {(() => void) | null} */
-    let lower = null;
-    /** @type {MutationObserver | null} */
-    let watch = null;
-
-    /** @param {Event | null} event @returns {HTMLElement | null} */
-    const anchorOf = (event) => {
-        const target = event?.target;
-        const found = target instanceof Element ? target.closest(cfg.selector) : null;
-        return found instanceof HTMLElement && root.contains(found) ? found : null;
-    };
-    /** @param {HTMLElement} anchor @param {string} name @param {number} fallback */
-    const number = (anchor, name, fallback) => {
-        const value = anchor.getAttribute(name);
-        return value === null || Number.isNaN(Number(value)) ? fallback : Number(value);
-    };
-
-    /** @param {HTMLElement} anchor @returns {boolean} whether there is anything to say */
-    const fillFor = (anchor) => {
-        const own = anchor.getAttribute(HOVERCARD_ATTRIBUTE) ?? '';
-        /** @type {HoverCardContent} */
-        const content = own !== '' ? own : (cfg.fill?.(anchor, card) ?? null);
-        if (content === null || content === undefined || content === false || content === '') return false;
-        if (typeof content === 'string') card.textContent = content;
-        else card.replaceChildren(...(content instanceof Node ? [content] : content));
-        return true;
-    };
-
-    /** Under the anchor, start edges aligned, kept in the window; above when there is no room below. @param {HTMLElement} el */
-    const place = (el) => {
-        if (current === null || !current.isConnected) return;
-        const field = current.getBoundingClientRect();
-        const rtl = getComputedStyle(current).direction === 'rtl';
-        const view = doc.documentElement.clientWidth;
-        el.style.setProperty('right', 'auto');
-        el.style.setProperty('bottom', 'auto');
-        el.style.setProperty('top', `${field.bottom}px`);
-        // The width it takes depends on the room it has to the right of its left edge, so it is measured with the whole window
-        // to itself, then placed: start edge under the anchor's, kept inside the window by the register's own margin (EDGE).
-        el.style.setProperty('left', `${EDGE}px`);
-        const width = layoutRect(el).width;
-        const gap = Number.parseFloat(getComputedStyle(el).marginLeft) || 0;
-        const wanted = rtl ? field.right - width : field.left;
-        const left = Math.max(EDGE - gap, Math.min(wanted, view - EDGE - width - gap));
-        el.style.setProperty('left', `${left}px`);
-        placeBlockSide(el, field);
-    };
-
-    /** @param {HTMLElement} anchor */
-    const describe = (anchor) => {
-        described = anchor.getAttribute('aria-describedby');
-        const ids = (described ?? '').split(/\s+/).filter(Boolean);
-        if (!ids.includes(card.id)) anchor.setAttribute('aria-describedby', [...ids, card.id].join(' '));
-    };
-    /** @param {HTMLElement} anchor */
-    const undescribe = (anchor) => {
-        if (described === null) anchor.removeAttribute('aria-describedby');
-        else anchor.setAttribute('aria-describedby', described);
-        described = null;
-    };
-
-    /** @param {boolean} open @param {HTMLElement} anchor */
-    const announce = (open, anchor) => anchor.dispatchEvent(new CustomEvent(HOVERCARD_EVENT, { bubbles: true, detail: { open, card, anchor } }));
-
-    /** Opens for `anchor`, or moves to it when already open. @param {HTMLElement} anchor */
-    const open = (anchor) => {
-        wanted = null;
-        if (!anchor.isConnected || anchor === current) return;
-        if (!fillFor(anchor)) {
-            // Nothing to say for this one: an open card for the last one goes.
-            if (current !== null) close(0);
-            return;
-        }
-        if (going) {
-            // Wanted back while it was leaving: the entrance turns round.
-            going = false;
-            stopReversing(card);
-        }
-        const was = current;
-        if (was !== null) {
-            undescribe(was);
-            announce(false, was);
-        }
-        current = anchor;
-        openedAt = performance.now();
-        describe(anchor);
-        if (card.hidden) {
-            card.hidden = false;
-            lower = raiseOverlay(card, place);
-        } else place(card);
-        // A rebuild that removes the open anchor takes the card with it.
-        watch ??= new MutationObserver(() => {
-            if (current !== null && !current.isConnected) hide();
-        });
-        watch.observe(doc.body, { childList: true, subtree: true });
-        announce(true, anchor);
-    };
-
-    /** The card goes the way it came, then is hidden. */
-    const hide = () => {
-        clearTimeout(timer);
-        wanted = null;
-        const anchor = current;
-        if (anchor === null || going) return;
-        current = null;
-        overCard = false;
-        watch?.disconnect();
-        if (anchor.isConnected) undescribe(anchor);
-        else described = null;
-        going = true;
-        const finish = () => {
-            going = false;
-            card.hidden = true;
-            stopReversing(card);
-            lower?.();
-            lower = null;
-            card.replaceChildren();
-        };
-        void playEntranceBackwards(card).then(() => {
-            // Wanted back meanwhile: open() took it over.
-            if (going) finish();
-        });
-        announce(false, anchor);
-    };
-
-    /** @param {number} delay */
-    const close = (delay) => {
-        clearTimeout(timer);
-        if (delay <= 0) hide();
-        else timer = window.setTimeout(hide, delay);
-    };
-
-    /** @param {HTMLElement} anchor @param {number} delay */
-    const schedule = (anchor, delay) => {
-        clearTimeout(timer);
-        wanted = anchor;
-        if (delay <= 0 || current !== null) open(anchor);
-        else timer = window.setTimeout(() => open(anchor), delay);
-    };
-
-    /** @param {PointerEvent} event */
-    const onOver = (event) => {
-        if (event.pointerType === 'touch') return;
-        const anchor = anchorOf(event);
-        if (anchor === null || anchor === current) {
-            if (anchor !== null) clearTimeout(timer);
-            return;
-        }
-        schedule(anchor, number(anchor, 'data-kp-open-delay', cfg.openDelayMs ?? 300));
-    };
-    /** @param {PointerEvent} event */
-    const onOut = (event) => {
-        if (event.pointerType === 'touch') return;
-        const anchor = anchorOf(event);
-        if (anchor === null) return;
-        const to = event.relatedTarget;
-        // Still inside the anchor, or on the way to the card: nothing left yet.
-        if (to instanceof Node && (anchor.contains(to) || card.contains(to))) return;
-        if (anchor === wanted) {
-            clearTimeout(timer);
-            wanted = null;
-        }
-        if (anchor !== current) return;
-        // Focus keeps it: a keyboard user's card stays while the pointer wanders off.
-        if (anchor.contains(doc.activeElement) && anchor.matches(':focus-visible, :has(:focus-visible)')) return;
-        close(number(anchor, 'data-kp-close-delay', cfg.closeDelayMs ?? 100));
-    };
-    const onCardEnter = () => {
-        overCard = true;
-        clearTimeout(timer);
-    };
-    /** @param {PointerEvent} event */
-    const onCardLeave = (event) => {
-        // A finger lifting off the card is not the pointer leaving it.
-        if (event.pointerType === 'touch') return;
-        overCard = false;
-        const to = event.relatedTarget;
-        if (current !== null && to instanceof Node && current.contains(to)) return;
-        close(cfg.closeDelayMs ?? 100);
-    };
-    /** @param {FocusEvent} event */
-    const onFocusIn = (event) => {
-        const anchor = anchorOf(event);
-        if (anchor !== null) schedule(anchor, 0);
-    };
-    /** @param {FocusEvent} event */
-    const onFocusOut = (event) => {
-        const anchor = anchorOf(event);
-        if (anchor === null) return;
-        if (event.relatedTarget instanceof Node && anchor.contains(event.relatedTarget)) return;
-        if (anchor === current && !overCard) close(0);
-        else if (anchor === wanted) {
-            clearTimeout(timer);
-            wanted = null;
-        }
-    };
-    /** Whether a tap on this anchor is the anchor's own (a link, a button, a field). @param {HTMLElement} anchor */
-    const isControl = (anchor) => anchor.matches('a[href], button, input, select, textarea, summary, [role="button"], [role="link"]');
-    /** @param {HTMLElement} anchor */
-    const touchMode = (anchor) => {
-        const own = anchor.getAttribute('data-kp-touch');
-        if (cfg.touch === false || own === 'off') return 'off';
-        return own === 'tap' || !isControl(anchor) ? 'tap' : 'off';
-    };
-    /** A tap outside the card and its anchor closes it, before the tap does anything else. @param {PointerEvent} event */
-    const onTouchDown = (event) => {
-        if (event.pointerType !== 'touch' || current === null) return;
-        const target = event.target;
-        if (target instanceof Node && (card.contains(target) || current.contains(target))) return;
-        hide();
-    };
-    /** A tap on an anchor opens the card, or closes it when it is the open one. @param {MouseEvent} event */
-    const onTap = (event) => {
-        if (/** @type {PointerEvent} */ (event).pointerType !== 'touch') return;
-        const anchor = anchorOf(event);
-        if (anchor === null || touchMode(anchor) === 'off') return;
-        if (anchor === current) {
-            // Focus opened it a moment ago (a tap focuses a focusable anchor): that was this tap.
-            if (performance.now() - openedAt > 400) hide();
-            else if (isControl(anchor)) event.preventDefault();
-            return;
-        }
-        clearTimeout(timer);
-        open(anchor);
-        // Opened: a control's own action waits for the second tap.
-        if (current === anchor && isControl(anchor)) event.preventDefault();
-    };
-    /** @param {KeyboardEvent} event */
-    const onKey = (event) => {
-        if (event.key !== 'Escape' || current === null) return;
-        if (cfg.closeOnEscape === false || current.getAttribute('data-kp-close-on-escape') === 'false') return;
-        hide();
-    };
-
-    root.addEventListener('pointerover', /** @type {EventListener} */ (onOver));
-    root.addEventListener('pointerout', /** @type {EventListener} */ (onOut));
-    root.addEventListener('focusin', /** @type {EventListener} */ (onFocusIn));
-    root.addEventListener('focusout', /** @type {EventListener} */ (onFocusOut));
-    card.addEventListener('pointerenter', onCardEnter);
-    card.addEventListener('pointerleave', /** @type {EventListener} */ (onCardLeave));
-    doc.addEventListener('keydown', onKey);
-    root.addEventListener('click', /** @type {EventListener} */ (onTap));
-    doc.addEventListener('pointerdown', /** @type {EventListener} */ (onTouchDown), true);
-
-    const detach = () => {
-        clearTimeout(timer);
-        root.removeEventListener('pointerover', /** @type {EventListener} */ (onOver));
-        root.removeEventListener('pointerout', /** @type {EventListener} */ (onOut));
-        root.removeEventListener('focusin', /** @type {EventListener} */ (onFocusIn));
-        root.removeEventListener('focusout', /** @type {EventListener} */ (onFocusOut));
-        doc.removeEventListener('keydown', onKey);
-        root.removeEventListener('click', /** @type {EventListener} */ (onTap));
-        doc.removeEventListener('pointerdown', /** @type {EventListener} */ (onTouchDown), true);
-        watch?.disconnect();
-        if (current?.isConnected) undescribe(current);
-        current = null;
-        going = false;
-        stopReversing(card);
-        lower?.();
-        card.remove();
-    };
-    const handle = Object.assign(
-        () => {
-            attached.delete(root);
-            detach();
-        },
-        {
-            card,
-            open: (/** @type {HTMLElement} */ anchor) => schedule(anchor, 0),
-            hide,
-            refresh: () => {
-                if (current !== null && current.isConnected && fillFor(current)) place(card);
-                else hide();
-            },
-            anchor: () => current,
-        },
-    );
-    attached.set(root, { cfg, handle });
-    return handle;
+    const card = attachOne(host, HoverCard, options);
+    if (!card) throw new Error('The hover card could not be set up; the cause was reported.');
+    return card.handle;
 }

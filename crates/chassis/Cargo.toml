@@ -58,7 +58,7 @@ tracing-subscriber = { workspace = true }
 clap = { workspace = true }
 secrecy = { workspace = true }
 tower = { version = "0.5", features = ["util", "limit", "load-shed"] }
-tower-http = { version = "0.7", features = ["request-id", "limit", "timeout", "trace"] }
+tower-http = { version = "0.7", features = ["request-id", "limit", "timeout", "trace", "compression-gzip"] }
 http = "1"
 uuid = { version = "1", features = ["v4"] }
 sd-notify = "0.5"

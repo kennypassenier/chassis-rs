@@ -41,7 +41,7 @@ tar -xf "$work/fonts.tar" -C "$work/tree"
 
 # The vendored set, by rule.
 (cd "$work/tree" && find . -type f | sed 's#^\./##' | sort) |
-  grep -E '^(dist/kp-themes\.css|css/fonts\.css|fonts/.+|js/.+)$' > "$work/files"
+  grep -E '^(dist/kp-themes\.css|dist/kp-themes\.min\.js(\.map)?|css/fonts\.css|fonts/.+|js/.+)$' > "$work/files"
 count=$(wc -l < "$work/files")
 [ "$count" -gt 0 ] || { echo "vendor-kp-themes: the rule selected no files" >&2; exit 1; }
 

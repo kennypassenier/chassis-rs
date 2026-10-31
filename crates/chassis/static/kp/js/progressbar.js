@@ -22,6 +22,7 @@
 
 import { hostStatePlate } from './state-plate.js';
 import { getStrings } from './strings.js';
+import { Controller, attachAll } from './controller.js';
 
 /** The bars this module looks after. */
 export const PROGRESSBAR_SELECTOR = '.kp-progressbar';
@@ -173,6 +174,24 @@ export function setProgressFailed(el, failure) {
     FAILED.set(el, { plate, row });
 }
 
+/** One progress bar: built and synced, then kept in step with its ARIA. */
+class ProgressbarController extends Controller {
+    connect() {
+        const bar = this.host;
+        syncProgressbar(buildProgressbar(bar));
+        if (typeof MutationObserver === 'undefined') return;
+        this.observe(new MutationObserver((records) => this.onAria(records))).observe(bar, {
+            attributes: true,
+            attributeFilter: ['aria-valuenow', 'aria-valuemin', 'aria-valuemax'],
+        });
+    }
+
+    /** @param {MutationRecord[]} records */
+    onAria(records) {
+        for (const record of records) syncProgressbar(/** @type {HTMLElement} */ (record.target));
+    }
+}
+
 /**
  * Build and sync every `.kp-progressbar` under `root`, and keep each in step
  * when its `aria-valuenow`, `aria-valuemin` or `aria-valuemax` changes
@@ -183,15 +202,5 @@ export function setProgressFailed(el, failure) {
  * @returns {() => void} detach: stops following the attributes
  */
 export function attachProgressbars(root = document) {
-    const bars = /** @type {HTMLElement[]} */ ([
-        ...(root instanceof Element && root.matches(PROGRESSBAR_SELECTOR) ? [root] : []),
-        ...root.querySelectorAll(PROGRESSBAR_SELECTOR),
-    ]);
-    for (const bar of bars) syncProgressbar(buildProgressbar(bar));
-    if (typeof MutationObserver === 'undefined' || bars.length === 0) return () => {};
-    const watch = new MutationObserver((records) => {
-        for (const record of records) syncProgressbar(/** @type {HTMLElement} */ (record.target));
-    });
-    for (const bar of bars) watch.observe(bar, { attributes: true, attributeFilter: ['aria-valuenow', 'aria-valuemin', 'aria-valuemax'] });
-    return () => watch.disconnect();
+    return attachAll(root, PROGRESSBAR_SELECTOR, ProgressbarController);
 }

@@ -34,9 +34,9 @@ const clientsPageRoot = document.querySelector('[data-clients-page]');
 if (clientsPageRoot) startClientsPage(clientsPageRoot);
 
 async function startClientsPage(root) {
-  const base = '../kp/js/';
+  // The name only keys the cache; every part is the one kp-themes bundle.
   const modules = {};
-  const load = async (name) => (modules[name] ??= await import(`${base}${name}.js`));
+  const load = async (name) => (modules[name] ??= await import('../kp/dist/kp-themes.min.js'));
   const wanted = CLIENTS_MODULES.filter(([selector]) => root.querySelector(selector));
   await Promise.all([...wanted.map(([, name]) => load(name)), load('overlays'), load('hovercard'), load('problems'), load('datatable'), load('steplist')]);
   if (modules.remember) modules.remember.restoreRemembered(root);

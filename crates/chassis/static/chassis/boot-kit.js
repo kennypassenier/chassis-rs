@@ -4,10 +4,8 @@
 // Split out of chassis.js by responsibility; the page runs exactly as
 // before.
 
-import { attachThemePickers } from '../kp/js/theme-picker.js';
-import { enforceContracts, attachConfirmations, attachSkipLinks } from '../kp/js/components.js';
+import { attachThemePickers, enforceContracts, attachConfirmations, attachSkipLinks, configureRemember } from '../kp/dist/kp-themes.min.js';
 import { attachKitEffects } from './kit-effects.js';
-import { configureRemember } from '../kp/js/remember.js';
 import { localiseTimes } from './format-text.js';
 
 // 3.12.0: with preferences in the database (prefs-boot.js, put in the page

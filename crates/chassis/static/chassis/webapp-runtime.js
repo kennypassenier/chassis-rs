@@ -13,7 +13,7 @@
 // Idempotent per page: `window.chassisRuntime` marks the first load, so the
 // same module under another URL (?v=…) or a second tag does nothing.
 
-import { configureRemember } from '../kp/js/remember.js';
+import { configureRemember } from '../kp/dist/kp-themes.min.js';
 import { attachKitEffects } from './kit-effects.js';
 import { registerPwa } from './pwa-register.js';
 

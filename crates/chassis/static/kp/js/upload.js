@@ -30,37 +30,16 @@
 // that can be cancelled, sizes print in the page's locale, and detach
 // removes the rows attach created.
 
-import { getStrings } from './strings.js';
-import { formatBytes, resolveLocale } from './locale.js';
-import { leave, leavesState } from './motion.js';
+import { attachOne, controllerOf } from './controller.js';
+import { UploadZone } from './upload/controller.js';
+import { UPLOAD, UPLOAD_INPUT, UPLOAD_LIST, UPLOAD_ZONE } from './upload/values.js';
 
-const UPLOAD = '[data-kp-upload]';
-
-/** Fired for each accepted file. A contract value [TH26]: the detail carries the File and its row. */
-export const FILE_EVENT = 'kp-upload-file';
-/** Fired for a file the zone refused: `{ file, reason, item }`. */
-export const REJECT_EVENT = 'kp-upload-reject';
-/** Fired on the row before it is removed, cancelable: `{ file, item }`. */
-export const REMOVE_EVENT = 'kp-upload-remove';
+export { FILE_EVENT, REJECT_EVENT, REMOVE_EVENT } from './upload/values.js';
+export { acceptsFile } from './upload/accepts.js';
+export { setProgress, setDone, setError } from './upload/item.js';
 
 /** @typedef {'too-large' | 'too-many' | 'total-too-large' | 'wrong-type' | string} RejectReason */
 /** @typedef {(file: File, accepted: File[]) => RejectReason | null} Validator */
-
-/** Does a file satisfy an `accept` list? Same rules as the file picker's own. @param {File} file @param {string} accept */
-export function acceptsFile(file, accept) {
-    const rules = accept
-        .split(',')
-        .map((r) => r.trim().toLowerCase())
-        .filter(Boolean);
-    if (rules.length === 0) return true;
-    const name = file.name.toLowerCase();
-    const type = file.type.toLowerCase();
-    return rules.some((rule) => {
-        if (rule.startsWith('.')) return name.endsWith(rule);
-        if (rule.endsWith('/*')) return type.startsWith(rule.slice(0, -1));
-        return type === rule;
-    });
-}
 
 /**
  * @typedef {object} UploadHandle
@@ -70,271 +49,25 @@ export function acceptsFile(file, accept) {
  * @property {() => void} clear
  */
 
-/** @type {WeakMap<Element, UploadHandle>} */
-const handles = new WeakMap();
-
-/** The handle for an attached upload. @param {Element} element */
+/** The handle for an attached upload. @param {Element} element @returns {UploadHandle | null} */
 export function upload(element) {
-    return handles.get(element) ?? null;
+    return controllerOf(element, UploadZone)?.handle ?? null;
 }
 
 /**
  * @param {ParentNode} root
- * @param {{ locale?: string, validate?: Validator, renderRow?: (file: File) => HTMLElement, drop?: boolean, removeLabel?: string, removeClassName?: string }} [options]
+ * @param {import('./upload/core.js').UploadOptions} [options]
  *   Defaults; per upload as data-attributes: `data-kp-max-bytes`, `data-kp-max-files`, `data-kp-max-total`, `data-kp-drop="false"`, `data-kp-locale`, and the input's own `accept`.
  * @returns {(() => void) & { handles: UploadHandle[] }} detach
  */
-export function attachUploads(
-    root = document,
-    { locale: localeOption, validate, renderRow, drop = true, removeLabel, removeClassName = 'kp-button kp-button--ghost' } = {},
-) {
-    /** @type {(() => void)[]} */
-    const cleanups = [];
-    /** @type {UploadHandle[]} */
-    const created = [];
-
-    for (const element of root.querySelectorAll(UPLOAD)) {
-        const upload = /** @type {HTMLElement} */ (element);
-        if (upload.dataset.kpUploadAttached !== undefined) continue;
-        const input = /** @type {HTMLInputElement | null} */ (upload.querySelector('[data-kp-upload-input]'));
-        const zone = /** @type {HTMLElement | null} */ (upload.querySelector('[data-kp-upload-zone]'));
-        const list = /** @type {HTMLElement | null} */ (upload.querySelector('[data-kp-upload-list]'));
-        if (input === null || zone === null || list === null) continue;
-        upload.dataset.kpUploadAttached = '';
-
-        const locale = resolveLocale(upload.dataset.kpLocale ?? localeOption, upload);
-        const maxBytes = Number.parseInt(upload.dataset.kpMaxBytes ?? '', 10) || Infinity;
-        const maxFiles = Number.parseInt(upload.dataset.kpMaxFiles ?? '', 10) || Infinity;
-        const maxTotal = Number.parseInt(upload.dataset.kpMaxTotal ?? '', 10) || Infinity;
-        const dropping = upload.dataset.kpDrop === undefined ? drop : upload.dataset.kpDrop !== 'false';
-        /** @type {Map<HTMLElement, File>} */
-        const rows = new Map();
-
-        /** @param {File} file */
-        const row = (file) => {
-            if (renderRow !== undefined) return renderRow(file);
-            const s = getStrings();
-            const item = document.createElement('li');
-            item.className = 'kp-upload__file';
-            item.dataset.kpUploadFile = file.name;
-            item.dataset.state = 'waiting';
-
-            const name = document.createElement('span');
-            name.className = 'kp-upload__name';
-            name.textContent = file.name;
-
-            const size = document.createElement('span');
-            size.className = 'kp-upload__size';
-            size.textContent = formatBytes(file.size, locale);
-
-            // A progress bar that is also a number: a bar alone tells a
-            // screen reader nothing, and aria-valuenow is what makes it
-            // a measurement rather than a decoration.
-            const bar = document.createElement('span');
-            bar.className = 'kp-upload__bar';
-            bar.setAttribute('role', 'progressbar');
-            bar.setAttribute('aria-valuemin', '0');
-            bar.setAttribute('aria-valuemax', '100');
-            bar.setAttribute('aria-valuenow', '0');
-            bar.setAttribute('aria-label', s.uploadProgress(file.name));
-
-            const remove = document.createElement('button');
-            remove.type = 'button';
-            remove.className = removeClassName;
-            // Named, not a bare glyph: a column of identical buttons is
-            // useless to anyone who cannot see which row they are in.
-            remove.setAttribute('aria-label', s.removeNamed(file.name));
-            remove.textContent = upload.dataset.kpRemoveGlyph ?? removeLabel ?? '×';
-            remove.dataset.kpUploadRemove = '';
-
-            const message = document.createElement('span');
-            message.className = 'kp-upload__message';
-            message.setAttribute('role', 'status');
-            message.setAttribute('aria-live', 'polite');
-
-            item.append(name, size, bar, message, remove);
-            return item;
-        };
-
-        /** @param {File} file @param {RejectReason} reason @param {string} text */
-        const reject = (file, reason, text) => {
-            // Refused per file, with the reason on the row rather than in
-            // one message about "some files": a list that says which one
-            // is wrong is the whole point of a list.
-            const item = row(file);
-            setError(item, text);
-            list.append(item);
-            rows.set(item, file);
-            upload.dispatchEvent(new CustomEvent(REJECT_EVENT, { bubbles: true, detail: { file, reason, item } }));
-        };
-
-        /** @param {FileList | File[]} files */
-        const take = (files) => {
-            const s = getStrings();
-            for (const file of files) {
-                const accepted = [...rows.entries()].filter(([item]) => item.dataset.state !== 'error').map(([, f]) => f);
-                if (accepted.length >= maxFiles) {
-                    reject(file, 'too-many', s.uploadTooMany(maxFiles));
-                    continue;
-                }
-                if (file.size > maxBytes) {
-                    reject(file, 'too-large', s.uploadTooLarge(formatBytes(maxBytes, locale)));
-                    continue;
-                }
-                if (accepted.reduce((sum, f) => sum + f.size, 0) + file.size > maxTotal) {
-                    reject(file, 'total-too-large', s.uploadTotalTooLarge(formatBytes(maxTotal, locale)));
-                    continue;
-                }
-                if (input.accept && !acceptsFile(file, input.accept)) {
-                    reject(file, 'wrong-type', s.uploadWrongType(input.accept));
-                    continue;
-                }
-                const custom = validate?.(file, accepted) ?? null;
-                if (custom !== null) {
-                    reject(file, custom, custom);
-                    continue;
-                }
-                const item = row(file);
-                list.append(item);
-                rows.set(item, file);
-                upload.dispatchEvent(new CustomEvent(FILE_EVENT, { bubbles: true, detail: { file, item } }));
-            }
-        };
-
-        const onChange = () => {
-            if (input.files !== null) take(input.files);
-            // Cleared so the same file can be chosen twice: without this,
-            // picking a file, removing it, and picking it again does
-            // nothing at all.
-            input.value = '';
-        };
-        /** @param {Event} event */
-        const onListClick = (event) => {
-            const button = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (event.target).closest('[data-kp-upload-remove]'));
-            if (button === null) return;
-            const item = /** @type {HTMLElement | null} */ (button.closest('li, [data-kp-upload-file]'));
-            if (item === null || item.hasAttribute('data-kp-leaving')) return;
-            // Cancelable: a consumer whose request is in flight aborts it
-            // here, or keeps the row.
-            const ask = new CustomEvent(REMOVE_EVENT, { bubbles: true, cancelable: true, detail: { file: rows.get(item), item } });
-            if (!item.dispatchEvent(ask)) return;
-            rows.delete(item);
-            // A theme that lets a removed part leave first (leavesState())
-            // plays its leave and takes the row out when that is over.
-            if (leavesState(item)) {
-                item.inert = true;
-                void leave(item);
-            } else item.remove();
-        };
-
-        /** @param {DragEvent} event */
-        const onDragOver = (event) => {
-            event.preventDefault();
-            zone.dataset.kpDragging = '';
-        };
-        /**
-         * The zone takes the drag at its first event. Before, only dragover was
-         * answered: dragenter went uncancelled and set nothing, and the HTML
-         * drag-and-drop model then makes the body the drop target, so the zone
-         * need never see a dragover — Kenny dragged a real file over the live
-         * zone and saw no change (second nostromo pass, 2026-09-13).
-         *
-         * @param {DragEvent} event
-         */
-        const onDragEnter = (event) => {
-            event.preventDefault();
-            zone.dataset.kpDragging = '';
-        };
-        /**
-         * Leaving for a child of the zone is not leaving: an icon inside a
-         * consumer's zone would otherwise switch the state off under the pointer.
-         *
-         * @param {DragEvent} event
-         */
-        const onDragLeave = (event) => {
-            const to = event.relatedTarget;
-            if (to instanceof Node && zone.contains(to)) return;
-            delete zone.dataset.kpDragging;
-        };
-        /** @param {DragEvent} event */
-        const onDrop = (event) => {
-            event.preventDefault();
-            delete zone.dataset.kpDragging;
-            const files = event.dataTransfer?.files;
-            if (files !== undefined && files.length > 0) take(files);
-        };
-
-        input.addEventListener('change', onChange);
-        list.addEventListener('click', onListClick);
-        if (dropping) {
-            zone.addEventListener('dragenter', onDragEnter);
-            zone.addEventListener('dragover', onDragOver);
-            zone.addEventListener('dragleave', onDragLeave);
-            zone.addEventListener('drop', onDrop);
-        }
-
-        /** @type {UploadHandle} */
-        const handle = {
-            element: upload,
-            files: () => [...rows.values()],
-            add: take,
-            clear: () => {
-                for (const item of rows.keys()) item.remove();
-                rows.clear();
-            },
-        };
-        handles.set(upload, handle);
-        created.push(handle);
-
-        cleanups.push(() => {
-            input.removeEventListener('change', onChange);
-            list.removeEventListener('click', onListClick);
-            zone.removeEventListener('dragenter', onDragEnter);
-            zone.removeEventListener('dragover', onDragOver);
-            zone.removeEventListener('dragleave', onDragLeave);
-            zone.removeEventListener('drop', onDrop);
-            delete zone.dataset.kpDragging;
-            handle.clear();
-            handles.delete(upload);
-            delete upload.dataset.kpUploadAttached;
-        });
-    }
-
+export function attachUploads(root = document, options = {}) {
+    // Below the root only; an upload that is wired, or that lacks its input, zone or list, is left alone.
+    const made = [...root.querySelectorAll(UPLOAD)]
+        .filter((node) => !node.hasAttribute('data-kp-upload-attached') && node.querySelector(UPLOAD_INPUT) && node.querySelector(UPLOAD_ZONE) && node.querySelector(UPLOAD_LIST))
+        .map((node) => attachOne(/** @type {HTMLElement} */ (node), UploadZone, options))
+        .filter((controller) => controller !== undefined);
     const detach = () => {
-        for (const c of cleanups) c();
+        for (const controller of made) controller.destroy();
     };
-    return Object.assign(detach, { handles: created });
-}
-
-/**
- * Set a file row's progress. Exported because the consumer owns the
- * request and therefore owns the numbers.
- *
- * @param {HTMLElement} item
- * @param {number} percent
- */
-export function setProgress(item, percent) {
-    const value = Math.max(0, Math.min(100, Math.round(percent)));
-    item.dataset.state = value >= 100 ? 'done' : 'uploading';
-    delete item.dataset.error;
-    item.style.setProperty('--kp-progress', `${value}%`);
-    /** @type {HTMLElement | null} */ (item.querySelector('[role="progressbar"]'))?.setAttribute('aria-valuenow', String(value));
-}
-
-/** Mark a row done, with an optional message. @param {HTMLElement} item @param {string} [message] */
-export function setDone(item, message = '') {
-    setProgress(item, 100);
-    /** @type {HTMLElement | null} */ (item.querySelector('.kp-upload__message'))?.replaceChildren(message);
-}
-
-/**
- * Mark a row failed, with the reason where a screen reader will read it.
- *
- * @param {HTMLElement} item
- * @param {string} message
- */
-export function setError(item, message) {
-    item.dataset.state = 'error';
-    item.dataset.error = message;
-    /** @type {HTMLElement | null} */ (item.querySelector('.kp-upload__message'))?.replaceChildren(message);
+    return Object.assign(detach, { handles: made.map((controller) => controller.handle) });
 }

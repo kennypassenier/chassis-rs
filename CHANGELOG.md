@@ -7,6 +7,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-10-31
+
 ### Migration
 
 4.0.0 carries everything 3.15.0 would have, plus kp-themes 12. Per project:
@@ -21,6 +23,9 @@ scaffold writes. A breaking change in either is a major and carries a
    bundle loads every kp-themes singleton twice (listeners, auto-attach).
    One sed does it for `.js` and `.html` files:
    `sed -E 's#/static/kp/js/[A-Za-z0-9_/.-]+\.js#/static/kp/dist/kp-themes.min.js#g'`.
+   A page that loads kp-themes' `js/auto.js` swaps that tag for
+   `<script type="module" src="/static/kp/dist/kp-themes.min.js">`: the
+   bundle boots exactly like auto.js, so never load both.
    Measured on Kitchen's front page: 451 requests and 2076 KB cold before,
    155 requests and 1831 KB after. The module tree is still served.
 3. **A web app no longer attaches kp-themes effects itself.** The kit puts
@@ -35,10 +40,19 @@ scaffold writes. A breaking change in either is a major and carries a
 5. **Notifications to kyu need a token**: set `<P>_NOTIFY_TOKEN` (a kyu
    client token, through latch) when `<P>_NOTIFY_URL` points at a kyu topic;
    without it every message gets 401 and goes to the fallback.
-6. **A web app at the root registers its own pages** with
+6. **kp-themes 12 changes an app's own markup may lean on** (its
+   MIGRATION.md has the details): components are controller classes now
+   (import from the bundle, as in point 2); `attachTypeConfirms` lives in
+   `js/components/type-confirm.js` (same bundle export); a `data-kp-form`
+   whose submit must reach the server as a plain POST needs
+   `data-kp-form-native-submit` (or `nativeSubmit: true`), as the kit's
+   login and logout already have; a failing element is reported with
+   `reportError` instead of aborting the whole attach; the form grid aligns
+   to the start edge and reserves the error line.
+7. **A web app at the root registers its own pages** with
    `app.page(Page::new(id, title, path))`, or the kit's pages show only the
    kit's links (the start now warns about it).
-7. **Recognised through Traefik**: behind the home route add Traefik's
+8. **Recognised through Traefik**: behind the home route add Traefik's
    address to `<P>_TRUSTED_PROXIES` (10.10.10.4) so `<P>_TRUSTED_ADMINS`
    also works on the hostname.
 
@@ -120,6 +134,13 @@ scaffold writes. A breaking change in either is a major and carries a
   and a failed-auth counter. See docs/HOMELAB_SHARED.md.
 
 ### Changed
+
+- **kp-themes 12.0.0 vendored** (`scripts/vendor-kp-themes.sh 12.0.0`, every
+  file checked against the release's SHA256SUMS: 1212 files, the module
+  tree, the self-contained `dist/kp-themes.min.js` and its source map). The
+  kit's own JavaScript imports only the bundle, so a kit page loads one
+  kp-themes file instead of a module tree; static and web-app responses are
+  served gzip (`tower-http` compression) for clients that accept it.
 
 - **The kit's source is split by responsibility** (Kenny's engineering
   rules, 2026-10-30): 64 own files over 250 lines became small modules, among

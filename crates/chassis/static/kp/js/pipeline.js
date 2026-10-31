@@ -44,19 +44,15 @@
 // Events (bubbling, on the board): `kp-pipeline-open` `{ id, card, source }`
 // when a card is opened (a link is still followed), `kp-pipeline-retry` from
 // Try again, `kp-pipeline-more` `{ lane, open }` when a lane shows more or fewer.
+//
+// Each board is one PipelineBoard controller (js/pipeline/controller.js over core.js, lanes.js and view.js, on js/controller.js); the parts are
+// listed in js/README.md.
 
-import { resolveStrings } from './strings.js';
-import { openBusyCard } from './busy-card.js';
-import { hostStatePlate } from './state-plate.js';
+import { attachAll, controllerOf } from './controller.js';
+import { PipelineBoard } from './pipeline/controller.js';
+import { PIPELINE } from './pipeline/values.js';
 
-/** A board: `section.kp-pipeline[data-kp-pipeline]`. */
-export const PIPELINE = '[data-kp-pipeline]';
-/** Fired on the board, bubbling, when a card is opened: `{ id, card, source: 'pointer' | 'keyboard' }`. */
-export const PIPELINE_OPEN_EVENT = 'kp-pipeline-open';
-/** Fired on the board, bubbling, when Try again is pressed. */
-export const PIPELINE_RETRY_EVENT = 'kp-pipeline-retry';
-/** Fired on the board, bubbling, when a lane shows more or fewer: `{ lane, open }`. */
-export const PIPELINE_MORE_EVENT = 'kp-pipeline-more';
+export { PIPELINE, PIPELINE_OPEN_EVENT, PIPELINE_RETRY_EVENT, PIPELINE_MORE_EVENT } from './pipeline/values.js';
 
 /**
  * @typedef {{ key: string, label: string, tone?: 1 | 2 | 3 | 4 | 5, closed?: boolean, danger?: boolean }} PipelineLane
@@ -78,233 +74,6 @@ export const PIPELINE_MORE_EVENT = 'kp-pipeline-more';
  *   nodes: Map<string, HTMLElement>, busy: import('./busy-card.js').BusyCard | null, leaving: Promise<void> | null, drawn: boolean }} PipelineModel
  */
 
-/** @type {WeakMap<Element, PipelineModel>} */
-const boards = new WeakMap();
-
-/**
- * @template {keyof HTMLElementTagNameMap} K
- * @param {Document} doc @param {K} tag @param {string} [className] @param {string} [text]
- * @returns {HTMLElementTagNameMap[K]}
- */
-const make = (doc, tag, className, text) => {
-    const el = doc.createElement(tag);
-    if (className) el.className = className;
-    if (text != null) el.textContent = text;
-    return el;
-};
-
-/** The board's limit per lane; 0 shows every card. @param {PipelineModel} c */
-const limitOf = (c) => Math.max(0, Number.parseInt(c.el.dataset.kpPipelineLimit ?? '', 10) || 0);
-
-/** Build the frame once. @param {PipelineModel} c */
-function build(c) {
-    const doc = c.el.ownerDocument;
-    c.board = make(doc, 'div', 'kp-pipeline__board');
-    c.board.setAttribute('role', 'list');
-    c.closed = make(doc, 'div', 'kp-pipeline__closed');
-    c.closed.setAttribute('role', 'list');
-    c.plate = make(doc, 'div', 'kp-pipeline__plate');
-    c.plate.hidden = true;
-    c.live = make(doc, 'p', 'kp-sr-only kp-pipeline__live');
-    c.live.setAttribute('role', 'status');
-    const frame = make(doc, 'div', 'kp-pipeline__frame');
-    // An empty or failed board is one state plate over the whole board, closed lane included [r1r2-1019].
-    frame.append(c.board);
-    c.el.replaceChildren(frame, c.closed, c.plate, c.live);
-}
-
-/**
- * One card, made or kept by id.
- * @param {PipelineModel} c @param {PipelineCard} card @param {PipelineLane | undefined} lane
- */
-function cardNode(c, card, lane) {
-    const doc = c.el.ownerDocument;
-    const tag = card.href ? 'A' : 'BUTTON';
-    let node = c.nodes.get(card.id);
-    if (!node || node.tagName !== tag) {
-        node?.remove();
-        node = card.href ? make(doc, 'a', 'kp-pipeline__card') : make(doc, 'button', 'kp-pipeline__card');
-        if (node instanceof HTMLButtonElement) node.type = 'button';
-        node.append(make(doc, 'span', 'kp-pipeline__mark'), make(doc, 'span', 'kp-pipeline__title'), make(doc, 'span', 'kp-pipeline__sub'));
-        node.append(make(doc, 'span', 'kp-pipeline__meta'));
-        c.nodes.set(card.id, node);
-    }
-    if (node instanceof HTMLAnchorElement && card.href) node.href = card.href;
-    node.dataset.kpId = card.id;
-    node.setAttribute('role', 'listitem');
-    if (lane?.tone) node.dataset.kpTone = String(lane.tone);
-    else delete node.dataset.kpTone;
-    const [mark, title, sub, meta] = /** @type {HTMLElement[]} */ ([...node.children]);
-    if (mark) {
-        mark.textContent = card.mark ?? '';
-        mark.hidden = !card.mark;
-        mark.setAttribute('aria-hidden', 'true');
-    }
-    if (title) title.textContent = card.title;
-    if (sub) {
-        sub.textContent = card.sub ?? '';
-        sub.hidden = !card.sub;
-    }
-    if (meta) {
-        meta.textContent = card.meta ?? '';
-        meta.hidden = !card.meta;
-    }
-    node.title = [card.title, card.sub, card.meta].filter(Boolean).join(' · ');
-    node.toggleAttribute('data-kp-dimmed', card.dimmed === true);
-    if (card.id === c.selected) node.setAttribute('aria-current', 'true');
-    else node.removeAttribute('aria-current');
-    return node;
-}
-
-/** A lane, made from scratch on every paint (its cards are kept by id). @param {PipelineModel} c @param {PipelineLane} lane @param {PipelineCard[]} cards @param {number} total */
-function laneNode(c, lane, cards, total) {
-    const doc = c.el.ownerDocument;
-    const s = c.strings;
-    const loading = c.state === 'loading' || c.leaving !== null;
-    const node = make(doc, 'section', `kp-pipeline__lane${lane.closed ? ' kp-pipeline__lane--closed' : ''}`);
-    node.setAttribute('role', 'listitem');
-    node.dataset.kpLane = lane.key;
-    if (lane.tone) node.dataset.kpTone = String(lane.tone);
-    if (lane.danger) node.dataset.kpStatus = 'danger';
-    const head = make(doc, 'header', 'kp-pipeline__head');
-    const name = make(doc, 'h3', 'kp-pipeline__name', lane.label);
-    const id = `${c.el.id || 'kp-pipeline'}-${lane.key}`;
-    name.id = id;
-    node.setAttribute('aria-labelledby', id);
-    const count = make(doc, 'span', 'kp-pipeline__count');
-    if (loading) count.append(make(doc, 'span', 'kp-skeleton kp-pipeline__ghost-count'));
-    else count.textContent = String(cards.length);
-    if (lane.danger) head.append(name, make(doc, 'span', 'kp-pipeline__flag', s.pipelineDanger), count);
-    else head.append(name, count);
-    node.append(head);
-    if (c.el.dataset.kpPipelineShare !== 'false' && !lane.closed) {
-        const share = make(doc, 'p', 'kp-pipeline__share');
-        share.textContent = loading || total === 0 ? '' : s.pipelineShare(Math.round((cards.length / total) * 100));
-        node.append(share);
-    }
-    const list = make(doc, 'div', 'kp-pipeline__cards');
-    list.setAttribute('role', 'list');
-    list.setAttribute('aria-labelledby', id);
-    if (loading) {
-        for (let i = 0; i < (lane.closed ? 3 : 2); i += 1) {
-            const ghost = make(doc, 'span', 'kp-pipeline__card kp-pipeline__ghost');
-            ghost.setAttribute('aria-hidden', 'true');
-            ghost.append(make(doc, 'span', 'kp-skeleton'), make(doc, 'span', 'kp-skeleton'));
-            list.append(ghost);
-        }
-    } else if (cards.length === 0) {
-        list.append(make(doc, 'p', 'kp-pipeline__none', s.pipelineNone));
-    } else {
-        const limit = lane.closed ? 0 : limitOf(c);
-        const open = c.open.has(lane.key);
-        const shown = limit > 0 && !open ? cards.slice(0, limit) : cards;
-        for (const card of shown) list.append(cardNode(c, card, lane));
-        if (limit > 0 && cards.length > limit) {
-            const more = make(doc, 'button', 'kp-button kp-button--ghost kp-button--sm kp-pipeline__more');
-            more.type = 'button';
-            more.dataset.kpPipelineMore = lane.key;
-            more.setAttribute('aria-expanded', String(open));
-            more.textContent = open ? s.pipelineLess : s.pipelineMore(cards.length - limit);
-            list.append(more);
-        }
-    }
-    node.append(list);
-    return node;
-}
-
-/** Everything, from the model. @param {PipelineModel} c */
-function paint(c) {
-    const s = c.strings;
-    const byLane = new Map(c.lanes.map((l) => [l.key, /** @type {PipelineCard[]} */ ([])]));
-    for (const card of c.cards) byLane.get(card.lane)?.push(card);
-    const total = c.cards.filter((card) => c.lanes.some((l) => l.key === card.lane && !l.closed)).length;
-    const keep = new Set(c.cards.map((card) => card.id));
-    for (const [id, node] of c.nodes)
-        if (!keep.has(id)) {
-            node.remove();
-            c.nodes.delete(id);
-        }
-    const open = c.lanes.filter((l) => !l.closed);
-    const closed = c.lanes.filter((l) => l.closed);
-    c.board.style.setProperty('--kp-pipeline-lanes', String(Math.max(1, open.length)));
-    c.board.replaceChildren(...open.map((l) => laneNode(c, l, byLane.get(l.key) ?? [], total)));
-    c.closed.replaceChildren(...closed.map((l) => laneNode(c, l, byLane.get(l.key) ?? [], total)));
-    c.closed.hidden = closed.length === 0;
-    const empty = c.state === 'empty' || (c.state === 'ready' && c.cards.length === 0);
-    const shown = c.state === 'error' ? 'error' : empty && c.leaving === null ? 'empty' : null;
-    c.el.dataset.kpState = c.state === 'ready' && empty ? 'empty' : c.state;
-    c.board.toggleAttribute('aria-busy', c.state === 'loading');
-    // Rebuilt only when what it says changes, so the focus on its Retry survives a repaint.
-    const key = shown === null ? '' : `${shown}|${c.words}`;
-    if (c.plateKey !== key) {
-        c.plateKey = key;
-        c.plate.replaceChildren();
-        if (shown !== null)
-            c.plate.append(
-                hostStatePlate(c.el, {
-                    kind: shown,
-                    title: shown === 'error' ? s.pipelineFailed('') : c.words || s.pipelineEmpty,
-                    ...(shown === 'error' && c.words ? { text: c.words } : {}),
-                    retryEvent: PIPELINE_RETRY_EVENT,
-                    retryLabel: s.pipelineRetry,
-                }),
-            );
-    }
-    c.plate.hidden = shown === null;
-    // What the plate covers is not read behind it: no counts of zero for a board that could not be read.
-    c.board.parentElement?.toggleAttribute('inert', shown !== null);
-    c.closed.toggleAttribute('inert', shown !== null);
-    drawBusy(c);
-    syncTabStops(c);
-}
-
-/** The loading card over the board, the data table's own [Kenny, 2026-10-16]. @param {PipelineModel} c */
-function drawBusy(c) {
-    const want = c.state === 'loading';
-    if (want === (c.busy !== null)) {
-        c.busy?.place();
-        return;
-    }
-    const frame = /** @type {HTMLElement} */ (c.board.parentElement);
-    if (!want) {
-        const card = /** @type {import('./busy-card.js').BusyCard} */ (c.busy);
-        c.busy = null;
-        const gone = card.close();
-        c.leaving = gone;
-        void gone.then(() => {
-            if (c.leaving !== gone) return;
-            c.leaving = null;
-            if (boards.get(c.el) === c) paint(c);
-        });
-        return;
-    }
-    for (const old of frame.querySelectorAll(':scope > .kp-pipeline__busy')) old.remove();
-    c.leaving = null;
-    c.busy = openBusyCard(frame, {
-        words: c.strings.pipelineLoading,
-        area: () => [c.board],
-        className: 'kp-pipeline__busy',
-        arrive: c.drawn,
-    });
-    c.live.textContent = c.strings.pipelineLoading;
-}
-
-/** The cards a person can reach, per lane (the board's lanes, then the closed ones). @param {PipelineModel} c */
-function reachable(c) {
-    return [...c.el.querySelectorAll('.kp-pipeline__lane')]
-        .map((lane) => /** @type {HTMLElement[]} */ ([...lane.querySelectorAll('.kp-pipeline__card:not(.kp-pipeline__ghost), .kp-pipeline__more')]))
-        .filter((l) => l.length);
-}
-
-/** One tab stop: the active card. @param {PipelineModel} c */
-function syncTabStops(c) {
-    const lanes = reachable(c);
-    const all = lanes.flat();
-    let target = all.find((n) => n.dataset.kpId === c.active || n.dataset.kpPipelineMore === c.active);
-    target ??= all[0];
-    for (const n of all) n.tabIndex = n === target ? 0 : -1;
-}
-
 /**
  * Attach every board under `root`.
  * @param {ParentNode} [root]
@@ -312,107 +81,7 @@ function syncTabStops(c) {
  * @returns {() => void} detach
  */
 export function attachPipelines(root = document, options = {}) {
-    /** @type {(() => void)[]} */
-    const undo = [];
-    const found = /** @type {HTMLElement[]} */ ([
-        ...(root instanceof Element && root.matches(PIPELINE) ? [root] : []),
-        ...root.querySelectorAll(PIPELINE),
-    ]);
-    for (const el of found) {
-        if (boards.has(el)) continue;
-        el.classList.add('kp-pipeline');
-        /** @type {PipelineModel} */
-        const c = {
-            el,
-            strings: resolveStrings(options.strings),
-            lanes: [],
-            cards: [],
-            state: 'ready',
-            words: '',
-            open: new Set(),
-            selected: null,
-            active: null,
-            board: el,
-            closed: el,
-            plate: el,
-            plateKey: '',
-            live: el,
-            nodes: new Map(),
-            busy: null,
-            leaving: null,
-            drawn: false,
-        };
-        boards.set(el, c);
-        build(c);
-        paint(c);
-        window.requestAnimationFrame(() => (c.drawn = true));
-
-        /** @param {MouseEvent} event */
-        const onClick = (event) => {
-            const target = event.target instanceof Element ? event.target : null;
-            if (!target) return;
-            const more = /** @type {HTMLElement | null} */ (target.closest('[data-kp-pipeline-more]'));
-            if (more) {
-                const key = more.dataset.kpPipelineMore ?? '';
-                const open = !c.open.has(key);
-                if (open) c.open.add(key);
-                else c.open.delete(key);
-                c.active = key;
-                paint(c);
-                /** @type {HTMLElement | null} */ (el.querySelector(`[data-kp-pipeline-more="${CSS.escape(key)}"]`))?.focus();
-                el.dispatchEvent(new CustomEvent(PIPELINE_MORE_EVENT, { bubbles: true, detail: { lane: key, open } }));
-                return;
-            }
-            const node = /** @type {HTMLElement | null} */ (target.closest('.kp-pipeline__card[data-kp-id]'));
-            if (!node) return;
-            const card = c.cards.find((k) => k.id === node.dataset.kpId);
-            if (!card) return;
-            c.active = card.id;
-            syncTabStops(c);
-            el.dispatchEvent(
-                new CustomEvent(PIPELINE_OPEN_EVENT, {
-                    bubbles: true,
-                    detail: { id: card.id, card, source: event.detail === 0 ? 'keyboard' : 'pointer' },
-                }),
-            );
-        };
-        /** @param {KeyboardEvent} event */
-        const onKey = (event) => {
-            if (event.altKey || event.ctrlKey || event.metaKey) return;
-            const from = event.target instanceof HTMLElement ? event.target.closest('.kp-pipeline__card, .kp-pipeline__more') : null;
-            if (!(from instanceof HTMLElement)) return;
-            const lanes = reachable(c);
-            const li = lanes.findIndex((l) => l.includes(from));
-            const lane = lanes[li];
-            if (!lane) return;
-            const at = lane.indexOf(from);
-            const rtl = getComputedStyle(el).direction === 'rtl';
-            const side = event.key === 'ArrowRight' ? (rtl ? -1 : 1) : event.key === 'ArrowLeft' ? (rtl ? 1 : -1) : 0;
-            /** @type {HTMLElement | undefined} */
-            let to;
-            if (side) {
-                const next = lanes[li + side];
-                if (next) to = next[Math.min(at, next.length - 1)];
-            } else if (event.key === 'ArrowDown') to = lane[Math.min(lane.length - 1, at + 1)];
-            else if (event.key === 'ArrowUp') to = lane[Math.max(0, at - 1)];
-            else if (event.key === 'Home') to = lane[0];
-            else if (event.key === 'End') to = lane[lane.length - 1];
-            if (!to) return;
-            event.preventDefault();
-            c.active = to.dataset.kpId ?? to.dataset.kpPipelineMore ?? null;
-            syncTabStops(c);
-            to.focus();
-        };
-        el.addEventListener('click', onClick);
-        el.addEventListener('keydown', onKey);
-        undo.push(() => {
-            el.removeEventListener('click', onClick);
-            el.removeEventListener('keydown', onKey);
-            c.busy?.remove();
-            boards.delete(el);
-        });
-    }
-    return () => undo.splice(0).forEach((off) => off());
+    return attachAll(root, PIPELINE, PipelineBoard, options);
 }
 
 /**
@@ -422,12 +91,7 @@ export function attachPipelines(root = document, options = {}) {
  * @param {{ lanes?: PipelineLane[], cards: PipelineCard[] }} data
  */
 export function setPipeline(el, { lanes, cards }) {
-    const c = boards.get(el);
-    if (!c) return;
-    if (lanes) c.lanes = lanes;
-    c.cards = cards;
-    if (c.state === 'loading' || c.state === 'empty') c.state = 'ready';
-    paint(c);
+    controllerOf(el, PipelineBoard)?.setData(lanes, cards);
 }
 
 /**
@@ -438,11 +102,7 @@ export function setPipeline(el, { lanes, cards }) {
  * @param {string} [words]
  */
 export function setPipelineState(el, state, words = '') {
-    const c = boards.get(el);
-    if (!c) return;
-    c.state = state;
-    c.words = words;
-    paint(c);
+    controllerOf(el, PipelineBoard)?.setState(state, words);
 }
 
 /**
@@ -451,11 +111,5 @@ export function setPipelineState(el, state, words = '') {
  * @param {string | null} id
  */
 export function setPipelineSelected(el, id) {
-    const c = boards.get(el);
-    if (!c) return;
-    c.selected = id;
-    for (const [key, node] of c.nodes) {
-        if (key === id) node.setAttribute('aria-current', 'true');
-        else node.removeAttribute('aria-current');
-    }
+    controllerOf(el, PipelineBoard)?.setSelected(id);
 }

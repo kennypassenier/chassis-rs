@@ -3,8 +3,7 @@
 // badge's idle count is written by the server). Loading is the palette's own
 // busy card over its list, a failure its failed plate with Try again
 // (kp-palette-retry) above the static pages, which stay usable.
-import { setTabbarBadge } from '../kp/js/tabbar.js';
-import { toast as shellToast } from '../kp/js/overlays.js';
+import { setTabbarBadge, toast as shellToast } from '../kp/dist/kp-themes.min.js';
 import { $ } from './shell-dom.js';
 import { group, option, wrap } from './shell-palette-options.js';
 import { refusal } from './requests.js';

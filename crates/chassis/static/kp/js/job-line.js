@@ -20,6 +20,7 @@ import { STEPLIST_EVENT, STEPLIST_SELECTOR } from './steplist.js';
 import { formatBytes } from './locale.js';
 import { getStrings } from './strings.js';
 import { transferEta } from './transfer.js';
+import { Controller, attachOne, controllerOf } from './controller.js';
 
 /** The lines this module looks after. */
 export const JOBLINE = '[data-kp-jobline]';
@@ -41,6 +42,14 @@ export const JOBLINE_EVENT = 'kp-jobline';
  * @typedef {{ [K in keyof JobReport]?: JobReport[K] | null }} JobReportUpdate
  */
 
+/** The unit names of `formatBytes`, smallest first; the position is the power of the base. */
+const BYTE_UNITS = ['B', 'kB', 'MB', 'GB', 'TB'];
+/** The decimals of a moved size above bytes ("1.2 of 4 GB"). */
+const SIZE_DECIMALS = 1;
+/** The two byte bases `data-kp-bytes-base` chooses between: decimal by default, binary on "1024". */
+const DECIMAL_BASE = 1000;
+const BINARY_BASE = 1024;
+
 /** The report each line was last given. @type {WeakMap<Element, JobReport>} */
 const reports = new WeakMap();
 
@@ -54,9 +63,8 @@ const reports = new WeakMap();
 function sharedSize(done, total, base) {
     const all = formatBytes(total, undefined, { base });
     const unit = all.slice(all.lastIndexOf(' ') + 1);
-    const units = ['B', 'kB', 'MB', 'GB', 'TB'];
-    const power = Math.max(0, units.indexOf(unit));
-    const scaled = new Intl.NumberFormat(undefined, { maximumFractionDigits: power === 0 ? 0 : 1 }).format(done / base ** power);
+    const power = Math.max(0, BYTE_UNITS.indexOf(unit));
+    const scaled = new Intl.NumberFormat(undefined, { maximumFractionDigits: power === 0 ? 0 : SIZE_DECIMALS }).format(done / base ** power);
     return getStrings().jobLineBytes(scaled, all);
 }
 
@@ -66,7 +74,7 @@ function sharedSize(done, total, base) {
  * @param {{ base?: 1000 | 1024 }} [options]
  * @returns {string}
  */
-export function jobLineText(report, { base = 1000 } = {}) {
+export function jobLineText(report, { base = DECIMAL_BASE } = {}) {
     const s = getStrings();
     const parts = [];
     const { step, steps, done, total } = report;
@@ -101,7 +109,7 @@ export function stepPosition(list) {
 
 /** @param {HTMLElement} line @param {JobReport} report */
 function paint(line, report) {
-    const base = /** @type {1000 | 1024} */ (line.getAttribute('data-kp-bytes-base') === '1024' ? 1024 : 1000);
+    const base = /** @type {1000 | 1024} */ (line.getAttribute('data-kp-bytes-base') === String(BINARY_BASE) ? BINARY_BASE : DECIMAL_BASE);
     const text = jobLineText(report, { base });
     if (line.textContent !== text) {
         line.textContent = text;
@@ -146,26 +154,38 @@ export function buildJobLine({ label, steplist } = {}) {
     return line;
 }
 
+/** One job line: its status-region attributes, a first paint, and a repaint whenever the step list it names moves. */
+class JobLineController extends Controller {
+    connect() {
+        const line = this.host;
+        line.setAttribute('role', 'status');
+        line.setAttribute('aria-live', 'off');
+        line.setAttribute('aria-atomic', 'true');
+        const list = listOf(line);
+        paint(line, list ? { ...(reports.get(line) ?? {}), ...stepPosition(list) } : (reports.get(line) ?? {}));
+        this.listen(document, STEPLIST_EVENT, (event) => this.onStep(event));
+    }
+
+    /** @param {Event} event */
+    onStep(event) {
+        const list = event.target instanceof Element ? event.target.closest(STEPLIST_SELECTOR) : null;
+        if (list && listOf(this.host) === list) setJobLine(this.host, {});
+    }
+}
+
 /**
  * Prepare every job line under `root` and follow the step lists they name.
  * @param {ParentNode} [root]
  * @returns {() => void} detach
  */
 export function attachJobLines(root = document) {
-    const lines = /** @type {HTMLElement[]} */ ([...root.querySelectorAll(JOBLINE)]);
-    for (const line of lines) {
-        line.setAttribute('role', 'status');
-        line.setAttribute('aria-live', 'off');
-        line.setAttribute('aria-atomic', 'true');
-        const list = listOf(line);
-        paint(line, list ? { ...(reports.get(line) ?? {}), ...stepPosition(list) } : (reports.get(line) ?? {}));
-    }
-    /** @param {Event} event */
-    const onStep = (event) => {
-        const list = event.target instanceof Element ? event.target.closest(STEPLIST_SELECTOR) : null;
-        if (!list) return;
-        for (const line of lines) if (listOf(line) === list) setJobLine(line, {});
+    // The root itself is never a line host here: only what is under it, as before.
+    const made = [...root.querySelectorAll(JOBLINE)]
+        .map((found) => /** @type {HTMLElement} */ (found))
+        .filter((line) => !controllerOf(line, JobLineController))
+        .map((line) => attachOne(line, JobLineController))
+        .filter((controller) => controller !== undefined);
+    return () => {
+        for (const controller of made) controller.destroy();
     };
-    document.addEventListener(STEPLIST_EVENT, onStep);
-    return () => document.removeEventListener(STEPLIST_EVENT, onStep);
 }

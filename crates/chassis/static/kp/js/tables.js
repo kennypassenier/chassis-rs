@@ -30,6 +30,7 @@
 // detach that puts every attribute back exactly as it was found.
 
 import { getStrings } from './strings.js';
+import { Controller, attachOne, controllerOf } from './controller.js';
 
 /** The wrapper this module upgrades. A contract value [TH26]. */
 export const WRAP_SELECTOR = '.kp-table-wrap';
@@ -60,6 +61,66 @@ function nameFor(wrap, label) {
     return getStrings().tableRegion;
 }
 
+/** One scroll box: focusable, a region, named, and given back exactly as it was found. */
+class TableRegionController extends Controller {
+    /**
+     * @param {HTMLElement} host
+     * @param {Record<string, unknown>} [options]
+     */
+    constructor(host, options) {
+        super(host, options);
+        // What was there before, so detach can put back exactly that —
+        // including "there was no attribute", which is not the same as an
+        // empty one [KT6, D7].
+        this.before = {
+            tabindex: host.getAttribute('tabindex'),
+            role: host.getAttribute('role'),
+            ariaLabel: host.getAttribute('aria-label'),
+        };
+        /** @type {TableRegionHandle} */
+        this.handle = {
+            element: host,
+            label: () => host.getAttribute('aria-label') ?? '',
+            setLabel: (text) => this.setLabel(text),
+        };
+    }
+
+    connect() {
+        const wrap = this.host;
+        wrap.dataset[ATTACHED] = '';
+        this.own(() => {
+            delete wrap.dataset[ATTACHED];
+        });
+        this.own(() => this.restore());
+        wrap.setAttribute('tabindex', '0');
+        // A consumer who already gave it a role keeps it: a wrapper that
+        // someone made a `group` or a `figure` on purpose is not ours to
+        // overrule.
+        if (this.before.role === null) wrap.setAttribute('role', 'region');
+        this.setLabel(nameFor(wrap, /** @type {Parameters<typeof nameFor>[1]} */ (this.options.label)));
+    }
+
+    /** @param {string} text */
+    setLabel(text) {
+        // aria-labelledby beats aria-label, so a consumer who pointed
+        // the wrapper at their own heading keeps that name.
+        if (this.host.hasAttribute('aria-labelledby')) return;
+        this.host.setAttribute('aria-label', text);
+    }
+
+    /** Put back the three attributes as they were found. */
+    restore() {
+        for (const [attribute, value] of /** @type {[string, string | null][]} */ ([
+            ['tabindex', this.before.tabindex],
+            ['role', this.before.role],
+            ['aria-label', this.before.ariaLabel],
+        ])) {
+            if (value === null) this.host.removeAttribute(attribute);
+            else this.host.setAttribute(attribute, value);
+        }
+    }
+}
+
 /**
  * Make every table's scroll box a named region a keyboard can reach.
  *
@@ -68,62 +129,14 @@ function nameFor(wrap, label) {
  * @returns {(() => void) & { handles: TableRegionHandle[] }} detach
  */
 export function attachTableRegions(root = document, { label, selector = WRAP_SELECTOR } = {}) {
-    /** @type {(() => void)[]} */
-    const cleanups = [];
-    /** @type {TableRegionHandle[]} */
-    const created = [];
-
-    for (const element of root.querySelectorAll(selector)) {
-        const wrap = /** @type {HTMLElement} */ (element);
-        if (wrap.dataset[ATTACHED] !== undefined) continue;
-        if (wrap.matches(OPT_OUT)) continue;
-        wrap.dataset[ATTACHED] = '';
-
-        // What was there before, so detach can put back exactly that —
-        // including "there was no attribute", which is not the same as an
-        // empty one [KT6, D7].
-        const before = {
-            tabindex: wrap.getAttribute('tabindex'),
-            role: wrap.getAttribute('role'),
-            ariaLabel: wrap.getAttribute('aria-label'),
-        };
-
-        wrap.setAttribute('tabindex', '0');
-        // A consumer who already gave it a role keeps it: a wrapper that
-        // someone made a `group` or a `figure` on purpose is not ours to
-        // overrule.
-        if (before.role === null) wrap.setAttribute('role', 'region');
-
-        /** @param {string} text */
-        const setLabel = (text) => {
-            // aria-labelledby beats aria-label, so a consumer who pointed
-            // the wrapper at their own heading keeps that name.
-            if (wrap.hasAttribute('aria-labelledby')) return;
-            wrap.setAttribute('aria-label', text);
-        };
-        setLabel(nameFor(wrap, label));
-
-        created.push({
-            element: wrap,
-            label: () => wrap.getAttribute('aria-label') ?? '',
-            setLabel,
-        });
-
-        cleanups.push(() => {
-            for (const [attribute, value] of /** @type {[string, string | null][]} */ ([
-                ['tabindex', before.tabindex],
-                ['role', before.role],
-                ['aria-label', before.ariaLabel],
-            ])) {
-                if (value === null) wrap.removeAttribute(attribute);
-                else wrap.setAttribute(attribute, value);
-            }
-            delete wrap.dataset[ATTACHED];
-        });
-    }
-
+    // The root itself is never a wrapper here: only what is under it, as before.
+    const made = [...root.querySelectorAll(selector)]
+        .map((found) => /** @type {HTMLElement} */ (found))
+        .filter((wrap) => !(wrap.dataset[ATTACHED] !== undefined || controllerOf(wrap, TableRegionController)) && !wrap.matches(OPT_OUT))
+        .map((wrap) => attachOne(wrap, TableRegionController, { label }))
+        .filter((controller) => controller !== undefined);
     const detach = () => {
-        for (const cleanup of cleanups) cleanup();
+        for (const controller of made) controller.destroy();
     };
-    return Object.assign(detach, { handles: created });
+    return Object.assign(detach, { handles: made.map((controller) => controller.handle) });
 }

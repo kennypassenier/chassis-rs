@@ -2,7 +2,7 @@
 // see.
 // Split out of shell.js by responsibility; the page runs exactly as before.
 
-import { attachConnection, setConnection } from '../kp/js/connection.js';
+import { attachConnection, setConnection } from '../kp/dist/kp-themes.min.js';
 
 // `joined` collects the names of the kp modules attached here.
 export function attachConnectionLine(connectionEl, joined) {

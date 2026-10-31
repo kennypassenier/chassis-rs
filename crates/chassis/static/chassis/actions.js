@@ -12,7 +12,7 @@
 document.addEventListener('click', async (event) => {
   const post = event.target.closest('[data-post]');
   if (!post || post.hasAttribute('data-kp-armed-pending')) return;
-  const { runFlashButton } = await import('../kp/js/flash.js');
+  const { runFlashButton } = await import('../kp/dist/kp-themes.min.js');
   runFlashButton(
     post,
     async () => {

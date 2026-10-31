@@ -29,8 +29,12 @@
 //   const card = openBusyCard(host, { words: 'Reading…', area: () => [cells], className: 'kp-heat__busy' });
 //   await card.close();   // the data is drawn once it has gone: nothing under a card on its way out
 
-/** Every busy card, whatever component laid it. */
-export const BUSY_CARD = '.kp-datatable__busy-card';
+// The module is a facade [closure-pattern B, Kenny 2026-10-30]: the class, the scrolling ancestors, the geometry and the
+// BusyCardLayer controller live in js/busy-card/, listed in js/README.md. It has no import of its own: nothing runs on import.
+
+export { BUSY_CARD } from './busy-card/values.js';
+export { scrollersAround, seenAcross } from './busy-card/scroll.js';
+export { openBusyCard } from './busy-card/layer.js';
 
 /**
  * @typedef {object} BusyCardOptions
@@ -48,148 +52,3 @@ export const BUSY_CARD = '.kp-datatable__busy-card';
  * @property {() => Promise<void>} close let it leave the theme's way; settles once it is gone
  * @property {() => void} remove take it out at once (a new loading state while it was leaving)
  */
-
-/** @param {number} v */
-const px = (v) => `${Math.round(v)}px`;
-
-/** The ancestors of `host` that clip it sideways (overflow-x other than visible), nearest first. @param {HTMLElement} host */
-export function scrollersAround(host) {
-    /** @type {HTMLElement[]} */
-    const found = [];
-    for (let a = host.parentElement; a && a !== host.ownerDocument.documentElement; a = a.parentElement) {
-        const x = getComputedStyle(a).overflowX;
-        if (x !== 'visible' && a.clientWidth > 0) found.push(a);
-    }
-    return found;
-}
-
-/**
- * The span of `host`'s width (left to right, in viewport pixels) that no ancestor's sideways scrolling hides.
- * @param {HTMLElement} host @param {number} left @param {number} right
- */
-export function seenAcross(host, left, right) {
-    let seenLeft = left;
-    let seenRight = right;
-    for (const a of scrollersAround(host)) {
-        const box = a.getBoundingClientRect();
-        seenLeft = Math.max(seenLeft, box.left + a.clientLeft);
-        seenRight = Math.min(seenRight, box.left + a.clientLeft + a.clientWidth);
-    }
-    return { left: seenLeft, right: Math.max(seenLeft, seenRight) };
-}
-
-/**
- * Lay the busy card over a data area of `host`.
- * @param {HTMLElement} host
- * @param {BusyCardOptions} options
- * @returns {BusyCard}
- */
-export function openBusyCard(host, { words, area, className = '', arrive = true }) {
-    const doc = host.ownerDocument;
-    const layer = doc.createElement('div');
-    layer.className = `kp-datatable__busy-overlay kp-datatable__busy-card${className ? ` ${className}` : ''}`;
-    layer.setAttribute('aria-hidden', 'true');
-    const panel = doc.createElement('div');
-    panel.className = 'kp-datatable__busy-panel';
-    const spinner = doc.createElement('span');
-    spinner.className = 'kp-spinner';
-    const said = doc.createElement('span');
-    said.className = 'kp-datatable__busy-words';
-    said.textContent = words;
-    panel.append(spinner, said);
-    layer.append(panel);
-
-    const place = () => {
-        if (!layer.isConnected) return;
-        const box = host.getBoundingClientRect();
-        // The host's padding box in view, and where its scroll origin is: the layer scrolls with the host's content.
-        const viewTop = box.top + host.clientTop;
-        const viewLeft = box.left + host.clientLeft;
-        const viewBottom = viewTop + host.clientHeight;
-        const viewRight = viewLeft + host.clientWidth;
-        // A host wider than the box that scrolls it (a heat grid on a phone, in its page's scroller) is covered only where it is
-        // seen, so the panel is centred on what the reader sees and not on a middle off screen [hltwo-1019].
-        const seen = seenAcross(host, viewLeft, viewRight);
-        const rects = area().map((b) => ('getBoundingClientRect' in b ? b.getBoundingClientRect() : b));
-        if (!rects.length) return;
-        let top = Math.max(viewTop, Math.min(...rects.map((r) => r.top)));
-        let left = Math.max(seen.left, Math.min(...rects.map((r) => r.left)));
-        let bottom = Math.max(top, Math.min(viewBottom, Math.max(...rects.map((r) => r.bottom))));
-        let right = Math.max(left, Math.min(seen.right, Math.max(...rects.map((r) => r.right))));
-        const originTop = viewTop - host.scrollTop;
-        const originLeft = viewLeft - host.scrollLeft;
-        const write = () => {
-            layer.style.setProperty('--kp-busy-overlay-top', px(top - originTop));
-            layer.style.setProperty('--kp-busy-overlay-left', px(left - originLeft));
-            layer.style.setProperty('--kp-busy-overlay-bottom', px(host.clientHeight - (bottom - originTop)));
-            layer.style.setProperty('--kp-busy-overlay-right', px(host.clientWidth - (right - originLeft)));
-        };
-        write();
-        // An area shorter than the theme's panel (a heat grid of three rows; a register that gives its panel a foot of
-        // its own) lends the card the room it needs from either side, within the host: the panel is never cut.
-        const need = panel.offsetHeight + 8;
-        if (need > bottom - top) {
-            const grow = (need - (bottom - top)) / 2;
-            top = Math.max(viewTop, top - grow);
-            bottom = Math.min(viewBottom, bottom + grow);
-            write();
-        }
-        // The same sideways: an area narrower than the panel (the cells of a heat grid on a phone, beside its label column, in
-        // the part a scroller shows) lends the card the width the panel needs, over what stands beside it, within what is seen,
-        // so the panel stands centred in its card and is never cut [laststates-1019].
-        // (the panel keeps a gutter of 0.5rem a side in a narrow container, and its grid track is the panel and that gutter.)
-        // It also covers at least half of what is seen, so it is a card and not a strip beside the labels.
-        const wide = Math.max(panel.offsetWidth + 17, (seen.right - seen.left) / 2 + 1);
-        if (wide > right - left) {
-            const grow = (wide - (right - left)) / 2;
-            left = Math.max(seen.left, left - grow);
-            right = Math.min(seen.right, right + grow);
-            // Where one side met the edge of what is seen, the other side takes the rest.
-            if (right - left < wide) {
-                if (left === seen.left) right = Math.min(seen.right, left + wide);
-                else left = Math.max(seen.left, right - wide);
-            }
-            write();
-        }
-    };
-
-    host.append(layer);
-    place();
-    const watcher = typeof ResizeObserver === 'function' ? new ResizeObserver(() => place()) : null;
-    watcher?.observe(host);
-    host.addEventListener('scroll', place, { passive: true });
-    const scrollers = scrollersAround(host);
-    for (const scroller of scrollers) scroller.addEventListener('scroll', place, { passive: true });
-    const unwatch = () => {
-        watcher?.disconnect();
-        host.removeEventListener('scroll', place);
-        for (const scroller of scrollers) scroller.removeEventListener('scroll', place);
-    };
-    if (arrive) void import('./motion.js').then((m) => layer.isConnected && m.arriveShown(layer));
-
-    /** @type {Promise<void> | null} */
-    let closing = null;
-    return {
-        layer,
-        place,
-        remove() {
-            unwatch();
-            layer.remove();
-        },
-        close() {
-            closing ??= import('./motion.js')
-                .then((m) => {
-                    if (!layer.isConnected) return undefined;
-                    if (m.leavesState(layer)) return m.leave(layer);
-                    layer.setAttribute(m.CLOSING_ATTRIBUTE, '');
-                    return m.playClose(panel).then(() => undefined);
-                })
-                .catch(() => undefined)
-                .then(() => {
-                    unwatch();
-                    layer.remove();
-                });
-            return closing;
-        },
-    };
-}

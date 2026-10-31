@@ -13,6 +13,33 @@
 // someone else's app can answer the same question the same way rather than
 // arriving at a second opinion.
 
+/** Degrees in a full turn of the hue circle. */
+const FULL_TURN = 360;
+/** Degrees in one of the six sectors of the hue circle. */
+const HUE_SECTOR = 60;
+/** The sectors of the hue circle. */
+const HUE_SECTORS = 6;
+/** Saturation and lightness are written as percentages. */
+const PERCENT = 100;
+/** The linear/gamma switch the WCAG text names for a channel (the sRGB standard says 0.04045; pinned deliberately). */
+const WCAG_LINEAR_LIMIT = 0.03928;
+/** The slope of the linear part of the sRGB curve. */
+const SRGB_LINEAR_SLOPE = 12.92;
+/** The offset and the divisor of the gamma part of the sRGB curve. */
+const SRGB_GAMMA_OFFSET = 0.055;
+const SRGB_GAMMA_DIVISOR = 1.055;
+const SRGB_GAMMA = 2.4;
+/** The weights of the red, green and blue channels in relative luminance. */
+const LUMA_RED = 0.2126;
+const LUMA_GREEN = 0.7152;
+const LUMA_BLUE = 0.0722;
+/** The flare WCAG adds to both luminances before it divides. */
+const CONTRAST_FLARE = 0.05;
+/** The WCAG ratio for body text (SC 1.4.3). */
+const RATIO_TEXT = 4.5;
+/** The WCAG ratio for large text and for non-text boundaries (SC 1.4.11). */
+const RATIO_LARGE = 3;
+
 /** @typedef {{h: number, s: number, l: number}} Hsl */
 /** @typedef {[number, number, number]} Rgb sRGB in 0..1 */
 
@@ -35,10 +62,10 @@ export function formatHsl({ h, s, l }) {
 
 /** @param {Hsl} c @returns {Rgb} */
 export function hslToRgb({ h, s, l }) {
-    const S = s / 100;
-    const L = l / 100;
+    const S = s / PERCENT;
+    const L = l / PERCENT;
     const c = (1 - Math.abs(2 * L - 1)) * S;
-    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const x = c * (1 - Math.abs(((h / HUE_SECTOR) % 2) - 1));
     const m = L - c / 2;
     const [r, g, b] = [
         [c, x, 0],
@@ -47,7 +74,7 @@ export function hslToRgb({ h, s, l }) {
         [0, x, c],
         [x, 0, c],
         [c, 0, x],
-    ][Math.floor(h / 60) % 6];
+    ][Math.floor(h / HUE_SECTOR) % HUE_SECTORS];
     return [r + m, g + m, b + m];
 }
 
@@ -57,13 +84,13 @@ export function rgbToHsl([r, g, b]) {
     const min = Math.min(r, g, b);
     const l = (max + min) / 2;
     const d = max - min;
-    if (d === 0) return { h: 0, s: 0, l: l * 100 };
+    if (d === 0) return { h: 0, s: 0, l: l * PERCENT };
     const s = d / (1 - Math.abs(2 * l - 1));
     let h;
-    if (max === r) h = 60 * (((g - b) / d) % 6);
-    else if (max === g) h = 60 * ((b - r) / d + 2);
-    else h = 60 * ((r - g) / d + 4);
-    return { h: (h + 360) % 360, s: s * 100, l: l * 100 };
+    if (max === r) h = HUE_SECTOR * (((g - b) / d) % HUE_SECTORS);
+    else if (max === g) h = HUE_SECTOR * ((b - r) / d + 2);
+    else h = HUE_SECTOR * ((r - g) / d + 4);
+    return { h: (h + FULL_TURN) % FULL_TURN, s: s * PERCENT, l: l * PERCENT };
 }
 
 /**
@@ -75,8 +102,8 @@ export function rgbToHsl([r, g, b]) {
  */
 export function luminance([r, g, b]) {
     /** @param {number} u */
-    const f = (u) => (u <= 0.03928 ? u / 12.92 : ((u + 0.055) / 1.055) ** 2.4);
-    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    const f = (u) => (u <= WCAG_LINEAR_LIMIT ? u / SRGB_LINEAR_SLOPE : ((u + SRGB_GAMMA_OFFSET) / SRGB_GAMMA_DIVISOR) ** SRGB_GAMMA);
+    return LUMA_RED * f(r) + LUMA_GREEN * f(g) + LUMA_BLUE * f(b);
 }
 
 /**
@@ -86,7 +113,7 @@ export function luminance([r, g, b]) {
  */
 export function contrast(a, b) {
     const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
+    return (hi + CONTRAST_FLARE) / (lo + CONTRAST_FLARE);
 }
 
 /** Convenience: parse an authored value straight to sRGB. @param {string} text */
@@ -123,5 +150,5 @@ export function tokenColour(token, from = document.documentElement) {
  * @param {'text' | 'large' | 'non-text'} kind
  */
 export function meets(ratio, kind = 'text') {
-    return ratio >= (kind === 'text' ? 4.5 : 3);
+    return ratio >= (kind === 'text' ? RATIO_TEXT : RATIO_LARGE);
 }

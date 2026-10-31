@@ -14,6 +14,11 @@ use crate::core::error::Error;
 impl WebApp {
     /// The routes, unprotected: the caller layers the login in front.
     pub(crate) fn router(self) -> Result<Router, Error> {
+        Ok(crate::shell::compress::compressed(self.plain_router()?))
+    }
+
+    /// The routes before gzip is layered on.
+    fn plain_router(self) -> Result<Router, Error> {
         self.validate()?;
         let mount = self.mount.clone();
         let state = Arc::new(self);

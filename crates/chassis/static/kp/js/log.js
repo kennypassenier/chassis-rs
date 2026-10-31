@@ -14,6 +14,13 @@ import { presentUnder, asOf } from './as-of.js';
 /** The custom property a source's colour is written to. */
 export const SOURCE_PROPERTY = '--kp-source-colour';
 
+/** The 32-bit FNV-1a offset basis. */
+const FNV_OFFSET_BASIS = 0x811c_9dc5;
+/** The 32-bit FNV-1a prime. */
+const FNV_PRIME = 0x0100_0193;
+/** The register's chart colours a name is hashed into (`--chart-1` to `--chart-5`). */
+const CHART_COLOURS = 5;
+
 /**
  * FNV-1a over the name's bytes, as kp-tui hashes it: the same offset basis
  * and the same prime, so `media` is the third chart colour in a terminal and
@@ -24,12 +31,12 @@ export const SOURCE_PROPERTY = '--kp-source-colour';
  * @returns {number} 1 to 5, the chart colour the name takes
  */
 export function sourceIndex(name) {
-    let hash = 0x811c_9dc5;
+    let hash = FNV_OFFSET_BASIS;
     for (const byte of new TextEncoder().encode(name)) {
         hash ^= byte;
-        hash = Math.imul(hash, 0x0100_0193) >>> 0;
+        hash = Math.imul(hash, FNV_PRIME) >>> 0;
     }
-    return (hash % 5) + 1;
+    return (hash % CHART_COLOURS) + 1;
 }
 
 /**

@@ -28,6 +28,7 @@ fn embeddable_files() -> Vec<(String, &'static str)> {
             let mime = match f.rsplit('.').next()? {
                 "css" => "text/css; charset=utf-8",
                 "js" => "text/javascript; charset=utf-8",
+                "map" => "application/json",
                 "woff2" => "font/woff2",
                 _ => return None,
             };

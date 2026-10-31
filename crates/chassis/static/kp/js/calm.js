@@ -21,6 +21,7 @@
 // shows on, disabled, with the reason. Every change is announced once, politely. Nothing runs on import.
 
 import { getStrings } from './strings.js';
+import { Controller, attachOne, controllerOf } from './controller.js';
 
 /** The root attribute that makes a page calm. */
 export const CALM_ATTRIBUTE = 'data-kp-calm';
@@ -150,6 +151,33 @@ function syncSwitches(doc) {
     }
 }
 
+/** One calm switch: it sets the flag when it changes, with the scope and loading behaviour its attach call was given. */
+class CalmSwitch extends Controller {
+    connect() {
+        const el = /** @type {HTMLInputElement} */ (this.host);
+        el.dataset.kpCalmAttached = '';
+        this.own(() => {
+            delete el.dataset.kpCalmAttached;
+        });
+        this.listen(el, 'change', () => this.onChange(el));
+    }
+
+    /** @param {HTMLInputElement} el */
+    onChange(el) {
+        const options = /** @type {CalmOptions} */ (this.options);
+        setCalm(el.checked, { ...options, remember: options.remember !== false && el.getAttribute('data-kp-calm-remember') !== 'false' });
+    }
+}
+
+/** The system's own say: while it asks for less motion the switches show on and disabled, and follow it when it changes. */
+class CalmSystem extends Controller {
+    connect() {
+        const doc = this.host.ownerDocument;
+        const query = doc.defaultView?.matchMedia?.(QUERY);
+        if (query) this.listen(query, 'change', () => syncSwitches(doc));
+    }
+}
+
 /**
  * Wire every calm switch under `root`: it shows the flag, sets it, and shows on and disabled while the system asks
  * for less motion.
@@ -160,26 +188,17 @@ function syncSwitches(doc) {
  */
 export function attachCalm(root = document, options = {}) {
     const doc = docOf(/** @type {any} */ (root));
-    /** @type {(() => void)[]} */
-    const cleanups = [];
     applyStoredCalm(doc);
-    for (const el of root.querySelectorAll(CALM_SWITCH)) {
-        if (!(el instanceof HTMLInputElement) || el.dataset.kpCalmAttached !== undefined) continue;
-        el.dataset.kpCalmAttached = '';
-        const onChange = () =>
-            setCalm(el.checked, { ...options, doc, remember: options.remember !== false && el.getAttribute('data-kp-calm-remember') !== 'false' });
-        el.addEventListener('change', onChange);
-        cleanups.push(() => {
-            el.removeEventListener('change', onChange);
-            delete el.dataset.kpCalmAttached;
-        });
-    }
-    const query = doc.defaultView?.matchMedia?.(QUERY);
-    const onSystem = () => syncSwitches(doc);
-    query?.addEventListener('change', onSystem);
-    cleanups.push(() => query?.removeEventListener('change', onSystem));
+    const made = [...root.querySelectorAll(CALM_SWITCH)]
+        .filter((el) => el instanceof HTMLInputElement && el.dataset.kpCalmAttached === undefined && !controllerOf(el, CalmSwitch))
+        .map((el) => attachOne(/** @type {HTMLInputElement} */ (el), CalmSwitch, { ...options, doc }))
+        .filter((controller) => controller !== undefined);
+    // Built directly, not keyed on the root: every attach call follows the system on its own, as it always did.
+    const system = new CalmSystem(doc.documentElement);
+    system.connect();
     syncSwitches(doc);
     return () => {
-        for (const clean of cleanups) clean();
+        for (const controller of made) controller.destroy();
+        system.destroy();
     };
 }

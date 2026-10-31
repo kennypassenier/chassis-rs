@@ -55,10 +55,14 @@ pub(super) fn build(
     let dash = &built.dash;
     let page_set = &built.page_set;
     let kit_renders = !extra.kit_in_webapp;
+    // `{*name}`: the vendored fonts live under `static/fonts/…` (S8). Only
+    // this route is gzipped, never the login page beside it.
+    let static_files = crate::shell::compress::compressed(
+        Router::new().route("/static/{*name}", get(assets::serve_conditional)),
+    );
     let pages_public = Router::new()
         .route("/login", get(dashboard::login_get))
-        // `{*name}`: the vendored fonts live under `static/fonts/…` (S8).
-        .route("/static/{*name}", get(assets::serve_conditional))
+        .merge(static_files)
         .with_state(dash.clone());
     let login = Router::new()
         .route("/login", post(dashboard::login_post))

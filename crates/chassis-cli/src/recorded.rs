@@ -159,5 +159,5 @@ pub(crate) fn scaffold_features() -> Vec<String> {
     .collect()
 }
 pub(crate) const TOOLCHAIN: &str = "1.97";
-pub(crate) const KP_THEMES: &str = "11.3.0";
+pub(crate) const KP_THEMES: &str = "12.0.0";
 pub(crate) const CHASSIS_REPO: &str = "https://github.com/kennypassenier/chassis-rs";

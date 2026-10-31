@@ -31,7 +31,9 @@ if (statusRoot) {
 // stays small and none needs a closure over the others. The kp modules load
 // one after the other, in the order the page always loaded them.
 async function buildContext(root) {
-  const kp = (name) => import(`../kp/js/${name}.js`);
+  // Every part comes from kp-themes' one bundle; the name only says which part
+  // the call site wants.
+  const kp = (_part) => import('../kp/dist/kp-themes.min.js');
   const { restoreRemembered, attachRemembered } = await kp('remember');
   restoreRemembered(root);
   attachRemembered(root);

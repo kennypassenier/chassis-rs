@@ -24,6 +24,7 @@
 
 import { getStrings } from './strings.js';
 import { agoMoment } from './freshness.js';
+import { Controller, attachOne, controllerOf } from './controller.js';
 
 /** A part this module looks after. */
 export const PRINT_ACTION = '[data-kp-print-action]';
@@ -31,6 +32,60 @@ export const PRINT_ACTION = '[data-kp-print-action]';
 export const PRINT_SHEETS = '[data-kp-checklist], [data-kp-print-sheet]';
 /** Fired on the document just before the sheet is built: `{ sheets }`. */
 export const PRINT_EVENT = 'kp-print-prepare';
+
+/**
+ * Open the folded groups of a sheet for the paper.
+ * @param {HTMLElement} sheet @param {(() => void)[]} undo
+ */
+function openFolded(sheet, undo) {
+    for (const folded of sheet.querySelectorAll('details:not([open])')) {
+        folded.setAttribute('open', '');
+        undo.push(() => folded.removeAttribute('open'));
+    }
+}
+
+/**
+ * A title the sheet names itself; "auto" is the page's own <h1>, which prints.
+ * @param {Document} doc @param {HTMLElement} sheet @param {(() => void)[]} undo
+ */
+function addTitle(doc, sheet, undo) {
+    const title = sheet.getAttribute('data-kp-print-title');
+    if (!title || title === 'auto') return;
+    const heading = doc.createElement('p');
+    heading.className = 'kp-print-title';
+    heading.textContent = title;
+    sheet.before(heading);
+    undo.push(() => heading.remove());
+}
+
+/**
+ * A list that has no rows prints why, never a blank sheet.
+ * @param {Document} doc @param {HTMLElement} sheet @param {(() => void)[]} undo
+ */
+function addStateLine(doc, sheet, undo) {
+    const state = sheet.getAttribute('data-kp-state');
+    const hasRows = sheet.querySelector('.kp-checklist__item') !== null;
+    if (hasRows || !(state === 'loading' || sheet.hasAttribute('aria-busy'))) return;
+    const line = doc.createElement('p');
+    line.className = 'kp-print-state';
+    line.textContent = getStrings().printLoading;
+    sheet.append(line);
+    undo.push(() => line.remove());
+}
+
+/**
+ * The date of printing, once at the foot of every page.
+ * @param {Document} doc @param {HTMLElement[]} sheets @param {PrintOptions} options @param {(() => void)[]} undo
+ */
+function addStamp(doc, sheets, { now = () => Date.now(), timeZone }, undo) {
+    if (sheets.length === 0 || !sheets.some((sheet) => sheet.getAttribute('data-kp-print-date') !== 'off') || doc.querySelector('.kp-print-stamp'))
+        return;
+    const stamp = doc.createElement('p');
+    stamp.className = 'kp-print-stamp';
+    stamp.textContent = getStrings().printStamp(agoMoment(now(), timeZone));
+    doc.body.append(stamp);
+    undo.push(() => stamp.remove());
+}
 
 /**
  * @typedef {object} PrintOptions
@@ -44,48 +99,60 @@ export const PRINT_EVENT = 'kp-print-prepare';
  * @returns {() => void}
  */
 export function preparePrint(doc, { now = () => Date.now(), timeZone } = {}) {
-    const strings = getStrings();
     /** @type {(() => void)[]} */
     const undo = [];
     const sheets = /** @type {HTMLElement[]} */ ([...doc.querySelectorAll(PRINT_SHEETS)]);
     doc.dispatchEvent(new CustomEvent(PRINT_EVENT, { detail: { sheets } }));
     for (const sheet of sheets) {
-        // Folded groups are opened for the paper.
-        for (const folded of sheet.querySelectorAll('details:not([open])')) {
-            folded.setAttribute('open', '');
-            undo.push(() => folded.removeAttribute('open'));
-        }
-        // A title the sheet names itself; "auto" is the page's own <h1>, which prints.
-        const title = sheet.getAttribute('data-kp-print-title');
-        if (title && title !== 'auto') {
-            const heading = doc.createElement('p');
-            heading.className = 'kp-print-title';
-            heading.textContent = title;
-            sheet.before(heading);
-            undo.push(() => heading.remove());
-        }
-        // A list that has no rows prints why, never a blank sheet.
-        const state = sheet.getAttribute('data-kp-state');
-        const hasRows = sheet.querySelector('.kp-checklist__item') !== null;
-        if (!hasRows && (state === 'loading' || sheet.hasAttribute('aria-busy'))) {
-            const line = doc.createElement('p');
-            line.className = 'kp-print-state';
-            line.textContent = strings.printLoading;
-            sheet.append(line);
-            undo.push(() => line.remove());
-        }
+        openFolded(sheet, undo);
+        addTitle(doc, sheet, undo);
+        addStateLine(doc, sheet, undo);
     }
-    // The date of printing, once at the foot of every page.
-    if (sheets.length > 0 && sheets.some((sheet) => sheet.getAttribute('data-kp-print-date') !== 'off') && !doc.querySelector('.kp-print-stamp')) {
-        const stamp = doc.createElement('p');
-        stamp.className = 'kp-print-stamp';
-        stamp.textContent = strings.printStamp(agoMoment(now(), timeZone));
-        doc.body.append(stamp);
-        undo.push(() => stamp.remove());
-    }
+    addStamp(doc, sheets, { now, timeZone }, undo);
     return () => {
         for (const fn of undo.reverse()) fn();
     };
+}
+
+/** Documents whose print hooks are in. @type {WeakSet<Document>} */
+const HOOKED = new WeakSet();
+
+/** One Print button: a press opens the browser's print dialog. */
+class PrintButtonController extends Controller {
+    connect() {
+        const button = this.host;
+        button.dataset.kpPrintAttached = '';
+        this.own(() => {
+            delete button.dataset.kpPrintAttached;
+        });
+        this.listen(button, 'click', () => button.ownerDocument.defaultView?.print());
+    }
+}
+
+/** The before/after print hooks of one document: the sheet is dressed on `beforeprint` and put back on `afterprint`. */
+class PrintHooksController extends Controller {
+    connect() {
+        const doc = /** @type {Document} */ (/** @type {unknown} */ (this.host));
+        const view = /** @type {Window} */ (doc.defaultView);
+        /** What puts the sheet back, while it is dressed. @type {(() => void) | null} */
+        this.restore = null;
+        HOOKED.add(doc);
+        this.own(() => HOOKED.delete(doc));
+        this.own(() => this.after());
+        this.listen(view, 'beforeprint', () => this.before(doc));
+        this.listen(view, 'afterprint', () => this.after());
+    }
+
+    /** @param {Document} doc */
+    before(doc) {
+        this.restore?.();
+        this.restore = preparePrint(doc, /** @type {PrintOptions} */ (this.options));
+    }
+
+    after() {
+        this.restore?.();
+        this.restore = null;
+    }
 }
 
 /**
@@ -96,44 +163,20 @@ export function preparePrint(doc, { now = () => Date.now(), timeZone } = {}) {
  */
 export function attachPrint(root = document, options = {}) {
     const doc = root instanceof Document ? root : /** @type {Element} */ (root).ownerDocument;
-    const view = doc.defaultView;
-    /** @type {(() => void)[]} */
-    const cleanups = [];
-    for (const button of root.querySelectorAll(PRINT_ACTION)) {
-        if (!(button instanceof HTMLElement) || button.dataset.kpPrintAttached !== undefined) continue;
-        button.dataset.kpPrintAttached = '';
-        const onClick = () => view?.print();
-        button.addEventListener('click', onClick);
-        cleanups.push(() => {
-            button.removeEventListener('click', onClick);
-            delete button.dataset.kpPrintAttached;
-        });
-    }
-    if (view && !HOOKED.has(doc)) {
-        HOOKED.add(doc);
-        /** @type {(() => void) | null} */
-        let restore = null;
-        const before = () => {
-            restore?.();
-            restore = preparePrint(doc, options);
-        };
-        const after = () => {
-            restore?.();
-            restore = null;
-        };
-        view.addEventListener('beforeprint', before);
-        view.addEventListener('afterprint', after);
-        cleanups.push(() => {
-            view.removeEventListener('beforeprint', before);
-            view.removeEventListener('afterprint', after);
-            after();
-            HOOKED.delete(doc);
-        });
+    const made = [...root.querySelectorAll(PRINT_ACTION)]
+        .filter(
+            (button) =>
+                button instanceof HTMLElement && !(button.dataset.kpPrintAttached !== undefined || controllerOf(button, PrintButtonController)),
+        )
+        .map((button) => attachOne(/** @type {HTMLElement} */ (button), PrintButtonController))
+        .filter((controller) => controller !== undefined);
+    if (doc.defaultView && !HOOKED.has(doc)) {
+        // Built directly, keyed on the document by HOOKED: one pair of hooks per document, as before.
+        const hooks = new PrintHooksController(/** @type {HTMLElement} */ (/** @type {unknown} */ (doc)), options);
+        hooks.connect();
+        made.push(hooks);
     }
     return () => {
-        for (const clean of cleanups) clean();
+        for (const controller of made) controller.destroy();
     };
 }
-
-/** Documents whose print hooks are in. @type {WeakSet<Document>} */
-const HOOKED = new WeakSet();

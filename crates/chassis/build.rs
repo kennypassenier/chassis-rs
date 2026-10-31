@@ -19,6 +19,8 @@ const MIME_BY_EXTENSION: &[(&str, &str)] = &[
     ("css", "text/css; charset=utf-8"),
     ("js", "text/javascript; charset=utf-8"),
     ("woff2", "font/woff2"),
+    // The bundle's source map, fetched only by browser devtools.
+    ("map", "application/json"),
 ];
 
 /// Files that live in the vendored tree for the manifest gate only and are
@@ -52,6 +54,12 @@ const CORE_KP_JS: &[&str] = &[
     "kp/js/effects/rule.js",
 ];
 
+/// The one-file kp-themes module (chassis' own JS and the web apps import
+/// from it). It is not under `kp/js/`, so the rule below puts it in `ASSETS`
+/// (the core table) already; naming it here makes a vendoring that forgets it
+/// a build error, because the kit pages cannot start without it.
+const KP_BUNDLE: &str = "kp/dist/kp-themes.min.js";
+
 /// Prefix of the kp-themes JavaScript tree, split between the two tables.
 const KP_JS_PREFIX: &str = "kp/js/";
 
@@ -75,10 +83,10 @@ fn main() {
             core_rows.push_str(&entry)
         }
     }
-    for needed in CORE_KP_JS {
+    for needed in CORE_KP_JS.iter().chain([&KP_BUNDLE]) {
         if !files.iter().any(|f| f == needed) {
             fail(&format!(
-                "CORE_KP_JS names {needed}, which is not under static/"
+                "CORE_KP_JS / KP_BUNDLE names {needed}, which is not under static/"
             ));
         }
     }

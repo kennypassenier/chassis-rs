@@ -33,11 +33,23 @@
 // `data-kp-bar-tone` changes; it returns a detach.
 
 import { setMeter } from './kpi.js';
+import { Controller } from './controller.js';
 
 /** A bar cell written in markup. */
 export const BAR_CELL = '[data-kp-bar]';
 /** The attribute a data table sorts a cell by. */
 export const SORT_VALUE_ATTRIBUTE = 'data-kp-sort-value';
+
+/** The share from which the fill turns to the warning colour, unless the page says otherwise. */
+const WARN_AT = 0.75;
+/** The share from which the fill turns to the destructive colour, unless the page says otherwise. */
+const BAD_AT = 0.9;
+/** A share of 1 is full; times this it is a percentage. */
+const PERCENT = 100;
+/** The default sort value is the percentage to one decimal: a share times this is that many tenths of a percent. */
+const SORT_SCALE = 1000;
+/** Tenths of a percent per percent. */
+const SORT_TENTHS = 10;
 
 /**
  * @typedef {object} BarCell
@@ -54,35 +66,61 @@ export const SORT_VALUE_ATTRIBUTE = 'data-kp-sort-value';
  */
 
 /**
+ * The part of a cell with this class, made (and put first or last) when the cell has none.
+ * @param {HTMLElement} el
+ * @param {string} className
+ * @param {'prepend' | 'append'} place
+ * @returns {HTMLElement}
+ */
+function partOf(el, className, place) {
+    const found = /** @type {HTMLElement | null} */ (el.querySelector(`:scope > .${className}`));
+    if (found) return found;
+    const part = el.ownerDocument.createElement('span');
+    part.className = className;
+    el[place](part);
+    return part;
+}
+
+/**
+ * The tone a share gets when the page names none.
+ * @param {number | null} value the share, null when not measured
+ * @param {number} warnAt
+ * @param {number} badAt
+ * @returns {'warning' | 'destructive' | null}
+ */
+function autoTone(value, warnAt, badAt) {
+    if (value === null) return null;
+    if (value >= badAt) return 'destructive';
+    return value >= warnAt ? 'warning' : null;
+}
+
+/**
+ * What a data table sorts this cell by.
+ * @param {number | string | null | undefined} sortValue what the page gave
+ * @param {number | null} measured the share, null when not measured
+ * @returns {string}
+ */
+function sortText(sortValue, measured) {
+    if (sortValue === undefined) return measured === null ? '' : String(Math.round(measured * SORT_SCALE) / SORT_TENTHS);
+    return sortValue === null ? '' : String(sortValue);
+}
+
+/**
  * Write a bar cell: the meter, the number, and the sort value on the cell
  * around it.
  *
  * @param {HTMLElement} el  the `.kp-bar-cell` (made one when it is not)
  * @param {BarCell} cell
  */
-export function setBarCell(el, { value = null, text, tone, warnAt = 0.75, badAt = 0.9, sortValue, mark = null, label, markLabel, loading = false }) {
+export function setBarCell(
+    el,
+    { value = null, text, tone, warnAt = WARN_AT, badAt = BAD_AT, sortValue, mark = null, label, markLabel, loading = false },
+) {
     el.classList.add('kp-bar-cell');
-    let meter = /** @type {HTMLElement | null} */ (el.querySelector(':scope > .kp-meter'));
-    if (!meter) {
-        meter = el.ownerDocument.createElement('span');
-        meter.className = 'kp-meter';
-        el.prepend(meter);
-    }
-    let number = /** @type {HTMLElement | null} */ (el.querySelector(':scope > .kp-bar-cell__value'));
-    if (!number) {
-        number = el.ownerDocument.createElement('span');
-        number.className = 'kp-bar-cell__value';
-        el.append(number);
-    }
-    const measured = value != null && Number.isFinite(value) && !loading;
-    const auto = !measured
-        ? null
-        : /** @type {number} */ (value) >= badAt
-          ? 'destructive'
-          : /** @type {number} */ (value) >= warnAt
-            ? 'warning'
-            : null;
-    setMeter(meter, { value: measured ? value : null, mark, tone: tone === undefined ? auto : tone, label, markLabel, loading });
+    const meter = partOf(el, 'kp-meter', 'prepend');
+    const number = partOf(el, 'kp-bar-cell__value', 'append');
+    const measured = value != null && Number.isFinite(value) && !loading ? value : null;
+    setMeter(meter, { value: measured, mark, tone: tone === undefined ? autoTone(measured, warnAt, badAt) : tone, label, markLabel, loading });
     // While it loads the figure waits too, in the theme's own loading picture (a skeleton line of the column's width),
     // so the row never reads as empty (Kenny, 2026-10-16: "show loading toont enkel lege rijen en geen load animatie").
     if (loading) {
@@ -90,18 +128,10 @@ export function setBarCell(el, { value = null, text, tone, warnAt = 0.75, badAt 
         ghost.className = 'kp-skeleton kp-bar-cell__ghost';
         ghost.setAttribute('aria-hidden', 'true');
         number.replaceChildren(ghost);
-    } else number.textContent = text ?? (measured ? `${Math.round(/** @type {number} */ (value) * 100)}%` : '');
+    } else number.textContent = text ?? (measured === null ? '' : `${Math.round(measured * PERCENT)}%`);
     el.toggleAttribute('data-kp-loading', loading);
-    const sort =
-        sortValue === undefined
-            ? measured
-                ? String(Math.round(/** @type {number} */ (value) * 1000) / 10)
-                : ''
-            : sortValue === null
-              ? ''
-              : String(sortValue);
     const holder = el.closest('td, th');
-    if (holder) holder.setAttribute(SORT_VALUE_ATTRIBUTE, sort);
+    if (holder) holder.setAttribute(SORT_VALUE_ATTRIBUTE, sortText(sortValue, measured));
 }
 
 /** @param {string | null} text */
@@ -122,6 +152,30 @@ function fill(el) {
     });
 }
 
+/** The watch of one root: it fills every bar cell under it and fills one again when its attributes change. */
+class BarCellsController extends Controller {
+    connect() {
+        const root = /** @type {ParentNode} */ (/** @type {unknown} */ (this.host));
+        for (const el of /** @type {NodeListOf<HTMLElement>} */ (root.querySelectorAll(BAR_CELL))) fill(el);
+        const doc = root instanceof Document ? root : /** @type {Element} */ (root).ownerDocument;
+        const view = doc.defaultView;
+        if (!view) return;
+        const watch = this.observe(
+            new view.MutationObserver((records) => {
+                for (const record of records) {
+                    const el = /** @type {HTMLElement} */ (record.target);
+                    if (el.matches?.(BAR_CELL)) fill(el);
+                }
+            }),
+        );
+        watch.observe(root instanceof Document ? root.documentElement : /** @type {Node} */ (root), {
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['data-kp-bar', 'data-kp-bar-text', 'data-kp-bar-tone', 'data-kp-bar-mark', 'data-kp-bar-loading'],
+        });
+    }
+}
+
 /**
  * Fill every `[data-kp-bar]` under `root` and keep it filled when its
  * attributes change.
@@ -130,20 +184,8 @@ function fill(el) {
  * @returns {() => void} detach
  */
 export function attachBarCells(root = document) {
-    for (const el of /** @type {NodeListOf<HTMLElement>} */ (root.querySelectorAll(BAR_CELL))) fill(el);
-    const doc = root instanceof Document ? root : /** @type {Element} */ (root).ownerDocument;
-    const view = doc.defaultView;
-    if (!view) return () => {};
-    const watch = new view.MutationObserver((records) => {
-        for (const record of records) {
-            const el = /** @type {HTMLElement} */ (record.target);
-            if (el.matches?.(BAR_CELL)) fill(el);
-        }
-    });
-    watch.observe(root instanceof Document ? root.documentElement : /** @type {Node} */ (root), {
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['data-kp-bar', 'data-kp-bar-text', 'data-kp-bar-tone', 'data-kp-bar-mark', 'data-kp-bar-loading'],
-    });
-    return () => watch.disconnect();
+    // Built directly, not keyed on the root: every attach call fills and watches on its own, as it always did.
+    const controller = new BarCellsController(/** @type {HTMLElement} */ (/** @type {unknown} */ (root)));
+    controller.connect();
+    return () => controller.destroy();
 }

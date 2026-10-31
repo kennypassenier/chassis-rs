@@ -39,7 +39,9 @@ if (storageRoot) {
 // factory modules read and write it and call each other through it, so
 // each stays small and none needs a closure over the others.
 async function buildContext(root) {
-  const kp = (name) => import(`../kp/js/${name}.js`);
+  // Every part comes from kp-themes' one bundle; the name only says which part
+  // the call site wants.
+  const kp = (_part) => import('../kp/dist/kp-themes.min.js');
   const [stackbar, cardState, datatable, flash, overlays] = await Promise.all([kp('stackbar'), kp('card-state'), kp('datatable'), kp('flash'), kp('overlays')]);
   const card = (key) => root.querySelector(`[data-storage-card="${key}"]`);
   const kindsCard = card('kinds');

@@ -29,21 +29,12 @@
 //
 // Nothing runs on import.
 
-import { buildSteplist } from './steplist.js';
-import { getStrings } from './strings.js';
-import { openBusyCard } from './busy-card.js';
-import { statePlate } from './state-plate.js';
-import { runFlashButton } from './flash.js';
-import { registerShortcuts } from './shortcuts.js';
+import { attachAll, attachOne, controllerOf } from './controller.js';
+import { Trace } from './path-trace/controller.js';
+import { TRACE } from './path-trace/values.js';
 
-/** The traces this module draws. */
-export const TRACE = '[data-kp-trace]';
-/** Fired on the trace when the deciding rule is pressed: `{ rule, hop }`. */
-export const TRACE_RULE_EVENT = 'kp-trace-rule';
-/** Fired on the trace when Swap is pressed or S is typed. */
-export const TRACE_SWAP_EVENT = 'kp-trace-swap';
-/** Fired on the trace when Retry is pressed. */
-export const TRACE_RETRY_EVENT = 'kp-trace-retry';
+export { TRACE, TRACE_RULE_EVENT, TRACE_SWAP_EVENT, TRACE_RETRY_EVENT } from './path-trace/values.js';
+export { traceStates, traceSummary, traceText } from './path-trace/states.js';
 
 /**
  * @typedef {object} TraceHop
@@ -55,60 +46,6 @@ export const TRACE_RETRY_EVENT = 'kp-trace-retry';
  */
 
 /**
- * The verdict of each hop once the first refusal stops the packet: `done`, `failed`, `skipped` or `pending`.
- * @param {readonly TraceHop[]} hops
- * @param {'first-refusal' | 'all'} [stop]
- * @returns {{ hop: TraceHop, state: 'done' | 'failed' | 'skipped' | 'pending' }[]}
- */
-export function traceStates(hops, stop = 'first-refusal') {
-    let stopped = false;
-    return hops.map((hop) => {
-        if (stopped && stop === 'first-refusal') return { hop, state: 'skipped' };
-        if (hop.verdict === 'refused') {
-            stopped = true;
-            return { hop, state: 'failed' };
-        }
-        return { hop, state: hop.verdict === 'allowed' ? 'done' : 'pending' };
-    });
-}
-
-/**
- * The outcome in one sentence.
- * @param {readonly TraceHop[]} hops
- * @param {'first-refusal' | 'all'} [stop]
- */
-export function traceSummary(hops, stop = 'first-refusal') {
-    const s = getStrings();
-    const rows = traceStates(hops, stop);
-    const refused = rows.find((r) => r.state === 'failed');
-    if (refused) return s.traceBlocked(refused.hop.title, refused.hop.rule ?? '');
-    if (rows.some((r) => r.state === 'pending')) return s.traceNotAll;
-    return s.traceAllowed;
-}
-
-/**
- * The trace as text for a bug report: "tv > Firewall refused (rule IoT to media) > Jellyfin not reached".
- * @param {readonly TraceHop[]} hops
- * @param {'first-refusal' | 'all'} [stop]
- */
-export function traceText(hops, stop = 'first-refusal') {
-    const s = getStrings();
-    return traceStates(hops, stop)
-        .map(({ hop, state }) => {
-            const word =
-                state === 'done'
-                    ? s.traceAllowedWord
-                    : state === 'failed'
-                      ? s.traceRefusedWord
-                      : state === 'skipped'
-                        ? s.traceNotReached
-                        : s.traceNotMeasured;
-            return `${hop.title} ${word}${hop.rule ? ` (${s.traceRule(hop.rule)})` : ''}`;
-        })
-        .join(' > ');
-}
-
-/**
  * @typedef {object} TraceHandle
  * @property {HTMLElement} element
  * @property {(hops: readonly TraceHop[]) => void} set draw the hops (clears any state)
@@ -116,210 +53,13 @@ export function traceText(hops, stop = 'first-refusal') {
  * @property {() => string} text the trace as text
  */
 
-/** @type {WeakMap<Element, TraceHandle>} */
-const HANDLES = new WeakMap();
-
 /**
  * The handle of a trace.
  * @param {Element} el
  * @returns {TraceHandle | null}
  */
 export function trace(el) {
-    return HANDLES.get(el) ?? null;
-}
-
-/** @param {Document} doc @param {string} tag @param {string} className */
-const made = (doc, tag, className) => {
-    const el = doc.createElement(tag);
-    el.className = className;
-    return el;
-};
-
-/**
- * @param {HTMLElement} el
- * @returns {() => void}
- */
-function attachOne(el) {
-    if (HANDLES.has(el)) return () => undefined;
-    const doc = el.ownerDocument;
-    /** @type {(() => void)[]} */
-    const undo = [];
-    el.classList.add('kp-trace');
-    undo.push(() => el.classList.remove('kp-trace'));
-    const summary = made(doc, 'p', 'kp-trace__summary');
-    summary.setAttribute('role', 'status');
-    const stage = made(doc, 'div', 'kp-trace__stage');
-    const foot = made(doc, 'div', 'kp-trace__foot');
-    el.replaceChildren(summary, stage, foot);
-    undo.push(() => el.replaceChildren());
-
-    /** @type {readonly TraceHop[]} */
-    let hops = [];
-    /** @type {'ready' | 'running' | 'empty' | 'error'} */
-    let state = 'empty';
-    let message = '';
-    /** @type {import('./busy-card.js').BusyCard | null} */
-    let busy = null;
-    let kept = 0;
-    const attr = (/** @type {string} */ name, /** @type {string} */ fallback) => el.getAttribute(name) ?? fallback;
-
-    const draw = () => {
-        const s = getStrings();
-        const stop = attr('data-kp-trace-stop', 'first-refusal') === 'all' ? 'all' : 'first-refusal';
-        const ruleMode = attr('data-kp-trace-rule', 'chip');
-        busy?.remove();
-        busy = null;
-        stage.replaceChildren();
-        foot.replaceChildren();
-        el.setAttribute('data-kp-state', state);
-        stage.style.minBlockSize = state === 'ready' || !kept ? '' : `${kept}px`;
-        summary.hidden = attr('data-kp-trace-summary', 'on') === 'off';
-
-        if (state === 'empty' || (state === 'ready' && hops.length === 0)) {
-            summary.textContent = '';
-            stage.append(statePlate(doc, { kind: 'empty', title: s.traceEmpty, text: s.traceEmptyText }));
-            return;
-        }
-        if (state === 'error') {
-            summary.textContent = '';
-            stage.append(
-                statePlate(doc, {
-                    kind: 'error',
-                    title: s.traceFailed,
-                    text: message || s.traceFailedText,
-                    actionLabel: s.traceRetry,
-                    onAction: () => el.dispatchEvent(new CustomEvent(TRACE_RETRY_EVENT, { bubbles: true })),
-                }),
-            );
-            return;
-        }
-        const ghost = state === 'running';
-        const rows = ghost
-            ? [0, 1, 2].map(() => ({ hop: /** @type {TraceHop} */ ({ title: '…', verdict: 'unknown' }), state: /** @type {const} */ ('pending') }))
-            : traceStates(hops, stop);
-        summary.textContent = ghost ? s.traceRunning : traceSummary(hops, stop);
-        const list = buildSteplist(
-            rows.map(({ hop, state: st }, i) => ({
-                id: `hop-${i}`,
-                title: ghost ? '' : hop.title,
-                note: ghost ? '' : [hop.note, hop.ports, ruleMode === 'inline' && hop.rule ? s.traceRule(hop.rule) : ''].filter(Boolean).join(' · '),
-                state: st,
-                time: ghost
-                    ? ''
-                    : st === 'done'
-                      ? s.traceAllowedWord
-                      : st === 'failed'
-                        ? s.traceRefusedWord
-                        : st === 'skipped'
-                          ? s.traceNotReached
-                          : s.traceNotMeasured,
-            })),
-            { label: s.traceLabel },
-        );
-        list.classList.add('kp-steplist--trace');
-        stage.append(list);
-        if (ghost) {
-            list.setAttribute('aria-busy', 'true');
-            for (const word of list.querySelectorAll('.kp-steplist__state')) word.remove();
-            busy = openBusyCard(stage, { words: s.traceRunning, area: () => [list], className: 'kp-trace__busy', arrive: true });
-        } else {
-            [...list.querySelectorAll(':scope > .kp-steplist__item')].forEach((item, i) => {
-                const { hop, state: st } = rows[i];
-                // The words the page says, not the step list's own ("done", "failed").
-                const word = item.querySelector('.kp-steplist__state');
-                if (word) word.setAttribute('aria-hidden', 'true');
-                const spoken = made(doc, 'span', 'kp-sr-only');
-                spoken.textContent = `, ${st === 'done' ? s.traceAllowedWord : st === 'failed' ? s.traceRefusedWord : st === 'skipped' ? s.traceNotReached : s.traceNotMeasured}`;
-                item.querySelector('.kp-steplist__body')?.append(spoken);
-                if (hop.rule && ruleMode === 'chip') {
-                    const chip = /** @type {HTMLButtonElement} */ (made(doc, 'button', 'kp-badge kp-trace__rule'));
-                    chip.type = 'button';
-                    chip.textContent = s.traceRule(hop.rule);
-                    chip.addEventListener('click', () =>
-                        el.dispatchEvent(new CustomEvent(TRACE_RULE_EVENT, { bubbles: true, detail: { rule: hop.rule, hop: hop.title } })),
-                    );
-                    item.querySelector('.kp-steplist__body')?.append(chip);
-                }
-            });
-        }
-        if (!ghost && el.hasAttribute('data-kp-trace-copy')) {
-            const copy = /** @type {HTMLButtonElement} */ (made(doc, 'button', 'kp-button kp-button--ghost kp-trace__copy'));
-            copy.type = 'button';
-            copy.textContent = s.traceCopy;
-            copy.setAttribute('data-kp-flash-words', s.traceCopied);
-            copy.addEventListener('click', () => {
-                void runFlashButton(copy, async () => {
-                    await navigator.clipboard.writeText(traceText(hops, stop));
-                    return s.traceCopied;
-                });
-            });
-            foot.append(copy);
-        }
-        if (!ghost && el.hasAttribute('data-kp-trace-swap')) {
-            const swap = /** @type {HTMLButtonElement} */ (made(doc, 'button', 'kp-button kp-button--ghost kp-trace__swap'));
-            swap.type = 'button';
-            swap.textContent = s.traceSwap;
-            swap.addEventListener('click', () => el.dispatchEvent(new CustomEvent(TRACE_SWAP_EVENT, { bubbles: true })));
-            foot.append(swap);
-        }
-    };
-
-    /** @type {TraceHandle} */
-    const handle = {
-        element: el,
-        set(next) {
-            hops = next;
-            state = 'ready';
-            kept = 0;
-            draw();
-            kept = stage.offsetHeight;
-        },
-        setState(next, options = {}) {
-            if (state === 'ready' && stage.offsetHeight > 0) kept = stage.offsetHeight;
-            state = next;
-            message = options.message ?? '';
-            draw();
-        },
-        text: () => traceText(hops, attr('data-kp-trace-stop', 'first-refusal') === 'all' ? 'all' : 'first-refusal'),
-    };
-    HANDLES.set(el, handle);
-    undo.push(() => {
-        busy?.remove();
-        HANDLES.delete(el);
-    });
-
-    const watch = new MutationObserver(draw);
-    watch.observe(el, {
-        attributes: true,
-        attributeFilter: [
-            'data-kp-trace-stop',
-            'data-kp-trace-rule',
-            'data-kp-trace-verdict',
-            'data-kp-trace-summary',
-            'data-kp-trace-copy',
-            'data-kp-trace-swap',
-        ],
-    });
-    undo.push(() => watch.disconnect());
-
-    if (el.hasAttribute('data-kp-trace-swap')) {
-        const s = getStrings();
-        const off = registerShortcuts(
-            el,
-            [
-                {
-                    keys: 's',
-                    what: s.traceKeySwap,
-                    group: s.traceKeyGroup,
-                    run: () => el.dispatchEvent(new CustomEvent(TRACE_SWAP_EVENT, { bubbles: true })),
-                },
-            ],
-            { layoutGuard: 'warn' },
-        );
-        undo.push(off);
-    }
-    draw();
-    return () => undo.reverse().forEach((u) => u());
+    return controllerOf(el, Trace)?.handle ?? null;
 }
 
 /**
@@ -328,12 +68,7 @@ function attachOne(el) {
  * @returns {() => void} detach
  */
 export function attachTraces(root = document) {
-    const found = /** @type {HTMLElement[]} */ ([
-        ...(root instanceof HTMLElement && root.matches(TRACE) ? [root] : []),
-        ...root.querySelectorAll(TRACE),
-    ]);
-    const undo = found.map((el) => attachOne(el));
-    return () => undo.forEach((u) => u());
+    return attachAll(root, TRACE, Trace);
 }
 
 /**
@@ -342,6 +77,5 @@ export function attachTraces(root = document) {
  * @param {readonly TraceHop[]} hops
  */
 export function setTrace(el, hops) {
-    if (!HANDLES.has(el)) attachOne(el);
-    HANDLES.get(el)?.set(hops);
+    attachOne(el, Trace)?.handle.set(hops);
 }

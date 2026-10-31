@@ -26,6 +26,44 @@
 import { getStrings } from './strings.js';
 
 /**
+ * Give the plate the classes of its kind. A part that already stands there keeps its own classes and loses the other kind's, and
+ * what it held goes (a replaced plate is one plate, never two).
+ * @param {HTMLElement} plate @param {'empty' | 'error'} kind @param {boolean} existing whether the plate is a part that stood there already
+ */
+function dress(plate, kind, existing) {
+    const classes =
+        kind === 'error' ? 'kp-alert kp-alert--destructive kp-stateplate kp-stateplate--error' : 'kp-empty kp-stateplate kp-stateplate--empty';
+    if (!existing) {
+        plate.className = classes;
+        return;
+    }
+    plate.classList.remove('kp-alert', 'kp-alert--destructive', 'kp-empty', 'kp-stateplate--error', 'kp-stateplate--empty');
+    plate.replaceChildren();
+    plate.classList.add(...classes.split(' '));
+}
+
+/** The picture over the title, hidden from a screen reader. @param {Document} doc @param {Node | string} art */
+function artOf(doc, art) {
+    const picture = doc.createElement('span');
+    picture.className = 'kp-stateplate__art';
+    picture.setAttribute('aria-hidden', 'true');
+    if (typeof art === 'string') picture.textContent = art;
+    else picture.append(art);
+    return picture;
+}
+
+/** The normal-size action. @param {Document} doc @param {string} label @param {((event: MouseEvent) => void) | undefined} onAction @param {string | undefined} attribute */
+function actionOf(doc, label, onAction, attribute) {
+    const button = doc.createElement('button');
+    button.type = 'button';
+    button.className = 'kp-button kp-stateplate__action';
+    button.textContent = label;
+    if (attribute) button.setAttribute(attribute, '');
+    if (onAction) button.addEventListener('click', onAction);
+    return button;
+}
+
+/**
  * @typedef {object} StatePlateOptions
  * @property {'empty' | 'error'} kind
  * @property {string} title what is the case, in one line
@@ -46,23 +84,9 @@ import { getStrings } from './strings.js';
  */
 export function statePlate(doc, { kind, title, text, actionLabel, onAction, actionAttribute, art, into }) {
     const plate = into ?? doc.createElement('div');
-    const classes =
-        kind === 'error' ? 'kp-alert kp-alert--destructive kp-stateplate kp-stateplate--error' : 'kp-empty kp-stateplate kp-stateplate--empty';
-    if (into) {
-        // The other kind's classes go, the part's own stay; what it held goes (a replaced plate is one plate, never two).
-        into.classList.remove('kp-alert', 'kp-alert--destructive', 'kp-empty', 'kp-stateplate--error', 'kp-stateplate--empty');
-        into.replaceChildren();
-        into.classList.add(...classes.split(' '));
-    } else plate.className = classes;
+    dress(plate, kind, Boolean(into));
     plate.setAttribute('role', kind === 'error' ? 'alert' : 'status');
-    if (art) {
-        const picture = doc.createElement('span');
-        picture.className = 'kp-stateplate__art';
-        picture.setAttribute('aria-hidden', 'true');
-        if (typeof art === 'string') picture.textContent = art;
-        else picture.append(art);
-        plate.append(picture);
-    }
+    if (art) plate.append(artOf(doc, art));
     const head = doc.createElement('strong');
     head.className = 'kp-stateplate__title';
     head.textContent = title;
@@ -73,15 +97,7 @@ export function statePlate(doc, { kind, title, text, actionLabel, onAction, acti
         line.textContent = text;
         plate.append(line);
     }
-    if (actionLabel) {
-        const button = doc.createElement('button');
-        button.type = 'button';
-        button.className = 'kp-button kp-stateplate__action';
-        button.textContent = actionLabel;
-        if (actionAttribute) button.setAttribute(actionAttribute, '');
-        if (onAction) button.addEventListener('click', onAction);
-        plate.append(button);
-    }
+    if (actionLabel) plate.append(actionOf(doc, actionLabel, onAction, actionAttribute));
     return plate;
 }
 
