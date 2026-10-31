@@ -1,6 +1,15 @@
 {% extends "layout.html" %}
 {% block title %}{{ app_name }} — storage{% endblock %}
 {% block content %}
+{#- The kinds table, drawn twice: in the page and in the inert template the script copies. -#}
+{% macro kinds_table() %}
+<div class="kp-datatable storage-kinds" data-kp-datatable data-kp-remember="chassis-storage-kinds" data-kp-page-size="10">
+          <div class="kp-table-wrap"><table class="kp-table"><caption class="kp-sr-only">What is stored, one row per kind</caption>
+            <thead><tr><th scope="col" data-kp-sort="text">Kind</th><th scope="col" data-kp-sort="number" class="kp-numeric">Amount</th><th scope="col" data-kp-sort="number" class="kp-numeric">Size</th><th scope="col" data-kp-sort="number">Share of the budget</th><th scope="col" data-kp-sort="number">Oldest</th><th scope="col" data-kp-sort="number">Newest</th><th scope="col"><span class="kp-sr-only">Action</span></th></tr></thead>
+            <tbody data-storage-kinds></tbody></table></div>
+          <div class="kp-empty" data-kp-datatable-empty hidden><p class="kp-empty__title">This application stores no data of its own yet</p><p class="kp-empty__body">When it declares a kind of data, it appears here with its size and a way to clean it up.</p></div>
+        </div>
+{% endmacro %}
 {#- kit-storage (approved demo research/chassis-storage in kp-themes, Kenny
     21/10/2026 07:42, kinds as a table, the kind's name typed to confirm):
     the budget (columns 1 to 8) against the empty space that can be given
@@ -37,12 +46,12 @@
       <div class="kp-card__header"><h2 class="kp-card__title" id="storage-kinds-t" data-storage-kinds-title>What is stored</h2></div>
       <p class="kp-card__body">One row for every kind of data this application keeps. Clean up removes only what you choose, after a preview and a typed confirmation.</p>
       <div class="kp-card__stage"><div class="kp-card__data">
-        <div class="kp-datatable storage-kinds" data-kp-datatable data-kp-remember="chassis-storage-kinds" data-kp-page-size="10">
-          <div class="kp-table-wrap"><table class="kp-table"><caption class="kp-sr-only">What is stored, one row per kind</caption>
-            <thead><tr><th scope="col" data-kp-sort="text">Kind</th><th scope="col" data-kp-sort="number" class="kp-numeric">Amount</th><th scope="col" data-kp-sort="number" class="kp-numeric">Size</th><th scope="col" data-kp-sort="number">Share of the budget</th><th scope="col" data-kp-sort="number">Oldest</th><th scope="col" data-kp-sort="number">Newest</th><th scope="col"><span class="kp-sr-only">Action</span></th></tr></thead>
-            <tbody data-storage-kinds></tbody></table></div>
-          <div class="kp-empty" data-kp-datatable-empty hidden><p class="kp-empty__title">This application stores no data of its own yet</p><p class="kp-empty__body">When it declares a kind of data, it appears here with its size and a way to clean it up.</p></div>
-        </div>
+        {{ kinds_table() }}
+        {#- The pristine frame, kept inert for the page script: kp-themes attaches
+            the table above on its own as soon as the document is read, and a copy
+            of an attached table carries the attached marks, so it would never get
+            a handle. A template is not searched by the package. -#}
+        <template data-storage-table-skeleton>{{ kinds_table() }}</template>
       </div></div>
     </section>
   </div>

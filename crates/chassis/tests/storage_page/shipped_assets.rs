@@ -175,3 +175,19 @@ fn the_refresh_line_ticks_on_storage_and_clients() {
     );
     assert!(js.contains("['[data-kp-refresh], [data-kp-ago]', 'freshness', 'attachAgo'],"));
 }
+
+/// Kenny, 2026-10-31 (kp-themes 12 measurement, K15): the kinds table showed
+/// no loading state while its data was held back. The package attaches the
+/// visible table as soon as the document is read, and the page script used
+/// to copy that attached table as its skeleton, so every redrawn table
+/// carried the attached marks, was skipped by the attach and never got a
+/// handle. The skeleton is an inert `<template>`, which the package does
+/// not search, and the script reads only that.
+#[test]
+fn the_table_skeleton_is_copied_from_an_inert_template() {
+    let page = kit_file("templates/storage.html");
+    assert!(page.contains("<template data-storage-table-skeleton>{{ kinds_table() }}</template>"));
+    let js = kit_file("static/chassis/storage-page.js");
+    assert!(js.contains("querySelector('template[data-storage-table-skeleton]').innerHTML"));
+    assert!(!js.contains("querySelector('.kp-datatable').outerHTML"));
+}

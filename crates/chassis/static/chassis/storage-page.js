@@ -57,7 +57,9 @@ async function buildContext(root) {
     budgetCard: card('budget'),
     compactCard: card('compact'),
     kindsCard,
-    tableSkeleton: kindsCard.querySelector('.kp-datatable').outerHTML,
+    // Copied from the inert template, never from the visible table: the package
+    // attaches that one on its own, and an attached copy never gets a handle.
+    tableSkeleton: kindsCard.querySelector('template[data-storage-table-skeleton]').innerHTML,
     narrow: matchMedia('(max-width: 639px)'),
     data: null, // the last GET /api/kit/storage
     draft: null, // { budget, warn } as typed; null when nothing differs from the saved setting
