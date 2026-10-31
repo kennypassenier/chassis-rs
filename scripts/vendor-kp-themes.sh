@@ -9,8 +9,9 @@
 # The embedded asset tables follow static/ by themselves (build.rs), so this
 # is the whole bump on the file side.
 #
-# What is vendored (the same rule that reproduces the 11.3.0 set exactly,
-# 213 files): dist/kp-themes.css, css/fonts.css, everything under fonts/ and
+# What is vendored (the rule reproduces the 11.3.0 set exactly, 213 files,
+# and gives 1206 for kp-themes main before 12.0.0): dist/kp-themes.css,
+# css/fonts.css, everything under fonts/ and
 # everything under js/, from the release's consumer.tar and fonts.tar. Every
 # file is checked against the release's own SHA256SUMS before anything under
 # static/kp/ is touched; a mismatch or a missing line stops the script.
