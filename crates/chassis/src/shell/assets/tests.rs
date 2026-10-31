@@ -72,6 +72,22 @@ fn vendored_kp_themes_match_the_manifest() {
 /// knows this consumer bakes; this guards whatever the kit bakes,
 /// effects.js included. Drilled red once by dropping `kp/js/strings.js`
 /// from ASSETS: failed, restored.
+/// `line` without its `/* ... */` spans, so a JSDoc type import written inline
+/// in code is not mistaken for a module load.
+fn strip_inline_block_comments(line: &str) -> String {
+    let mut out = String::new();
+    let mut rest = line;
+    while let Some(start) = rest.find("/*") {
+        out.push_str(&rest[..start]);
+        match rest[start..].find("*/") {
+            Some(end) => rest = &rest[start + end + 2..],
+            None => return out,
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 #[test]
 fn vendored_javascript_imports_only_vendored_modules() {
     let js: Vec<(&str, &str)> = all_assets()
@@ -89,6 +105,11 @@ fn vendored_javascript_imports_only_vendored_modules() {
             if line.starts_with("//") || line.starts_with('*') || line.starts_with("/*") {
                 continue;
             }
+            // kp-themes 12 also writes JSDoc type imports inline in code
+            // (`/** @type {import('./types.js').T} */`); the type-only
+            // `types.js` stubs are deliberately not in the release manifest.
+            let stripped = strip_inline_block_comments(line);
+            let line = stripped.as_str();
             // kp-themes 7.0.0 loads the effect hooks with
             // `() => import('./effects/caret.js')`, which a static-only
             // reading would miss with all nine files absent.
@@ -111,13 +132,19 @@ fn vendored_javascript_imports_only_vendored_modules() {
                 targets.push(from.trim().trim_end_matches(';').trim_matches(['\'', '"']));
             }
             for target in targets {
-                let (base, rel) = if let Some(rel) = target.strip_prefix("../") {
-                    (dir.rsplit_once('/').map(|(d, _)| d).unwrap_or(""), rel)
-                } else if let Some(rel) = target.strip_prefix("./") {
-                    (dir, rel)
-                } else {
+                // Resolve like a browser: each leading `../` climbs one
+                // directory (kp-themes 12 nests modules two or three deep,
+                // e.g. `chart/plot/base.js` imports `../../controller.js`).
+                if !target.starts_with("../") && !target.starts_with("./") {
                     panic!("{name} imports {target}: only ./ and ../ imports are servable");
-                };
+                }
+                let mut base = dir;
+                let mut rel = target;
+                while let Some(rest) = rel.strip_prefix("../") {
+                    base = base.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
+                    rel = rest;
+                }
+                rel = rel.strip_prefix("./").unwrap_or(rel);
                 let key = if base.is_empty() {
                     rel.to_string()
                 } else {
