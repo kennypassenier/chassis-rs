@@ -7,6 +7,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-10-31
+
 ### Changed
 
 - **kp-themes 12.1.0 vendored** (`scripts/vendor-kp-themes.sh 12.1.0`, 1215
