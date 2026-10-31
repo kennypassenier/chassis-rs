@@ -27,9 +27,11 @@ const NOT_SERVED_FILE_NAMES: &[&str] = &["LICENSE"];
 const NOT_SERVED_EXTENSIONS: &[&str] = &["json", "txt", "sha256"];
 
 /// The kp-themes JavaScript every page needs (theme boot, picker, strings,
-/// components, the effect hooks `effects.js` imports). They go in `ASSETS`;
-/// every other `kp/js/**` module goes in `WEBAPP_KP_ASSETS`, the set
-/// `assets.rs` serves next to them when the `assets` feature is on.
+/// components, the effect hooks `effects.js` imports). These and every module
+/// they import, followed to the end (a kp-themes 12 facade pulls in its own
+/// folder and `controller.js`), go in `ASSETS`; every other `kp/js/**` module
+/// goes in `WEBAPP_KP_ASSETS`, the set `assets.rs` serves next to them when
+/// the `assets` feature is on.
 const CORE_KP_JS: &[&str] = &[
     "kp/js/no-flash.js",
     "kp/js/theme-registry.js",
@@ -61,15 +63,16 @@ fn main() {
     let mut files = Vec::new();
     collect(&root, &root, &mut files);
     files.sort();
-    let (mut core, mut webapp) = (String::new(), String::new());
+    let core = import_closure(&root, CORE_KP_JS);
+    let (mut core_rows, mut webapp) = (String::new(), String::new());
     for rel in &files {
         let Some(mime) = classify(rel) else { continue };
         let entry = entry(rel, mime);
-        let is_webapp = rel.starts_with(KP_JS_PREFIX) && !CORE_KP_JS.contains(&rel.as_str());
+        let is_webapp = rel.starts_with(KP_JS_PREFIX) && !core.contains(rel);
         if is_webapp {
             webapp.push_str(&entry)
         } else {
-            core.push_str(&entry)
+            core_rows.push_str(&entry)
         }
     }
     for needed in CORE_KP_JS {
@@ -80,7 +83,7 @@ fn main() {
         }
     }
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
-    write(&out.join("assets_core.rs"), &core);
+    write(&out.join("assets_core.rs"), &core_rows);
     write(&out.join("assets_webapp.rs"), &webapp);
     // Which checkout the list was made for; `assets.rs` refuses to compile
     // when it is another one, because the list (not the bytes) would be
@@ -88,6 +91,57 @@ fn main() {
     let manifest = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
     fs::write(out.join("generated_for.rs"), format!("{manifest:?}\n"))
         .unwrap_or_else(|e| fail(&format!("write generated_for.rs: {e}")));
+}
+
+/// `start` and every module they import, transitively, as paths relative to
+/// `static/`. Only relative specifiers ending in `.js` count (`./x.js`,
+/// `../x.js`); the vendored tree imports nothing else.
+fn import_closure(root: &Path, start: &[&str]) -> std::collections::BTreeSet<String> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut todo: Vec<String> = start.iter().map(|s| s.to_string()).collect();
+    while let Some(rel) = todo.pop() {
+        if !seen.insert(rel.clone()) {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(root.join(&rel)) else {
+            continue; // a missing start module is reported by main()
+        };
+        let dir = Path::new(&rel).parent().unwrap_or(Path::new(""));
+        for spec in relative_imports(&text) {
+            if let Some(next) = normalise(&dir.join(spec)) {
+                todo.push(next);
+            }
+        }
+    }
+    seen
+}
+
+/// The relative `.js` specifiers in `from '…'`, `import '…'` and `import('…')`.
+fn relative_imports(text: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    for quote in ['\'', '"'] {
+        for piece in text.split(quote).skip(1).step_by(2) {
+            if (piece.starts_with("./") || piece.starts_with("../")) && piece.ends_with(".js") {
+                out.push(piece);
+            }
+        }
+    }
+    out
+}
+
+/// `a/b/../c.js` as `a/c.js`, `/`-separated; `None` when it leaves `static/`.
+fn normalise(path: &Path) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+    for c in path.components() {
+        match c {
+            std::path::Component::Normal(p) => parts.push(p.to_string_lossy().into_owned()),
+            std::path::Component::ParentDir => {
+                parts.pop()?;
+            }
+            _ => {}
+        }
+    }
+    Some(parts.join("/"))
 }
 
 /// Every file under `dir`, as a `/`-separated path relative to `root`.
