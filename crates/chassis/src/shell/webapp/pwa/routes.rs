@@ -10,7 +10,7 @@ use std::sync::Arc;
 use axum::Router;
 use axum::extract::State;
 use axum::http::{HeaderMap, HeaderValue, header};
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
 
 use super::super::files::read;
@@ -20,6 +20,8 @@ use super::icons::{default_icon, initial, monochrome_icon};
 use super::png::SIGNATURE;
 use super::{Pwa, manifest, worker};
 
+/// Where browsers look for a tab icon when the page names none.
+const FAVICON_PATH: &str = "/favicon.ico";
 pub(super) const MANIFEST_PATH: &str = "/manifest.webmanifest";
 pub(super) const SW_PATH: &str = "/sw.js";
 pub(super) const TOUCH_ICON_PATH: &str = "/pwa/icon-180.png";
@@ -102,7 +104,17 @@ pub(in crate::shell::webapp) fn router(state: Arc<PwaState>) -> Router {
             r = r.route(path, get(serve_icon));
         }
     }
-    r.with_state(state)
+    // Screenshots are the app's own PNG/WebP files, public for the same
+    // reason; a path another route already owns is not routed twice.
+    for path in super::screenshots::paths(&state.pwa.screenshots) {
+        let taken = ICONS.iter().any(|(p, _, _)| *p == path)
+            || super::extras::icon_paths(&state.pwa.shortcuts).contains(&path);
+        if !taken {
+            r = r.route(path, get(serve_screenshot));
+        }
+    }
+    r.route(FAVICON_PATH, get(redirect_favicon))
+        .with_state(state)
 }
 
 /// A text answer that is never cached by the browser's HTTP cache.
@@ -160,4 +172,39 @@ async fn serve_icon(
         },
     };
     file_response("icon.png", body, false, &headers, s.csp())
+}
+
+/// Browsers that ask for `/favicon.ico` directly get the app's icon instead
+/// of the login redirect (the tab icon page link covers the rest).
+async fn redirect_favicon() -> Response {
+    let mut res = Redirect::permanent(ICON_192_PATH).into_response();
+    let cache = HeaderValue::from_static("public, max-age=86400");
+    res.headers_mut().insert(header::CACHE_CONTROL, cache);
+    res
+}
+
+/// A declared screenshot: the web app's own file at that path, when its
+/// first bytes say it is the PNG or WebP the extension promises.
+async fn serve_screenshot(
+    State(s): State<Arc<PwaState>>,
+    uri: axum::http::Uri,
+    headers: HeaderMap,
+) -> Response {
+    let path = uri.path();
+    let found = read(&s.source, path.trim_start_matches('/'))
+        .await
+        .filter(|b| is_image_of(path, b));
+    match found {
+        Some(body) => file_response(path, body, false, &headers, s.csp()),
+        None => axum::http::StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// Whether `bytes` start like the image type `path`'s extension names.
+fn is_image_of(path: &str, bytes: &[u8]) -> bool {
+    if path.ends_with(".webp") {
+        bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP"
+    } else {
+        bytes.starts_with(&SIGNATURE)
+    }
 }

@@ -9,6 +9,19 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **Manifest screenshots and a favicon** (`webapp` PWA, Habits, 2026-11-01):
+  `Pwa::screenshot(Screenshot::new(path, "WxH", FormFactor::Narrow | Wide)
+  .label(text))`, callable more than once, writes `screenshots` into the
+  manifest (type from the extension). Checked at start: an absolute plain
+  `.png` or `.webp` path (no scheme, query, `#` or `..`) and `WxH` digits.
+  Each declared path is a web-app file served outside the login (a missing
+  file or the wrong image type is a 404); no other path becomes public.
+  Fixes apps having no favicon: every installable page, and every kit page
+  of an installable app, now carries
+  `<link rel="icon" href="/pwa/icon-192.png" type="image/png">` next to the
+  manifest link (a page's own `rel="icon"` wins), and `GET /favicon.ico` is
+  answered publicly with a 308 to `/pwa/icon-192.png`. Nothing is added when
+  the app is not installable.
 - **Installed-app polish from Habits** (`webapp` PWA, Habits gaps 1, 3, 4, 5,
   6 and 8, 2026-11-01): the manifest lists a generated
   `/pwa/icon-maskable-192.png` and a `/pwa/icon-monochrome-512.png` (the

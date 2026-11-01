@@ -41,5 +41,6 @@ pub(super) fn manifest(pwa: &Pwa, name: &str) -> Value {
     }
     super::fields::extend(&mut m, &pwa.fields);
     super::extras::extend(&mut m, &pwa.shortcuts, pwa.share_target.as_ref());
+    super::screenshots::extend(&mut m, &pwa.screenshots);
     m
 }

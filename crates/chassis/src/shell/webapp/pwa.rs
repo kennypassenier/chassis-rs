@@ -6,15 +6,19 @@
 mod extras;
 mod fields;
 mod glyphs;
+mod head;
 pub(super) mod icons;
 mod manifest;
 mod png;
 mod routes;
+mod screenshots;
 mod worker;
 
 use crate::core::error::Error;
 pub use extras::{ShareTarget, Shortcut};
 pub use fields::{ClientMode, Dir, Orientation, Reload};
+pub(super) use head::HeadTag;
+pub use screenshots::{FormFactor, Screenshot};
 
 /// How the installed app is framed (`display` in the web app manifest).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,6 +61,7 @@ pub struct Pwa {
     pub(super) background_color: String,
     pub(super) shortcuts: Vec<Shortcut>,
     pub(super) share_target: Option<ShareTarget>,
+    pub(super) screenshots: Vec<Screenshot>,
     fields: fields::Fields,
 }
 
@@ -78,6 +83,7 @@ impl Pwa {
             background_color: DEFAULT_BACKGROUND_COLOR.into(),
             shortcuts: Vec::new(),
             share_target: None,
+            screenshots: Vec::new(),
             fields: fields::Fields::default(),
         }
     }
@@ -134,10 +140,18 @@ impl Pwa {
         self
     }
 
+    /// One picture for the install prompt (call it more than once for
+    /// more; checked at start).
+    pub fn screenshot(mut self, screenshot: Screenshot) -> Self {
+        self.screenshots.push(screenshot);
+        self
+    }
+
     /// Refuse a colour that could break out of the attribute it lands in,
-    /// and shortcuts or a share target a browser would drop.
+    /// and shortcuts, a share target or screenshots a browser would drop.
     pub(super) fn validate(&self) -> Result<(), Error> {
         extras::validate(&self.shortcuts, self.share_target.as_ref())?;
+        screenshots::validate(&self.screenshots)?;
         for (what, c) in [
             ("theme_color", &self.theme_color),
             ("background_color", &self.background_color),
@@ -156,60 +170,6 @@ impl Pwa {
             }
         }
         Ok(())
-    }
-}
-
-/// One tag a page may already carry: `key` is what a page mentions when it
-/// has the tag (compared with quotes removed), `html` is the tag.
-pub(super) struct HeadTag {
-    pub(super) key: &'static str,
-    pub(super) html: String,
-}
-
-impl Pwa {
-    /// The manifest link; under `Reload::Ask` it carries the policy the
-    /// page script reads (`data-chassis-reload`), the one place the server
-    /// already writes into every installable page.
-    fn manifest_link(&self) -> String {
-        let attr = self
-            .fields
-            .reload
-            .attribute()
-            .map(|v| format!(" data-chassis-reload=\"{v}\""))
-            .unwrap_or_default();
-        format!(
-            "<link rel=\"manifest\" href=\"{}\"{attr}>",
-            routes::MANIFEST_PATH
-        )
-    }
-
-    /// The tags the pages carry: manifest, theme colour, touch icon.
-    pub(super) fn head_tags(&self) -> Vec<HeadTag> {
-        vec![
-            HeadTag {
-                key: "rel=manifest",
-                html: self.manifest_link(),
-            },
-            HeadTag {
-                key: "name=theme-color",
-                html: format!(
-                    "<meta name=\"theme-color\" content=\"{}\">",
-                    self.theme_color
-                ),
-            },
-            HeadTag {
-                key: "apple-touch-icon",
-                html: format!(
-                    "<link rel=\"apple-touch-icon\" href=\"{}\">",
-                    routes::TOUCH_ICON_PATH
-                ),
-            },
-        ]
-    }
-
-    /// All the tags as one string, for the kit's own layout (the login page).
-    pub(crate) fn head_html(&self) -> String {
-        self.head_tags().iter().map(|t| t.html.as_str()).collect()
     }
 }
 
