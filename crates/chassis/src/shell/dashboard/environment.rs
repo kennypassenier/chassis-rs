@@ -40,10 +40,15 @@ pub(super) fn build(
                         "/" => "status",
                         other => other.trim_matches('/'),
                     };
-                    serde_json::json!({ "id": id, "title": n.label, "path": n.href })
+                    serde_json::json!({ "id": id, "title": n.label, "path": n.href, "secondary": false })
                 })
                 .collect::<Vec<_>>(),
         ),
+    );
+    // ux-chassis-9: no help until with_pages reads the registry's.
+    env.add_global(
+        "help_by_path",
+        minijinja::Value::from_serialize(std::collections::BTreeMap::<String, String>::new()),
     );
     env.add_global("chassis_version", crate::VERSION);
     env.add_global("kp_themes_version", KP_THEMES_VERSION);

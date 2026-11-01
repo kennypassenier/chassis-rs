@@ -72,6 +72,7 @@ function commandTable(ctx) {
     updates: () => statusLink && ctx.go(statusLink.href),
     theme: () => $('#kp-theme-menu')?.showPopover?.(),
     logout: () => $('#chassis-logout')?.requestSubmit(),
+    help: () => $('#chassis-help')?.showModal?.(),
     issue: ctx.runIssue,
     'filter-idle': () => ctx.control('filter-idle')?.click(),
   };

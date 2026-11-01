@@ -224,8 +224,24 @@ app.page(Page::new("home", "Home", "/"))
   `/status`.
 - **`GET /api/kit/pages`** (behind the login, `no-cache`): `{"app", "brand":
   {"title", "href"}, "home", "pages": [{"id", "title", "path", "group",
-  "order", "nav", "source": "kit"|"app", "render": "kit"|"app"}]}`, sorted.
+  "order", "nav", "secondary", "help", "source": "kit"|"app", "render":
+  "kit"|"app"}], "more": [ids]}`, sorted.
   A web app renders its navigation from the pages with `nav: true`.
+- **Secondary pages and the More tab** (ux-chassis-7, ux-chassis-8).
+  `Page::new(id, title, path).secondary()` marks a page for the header's one
+  overflow menu; the kit's Passkeys and Storage are secondary by default
+  (`kit_page("storage", |p| p.primary())` undoes it). `more` lists the ids
+  of the listed secondary pages in order. An app with its own tab bar (the
+  phone) draws the pages with `nav: true` and not `secondary` as tabs and
+  hosts ONE last tab "More" that opens a drawer or list with the pages named
+  by `more` (title, `hint` under it, link to `path`), plus whatever of its
+  own it keeps there. Because the kit pages are already in that tab, the app
+  does not draw the kit's hamburger drawer next to it: one tab, no copy.
+- **Help for a page** (ux-chassis-9). `Page::help("<p>…</p>")` is trusted
+  HTML in plain English, for a "?" button in the app's header that opens a
+  drawer: what the page shows and what each action does. The kit's own pages
+  arrive with theirs in `help`; read it from `/api/kit/pages` and show it as
+  is.
 - **One bar on every page: `app.kit_pages_in_webapp()`.** The web app (at
   the root) draws the kit's pages too, inside its own bar. The kit then
   claims no GET page at `/status`, `/clients` or `/passkeys`, so the app's

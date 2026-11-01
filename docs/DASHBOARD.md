@@ -551,9 +551,24 @@ drawn from the page registry (`nav` and `pages` in the template context),
 never from a list in the layout:
 
 - **The bar:** brand, the visible pages, Search (a palette on Ctrl or Cmd K),
-  the theme menu and Log out; links that do not fit fold behind More. On a
-  phone (below 40rem) the bar keeps the brand, a Search icon and the theme
-  menu.
+  the theme menu and Log out. **One overflow menu, "More"** (ux-chassis-7):
+  a page marked `Page::new(..).secondary()` is listed in it instead of the
+  bar, together with the kit's own Passkeys and Storage pages (a project
+  puts one back with `app.kit_page("storage", |p| p.primary())`), and the
+  page you are on adds its own actions to it (a `nav_more_actions` block in
+  the template: Status offers *Copy the health address* and *Download the
+  status as JSON*, Passkeys *Register on another device*). Links that do not
+  fit the bar fold into the same menu; there is never a second More. On a
+  phone (below 40rem) the bar keeps the brand, a Search icon, the help "?"
+  and the theme menu.
+- **Help, "?"** (ux-chassis-9): every page with help text shows a "?" in the
+  bar that opens a drawer (Escape or × closes it, focus goes back to the
+  "?"). Status, Clients (and the client's own page), Storage and Passkeys
+  carry plain-English help written by the kit. A project writes the help of
+  its own page with `Page::new(..).help("<p>…</p>")` (trusted HTML: `p`,
+  `h3`, `ul`, `strong`), and may replace a kit page's with
+  `app.kit_page("storage", |p| p.help("…"))`. The text is also in
+  `GET /api/kit/pages` (`help`), so a web app draws the same drawer.
 - **The palette:** *Go to* (one link per page, with the chord `g` plus the
   page's first letter, where the letter is free), *This service* (refresh
   and updates, when the status page is on), *Account*. On the clients page it
@@ -571,8 +586,10 @@ never from a list in the layout:
   401, 502, 503 or 504 reports `refused` with the service's own remedy; the
   next good answer clears it. Retry asks `/healthz`. The kit has no queue of
   waiting changes, so it never claims a count.
-- **The phone's tab bar:** the first three pages are tabs, More opens a
-  drawer with the rest, Choose a theme and Log out. The Clients tab carries
+- **The phone's tab bar:** the first five primary pages are tabs, More
+  opens a drawer with the secondary pages, any primary page beyond the
+  fifth, Help, Choose a theme and Log out. A page is a tab or in More, never
+  both. The Clients tab carries
   the exact number of idle clients (active, no call for 30 days; one never
   called counts from its issue); no count is capped or abbreviated.
 - **The error page** shows the status, one plate (what, why in plain words,

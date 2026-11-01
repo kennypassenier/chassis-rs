@@ -119,12 +119,26 @@ impl Dashboard {
                     .map(|p| {
                         serde_json::json!({
                             "id": p.id, "title": p.title, "path": p.path, "group": p.group,
-                            "hint": p.hint,
+                            "hint": p.hint, "secondary": p.secondary,
                         })
                     })
                     .collect::<Vec<_>>(),
             ),
         );
+        // ux-chassis-9: the "?" drawer reads its page's help by path, hidden
+        // pages included (a page can be routable without being listed).
+        let help: std::collections::BTreeMap<_, _> = set
+            .pages
+            .iter()
+            .filter_map(|p| {
+                let html = p.help.as_ref()?;
+                Some((
+                    p.path.clone(),
+                    serde_json::json!({ "title": p.title, "html": html }),
+                ))
+            })
+            .collect();
+        env.add_global("help_by_path", minijinja::Value::from_serialize(help));
         env.add_global("brand_href", set.brand.href.clone());
         env.add_global("brand_title", set.brand.title.clone());
         self

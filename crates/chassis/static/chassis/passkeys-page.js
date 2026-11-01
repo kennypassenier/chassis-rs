@@ -114,8 +114,8 @@ async function initPasskeys(root) {
   document.addEventListener('kit-passkey-registered', reload);
   // The failed list's own Retry.
   list.addEventListener('kp-passkeys-retry', reload);
-  // More ▾ → Register on another device: bring the code into view.
-  root.addEventListener('kp-menu-select', (event) => {
+  // Header More → Register on another device: bring the code into view.
+  document.addEventListener('kp-menu-select', (event) => {
     if (event.detail?.value !== 'other-device') return;
     const card = document.getElementById('other-device');
     if (!card) return;

@@ -91,9 +91,16 @@ async fn the_registry_lists_storage_in_the_bar_the_palette_and_the_phones_more_d
         "{pages}"
     );
     let (_, html) = app.page("/status").await;
-    // The bar, the palette (with its chord and hint) and the More drawer
-    // (the tab bar holds the first three pages, Storage is the fourth).
-    assert!(html.contains(r#"<a class="kp-nav__link" href="&#x2f;storage">Storage</a>"#));
+    // Storage is a secondary page since the one More menu (Kenny's form
+    // chassis-rs-ux-bevindingen, overflow "Een Meer-menu"): the header's More
+    // menu lists it instead of the bar, plus the palette (with its chord and
+    // hint) and the phone's More drawer.
+    let more_menu = html
+        .split("data-chassis-nav-more")
+        .nth(1)
+        .expect("the header's More menu");
+    assert!(more_menu.contains(r#"class="kp-menu__item" tabindex="-1" href="&#x2f;storage""#));
+    assert!(!html.contains(r#"<a class="kp-nav__link" href="&#x2f;storage">Storage</a>"#));
     assert!(
         html.contains(r#"data-chassis-go="storage" data-chassis-chord="o" href="&#x2f;storage""#)
     );
