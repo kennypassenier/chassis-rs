@@ -53,6 +53,11 @@ impl Db {
     /// returns `Ok`, holding a write ticket throughout. Blocks the calling
     /// thread; a backup pause holds it for at most
     /// [`backup::HELD_WRITE_LIMIT`], then it fails with a retryable 503.
+    ///
+    /// Write tickets do not nest: do not call this (or [`Db::write`]) while
+    /// the same task already holds a ticket from [`backup::writing`]. If a
+    /// backup pause starts between the two, the inner call waits for a pause
+    /// the outer ticket keeps from finishing, and fails after the limit.
     pub fn write_blocking<T>(
         &self,
         f: impl FnOnce(&Transaction) -> Result<T, Error>,
@@ -88,6 +93,15 @@ impl Db {
             Ok(_) => *lock(&self.inner.last_failure) = None,
             Err(_) => {}
         }
+    }
+
+    /// The reason a write failed in the last minute and how long ago, if
+    /// one did, so `/healthz` can say "3 s ago" instead of "within a minute".
+    pub fn recent_write_failure_age(&self) -> Option<(String, Duration)> {
+        lock(&self.inner.last_failure)
+            .as_ref()
+            .filter(|(at, _)| at.elapsed() < WRITE_FAILURE_WINDOW)
+            .map(|(at, why)| (why.clone(), at.elapsed()))
     }
 
     /// The reason a write failed in the last minute, if one did.

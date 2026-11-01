@@ -22,7 +22,12 @@ impl Db {
             Ok(())
         })();
         drop(conn);
-        self.note_write(&out);
+        // A passing probe only proves the lock: it must not clear a failure a
+        // real write recorded (kyu, 2026-11-01: "disk full" vanished on the
+        // next /healthz poll). A failing probe is recorded like any write.
+        if let Err(e) = &out {
+            self.note_failure(e);
+        }
         out.map_err(|e: Error| {
             Error::new(
                 e.kind,

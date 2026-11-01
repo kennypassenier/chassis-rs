@@ -9,6 +9,13 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **Storage follow-ups from kyu's move to the kit store** (`storage`,
+  2026-11-01): `Db::recent_write_failure_age()` says how long ago the last
+  write failed; a passing `Db::probe_writable()` no longer clears a failure
+  a real write recorded; a clean stop folds the write-ahead logs into their
+  files as its last step (after the project's flush hooks); the docs warn
+  that write tickets do not nest.
+
 - **What kyu's store needed, in the kit's storage** (`storage`, kyu
   2026-11-01): `Db::open_with(path, migrations, &DbOptions)` and
   `AppDbSpec::with_options` with `DbOptions::readers(n)` (up to
