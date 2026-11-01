@@ -25,11 +25,29 @@ impl App {
     /// hide a kit route, or an app without `index.html`, is refused at
     /// start and at `--check`.
     ///
+    /// Call it again for a second web app at another mount. Only one of
+    /// them may be installable ([`WebApp::without_pwa`] on the others): the
+    /// whole service is the installed app, and a second manifest would
+    /// contradict the first. Two installable ones are refused at start.
+    ///
+    /// [`WebApp::without_pwa`]: crate::shell::webapp::WebApp::without_pwa
+    ///
     /// [`WebApp::at`]: crate::shell::webapp::WebApp::at
     #[cfg(feature = "webapp")]
     pub fn webapp(&mut self, app: crate::shell::webapp::WebApp) -> &mut Self {
-        self.webapp = Some(app);
+        self.webapp.push(app);
         self
+    }
+
+    /// The head markup for a page the project renders itself, so it joins
+    /// the installed app (manifest link, colours, icons, and the script that
+    /// registers the service worker); `None` before a web app is registered
+    /// or when none is installable. Register the web app first, then add
+    /// this inside `<head>` of the server-rendered pages: the kit's own
+    /// pages and the web app's files get their tags without it.
+    #[cfg(feature = "webapp")]
+    pub fn pwa_page_head(&self) -> Option<String> {
+        self.webapp.iter().find_map(|w| w.pwa_page_head())
     }
 
     /// Where the dashboard's "send a test request" button posts (K14).

@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 use super::Pwa;
 use super::routes::{
     ICON_192_PATH, ICON_512_PATH, ICON_MASKABLE_192_PATH, ICON_MASKABLE_PATH, ICON_MONOCHROME_PATH,
+    ICON_SVG_PATH,
 };
 
 /// The name under the home-screen icon: the configured one, else the name
@@ -16,14 +17,16 @@ pub(super) fn short_name(pwa: &Pwa, name: &str) -> String {
     }
 }
 
-/// The manifest for an app called `name`. `start_url` and `scope` are the
-/// root: PWA support only exists for an app at the root.
-pub(super) fn manifest(pwa: &Pwa, name: &str) -> Value {
+/// The manifest for an app called `name`. The scope is always the root, so
+/// every page of the service is inside the installed app; `start_url` is
+/// where it opens (`Pwa::start_url`, else the web app's mount). `svg` lists
+/// the web app's own `pwa/icon.svg`.
+pub(super) fn manifest(pwa: &Pwa, name: &str, start_url: &str, svg: bool) -> Value {
     let mut m = json!({
         "id": "/",
         "name": name,
         "short_name": short_name(pwa, name),
-        "start_url": "/",
+        "start_url": start_url,
         "scope": "/",
         "display": pwa.display.as_str(),
         "theme_color": pwa.theme_color,
@@ -36,6 +39,10 @@ pub(super) fn manifest(pwa: &Pwa, name: &str) -> Value {
             {"src": ICON_MONOCHROME_PATH, "sizes": "512x512", "type": "image/png", "purpose": "monochrome"},
         ],
     });
+    if svg {
+        let icons = m["icons"].as_array_mut().expect("icons is an array");
+        icons.push(json!({"src": ICON_SVG_PATH, "sizes": "any", "type": "image/svg+xml"}));
+    }
     if let Some(d) = &pwa.description {
         m["description"] = json!(d);
     }

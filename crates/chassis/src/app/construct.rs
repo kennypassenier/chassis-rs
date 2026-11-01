@@ -76,7 +76,7 @@ impl App {
             api_router: Router::new(),
             dashboard_router: Router::new(),
             #[cfg(feature = "webapp")]
-            webapp: None,
+            webapp: Vec::new(),
             checks: Vec::new(),
             flush: None,
             start_hooks: Vec::new(),

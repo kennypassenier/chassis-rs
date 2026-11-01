@@ -27,7 +27,7 @@ impl App {
         // feat-webapp-1: the project's browser app joins the project's
         // own pages, so the mount puts the same admin login in front.
         #[cfg(feature = "webapp")]
-        let webapp_at_root = self.webapp.as_ref().is_some_and(|w| w.at_root());
+        let webapp_at_root = self.webapp.iter().any(|w| w.at_root());
         #[cfg(not(feature = "webapp"))]
         let webapp_at_root = false;
         self.validate_pages(webapp_at_root)?;
@@ -93,21 +93,33 @@ impl App {
         Ok(())
     }
 
-    /// The dashboard router with the project's web app merged in, plus the
-    /// app's public install routes and the tags for the kit's own pages
-    /// (feat-webapp-4; the routes must sit outside the login).
+    /// The dashboard router with the project's web apps merged in, plus the
+    /// installable app's public install routes and the tags for the kit's
+    /// own pages (feat-webapp-4; the routes must sit outside the login).
+    #[cfg(feature = "webapp")]
     #[allow(clippy::type_complexity)]
     fn dashboard_with_webapp(&mut self) -> Result<(Router, Option<Router>, Option<String>), Error> {
-        let dashboard_router = std::mem::take(&mut self.dashboard_router);
-        #[cfg(feature = "webapp")]
-        if let Some(w) = self.webapp.take() {
-            let brand = self
-                .brand_title
-                .clone()
-                .unwrap_or_else(|| self.spec.name.to_string());
-            let (routes, head) = (w.pwa_router(&brand), w.pwa_head_html());
-            return Ok((dashboard_router.merge(w.router()?), routes, head));
+        let apps = std::mem::take(&mut self.webapp);
+        crate::shell::webapp::single_installable(&apps)?;
+        let brand = self
+            .brand_title
+            .clone()
+            .unwrap_or_else(|| self.spec.name.to_string());
+        let (routes, head) = match apps.iter().find(|w| w.is_installable()) {
+            Some(w) => (w.pwa_router(&brand), w.pwa_head_html()),
+            None => (None, None),
+        };
+        let mut merged = std::mem::take(&mut self.dashboard_router);
+        for w in apps {
+            merged = merged.merge(w.router()?);
         }
-        Ok((dashboard_router, None, None))
+        Ok((merged, routes, head))
+    }
+
+    /// Without the `webapp` feature there is nothing to merge.
+    #[cfg(not(feature = "webapp"))]
+    #[allow(clippy::type_complexity)]
+    fn dashboard_with_webapp(&mut self) -> Result<(Router, Option<Router>, Option<String>), Error> {
+        Ok((std::mem::take(&mut self.dashboard_router), None, None))
     }
 }

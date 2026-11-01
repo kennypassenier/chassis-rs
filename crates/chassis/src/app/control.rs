@@ -17,8 +17,11 @@ impl App {
         #[cfg(feature = "dashboard")]
         self.require_dashboard_secrets()?;
         #[cfg(feature = "webapp")]
-        if let Some(w) = &self.webapp {
-            w.validate()?;
+        {
+            for w in &self.webapp {
+                w.validate()?;
+            }
+            crate::shell::webapp::single_installable(&self.webapp)?;
         }
         #[cfg(feature = "dashboard")]
         self.validate_browser_keys()?;

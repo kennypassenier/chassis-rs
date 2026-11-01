@@ -128,6 +128,7 @@ pub(super) struct Fields {
     pub(super) display_override: Vec<Display>,
     pub(super) launch_handler: Option<ClientMode>,
     pub(super) reload: Reload,
+    pub(super) start_url: Option<String>,
 }
 
 impl Pwa {
@@ -168,11 +169,28 @@ impl Pwa {
         self
     }
 
+    /// The page the installed app opens on, a path of the app such as `/`
+    /// (checked at start). Default: the web app's mount path (`/app/hsb/`
+    /// for an app mounted at `/app/hsb`, `/` at the root). The scope stays
+    /// `/` either way, so the service's other pages are inside the app.
+    pub fn start_url(mut self, path: &str) -> Self {
+        self.fields.start_url = Some(path.into());
+        self
+    }
+
     /// Reload at once on a new release (default) or let the app choose the
     /// moment; see [`Reload`].
     pub fn reload(mut self, reload: Reload) -> Self {
         self.fields.reload = reload;
         self
+    }
+}
+
+/// Refuse a start URL that is not a path of the app.
+pub(super) fn validate(f: &Fields) -> Result<(), crate::core::error::Error> {
+    match &f.start_url {
+        Some(p) => super::extras::app_path("start_url", p),
+        None => Ok(()),
     }
 }
 

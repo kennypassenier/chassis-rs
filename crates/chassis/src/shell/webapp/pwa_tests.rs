@@ -197,19 +197,13 @@ async fn without_pwa_nothing_is_served_and_nothing_injected() {
 }
 
 #[tokio::test]
-async fn a_mount_below_the_root_or_no_kit_runtime_is_not_installable() {
-    assert!(WebApp::embedded(FILES).at("/app").pwa_router("X").is_none());
+async fn no_kit_runtime_is_not_installable() {
+    // The runtime registers the worker, so an app without it cannot install.
     assert!(
         WebApp::embedded(FILES)
             .without_kit_runtime()
             .pwa_router("X")
             .is_none()
-    );
-    let r = WebApp::embedded(FILES).at("/app").router().unwrap();
-    assert!(
-        !body(get_path(&r, "/app/", &[]).await)
-            .await
-            .contains("manifest")
     );
 }
 

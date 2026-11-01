@@ -48,3 +48,25 @@ impl WebApp {
         Ok(())
     }
 }
+
+/// Refuse a service whose web apps would install as more than one app: the
+/// manifest, worker and icons live at the root, so there is room for one.
+/// The remedy names the mounts, so the project knows which to opt out.
+pub fn single_installable(apps: &[WebApp]) -> Result<(), Error> {
+    let mounts: Vec<&str> = apps
+        .iter()
+        .filter(|a| a.is_installable())
+        .map(WebApp::mount)
+        .collect();
+    if mounts.len() > 1 {
+        return Err(Error::config(
+            format!(
+                "{} web apps are installable ({}), but a service installs as one app",
+                mounts.len(),
+                mounts.join(", ")
+            ),
+            "call .without_pwa() on every web app except the one to install",
+        ));
+    }
+    Ok(())
+}

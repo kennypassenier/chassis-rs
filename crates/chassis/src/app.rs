@@ -239,7 +239,7 @@ pub struct App {
     dashboard_router: Router,
     /// feat-webapp-1: the project's own browser app, if it registered one.
     #[cfg(feature = "webapp")]
-    webapp: Option<crate::shell::webapp::WebApp>,
+    webapp: Vec<crate::shell::webapp::WebApp>,
     checks: Vec<Hook>,
     flush: Option<Box<dyn FnOnce() + Send>>,
     /// Run once the listener is bound and READY is sent (1.1.0): where a

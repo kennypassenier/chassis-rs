@@ -12,6 +12,7 @@ mod manifest;
 mod png;
 mod routes;
 mod screenshots;
+mod svg;
 mod worker;
 
 use crate::core::error::Error;
@@ -152,6 +153,7 @@ impl Pwa {
     pub(super) fn validate(&self) -> Result<(), Error> {
         extras::validate(&self.shortcuts, self.share_target.as_ref())?;
         screenshots::validate(&self.screenshots)?;
+        fields::validate(&self.fields)?;
         for (what, c) in [
             ("theme_color", &self.theme_color),
             ("background_color", &self.background_color),
@@ -175,16 +177,17 @@ impl Pwa {
 
 impl super::WebApp {
     /// The tags to add to the app's HTML pages; `None` when the app is not
-    /// installable (opted out, below the root or without the kit runtime).
+    /// installable (opted out or without the kit runtime).
     pub(super) fn page_tags(&self) -> Option<Vec<HeadTag>> {
-        self.installable().map(Pwa::head_tags)
+        self.installable()
+            .map(|p| p.head_tags(svg::present(&self.source)))
     }
 
-    /// The install settings, when the app is installable at all.
+    /// The install settings, when the app is installable at all. Where the
+    /// app is mounted does not matter: the whole service is the installed
+    /// app (scope `/`), the web app only supplies its files and start page.
     fn installable(&self) -> Option<&Pwa> {
-        self.pwa
-            .as_ref()
-            .filter(|_| self.at_root() && self.kit_runtime)
+        self.pwa.as_ref().filter(|_| self.kit_runtime)
     }
 
     /// The public routes (manifest, worker, icons) for the dashboard mount to
@@ -195,6 +198,28 @@ impl super::WebApp {
 
     /// The tags for the kit's own pages (the login page), same condition.
     pub(crate) fn pwa_head_html(&self) -> Option<String> {
-        self.installable().map(Pwa::head_html)
+        self.installable()
+            .map(|p| p.head_html(svg::present(&self.source)))
+    }
+
+    /// The head markup for a page the project renders itself (outside the
+    /// web app's files, which get it injected): the manifest link, theme
+    /// colour, touch icon, tab icons and (with `push`) the push marker, plus
+    /// the `<script type="module">` that registers the service worker. The
+    /// script is a kit asset, so it runs under `script-src 'self'`. `None`
+    /// when the app is not installable. Add it inside `<head>`.
+    pub fn pwa_page_head(&self) -> Option<String> {
+        self.pwa_head_html().map(|tags| {
+            format!(
+                "{tags}<script type=\"module\" src=\"/static/chassis/pwa-boot.js?v={}\"></script>",
+                crate::shell::assets::asset_version()
+            )
+        })
+    }
+
+    /// Whether the install settings are on (the web app opted in and has
+    /// the kit runtime); at most one web app of a service may be.
+    pub(crate) fn is_installable(&self) -> bool {
+        self.installable().is_some()
     }
 }

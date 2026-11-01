@@ -29,8 +29,9 @@ impl Pwa {
     }
 
     /// The tags the pages carry: manifest, theme colour, touch icon and the
-    /// tab icon (the app's own icon, so the tab is not the browser's blank).
-    pub(in crate::shell::webapp) fn head_tags(&self) -> Vec<HeadTag> {
+    /// tab icon (the app's own icon, so the tab is not the browser's blank);
+    /// `svg` puts the vector icon ahead of the PNG one.
+    pub(in crate::shell::webapp) fn head_tags(&self, svg: bool) -> Vec<HeadTag> {
         #[allow(unused_mut)]
         let mut tags = vec![
             HeadTag {
@@ -59,6 +60,18 @@ impl Pwa {
                 ),
             },
         ];
+        if svg {
+            tags.insert(
+                3,
+                HeadTag {
+                    key: "rel=icon",
+                    html: format!(
+                        "<link rel=\"icon\" href=\"{}\" type=\"image/svg+xml\">",
+                        routes::ICON_SVG_PATH
+                    ),
+                },
+            );
+        }
         // habits-push-1: tells the page script (push.js) that the server
         // has Web Push; `window.chassisPush` exists only where this is.
         #[cfg(feature = "push")]
@@ -70,7 +83,10 @@ impl Pwa {
     }
 
     /// All the tags as one string, for the kit's own layout (every kit page).
-    pub(crate) fn head_html(&self) -> String {
-        self.head_tags().iter().map(|t| t.html.as_str()).collect()
+    pub(crate) fn head_html(&self, svg: bool) -> String {
+        self.head_tags(svg)
+            .iter()
+            .map(|t| t.html.as_str())
+            .collect()
     }
 }

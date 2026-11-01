@@ -196,7 +196,7 @@ pub(super) fn validate(shortcuts: &[Shortcut], share: Option<&ShareTarget>) -> R
 
 /// A path in the app: starts with one `/` (not `//`, which names another
 /// host) and has no scheme.
-fn app_path(what: &str, path: &str) -> Result<(), Error> {
+pub(super) fn app_path(what: &str, path: &str) -> Result<(), Error> {
     if path.starts_with('/') && !path.starts_with("//") && !path.contains("://") {
         return Ok(());
     }

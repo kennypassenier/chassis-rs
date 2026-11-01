@@ -91,3 +91,37 @@ async fn an_app_that_opts_out_exposes_and_links_nothing() {
     let (_, page) = app.page("/").await;
     assert!(!page.contains("manifest"));
 }
+
+#[tokio::test]
+async fn a_web_app_below_the_root_installs_the_whole_service() {
+    let mut app = start(WebApp::embedded(FILES).at("/app/hsb")).await;
+    let json: serde_json::Value = anonymous(&app, "/manifest.webmanifest")
+        .await
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        (json["start_url"].as_str(), json["scope"].as_str()),
+        (Some("/app/hsb/"), Some("/"))
+    );
+    assert_eq!(anonymous(&app, "/sw.js").await.status(), 200);
+    assert_eq!(anonymous(&app, "/pwa/icon-192.png").await.status(), 200);
+    assert_eq!(
+        anonymous(&app, "/app/hsb/").await.status(),
+        303,
+        "the app still asks for the login"
+    );
+    // The kit's own pages are inside the installed app, so they link it.
+    let (_, login) = app.page("/login").await;
+    assert_eq!(login.matches("rel=\"manifest\"").count(), 1, "{login}");
+    app.login().await;
+    let (_, page) = app.page("/app/hsb/").await;
+    assert_eq!(page.matches("rel=\"manifest\"").count(), 1, "{page}");
+    // The script a project's own pages load to register the worker is served.
+    assert_eq!(
+        anonymous(&app, "/static/chassis/pwa-boot.js")
+            .await
+            .status(),
+        200
+    );
+}

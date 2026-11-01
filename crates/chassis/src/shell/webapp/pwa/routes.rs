@@ -29,6 +29,7 @@ pub(super) const ICON_192_PATH: &str = "/pwa/icon-192.png";
 pub(super) const ICON_512_PATH: &str = "/pwa/icon-512.png";
 pub(super) const ICON_MASKABLE_PATH: &str = "/pwa/icon-maskable-512.png";
 pub(super) const ICON_MASKABLE_192_PATH: &str = "/pwa/icon-maskable-192.png";
+pub(super) const ICON_SVG_PATH: &str = "/pwa/icon.svg";
 pub(super) const ICON_MONOCHROME_PATH: &str = "/pwa/icon-monochrome-512.png";
 
 /// (URL path, side in px, monochrome) of every icon; a file of the web app
@@ -48,18 +49,25 @@ pub(in crate::shell::webapp) struct PwaState {
     csp: String,
     pwa: Pwa,
     name: String,
+    /// Where the installed app opens: `Pwa::start_url`, else the mount.
+    start_url: String,
     generated: Vec<(&'static str, Vec<u8>)>,
 }
 
 impl PwaState {
     /// The state for `app`, or `None` when it is not installable: opted
-    /// out, mounted below the root (the worker's scope would be wrong) or
-    /// without the kit runtime (which registers the worker).
+    /// out or without the kit runtime (which registers the worker). A web
+    /// app mounted below the root is installable too: its manifest, worker
+    /// and icons are still served at the root, from the app's own files.
     pub(in crate::shell::webapp) fn for_app(app: &WebApp, brand: &str) -> Option<Arc<Self>> {
-        let pwa = app
-            .pwa
-            .clone()
-            .filter(|_| app.at_root() && app.kit_runtime)?;
+        let pwa = app.pwa.clone().filter(|_| app.kit_runtime)?;
+        let start_url = pwa.fields.start_url.clone().unwrap_or_else(|| {
+            if app.at_root() {
+                "/".to_string()
+            } else {
+                format!("{}/", app.mount)
+            }
+        });
         let name = pwa.name.clone().unwrap_or_else(|| brand.to_string());
         let letter = initial(&name);
         let generated = ICONS
@@ -78,6 +86,7 @@ impl PwaState {
             csp: app.csp.clone(),
             pwa,
             name,
+            start_url,
             generated,
         }))
     }
@@ -97,6 +106,7 @@ pub(in crate::shell::webapp) fn router(state: Arc<PwaState>) -> Router {
     for (path, _, _) in ICONS {
         r = r.route(path, get(serve_icon));
     }
+    r = r.route(ICON_SVG_PATH, get(serve_svg_icon));
     // Shortcut icons are the app's own files, public like the icons above
     // (the launcher fetches them without a session).
     for path in super::extras::icon_paths(&state.pwa.shortcuts) {
@@ -126,7 +136,8 @@ fn text(content_type: &'static str, body: String, csp: HeaderValue) -> Response 
 }
 
 async fn serve_manifest(State(s): State<Arc<PwaState>>) -> Response {
-    let body = manifest::manifest(&s.pwa, &s.name).to_string();
+    let svg = super::svg::present(&s.source);
+    let body = manifest::manifest(&s.pwa, &s.name, &s.start_url, svg).to_string();
     text("application/manifest+json", body, s.csp())
 }
 
@@ -171,6 +182,18 @@ async fn serve_icon(
         },
     };
     file_response("icon.png", body, false, &headers, s.csp())
+}
+
+/// The web app's own `pwa/icon.svg`, only when it is really SVG text; there
+/// is no generated stand-in, so anything else is a 404.
+async fn serve_svg_icon(State(s): State<Arc<PwaState>>, headers: HeaderMap) -> Response {
+    let found = read(&s.source, super::svg::FILE)
+        .await
+        .filter(|b| super::svg::is_svg(b));
+    match found {
+        Some(body) => file_response("icon.svg", body, false, &headers, s.csp()),
+        None => axum::http::StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 /// Browsers that ask for `/favicon.ico` directly: the web app's own
