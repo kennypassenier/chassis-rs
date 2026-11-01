@@ -60,6 +60,23 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     assert!(full.contains("export SOURCE_TOKEN="), "{full}");
     assert!(full.contains("Bearer $SOURCE_TOKEN"), "{full}");
     assert!(!full.contains("CLIENT_TOKEN"), "{full}");
+    // ux-chassis-2: the onboarding cards are the empty state; once a source
+    // exists the list takes their place. ux-chassis-3: the issue dialog
+    // explains where requests go, in the page's vocabulary.
+    for gone in [
+        "Wire up your first source",
+        "What a source is",
+        "Waiting for a call",
+    ] {
+        assert!(
+            !full.contains(gone),
+            "{gone} outlived the first source: {full}"
+        );
+    }
+    assert!(
+        full.contains("Requests from this source will go to"),
+        "{full}"
+    );
     let (status, _, kit) = http(addr, "GET", "/api/kit/clients", &admin, "").await;
     assert_eq!(status, 200, "{kit}");
     let kit: serde_json::Value = serde_json::from_str(&kit).unwrap();

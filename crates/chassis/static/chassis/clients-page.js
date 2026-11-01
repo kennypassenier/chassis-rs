@@ -57,6 +57,6 @@ async function startClientsPage(root) {
   ctx.paintProblems();
   wireRefresh(ctx);
 
-  // ---- the first client: the page notices the first call -----------------
-  if (root.hasAttribute('data-clients-onboarding')) watchForFirstCall(root, modules, one);
+  // ---- no client yet: the page opens its list when one exists ------------
+  if (root.hasAttribute('data-clients-onboarding')) watchForFirstCall();
 }

@@ -16,6 +16,26 @@ scaffold writes. A breaking change in either is a major and carries a
   start: a path outside the app, an empty name or more than four shortcuts
   refuses with a remedy. See docs/WEBAPP.md.
 
+### Changed
+
+- **The kit's pages fill the page container** (Status, Clients, Storage,
+  Passkeys, the error page; Kenny's 80 % rule, kit-page UX review): the
+  page column inside `<main class="kp-page">` capped and padded a second
+  time, so content used 976 of 1280 px. The kit's roots now carry
+  `.chassis-ops`, which hands the width and padding back to the container
+  (1024 px at 1280).
+- **The Issue dialog is as large as its content**: one name field is a
+  508 px dialog at 1280 (was 750) and 549 px at 390 (was 882). The name's
+  example moved from the placeholder to the hint line under the field, and
+  the preview line reads "Requests from this <app> will go to POST /path".
+- **The Clients onboarding cards are the empty state**: "Wire up your first
+  ..." and "What a ... is" show while no client exists and go as soon as
+  one does; the list, the figures and the refresh control take their place.
+  The "Waiting for a call" state is gone with them.
+- **The Storage "Clean up..." dialog is as large as its content**: the
+  preview and the confirm band have no minimum height, so a kind with
+  nothing to remove is 657 px at 1280 (was 833).
+
 ### Fixed
 
 - **The PWA service worker no longer handles event streams** (`webapp`): a

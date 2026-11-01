@@ -7,8 +7,9 @@
    first-call detection. The issue dialog is the approved clients-issue
    review and the manage dialogs the approved clients-manage review (round 3,
    both on .kp-formgrid). #}
-{% set onboarding = counts.called == 0 %}
-<div class="kp-ops" data-kp-ops-sticky="none" data-clients-page data-clients-one="{{ vocab.singular }}" data-clients-many="{{ vocab.plural }}" data-clients-token-var="{{ token_var }}" data-clients-days="{{ idle_after_days }}"{% if onboarding %} data-clients-onboarding{% endif %}>
+{# [ux-chassis-2] The onboarding cards are the empty state: they show while no {{ vocab.singular }} exists and go as soon as one does (the list, the figures and the refresh control take their place). #}
+{% set onboarding = counts.all == 0 %}
+<div class="kp-ops chassis-ops" data-kp-ops-sticky="none" data-clients-page data-clients-one="{{ vocab.singular }}" data-clients-many="{{ vocab.plural }}" data-clients-token-var="{{ token_var }}" data-clients-days="{{ idle_after_days }}"{% if onboarding %} data-clients-onboarding{% endif %}>
   <header class="kp-ops__head kp-page-header">
     <div class="kp-page-header__inner">
       <div>
@@ -37,34 +38,24 @@
     </section>
   </div>
   {% elif onboarding %}
-  {# clients-first: three steps; the last finishes by itself when the first
-     request arrives (chassis.js asks /api/kit/clients every 5 seconds). #}
-  {% set step = 1 if counts.active == 0 else 3 %}
+  {# clients-first: three steps, shown only while there is no {{ vocab.singular }}. The page reloads into the list by itself when the first one is issued (chassis.js asks /api/kit/clients every 5 seconds, for one issued in another tab). #}
   <div class="kp-ops__body">
     <section class="kp-card" data-kp-span="6" aria-labelledby="clients-first-title">
       <h2 class="kp-card__title" id="clients-first-title">Wire up your first {{ vocab.singular }}</h2>
-      <p class="kp-lede" data-kp-lede-measure="full">Three steps. The last one finishes by itself when the program calls.</p>
+      <p class="kp-lede" data-kp-lede-measure="full">Three steps. The list opens here as soon as the first {{ vocab.singular }} exists.</p>
       <ol class="kp-steplist" aria-label="Wiring up the first {{ vocab.singular }}" data-clients-steps>
-        <li class="kp-steplist__item" data-state="{{ 'running' if step == 1 else 'done' }}" data-kp-step-id="s1"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Issue {{ vocab_article }} {{ vocab.singular }}</span><span class="kp-steplist__note">A name for the program you want to connect{% for f in form_fields %}, and its {{ f.label|lower }}{% endfor %}.</span></span></li>
-        <li class="kp-steplist__item" data-state="{{ 'pending' if step == 1 else 'done' }}" data-kp-step-id="s2"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Give it the token</span><span class="kp-steplist__note">Copy the command or the token and run it where the program lives.</span></span></li>
-        <li class="kp-steplist__item" data-state="{{ 'pending' if step == 1 else 'running' }}" data-kp-step-id="s3"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Wait for its first request</span><span class="kp-steplist__note" data-clients-wait-note>{% if step == 1 %}This page looks for the first call by itself.{% else %}Listening… this page looks every 5 seconds.{% endif %}</span></span></li>
+        <li class="kp-steplist__item" data-state="running" data-kp-step-id="s1"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Issue {{ vocab_article }} {{ vocab.singular }}</span><span class="kp-steplist__note">A name for the program you want to connect{% for f in form_fields %}, and its {{ f.label|lower }}{% endfor %}.</span></span></li>
+        <li class="kp-steplist__item" data-state="pending" data-kp-step-id="s2"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Give it the token</span><span class="kp-steplist__note">Copy the command or the token and run it where the program lives.</span></span></li>
+        <li class="kp-steplist__item" data-state="pending" data-kp-step-id="s3"><span class="kp-steplist__mark" aria-hidden="true"></span><span class="kp-steplist__body"><span class="kp-steplist__title">Wait for its first request</span><span class="kp-steplist__note">The list then shows when it last called and how often.</span></span></li>
       </ol>
-      <div class="kp-row clients-actions" data-clients-done hidden>
-        <a class="kp-button kp-button--primary" href="/clients" data-clients-open-list>Open the list</a>
-      </div>
     </section>
     <section class="kp-card" data-kp-span="6" aria-labelledby="clients-what-title">
       <h2 class="kp-card__title" id="clients-what-title">What {{ vocab_article }} {{ vocab.singular }} is</h2>
       <p class="kp-lede" data-kp-lede-measure="full">The same token never goes to two programs.</p>
-      {# The package's empty plate (js/state-plate.js draws the same markup); chassis.js turns it into "Connected" through statePlate(). #}
-      <div class="kp-empty kp-stateplate kp-stateplate--empty" role="status" data-kp-art="nomatch" data-clients-what>
-        {% if step == 1 %}
+      {# The package's empty plate (js/state-plate.js draws the same markup). #}
+      <div class="kp-empty kp-stateplate kp-stateplate--empty" role="status" data-kp-art="nomatch">
         <strong class="kp-stateplate__title">No {{ vocab.plural }} yet</strong>
         <span class="kp-stateplate__text">{{ vocab_article_cap }} {{ vocab.singular }} is one program with its own token. Switch one off without touching the others.</span>
-        {% else %}
-        <strong class="kp-stateplate__title">Waiting for a call</strong>
-        <span class="kp-stateplate__text">The {{ vocab.singular }} exists. The list opens here as soon as its first request arrives.</span>
-        {% endif %}
       </div>
     </section>
   </div>
@@ -155,7 +146,7 @@
       <section class="kp-card issue-card issue-main" aria-labelledby="issue-main-title">
         <div class="issue-card__head">
           <h3 class="kp-dialog__heading" id="issue-main-title" data-issue-main-title>Who is calling</h3>
-          <p class="kp-lede" data-kp-lede-measure="full" data-issue-main-about>Give the program a name you will recognise in the logs, such as home-assistant.</p>
+          <p class="kp-lede" data-kp-lede-measure="full" data-issue-main-about>Give the program a name you will recognise in the logs.</p>
         </div>
         <div class="issue-card__main">
           <div class="issue-fields" data-issue-pane="form">
@@ -166,8 +157,8 @@
             <div class="kp-formgrid issue-form">
               <div class="kp-field kp-formgrid__row">
                 <label class="kp-formgrid__label" for="name"><span>Name <span class="kp-field__required">required</span></span></label>
-                <div class="kp-formgrid__control"><input class="kp-field__input" type="text" id="name" name="name" placeholder="home-assistant" required pattern="[A-Za-z0-9._\-]{1,64}" autocomplete="off" data-issue-in="name"></div>
-                <div class="kp-formgrid__value"><p class="kp-field__help">Letters, digits, dots, underscores and hyphens; 1 to 64 characters.</p><span class="kp-field__error" data-kp-field-error hidden></span></div>
+                <div class="kp-formgrid__control"><input class="kp-field__input" type="text" id="name" name="name" required pattern="[A-Za-z0-9._\-]{1,64}" autocomplete="off" data-issue-in="name"></div>
+                <div class="kp-formgrid__value"><p class="kp-field__help">For example home-assistant. Letters, digits, dots, underscores and hyphens; 1 to 64 characters.</p><span class="kp-field__error" data-kp-field-error hidden></span></div>
               </div>
               {% for f in form_fields %}
               <div class="kp-field kp-formgrid__row">
@@ -223,7 +214,7 @@
           </div>
           <dl class="kp-kv kp-kv--lines issue-prev__facts">
             <div class="kp-kv__row"><dt>Token</dt><dd data-issue-fact-token>Made when you press Issue token</dd></div>
-            <div class="kp-kv__row"><dt>Calls</dt><dd><span class="mono">POST {{ calls_path }}</span></dd></div>
+            <div class="kp-kv__row"><dt>Destination</dt><dd>Requests from this {{ vocab.singular }} will go to <span class="mono">POST {{ calls_path }}</span></dd></div>
             <div class="kp-kv__row"><dt>Listed in</dt><dd>{{ clients_label }}, with its request history</dd></div>
             <div class="kp-kv__row"><dt>First call</dt><dd data-issue-fact-call>Not yet</dd></div>
           </dl>

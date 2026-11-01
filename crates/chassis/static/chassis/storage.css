@@ -122,7 +122,9 @@
 }
 .storage-card-head :is(h3, p) { margin: 0; }
 
-/* --- the clean-up dialog: the title and the steps across; the choices (1-5) against the preview (6-12); the confirm band across --- */
+/* --- the clean-up dialog: the title and the steps across; the choices (1-5) against the preview (6-12); the confirm band across ---
+   [ux-chassis-4] It is sized to its content: the preview's stage and the confirm band have no minimum
+   height, so a kind with nothing to remove is a short dialog, not a mostly empty one. */
 .storage-clean { --kp-dialog-wide: 70rem; }
 .storage-clean__grid {
   grid-template-areas:
@@ -134,7 +136,7 @@
 .storage-clean__head { grid-area: head; }
 .storage-clean__steps { grid-area: steps; }
 .storage-clean__filters { grid-area: filters; }
-.storage-clean__preview { grid-area: preview; --kp-card-stage-min: 21rem; }
+.storage-clean__preview { grid-area: preview; }
 .storage-clean__confirm { grid-area: confirm; }
 .storage-clean__filters,
 .storage-clean__preview { align-content: start; min-inline-size: 0; }
@@ -152,7 +154,6 @@
   row-gap: var(--kp-space-sm, 0.5rem);
   /* The three columns are as tall as the band, their contents at the top: the field stands beside the actions, not alone on a line. */
   align-items: stretch;
-  min-block-size: 9rem;
   padding: var(--kp-space-md, 1rem) var(--kp-space-md, 1rem) 0;
   border-block-start: 1px solid var(--border);
 }
