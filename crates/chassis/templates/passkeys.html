@@ -1,6 +1,10 @@
 {% extends "layout.html" %}
 {% block title %}{{ app_name }} — passkeys{% endblock %}
 {% block head %}{% if https %}<script type="module" src="/static/passkeys.js?v={{ assets }}"></script>{% endif %}{% endblock %}
+{% block nav_more_actions %}
+<button type="button" role="menuitem" class="kp-menu__item" tabindex="-1" data-kp-value="other-device"><span class="kp-menu__label">Register on another device</span><span class="kp-menu__hint">Scan a code with your phone</span></button>
+{% endblock %}
+
 {% block content %}
 {#- kit-kp11 (approved demo "passkeys-list" and "passkeys-qr", kp-themes
     research/chassis-kit-pages): the operations frame with one card for every
@@ -14,7 +18,6 @@
     </div>
     <div class="kp-page-header__actions">
       <button type="button" class="kp-button kp-button--primary" data-kp-dialog="passkey-register"{% if not https %} disabled data-kp-disabled-reason="Passkeys only work on HTTPS"{% endif %}>Register this device</button>
-      <div class="kp-menu-button" data-kp-menu-button data-kp-key="passkeys-more"><button type="button" class="kp-button">More ▾</button><div class="kp-menu kp-menu--rich" role="menu" aria-label="More actions" hidden><div class="kp-menu__group" role="group" aria-label="More actions"><button type="button" role="menuitem" class="kp-menu__item" tabindex="-1" data-kp-value="other-device"><span class="kp-menu__label">Register on another device</span><span class="kp-menu__hint">Scan a code with your phone</span></button></div></div></div>
     </div>
   </div></header>
   {% if not https %}

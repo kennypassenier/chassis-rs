@@ -170,3 +170,60 @@ fn a_root_web_app_without_its_own_pages_is_warned_about() {
         "kit pages drawn by the app"
     );
 }
+
+#[test]
+fn secondary_pages_are_recorded_and_the_kits_housekeeping_pages_are_secondary() {
+    let set = registry(vec![
+        Page::new("home", "Home", "/"),
+        Page::new("logs", "Logs", "/logs").secondary(),
+        Page::new("hidden", "Hidden", "/hidden")
+            .secondary()
+            .hidden(),
+    ])
+    .build("admin", "Clients", true, true, true, false);
+    let secondary: Vec<&str> = set
+        .pages
+        .iter()
+        .filter(|p| p.secondary)
+        .map(|p| p.id.as_str())
+        .collect();
+    assert_eq!(
+        secondary,
+        ["logs", "hidden", "passkeys", "storage"],
+        "kit housekeeping pages go to More"
+    );
+    assert_eq!(
+        set.more,
+        ["logs", "passkeys", "storage"],
+        "a hidden page is not in More"
+    );
+    assert!(!Page::new("a", "A", "/a").secondary().primary().secondary);
+}
+
+#[test]
+fn every_kit_page_carries_its_own_help_and_a_project_can_replace_it() {
+    let mut r = registry(Vec::new());
+    r.kit_edits
+        .push(("storage".into(), Box::new(|p| p.help("<p>Ours.</p>"))));
+    let set = r.build("admin", "Apps", true, true, false, false);
+    let help = |id: &str| {
+        set.pages
+            .iter()
+            .find(|p| p.id == id)
+            .unwrap()
+            .help
+            .clone()
+            .unwrap()
+    };
+    assert!(help("status").contains("Check for updates"));
+    assert!(help("clients").contains("Re-issue"));
+    assert!(help("passkeys").contains("Register this device"));
+    assert_eq!(help("storage"), "<p>Ours.</p>");
+    // Without the edit, Storage explains what "pending writes" is.
+    let plain = registry(Vec::new()).build("admin", "Apps", true, true, false, false);
+    let storage = plain.pages.iter().find(|p| p.id == "storage").unwrap();
+    let words = storage.help.as_deref().unwrap();
+    assert!(
+        words.contains("Pending writes") && words.contains("budget") && words.contains("Clean up")
+    );
+}

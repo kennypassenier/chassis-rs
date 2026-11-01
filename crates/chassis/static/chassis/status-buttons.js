@@ -50,8 +50,8 @@ export function wireButtons(ctx) {
     else sectionButton(button);
   });
 
-  // The header's More menu.
-  root.addEventListener('kp-menu-select', async (event) => {
+  // The header's one More menu (layout.html, block nav_more_actions).
+  document.addEventListener('kp-menu-select', async (event) => {
     const value = event.detail?.value;
     if (value === 'copy-health') {
       const ok = await copyText(`${location.origin}/healthz`);

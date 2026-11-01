@@ -34,6 +34,11 @@
 {% endif %}
 {% endmacro %}
 
+{% block nav_more_actions %}
+<button type="button" role="menuitem" class="kp-menu__item" tabindex="-1" data-kp-value="copy-health"><span class="kp-menu__label">Copy the health address</span><span class="kp-menu__hint">The address monitoring reads, /healthz</span></button>
+<button type="button" role="menuitem" class="kp-menu__item" tabindex="-1" data-kp-value="download-json"><span class="kp-menu__label">Download the status as JSON</span><span class="kp-menu__hint">Everything on this page, for a script</span></button>
+{% endblock %}
+
 {% block content %}
 {% set degraded = health.status != "ok" %}
 {% set parts_ok = parts.total - parts.failing %}
@@ -47,10 +52,6 @@
       </div>
       <div class="kp-page-header__actions">
         <button type="button" class="kp-button" data-kp-flash-button data-kp-flash-words="Up to date,Update found,Refused" data-chassis-update-check{% if not update_facts.can_check %} disabled data-kp-disabled-reason="This service is not set up to look for new releases"{% endif %}>Check for updates</button>
-        <div class="kp-menu-button" data-kp-menu-button data-kp-key="chassis-status-more"><button type="button" class="kp-button">More ▾</button><div class="kp-menu kp-menu--rich" role="menu" aria-label="More actions" hidden><div class="kp-menu__group" role="group" aria-label="More actions">
-          <button type="button" role="menuitem" class="kp-menu__item" tabindex="-1" data-kp-value="copy-health"><span class="kp-menu__label">Copy the health address</span><span class="kp-menu__hint">The address monitoring reads, /healthz</span></button>
-          <button type="button" role="menuitem" class="kp-menu__item" tabindex="-1" data-kp-value="download-json"><span class="kp-menu__label">Download the status as JSON</span><span class="kp-menu__hint">Everything on this page, for a script</span></button>
-        </div></div></div>
       </div>
     </div>
   </header>

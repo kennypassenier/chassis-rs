@@ -1,7 +1,7 @@
 //! `Registry::build`: how the kit's own pages, the project's pages and the
 //! edits and switches between them become the one ordered [`PageSet`].
 
-use super::{Brand, Page, PageRender, PageSet, PageSource, Registry};
+use super::{Brand, Page, PageRender, PageSet, PageSource, Registry, help};
 
 impl Registry {
     pub(crate) fn build(
@@ -46,6 +46,11 @@ impl Registry {
                 href: self.brand.unwrap_or_else(|| "/".to_string()),
             },
             home,
+            more: all
+                .iter()
+                .filter(|p| p.nav && p.secondary)
+                .map(|p| p.id.clone())
+                .collect(),
             pages: all,
         }
     }
@@ -94,16 +99,27 @@ fn pick_home(
 /// The kit's own pages, as far as this build and configuration have them.
 fn kit_pages(clients_label: &str, passkeys: bool, storage: bool) -> Vec<Page> {
     let mut pages = vec![
-        Page::kit("status", "Status", "/status", 1000).hint("Version, health and updates"),
+        Page::kit("status", "Status", "/status", 1000)
+            .hint("Version, health and updates")
+            .help(help::STATUS),
         Page::kit("clients", clients_label, "/clients", 1010)
-            .hint("The programs that call this service"),
+            .hint("The programs that call this service")
+            .help(&help::clients(clients_label)),
     ];
     if passkeys {
-        pages.push(Page::kit("passkeys", "Passkeys", "/passkeys", 1020).hint("Ways to sign in"));
+        pages.push(
+            Page::kit("passkeys", "Passkeys", "/passkeys", 1020)
+                .hint("Ways to sign in")
+                .help(help::PASSKEYS)
+                .secondary(),
+        );
     }
     if storage {
         pages.push(
-            Page::kit("storage", "Storage", "/storage", 1030).hint("What the service stores"),
+            Page::kit("storage", "Storage", "/storage", 1030)
+                .hint("What the service stores")
+                .help(help::STORAGE)
+                .secondary(),
         );
     }
     pages

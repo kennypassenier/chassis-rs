@@ -9,6 +9,28 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **One overflow menu in the header** (`shell`; [ux-chassis-7]; kitchen,
+  Medicine Cabinet, http-switchboard reviews 2026-11-01):
+  `Page::new(id, title, path).secondary()` (and `.primary()` to undo it)
+  puts a page in the header's single "More" menu instead of the bar. The
+  menu also holds the kit's Passkeys and Storage pages (secondary by
+  default; `kit_page("storage", |p| p.primary())` keeps one in the bar) and
+  the actions of the page you are on, so Status's and Passkeys' own
+  "More" buttons are gone: there is exactly one More per screen. Links the
+  bar folds on a narrow window go into the same menu. `Page.secondary` and
+  `PageSet.more` (the ids of the listed secondary pages) are served in
+  `GET /api/kit/pages`.
+- **A More tab on the phone** ([ux-chassis-8]): the kit's tab bar shows the
+  first five primary pages as tabs and ONE More tab that holds the secondary
+  pages, any primary page beyond the fifth, Help, theme and Log out, so no
+  page is in both. A web app with its own tab bar hosts the same tab from
+  `more` (docs/WEBAPP.md) and does not draw the kit's drawer next to it.
+- **Help for every page** ([ux-chassis-9]): a "?" in the header opens a
+  drawer with plain-English help. Status, Clients, Passkeys and Storage carry
+  their own (Storage explains the budget, pending writes and Clean up);
+  `Page::help(html)` adds help for a project's page, `kit_page(id, |p|
+  p.help(..))` replaces a kit page's, and `GET /api/kit/pages` serves it as
+  `help`. Round: [kp11].
 - **Home-screen shortcuts and a share target for installable web apps**
   (`webapp`; Habits, 2026-11-01): `Pwa::shortcut(Shortcut::new(name, url))`
   and `Pwa::share_target(ShareTarget::get(action))` (or `post`, `.params`,

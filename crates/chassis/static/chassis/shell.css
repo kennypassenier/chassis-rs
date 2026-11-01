@@ -112,3 +112,38 @@
 .chassis-error__facts {
     margin-block-start: var(--kp-space-md, 1rem);
 }
+
+/* ux-chassis-7: the header has ONE overflow menu. kp-themes' folding bar adds
+   its own More item at the end of the list; while the kit's menu stands in
+   the same list, the kit's is the one, and shell-more.js moves the links the
+   bar folds into it. A menu with nothing in it takes no room. */
+.kp-nav__links > .chassis-nav-more ~ [data-kp-nav-more] {
+  display: none !important;
+}
+.chassis-nav-more:not(:has([role="menuitem"])),
+.chassis-nav-more .kp-menu__group:not(:has([role="menuitem"])) {
+  display: none;
+}
+
+/* ux-chassis-9: the "?" sits between the search and the theme button and is
+   the same size as the other icon buttons of the bar. */
+.chassis-help-trigger {
+  font-weight: 600;
+}
+/* The help text is written by people for people: a readable measure. */
+.chassis-help__body {
+  max-inline-size: 60ch;
+}
+.chassis-help__body h3 {
+  margin-block: var(--kp-space-lg) var(--kp-space-xs);
+  font-size: var(--kp-text-base, 1rem);
+}
+.chassis-help__body h3:first-child {
+  margin-block-start: 0;
+}
+.chassis-help__body :is(p, ul) {
+  margin-block: 0 var(--kp-space-sm);
+}
+.chassis-help__body ul {
+  padding-inline-start: var(--kp-space-lg);
+}

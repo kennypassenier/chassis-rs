@@ -8,6 +8,7 @@ import { $ } from './shell-dom.js';
 import { attachErrorPage } from './shell-error-page.js';
 import { attachPalette } from './shell-palette.js';
 import { attachConnectionLine } from './shell-connection.js';
+import { attachHeaderMenus } from './shell-more.js';
 
 // ====================================================================== shell ==
 // kit-kp11 (Kenny approved the demo sections shell-bar, shell-phone and
@@ -21,6 +22,9 @@ import { attachConnectionLine } from './shell-connection.js';
 
 {
   const joined = [];
+
+  // The header's one More menu and the help drawer.
+  attachHeaderMenus(joined);
 
   // Error page: the drawing, the copy button, the way back, the time.
   attachErrorPage(joined);

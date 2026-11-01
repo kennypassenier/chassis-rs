@@ -29,6 +29,7 @@
 {% block head %}{% endblock %}
 </head>
 <body>
+{%- set page_help = (help_by_path[active_nav] if logged_in and active_nav is defined else none) -%}
 <a class="kp-skip-link" href="#main">Skip to content</a>
 <!-- kp-themes 4.0.0: .kp-nav needs this wrapper for its container query, or
      the narrow form never kicks in. The skip link stays outside it. -->
@@ -37,10 +38,30 @@
   <a class="kp-nav__brand" href="{{ brand_href | default('/') }}">{{ brand_title | default(app_name) }}</a>
   {% if logged_in %}
   <ul class="kp-nav__links">
-    {% for item in nav %}
+    {% for item in nav %}{% if not pages[loop.index0].secondary %}
     <li><a class="kp-nav__link" href="{{ item.href }}"{% if item.href == active_nav %} aria-current="page"{% endif %}>{{ item.label }}</a></li>
-    {% endfor %}
+    {% endif %}{% endfor %}
     {% block nav_extra %}{% endblock %}
+    {#- ux-chassis-7: the header's ONE overflow menu. It holds the pages a
+        project or the kit marked secondary, and the actions of the page you
+        are on (a block, so a page's own "More" never becomes a second one).
+        Same shape as kp-themes' fold item, so every theme dresses it alike;
+        shell-more.js adds the primary links the bar folds when it is narrow. -#}
+    {%- set more_current = namespace(on=false) -%}
+    {%- for item in nav %}{% if pages[loop.index0].secondary and item.href == active_nav %}{% set more_current.on = true %}{% endif %}{% endfor -%}
+    <li class="kp-nav__more chassis-nav-more" data-kp-nav-keep data-chassis-nav-more>
+      <div class="kp-menu-button kp-nav__more-wrap" data-kp-menu-button data-kp-key="chassis-nav-more">
+        <button type="button" class="kp-nav__link kp-nav__more-button"{% if more_current.on %} aria-current="true"{% endif %}><span>More</span><span class="kp-nav__more-dot" aria-hidden="true" hidden></span> <span aria-hidden="true">▾</span></button>
+        <div class="kp-menu kp-menu--rich kp-nav__more-menu" role="menu" aria-label="More">
+          <div class="kp-menu__group" role="group" aria-label="This page">{% block nav_more_actions %}{% endblock %}</div>
+          <div class="kp-menu__group" role="group" aria-label="Pages">
+            {%- for item in nav %}{% set page = pages[loop.index0] %}{% if page.secondary %}
+            <a role="menuitem" class="kp-menu__item" tabindex="-1" href="{{ item.href }}"{% if item.href == active_nav %} aria-current="page"{% endif %}><span class="kp-menu__label">{{ item.label }}</span>{% if page.hint %}<span class="kp-menu__hint">{{ page.hint }}</span>{% endif %}</a>
+            {%- endif %}{% endfor %}
+          </div>
+        </div>
+      </div>
+    </li>
   </ul>
   {% else %}
   <ul class="kp-nav__links" aria-hidden="true"></ul>
@@ -57,6 +78,11 @@
        data-kp-theme-status are that package's contract values. Rendered
        server-side because a menu built by JavaScript is an empty box on
        first paint. The swatch wears the theme it previews. -->
+  {% if page_help %}
+  <!-- ux-chassis-9: "?" opens the help drawer for this page; the words come
+       from the page registry (Page::help), the kit's pages carry their own. -->
+  <button type="button" class="kp-icon-button chassis-help-trigger" data-kp-dialog="chassis-help" aria-label="Help for this page" aria-haspopup="dialog" data-chassis-help-open>?</button>
+  {% endif %}
   <span class="kp-theme-menu">
     <button type="button" class="kp-icon-button" popovertarget="kp-theme-menu"
             aria-label="Choose a theme" style="anchor-name: --kp-theme-menu">
@@ -139,7 +165,12 @@
   <h2 class="kp-dialog__title" id="chassis-sheet-title">Keyboard shortcuts</h2>
 </dialog>
 <nav class="kp-tabbar chassis-tabbar" id="chassis-tabbar" aria-label="Areas">
-  {% for item in nav %}{% if loop.index <= 3 %}{% set page = pages[loop.index0] %}
+  {%- set tab_limit = 5 -%}
+  {#- ux-chassis-8: the first five primary pages (the most a 390 px bar carries beside More) are tabs; everything else,
+      secondary pages included, is behind the one More tab, so a page is in
+      the tab bar or in More, never both. -#}
+  {%- set tabs = namespace(n=0) -%}
+  {% for item in nav %}{% set page = pages[loop.index0] %}{% if not page.secondary and tabs.n < tab_limit %}{% set tabs.n = tabs.n + 1 %}
   <a class="kp-tabbar__tab" href="{{ item.href }}" data-kp-tab="{{ page.id }}"{% if item.href == active_nav %} aria-current="page"{% endif %}{% if page.id == "clients" and idle_clients %} data-kp-count="{{ idle_clients }}"{% endif %}><span class="kp-tabbar__icon">{{ glyph(page.id) }}</span><span class="kp-tabbar__label">{{ item.label }}</span>{% if page.id == "clients" and idle_clients %}<span class="kp-badge kp-tabbar__badge">{{ idle_clients }}</span>{% endif %}</a>
   {% endif %}{% endfor %}
   <button type="button" class="kp-tabbar__tab kp-tabbar__tab--more" data-kp-dialog="chassis-more"><span class="kp-tabbar__icon kp-tabbar__icon--more" aria-hidden="true"></span><span class="kp-tabbar__label">More</span></button>
@@ -147,13 +178,23 @@
 <dialog class="kp-drawer kp-dialog" id="chassis-more" aria-labelledby="chassis-more-title">
   <header class="kp-drawer__head"><h2 class="kp-dialog__title" id="chassis-more-title">More</h2><button type="button" class="kp-icon-button kp-dialog__close" data-kp-dialog-close aria-label="Close">×</button><p class="kp-drawer__desc">The pages you need less often, and your session.</p></header>
   <div class="kp-drawer__body"><div class="kp-menu kp-menu--rich" role="group" aria-label="More">
-    {% for item in nav %}{% if loop.index > 3 %}{% set page = pages[loop.index0] %}
+    {%- set seen = namespace(n=0) -%}
+    {% for item in nav %}{% set page = pages[loop.index0] %}{% if not page.secondary %}{% set seen.n = seen.n + 1 %}{% endif %}{% if page.secondary or seen.n > tab_limit %}
     <a class="kp-menu__item" href="{{ item.href }}"{% if item.href == active_nav %} aria-current="page"{% endif %}><span class="kp-menu__label">{{ item.label }}</span>{% if page.hint %}<span class="kp-menu__hint">{{ page.hint }}</span>{% endif %}</a>
     {% endif %}{% endfor %}
+    {% if page_help %}<button type="button" class="kp-menu__item" data-chassis-run="help"><span class="kp-menu__label">Help for this page</span><span class="kp-menu__hint">What this page shows and what each button does</span></button>{% endif %}
     <button type="button" class="kp-menu__item" data-chassis-run="theme"><span class="kp-menu__label">Choose a theme</span><span class="kp-menu__hint">Colours and feel of this dashboard</span></button>
     {% if not open_dashboard %}<button type="submit" form="chassis-logout" class="kp-menu__item"><span class="kp-menu__label">Log out</span><span class="kp-menu__hint">End this session on this browser</span></button>{% endif %}
   </div></div>
 </dialog>
+{% if page_help %}
+<!-- ux-chassis-9: the help drawer (kp-themes drawer component). Escape and the
+     close button close it; focus returns to the "?" that opened it. -->
+<dialog class="kp-drawer kp-dialog chassis-help" id="chassis-help" aria-labelledby="chassis-help-title">
+  <header class="kp-drawer__head"><h2 class="kp-dialog__title" id="chassis-help-title">Help: {{ page_help.title }}</h2><button type="button" class="kp-icon-button kp-dialog__close" data-kp-dialog-close aria-label="Close help">×</button><p class="kp-drawer__desc">What this page shows and what each button does.</p></header>
+  <div class="kp-drawer__body chassis-help__body">{{ page_help.html|safe }}</div>
+</dialog>
+{% endif %}
 {% endif %}
 <!-- kit-kp11: one empty toast region for the kit and the app. The kit puts
      nothing in it; mount kp toasts here so a screen reader announces them. -->

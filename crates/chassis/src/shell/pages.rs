@@ -12,6 +12,7 @@
 //! shows up everywhere without touching either navigation.
 
 mod checks;
+mod help;
 mod registry;
 
 pub(crate) use checks::validate;
@@ -60,6 +61,14 @@ pub struct Page {
     /// One line that says what the page is for; the palette and the phone's
     /// More drawer print it under the title. The kit's pages carry one.
     pub hint: Option<String>,
+    /// `true`: listed in the header's one overflow menu ("More") and in the
+    /// phone's More tab instead of the bar ([`Page::secondary`]). The kit's
+    /// own Passkeys and Storage pages are secondary by default.
+    pub secondary: bool,
+    /// Plain-English help for the page, as trusted HTML: what it shows and
+    /// what each action does. The kit's layout shows it in the "?" drawer
+    /// of the header; a web app reads it from `GET /api/kit/pages`.
+    pub help: Option<String>,
     pub source: PageSource,
     pub render: PageRender,
 }
@@ -75,6 +84,8 @@ impl Page {
             order: 0,
             nav: true,
             hint: None,
+            secondary: false,
+            help: None,
             source: PageSource::App,
             render: PageRender::App,
         }
@@ -114,6 +125,30 @@ impl Page {
         self
     }
 
+    /// Move the page into the header's one "More" overflow menu (and the
+    /// phone's More tab), together with the kit's own secondary pages. The
+    /// page stays routable and searchable; the bar keeps room for the pages
+    /// people use all day.
+    pub fn secondary(mut self) -> Page {
+        self.secondary = true;
+        self
+    }
+
+    /// Back in the bar after [`Page::secondary`] (e.g. a kit page the
+    /// project wants as a tab: `App::kit_page("storage", |p| p.primary())`).
+    pub fn primary(mut self) -> Page {
+        self.secondary = false;
+        self
+    }
+
+    /// The help the "?" in the header opens for this page: plain English,
+    /// as trusted HTML (`<p>`, `<h3>`, `<ul>`, `<strong>`). Written by the
+    /// project, never user input.
+    pub fn help(mut self, html: &str) -> Page {
+        self.help = Some(html.to_string());
+        self
+    }
+
     fn kit(id: &str, title: &str, path: &str, order: i32) -> Page {
         Page {
             source: PageSource::Kit,
@@ -136,6 +171,10 @@ pub struct PageSet {
     pub home: String,
     /// Sorted: `order`, then registration order.
     pub pages: Vec<Page>,
+    /// The ids of the listed (`nav`) secondary pages, in order: what the
+    /// header's More menu and the phone's More tab hold. A web app with its
+    /// own tab bar hosts one "More" tab with exactly these.
+    pub more: Vec<String>,
 }
 
 /// The link on the left of the navigation.
