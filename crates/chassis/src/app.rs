@@ -49,11 +49,15 @@ mod control;
 mod hooks;
 mod knobs;
 mod limits;
+#[cfg(feature = "push")]
+pub(crate) use limits::parse_u64;
 #[cfg(feature = "notify")]
 mod notify;
 #[cfg(feature = "dashboard")]
 mod pages;
 mod project;
+#[cfg(feature = "push")]
+mod push;
 mod rekey;
 mod routes;
 mod run;
@@ -125,6 +129,8 @@ pub fn compiled_features() -> &'static [&'static str] {
         "notify",
         #[cfg(feature = "storage")]
         "storage",
+        #[cfg(feature = "push")]
+        "push",
     ]
 }
 
@@ -310,6 +316,10 @@ pub struct App {
     /// 3.15.0: the app's own default addresses (`App::notify_targets`).
     #[cfg(feature = "notify")]
     notify_code_targets: Option<(String, Option<String>)>,
+    /// habits-push-1: the handle the app sends Web Push with; connected when
+    /// the dashboard is mounted.
+    #[cfg(feature = "push")]
+    push: crate::push::PushHandle,
 }
 
 /// What a project registers for the dashboard (K16, K17); read once at start.

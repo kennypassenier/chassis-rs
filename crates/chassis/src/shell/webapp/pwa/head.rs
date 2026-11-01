@@ -31,7 +31,8 @@ impl Pwa {
     /// The tags the pages carry: manifest, theme colour, touch icon and the
     /// tab icon (the app's own icon, so the tab is not the browser's blank).
     pub(in crate::shell::webapp) fn head_tags(&self) -> Vec<HeadTag> {
-        vec![
+        #[allow(unused_mut)]
+        let mut tags = vec![
             HeadTag {
                 key: "rel=manifest",
                 html: self.manifest_link(),
@@ -57,7 +58,15 @@ impl Pwa {
                     routes::ICON_192_PATH
                 ),
             },
-        ]
+        ];
+        // habits-push-1: tells the page script (push.js) that the server
+        // has Web Push; `window.chassisPush` exists only where this is.
+        #[cfg(feature = "push")]
+        tags.push(HeadTag {
+            key: "name=chassis-push",
+            html: "<meta name=\"chassis-push\" content=\"/api/kit/push\">".to_string(),
+        });
+        tags
     }
 
     /// All the tags as one string, for the kit's own layout (every kit page).

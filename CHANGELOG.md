@@ -9,6 +9,27 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **Web Push** (feature `push`, implies `webapp`; Habits, 2026-11-02, design in
+  `docs/PUSH_DESIGN.md`): `app.push().send(Push::new("Water drinken").body(..)
+  .url("/habits/water").tag(..).action("done", "Gedaan", "/api/habits/water/done"))`
+  returns a `PushReport { accepted, removed, failed, last_error }`. Our own
+  RFC 8291 encryption and RFC 8292 VAPID signing on `ring` (an optional direct
+  dependency, already in the tree through rustls), delivery over the existing
+  `reqwest`. One VAPID key per app, made on the first start and sealed in the
+  kit file; subscriptions in the new kit table `kit_push_subscriptions` (https
+  endpoints only, capped); 404/410 from a push service deletes the
+  subscription. API behind the login: `GET /api/kit/push/key`,
+  `POST /api/kit/push/subscribe`, `POST /api/kit/push/unsubscribe`. Page:
+  `window.chassisPush.state() | subscribe() | unsubscribe()` (no UI; present
+  only on installable pages of a build with the feature). The service worker
+  gains `push` and `notificationclick` handlers: action buttons `POST` to an
+  app route with the login cookie, a body click focuses or opens the app.
+  Knobs: `push_subject` (required before sending), `push_ttl_secs` (86400),
+  `push_timeout_secs` (10), `push_max_subscriptions` (50), `push_concurrency`
+  (8). The notify channel is untouched.
+- **`/favicon.ico` no longer hides an app's own file**: the public redirect to
+  `/pwa/icon-192.png` is only answered when the web app ships no
+  `favicon.ico`; with one, that file is served.
 - **Manifest screenshots and a favicon** (`webapp` PWA, Habits, 2026-11-01):
   `Pwa::screenshot(Screenshot::new(path, "WxH", FormFactor::Narrow | Wide)
   .label(text))`, callable more than once, writes `screenshots` into the

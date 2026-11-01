@@ -26,6 +26,8 @@ pub(crate) mod prefs_inject;
 #[cfg(feature = "dashboard")]
 mod prefs_kind;
 mod prefs_rules;
+#[cfg(feature = "dashboard")]
+pub(crate) mod push_store;
 mod runtime;
 
 pub use app_db::{

@@ -162,3 +162,35 @@ async fn favicon_ico_redirects_to_the_app_icon_only_when_installable() {
             .is_none()
     );
 }
+
+#[tokio::test]
+async fn an_apps_own_favicon_ico_is_served_instead_of_the_redirect() {
+    const ICO: &[u8] = b"\0\0\x01\0\x01\0 own icon bytes";
+    const WITH_ICON: &[(&str, &[u8])] = &[
+        ("index.html", b"<html><head></head><body>x</body></html>"),
+        ("favicon.ico", ICO),
+    ];
+    let own = WebApp::embedded(WITH_ICON).pwa_router("H").unwrap();
+    let res = get_path(&own, "/favicon.ico", &[]).await;
+    assert_eq!(res.status(), 200);
+    assert_eq!(res.headers()["content-type"], "image/x-icon");
+    let bytes = axum::body::to_bytes(res.into_body(), 1 << 20)
+        .await
+        .unwrap();
+    assert_eq!(&bytes[..], ICO, "the app's file, not the generated icon");
+    // An app without the file still gets the redirect.
+    assert_eq!(get_path(&public(), "/favicon.ico", &[]).await.status(), 308);
+}
+
+#[cfg(feature = "push")]
+#[tokio::test]
+async fn an_installable_page_carries_the_push_marker_once() {
+    let html = body(get_path(&WebApp::embedded(FILES).router().unwrap(), "/", &[]).await).await;
+    assert_eq!(html.matches("name=\"chassis-push\"").count(), 1, "{html}");
+    let off = WebApp::embedded(FILES).without_pwa().router().unwrap();
+    assert!(
+        !body(get_path(&off, "/", &[]).await)
+            .await
+            .contains("chassis-push")
+    );
+}

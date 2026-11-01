@@ -113,8 +113,7 @@ pub(in crate::shell::webapp) fn router(state: Arc<PwaState>) -> Router {
             r = r.route(path, get(serve_screenshot));
         }
     }
-    r.route(FAVICON_PATH, get(redirect_favicon))
-        .with_state(state)
+    r.route(FAVICON_PATH, get(serve_favicon)).with_state(state)
 }
 
 /// A text answer that is never cached by the browser's HTTP cache.
@@ -174,13 +173,20 @@ async fn serve_icon(
     file_response("icon.png", body, false, &headers, s.csp())
 }
 
-/// Browsers that ask for `/favicon.ico` directly get the app's icon instead
-/// of the login redirect (the tab icon page link covers the rest).
-async fn redirect_favicon() -> Response {
-    let mut res = Redirect::permanent(ICON_192_PATH).into_response();
-    let cache = HeaderValue::from_static("public, max-age=86400");
-    res.headers_mut().insert(header::CACHE_CONTROL, cache);
-    res
+/// Browsers that ask for `/favicon.ico` directly: the web app's own
+/// `favicon.ico` when it ships one (this public route must not hide it),
+/// else a redirect to the app's icon instead of the login redirect (the tab
+/// icon page link covers the rest).
+async fn serve_favicon(State(s): State<Arc<PwaState>>, headers: HeaderMap) -> Response {
+    match read(&s.source, FAVICON_PATH.trim_start_matches('/')).await {
+        Some(own) if !own.is_empty() => file_response("favicon.ico", own, false, &headers, s.csp()),
+        _ => {
+            let mut res = Redirect::permanent(ICON_192_PATH).into_response();
+            let cache = HeaderValue::from_static("public, max-age=86400");
+            res.headers_mut().insert(header::CACHE_CONTROL, cache);
+            res
+        }
+    }
 }
 
 /// A declared screenshot: the web app's own file at that path, when its

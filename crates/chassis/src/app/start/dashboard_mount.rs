@@ -62,6 +62,8 @@ impl App {
                 prefs: stores.prefs.clone(),
                 #[cfg(feature = "notify")]
                 notify: stores.notify_state.take(),
+                #[cfg(feature = "push")]
+                push: Some(self.push.clone()),
             },
         )
         .await

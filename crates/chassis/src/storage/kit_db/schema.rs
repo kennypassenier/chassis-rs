@@ -40,6 +40,8 @@ pub(crate) fn kit_migrations() -> Vec<Migration> {
         ),
         // 3.15.0: the notification outbox (storage/outbox.rs).
         crate::storage::outbox::migration(),
+        // habits-push-1: the Web Push subscriptions (storage/push_store.rs).
+        crate::storage::push_store::migration(),
     ]
 }
 

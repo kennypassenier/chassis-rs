@@ -6,17 +6,28 @@ use super::super::Source;
 
 const LOGIC: &str = include_str!("sw-logic.js");
 const CORE: &str = include_str!("sw.js");
+/// habits-push-1: the `push` and `notificationclick` handlers, appended only
+/// in a build with the `push` feature (a worker without it has no handlers).
+#[cfg(feature = "push")]
+const PUSH_LOGIC: &str = include_str!("sw-push-logic.js");
+#[cfg(feature = "push")]
+const PUSH_CORE: &str = include_str!("sw-push.js");
+#[cfg(not(feature = "push"))]
+const PUSH_LOGIC: &str = "";
+#[cfg(not(feature = "push"))]
+const PUSH_CORE: &str = "";
 
 /// The offline page's retry script, served at `/pwa/offline.js`.
 pub(super) const OFFLINE_JS: &str = include_str!("offline.js");
 
-/// `sw.js`: the two versions as constants, then the logic, then the worker.
+/// `sw.js`: the two versions as constants, then the logic, then the worker,
+/// then (with the `push` feature) the push logic and its handlers.
 /// The kit version is the assets' `?v=` (precache URLs use it); the app
 /// version changes with any file of the web app. Either one moving changes
 /// the bytes, which is what makes the browser install the new worker.
 pub(super) fn sw_source(kit_version: &str, app_version: &str) -> String {
     format!(
-        "const KIT_VERSION = {kit:?};\nconst APP_VERSION = {app:?};\n{LOGIC}{CORE}",
+        "const KIT_VERSION = {kit:?};\nconst APP_VERSION = {app:?};\n{LOGIC}{CORE}{PUSH_LOGIC}{PUSH_CORE}",
         kit = kit_version,
         app = app_version
     )

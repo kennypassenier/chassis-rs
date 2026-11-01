@@ -21,6 +21,8 @@ pub mod app;
 #[cfg(feature = "dashboard")]
 pub mod app_dashboard;
 pub mod core;
+#[cfg(feature = "push")]
+pub mod push;
 pub mod shell;
 #[cfg(feature = "storage")]
 pub mod storage;
