@@ -3,7 +3,9 @@
 use serde_json::{Value, json};
 
 use super::Pwa;
-use super::routes::{ICON_192_PATH, ICON_512_PATH, ICON_MASKABLE_PATH};
+use super::routes::{
+    ICON_192_PATH, ICON_512_PATH, ICON_MASKABLE_192_PATH, ICON_MASKABLE_PATH, ICON_MONOCHROME_PATH,
+};
 
 /// The name under the home-screen icon: the configured one, else the name
 /// cut at 12 characters (what Android shows without clipping).
@@ -29,12 +31,15 @@ pub(super) fn manifest(pwa: &Pwa, name: &str) -> Value {
         "icons": [
             {"src": ICON_192_PATH, "sizes": "192x192", "type": "image/png", "purpose": "any"},
             {"src": ICON_512_PATH, "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": ICON_MASKABLE_192_PATH, "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
             {"src": ICON_MASKABLE_PATH, "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+            {"src": ICON_MONOCHROME_PATH, "sizes": "512x512", "type": "image/png", "purpose": "monochrome"},
         ],
     });
     if let Some(d) = &pwa.description {
         m["description"] = json!(d);
     }
+    super::fields::extend(&mut m, &pwa.fields);
     super::extras::extend(&mut m, &pwa.shortcuts, pwa.share_target.as_ref());
     m
 }

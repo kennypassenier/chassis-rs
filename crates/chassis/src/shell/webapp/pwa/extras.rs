@@ -19,6 +19,7 @@ pub struct Shortcut {
     url: String,
     short_name: Option<String>,
     description: Option<String>,
+    icon: Option<String>,
 }
 
 impl Shortcut {
@@ -30,6 +31,7 @@ impl Shortcut {
             url: url.into(),
             short_name: None,
             description: None,
+            icon: None,
         }
     }
 
@@ -45,8 +47,21 @@ impl Shortcut {
         self
     }
 
+    /// The 96x96 PNG drawn beside the entry: a path in the app, such as
+    /// `/img/inbox-96.png`, answered by the web app's own file at that path.
+    /// The kit serves it outside the login, like the PWA icons, because the
+    /// launcher fetches it without a session (behind the login it would get
+    /// the login page and draw nothing). A missing file is a 404.
+    pub fn icon(mut self, path: &str) -> Self {
+        self.icon = Some(path.into());
+        self
+    }
+
     fn json(&self) -> Value {
         let mut v = json!({ "name": self.name, "url": self.url });
+        if let Some(i) = &self.icon {
+            v["icons"] = json!([{ "src": i, "sizes": "96x96", "type": "image/png" }]);
+        }
         if let Some(s) = &self.short_name {
             v["short_name"] = json!(s);
         }
@@ -125,6 +140,14 @@ impl ShareTarget {
     }
 }
 
+/// The distinct icon paths of the shortcuts, for the public routes.
+pub(super) fn icon_paths(shortcuts: &[Shortcut]) -> Vec<&str> {
+    let mut paths: Vec<&str> = shortcuts.iter().filter_map(|s| s.icon.as_deref()).collect();
+    paths.sort_unstable();
+    paths.dedup();
+    paths
+}
+
 /// The manifest members for the shortcuts and the share target, when set.
 pub(super) fn extend(m: &mut Value, shortcuts: &[Shortcut], share: Option<&ShareTarget>) {
     if !shortcuts.is_empty() {
@@ -152,6 +175,9 @@ pub(super) fn validate(shortcuts: &[Shortcut], share: Option<&ShareTarget>) -> R
             ));
         }
         app_path("shortcut", &s.url)?;
+        if let Some(icon) = &s.icon {
+            icon_path(icon)?;
+        }
     }
     if let Some(t) = share {
         app_path("share target", &t.action)?;
@@ -177,6 +203,20 @@ fn app_path(what: &str, path: &str) -> Result<(), Error> {
     Err(refusal(
         format!("the Pwa {what} points at \"{path}\""),
         "use a path inside the app, such as \"/inbox\"".into(),
+    ))
+}
+
+/// A shortcut icon is served as a PNG file of the app at that path: a plain
+/// path ending in `.png`, with no query and no way out of the app.
+fn icon_path(path: &str) -> Result<(), Error> {
+    app_path("shortcut icon", path)?;
+    let plain = path.ends_with(".png") && !path.contains(['?', '#', '\\']);
+    if plain && !path.split('/').any(|seg| seg == "..") {
+        return Ok(());
+    }
+    Err(refusal(
+        format!("the Pwa shortcut icon \"{path}\" is not a plain PNG path"),
+        "use a path to a 96x96 PNG file of the app, such as \"/img/inbox-96.png\"".into(),
     ))
 }
 

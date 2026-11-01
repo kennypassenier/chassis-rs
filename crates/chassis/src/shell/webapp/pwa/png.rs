@@ -62,6 +62,28 @@ pub(super) fn encode_1bit(
     colors: [[u8; 3]; 2],
     lit: impl Fn(u32, u32) -> bool,
 ) -> Vec<u8> {
+    encode(size, colors, None, lit)
+}
+
+/// A `size` x `size` PNG of one opaque `ink` colour where `lit(x, y)` is
+/// true and fully transparent elsewhere (the monochrome icon: the system
+/// recolours the opaque pixels, so only the shape matters).
+pub(super) fn encode_1bit_on_transparent(
+    size: u32,
+    ink: [u8; 3],
+    lit: impl Fn(u32, u32) -> bool,
+) -> Vec<u8> {
+    encode(size, [ink, ink], Some([0, 255]), lit)
+}
+
+/// The shared writer; `alpha` is the `tRNS` chunk (one alpha per palette
+/// entry) when the image has transparency.
+fn encode(
+    size: u32,
+    colors: [[u8; 3]; 2],
+    alpha: Option<[u8; 2]>,
+    lit: impl Fn(u32, u32) -> bool,
+) -> Vec<u8> {
     let row_bytes = size.div_ceil(8) as usize;
     let mut raw = Vec::with_capacity((row_bytes + 1) * size as usize);
     for y in 0..size {
@@ -81,6 +103,9 @@ pub(super) fn encode_1bit(
     let mut out = SIGNATURE.to_vec();
     chunk(&mut out, b"IHDR", &header);
     chunk(&mut out, b"PLTE", &colors.concat());
+    if let Some(a) = alpha {
+        chunk(&mut out, b"tRNS", &a);
+    }
     chunk(&mut out, b"IDAT", &zlib_stored(&raw));
     chunk(&mut out, b"IEND", &[]);
     out

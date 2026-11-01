@@ -9,6 +9,26 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **Installed-app polish from Habits** (`webapp` PWA, Habits gaps 1, 3, 4, 5,
+  6 and 8, 2026-11-01): the manifest lists a generated
+  `/pwa/icon-maskable-192.png` and a `/pwa/icon-monochrome-512.png` (the
+  initial in the theme colour on a transparent ground, for themed launcher
+  icons); both are public and replaceable by a web-app file at the same path.
+  New optional manifest fields, each written only when set:
+  `Pwa::categories`, `orientation(Orientation)`, `lang`, `dir(Dir)`,
+  `display_override(&[Display])` and `launch_handler(ClientMode)`.
+  `Shortcut::icon(path)` adds a 96x96 PNG to a shortcut; the path is a file
+  of the web app and is served outside the login with the PWA icons (a
+  missing file is a 404). The page script keeps the
+  `<meta name="theme-color">` in step with the kit header's colour at start
+  and on every `kp-theme-change` (installable pages only; the injected value
+  stays the first-paint colour). `Pwa::reload(Reload::Ask)` stops the
+  automatic reload on a new release: the page fires `chassis-pwa-update` on
+  `window` with `detail: { version, apply() }`, and `apply()` reloads once
+  under the same `chassis-sw-reloaded` key. The policy reaches the page as
+  `data-chassis-reload="ask"` on the injected manifest link. `Reload::Auto`
+  (default) behaves as before.
+
 - **Storage follow-ups from kyu's move to the kit store** (`storage`,
   2026-11-01): `Db::recent_write_failure_age()` says how long ago the last
   write failed; a passing `Db::probe_writable()` no longer clears a failure

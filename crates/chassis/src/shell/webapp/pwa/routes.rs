@@ -16,7 +16,7 @@ use axum::routing::get;
 use super::super::files::read;
 use super::super::serving::file_response;
 use super::super::{DEFAULT_CSP, Source, WebApp};
-use super::icons::{default_icon, initial};
+use super::icons::{default_icon, initial, monochrome_icon};
 use super::png::SIGNATURE;
 use super::{Pwa, manifest, worker};
 
@@ -26,14 +26,18 @@ pub(super) const TOUCH_ICON_PATH: &str = "/pwa/icon-180.png";
 pub(super) const ICON_192_PATH: &str = "/pwa/icon-192.png";
 pub(super) const ICON_512_PATH: &str = "/pwa/icon-512.png";
 pub(super) const ICON_MASKABLE_PATH: &str = "/pwa/icon-maskable-512.png";
+pub(super) const ICON_MASKABLE_192_PATH: &str = "/pwa/icon-maskable-192.png";
+pub(super) const ICON_MONOCHROME_PATH: &str = "/pwa/icon-monochrome-512.png";
 
-/// (URL path, side in px) of every icon; a file of the web app at the same
-/// path without the leading slash replaces the generated one.
-const ICONS: [(&str, u32); 4] = [
-    (TOUCH_ICON_PATH, 180),
-    (ICON_192_PATH, 192),
-    (ICON_512_PATH, 512),
-    (ICON_MASKABLE_PATH, 512),
+/// (URL path, side in px, monochrome) of every icon; a file of the web app
+/// at the same path without the leading slash replaces the generated one.
+const ICONS: [(&str, u32, bool); 6] = [
+    (TOUCH_ICON_PATH, 180, false),
+    (ICON_192_PATH, 192, false),
+    (ICON_512_PATH, 512, false),
+    (ICON_MASKABLE_192_PATH, 192, false),
+    (ICON_MASKABLE_PATH, 512, false),
+    (ICON_MONOCHROME_PATH, 512, true),
 ];
 
 /// What the routes serve, fixed when the server starts.
@@ -58,11 +62,13 @@ impl PwaState {
         let letter = initial(&name);
         let generated = ICONS
             .iter()
-            .map(|(path, side)| {
-                (
-                    *path,
-                    default_icon(*side, letter, &pwa.theme_color, &pwa.background_color),
-                )
+            .map(|(path, side, mono)| {
+                let png = if *mono {
+                    monochrome_icon(*side, letter, &pwa.theme_color)
+                } else {
+                    default_icon(*side, letter, &pwa.theme_color, &pwa.background_color)
+                };
+                (*path, png)
             })
             .collect();
         Some(Arc::new(PwaState {
@@ -86,8 +92,15 @@ pub(in crate::shell::webapp) fn router(state: Arc<PwaState>) -> Router {
         .route(SW_PATH, get(serve_worker))
         .route("/pwa/offline", get(serve_offline))
         .route("/pwa/offline.js", get(serve_offline_js));
-    for (path, _) in ICONS {
+    for (path, _, _) in ICONS {
         r = r.route(path, get(serve_icon));
+    }
+    // Shortcut icons are the app's own files, public like the icons above
+    // (the launcher fetches them without a session).
+    for path in super::extras::icon_paths(&state.pwa.shortcuts) {
+        if !ICONS.iter().any(|(p, _, _)| *p == path) {
+            r = r.route(path, get(serve_icon));
+        }
     }
     r.with_state(state)
 }
@@ -128,7 +141,8 @@ async fn serve_offline_js(State(s): State<Arc<PwaState>>) -> Response {
 }
 
 /// An icon: the web app's own file at the same path when it is a PNG, else
-/// the generated one.
+/// the generated one. A shortcut icon has no generated stand-in, so a
+/// missing file is a 404 rather than an empty image.
 async fn serve_icon(
     State(s): State<Arc<PwaState>>,
     uri: axum::http::Uri,
@@ -138,9 +152,12 @@ async fn serve_icon(
     let own = read(&s.source, path.trim_start_matches('/'))
         .await
         .filter(|b| b.starts_with(&SIGNATURE));
-    let body = own.unwrap_or_else(|| {
-        let generated = s.generated.iter().find(|(p, _)| *p == path);
-        Cow::Owned(generated.map(|(_, b)| b.clone()).unwrap_or_default())
-    });
+    let body = match own {
+        Some(b) => b,
+        None => match s.generated.iter().find(|(p, _)| *p == path) {
+            Some((_, b)) => Cow::Owned(b.clone()),
+            None => return axum::http::StatusCode::NOT_FOUND.into_response(),
+        },
+    };
     file_response("icon.png", body, false, &headers, s.csp())
 }

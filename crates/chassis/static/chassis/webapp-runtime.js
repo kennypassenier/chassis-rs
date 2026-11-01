@@ -16,6 +16,7 @@
 import { configureRemember } from '../kp/dist/kp-themes.min.js';
 import { attachKitEffects } from './kit-effects.js';
 import { registerPwa } from './pwa-register.js';
+import { followThemeColor } from './theme-color.js';
 import { installRefresh } from './refresh-kit.js';
 
 /**
@@ -37,6 +38,8 @@ export function installRuntime(win, doc, deps = {}) {
     // An installable app (feat-webapp-4) links the kit's manifest; only then
     // does the page register the service worker.
     (deps.registerPwa ?? registerPwa)(win, doc);
+    // ... and its status bar follows the theme from then on.
+    (deps.followThemeColor ?? followThemeColor)(win, doc);
     win.chassisRuntime = { get effects() { return effects.current(); } };
     return win.chassisRuntime;
 }

@@ -4,6 +4,7 @@
 //! service worker (child modules) are implementation.
 
 mod extras;
+mod fields;
 mod glyphs;
 pub(super) mod icons;
 mod manifest;
@@ -13,6 +14,7 @@ mod worker;
 
 use crate::core::error::Error;
 pub use extras::{ShareTarget, Shortcut};
+pub use fields::{ClientMode, Dir, Orientation, Reload};
 
 /// How the installed app is framed (`display` in the web app manifest).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,6 +57,7 @@ pub struct Pwa {
     pub(super) background_color: String,
     pub(super) shortcuts: Vec<Shortcut>,
     pub(super) share_target: Option<ShareTarget>,
+    fields: fields::Fields,
 }
 
 impl Default for Pwa {
@@ -75,6 +78,7 @@ impl Pwa {
             background_color: DEFAULT_BACKGROUND_COLOR.into(),
             shortcuts: Vec::new(),
             share_target: None,
+            fields: fields::Fields::default(),
         }
     }
 
@@ -163,12 +167,28 @@ pub(super) struct HeadTag {
 }
 
 impl Pwa {
+    /// The manifest link; under `Reload::Ask` it carries the policy the
+    /// page script reads (`data-chassis-reload`), the one place the server
+    /// already writes into every installable page.
+    fn manifest_link(&self) -> String {
+        let attr = self
+            .fields
+            .reload
+            .attribute()
+            .map(|v| format!(" data-chassis-reload=\"{v}\""))
+            .unwrap_or_default();
+        format!(
+            "<link rel=\"manifest\" href=\"{}\"{attr}>",
+            routes::MANIFEST_PATH
+        )
+    }
+
     /// The tags the pages carry: manifest, theme colour, touch icon.
     pub(super) fn head_tags(&self) -> Vec<HeadTag> {
         vec![
             HeadTag {
                 key: "rel=manifest",
-                html: format!("<link rel=\"manifest\" href=\"{}\">", routes::MANIFEST_PATH),
+                html: self.manifest_link(),
             },
             HeadTag {
                 key: "name=theme-color",
