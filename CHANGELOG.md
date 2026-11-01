@@ -16,6 +16,30 @@ scaffold writes. A breaking change in either is a major and carries a
   start: a path outside the app, an empty name or more than four shortcuts
   refuses with a remedy. See docs/WEBAPP.md.
 
+### Changed
+
+- **A client has a page of its own** (`dashboard`; ux-chassis-5, from the app
+  reviews): "Manage" on the Clients page is a link to `/clients/{id}`, a page
+  behind the login (not a nav entry; an unknown id is a 404 in the project's
+  words) with a way back to the list and the same content as the old dialog:
+  the token to reveal and copy, the command, the test console, the request
+  log, the project's own actions and the danger zone. Re-issue, Revoke and
+  Delete confirm in a panel inside the page (Delete still asks for the name)
+  instead of a second modal, and the page then shows the result in place:
+  nothing reloads (`data-kp-reload="page"` is gone from the flow), and the
+  request log and the scroll position stay. A project action's `data-post`
+  button now raises a cancelable `chassis-post-done` event before it reloads,
+  which the client page uses to update in place. On the list, a client issued
+  from the dialog appears as a new row without a reload; "Open the client" in
+  the dialog goes to the client's page; the palette's "Manage ..." goes there
+  too. The `/api/clients...` endpoints are unchanged. Round: kp11.
+- **The revoke confirmation says exactly what happens** (`dashboard`;
+  ux-chassis-6): "The token stops working at once and is wiped. To use
+  <name> again, issue a new token." A project's destructive action whose
+  label starts with "Revoke" and that names no phrase gets the same words;
+  `DEFAULT_CONFIRM` ("Are you sure? This cannot be undone.") stays for every
+  other destructive action, where it is true.
+
 ### Fixed
 
 - **The PWA service worker no longer handles event streams** (`webapp`): a

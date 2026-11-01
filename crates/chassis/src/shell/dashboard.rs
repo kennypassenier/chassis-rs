@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use axum::extract::{ConnectInfo, State};
+use axum::extract::{ConnectInfo, Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum_extra::extract::cookie::CookieJar;
@@ -231,6 +231,11 @@ pub type SectionAction = Action;
 /// The confirm phrase a destructive action gets when it names none.
 pub const DEFAULT_CONFIRM: &str = "Are you sure? This cannot be undone.";
 
+/// What a revoke gets instead (ux-chassis-6): the generic phrase is true for a
+/// delete, but a revoke is not a delete, and a person should read what it does.
+const REVOKE_CONFIRM: &str =
+    "The token stops working at once and is wiped. To use it again, issue a new token.";
+
 /// An extra column on the clients table (K16). `cell` returns HTML the
 /// project vouches for; the kit escapes nothing here, so escape yourself.
 pub trait ClientColumn: Send + Sync {
@@ -410,6 +415,15 @@ pub async fn update_check(State(d): State<Dashboard>) -> Response {
 /// `GET /clients` — the clients page (K12, K13, K14).
 pub async fn clients_page(State(d): State<Dashboard>) -> Result<Html<String>, Error> {
     clients::page(&d)
+}
+
+/// `GET /clients/{id}`: the page of one client (ux-chassis-5), a page of its
+/// own instead of a dialog over the list.
+pub async fn client_page(
+    State(d): State<Dashboard>,
+    Path(id): Path<String>,
+) -> Result<Html<String>, Error> {
+    clients::detail(&d, &id)
 }
 
 /// `GET /storage`: the Storage page (3.11.0). The server draws the frame

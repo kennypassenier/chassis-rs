@@ -26,6 +26,7 @@
 
 import './chassis/boot-kit.js';
 import './chassis/actions.js';
+import './chassis/client-page.js';
 import './chassis/clients-page.js';
 import './chassis/login-page.js';
 import './chassis/passkeys-page.js';

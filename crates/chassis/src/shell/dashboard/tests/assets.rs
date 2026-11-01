@@ -133,25 +133,25 @@ fn the_issue_dialog_keeps_its_approved_parts() {
     );
 }
 
-/// kit-kp11 (clients-manage, round 3, approved): one dialog per client on
-/// the 12-column composition, built from kp-themes parts used as the
-/// package documents them; nothing hand-built stands in for them.
+/// kit-kp11 (clients-manage, round 3, approved; ux-chassis-5: now a page of
+/// its own per client): the 12-column composition, built from kp-themes parts
+/// used as the package documents them; nothing hand-built stands in for them.
 #[test]
-fn the_manage_dialog_keeps_its_approved_parts() {
-    let html = include_str!("../../../../templates/clients.html");
+fn the_client_page_keeps_its_approved_parts() {
+    let html = include_str!("../../../../templates/client.html");
     let css = kit_text("chassis.css");
     let js = kit_text("chassis.js");
     for part in [
-        "kp-dialog kp-dialog--wide manage-dialog",
+        "manage-page",
         "data-kp-secret data-kp-secret-ttl=",
         "data-kp-command=\"bash\"",
         "data-kp-json=",
         "data-kp-requests data-kp-requests-open=\"failed\"",
-        "data-kp-confirm-type=\"{{ c.name }}\"",
+        "data-kp-type-confirm=\"{{ c.name }}\"",
         "manage-danger__acts",
         "class=\"kp-formgrid manage-test__grid\"",
     ] {
-        assert!(html.contains(part), "the manage dialog lost {part}");
+        assert!(html.contains(part), "the client page lost {part}");
     }
     for part in [".manage-grid {", "@container managed (max-width: 39.99rem)"] {
         assert!(css.contains(part), "chassis.css lost {part}");
@@ -186,7 +186,7 @@ fn the_clients_page_carries_the_command_hooks() {
         "data-chassis-command=\"filter-idle\"",
         "data-chassis-command=\"search\"",
         "data-chassis-command=\"issue\"",
-        "data-manage=\"{{ c.id }}\"",
+        "href=\"/clients/{{ c.id }}\"",
     ] {
         assert!(html.contains(hook), "clients.html lost {hook}");
     }

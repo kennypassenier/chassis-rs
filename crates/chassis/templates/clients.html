@@ -5,8 +5,8 @@
    page. Everything on it is server-rendered; chassis.js (the "clients" block)
    only adds the filters, the idle callout, the auto-refresh and the live
    first-call detection. The issue dialog is the approved clients-issue
-   review and the manage dialogs the approved clients-manage review (round 3,
-   both on .kp-formgrid). #}
+   review; a client's own page (client.html, ux-chassis-5) is the approved
+   clients-manage review (round 3). #}
 {% set onboarding = counts.called == 0 %}
 <div class="kp-ops" data-kp-ops-sticky="none" data-clients-page data-clients-one="{{ vocab.singular }}" data-clients-many="{{ vocab.plural }}" data-clients-token-var="{{ token_var }}" data-clients-days="{{ idle_after_days }}"{% if onboarding %} data-clients-onboarding{% endif %}>
   <header class="kp-ops__head kp-page-header">
@@ -108,13 +108,13 @@
               <tbody>
               {% for c in clients %}
               <tr id="client-{{ c.id }}" data-kp-row-key="{{ c.id }}" data-clients-state="{{ c.state }}">
-                <td data-label="{{ vocab.singular_cap }}"><span class="kp-idmark-name"><span class="kp-idmark kp-idmark--sm" data-kp-idmark="{{ c.name }}" aria-hidden="true"></span><a class="kp-fw-medium" href="#manage-{{ c.id }}" data-manage="{{ c.id }}" data-kp-hovercard="Issued {{ c.issued_display }}{% for cell in c.declared %} · {{ declared_columns[loop.index0].title|lower }} {{ cell }}{% endfor %} · {{ c.uses }} {{ 'request' if c.uses == 1 else 'requests' }}">{{ c.name }}</a></span></td>
+                <td data-label="{{ vocab.singular_cap }}"><span class="kp-idmark-name"><span class="kp-idmark kp-idmark--sm" data-kp-idmark="{{ c.name }}" aria-hidden="true"></span><a class="kp-fw-medium" href="/clients/{{ c.id }}" data-kp-hovercard="Issued {{ c.issued_display }}{% for cell in c.declared %} · {{ declared_columns[loop.index0].title|lower }} {{ cell }}{% endfor %} · {{ c.uses }} {{ 'request' if c.uses == 1 else 'requests' }}">{{ c.name }}</a></span></td>
                 <td class="state-cell" data-label="State" data-kp-sort-value="{{ c.state }}">{% if c.state == "revoked" %}<span class="kp-badge">revoked {{ c.revoked_date }}</span>{% elif c.state == "new" %}<span class="kp-badge">not used yet</span>{% elif c.state == "idle" %}<span class="kp-badge kp-badge--warning">idle {{ c.idle_days }} days</span>{% else %}<span class="kp-badge kp-badge--success">active</span>{% endif %}</td>
                 <td class="kp-timestamp" data-label="Last used" data-kp-sort-value="{{ c.last_used_at or '' }}">{% if c.last_used_at %}<time datetime="{{ c.last_used_at }}" data-localised="server">{{ c.last_used_display }}</time> <span class="kp-text-muted">{{ c.last_used_ago }}</span>{% else %}<span class="kp-text-muted">never</span>{% endif %}</td>
                 <td class="kp-numeric" data-label="Requests">{{ c.uses }}</td>
                 {% for cell in c.declared %}<td data-label="{{ declared_columns[loop.index0].title }}">{{ cell }}</td>{% endfor %}
                 {% for cell in c.extra %}<td{% if extra_columns[loop.index0].numeric %} class="kp-numeric"{% endif %} data-label="{{ extra_columns[loop.index0].title }}">{{ cell|safe }}</td>{% endfor %}
-                <td class="text-end clients-fit"><button type="button" class="kp-button" data-manage="{{ c.id }}" aria-label="Manage {{ c.name }}">Manage</button></td>
+                <td class="text-end clients-fit"><a class="kp-button" href="/clients/{{ c.id }}" aria-label="Manage {{ c.name }}">Manage</a></td>
               </tr>
               {% endfor %}
               </tbody>
@@ -244,130 +244,4 @@
 </dialog>
 {% endif %}
 
-{% if clients %}
-{# clients-manage (the approved round 3): one dialog per client, server-
-   rendered, on the same 12-column composition as the issue dialog. The head
-   is the client's identity against its three facts; the control rail (token,
-   the command, the project's own actions) stands against the Test it card
-   and the request inspector, which is as tall as the rail in every state; the
-   danger band repeats the split, its words under the rail and its three
-   actions, each with its consequence, in three equal cells. A revoked client
-   keeps every area. chassis.js ("clients" block) attaches the kp-themes parts
-   when a dialog first opens and feeds the token and the requests; nothing
-   about a token is in the page. #}
-{% for c in clients %}
-{% set m = "manage-" ~ c.id %}
-<dialog class="kp-dialog kp-dialog--wide manage-dialog" id="{{ m }}" aria-labelledby="{{ m }}-title" data-manage-id="{{ c.id }}">
-  <div class="kp-dialog__body"><div class="manage-grid">
-    <div class="kp-dialog__head manage-head">
-      <span class="kp-idmark kp-idmark--lg" data-kp-idmark="{{ c.name }}" aria-hidden="true"></span>
-      <h2 class="kp-dialog__title" id="{{ m }}-title">{{ c.name }}</h2>
-      {% if c.active %}<span class="kp-badge kp-badge--success">active</span>{% else %}<span class="kp-badge">revoked <time datetime="{{ c.revoked_at }}" data-localised="server">{{ c.revoked_display }}</time></span>{% endif %}
-      <p class="kp-dialog__description">Issued <time datetime="{{ c.issued_at }}" data-localised="server">{{ c.issued_display }}</time></p>
-    </div>
-
-    <div class="kp-kpis manage-facts" role="group" aria-label="{{ c.name }} at a glance">
-      <div class="kp-kpi"><span class="kp-kpi__label">Requests</span><span class="kp-kpi__value">{{ c.uses }}</span><span class="kp-kpi__trend">since it was issued</span></div>
-      <div class="kp-kpi"><span class="kp-kpi__label">Last call</span><span class="kp-kpi__value">{% if c.last_used_at %}{{ c.last_used_ago }}{% else %}never{% endif %}</span><span class="kp-kpi__trend">{% if c.last_used_at %}<time datetime="{{ c.last_used_at }}" data-localised="server">{{ c.last_used_display }}</time>{% else %}it has not called yet{% endif %}</span></div>
-      {% if declared_columns %}
-      <div class="kp-kpi"><span class="kp-kpi__label">{{ declared_columns[0].title }}</span><span class="kp-kpi__value">{{ c.declared[0] }}</span><span class="kp-kpi__trend">set when it was issued</span></div>
-      {% else %}
-      <div class="kp-kpi"><span class="kp-kpi__label">Issued</span><span class="kp-kpi__value">{{ c.issued_date }}</span><span class="kp-kpi__trend">when its token was made</span></div>
-      {% endif %}
-    </div>
-
-    {% if c.active %}
-    <div class="kp-card manage-rail">
-      <section class="kp-dialog__section manage-tool" aria-labelledby="{{ m }}-h-token">
-        <h3 class="kp-dialog__heading" id="{{ m }}-h-token">Token</h3>
-        {# The token is never in the page: the secret asks /api/clients/ID/token when it is shown or copied. #}
-        <div class="kp-secret" data-kp-secret data-kp-secret-ttl="{{ reveal_seconds }}" data-kp-secret-label="Token of {{ c.name }}" data-manage-secret></div>
-        <p class="kp-dialog__note">Read from the service on Reveal or Copy; hides again after {{ reveal_seconds }} seconds.</p>
-      </section>
-      <section class="kp-dialog__section manage-tool" aria-labelledby="{{ m }}-h-use">
-        <h3 class="kp-dialog__heading" id="{{ m }}-h-use">Use it</h3>
-        <div class="kp-command" data-kp-command="bash" data-kp-command-where="the machine that calls this service"><pre class="kp-command__code"><code>export {{ token_var }}='…'
-{{ command_template }}</code></pre></div>
-        <button type="button" class="kp-button" data-kp-flash-button data-kp-flash-words="Copied,Copy failed" data-kp-refusal="toast" data-manage-copy-full>Copy with the token filled in</button>
-        <p class="kp-dialog__note">Safe to paste into a chat. The button copies it with the real token in.</p>
-      </section>
-      {% if c.actions %}
-      <section class="kp-dialog__section manage-tool" aria-labelledby="{{ m }}-h-actions">
-        <h3 class="kp-dialog__heading" id="{{ m }}-h-actions">Actions</h3>
-        <div class="manage-actions">
-        {# K29: the project's own buttons, its route with this row's id filled in. #}
-        {% for a in c.actions %}
-        <button type="button" class="kp-button{% if a.destructive %} kp-button--destructive{% endif %}" data-post="{{ a.route|safe }}" data-method="{{ a.method }}"{% if a.busy_label %} data-busy-label="{{ a.busy_label }}"{% endif %}{% if a.destructive %} data-kp-destructive data-kp-confirm="{{ a.confirm }}"{% endif %}>{{ a.label }}</button>
-        {% endfor %}
-        </div>
-      </section>
-      {% endif %}
-    </div>
-    {% else %}
-    <div class="kp-card manage-rail manage-rail--revoked">
-      <section class="kp-dialog__section manage-tool" aria-labelledby="{{ m }}-h-token">
-        <h3 class="kp-dialog__heading" id="{{ m }}-h-token">Token</h3>
-        <div class="kp-alert kp-alert--info" role="status"><span class="kp-alert__what">This token no longer works</span><span class="kp-alert__why">It was revoked on {{ c.revoked_date }}; every call with it is refused.</span><span class="kp-alert__remedy"><span class="kp-alert__remedy-label">What now</span> Issue a new {{ vocab.singular }} if the program should call again.</span></div>
-      </section>
-    </div>
-    {% endif %}
-
-    {# The test is one row of a form grid: the label, the JSON field with its
-       tools, and Send test on the actions track, a small button standing on
-       the line of Format and Minify. #}
-    <section class="kp-card manage-test" aria-labelledby="{{ m }}-h-test">
-      <div class="manage-test__head">
-        <h3 class="kp-dialog__heading" id="{{ m }}-h-test">Test it</h3>
-        <p class="kp-dialog__note">One request with this token to the service’s own test route: the round trip before the real program is wired.</p>
-      </div>
-      <div class="kp-formgrid manage-test__grid" data-kp-formgrid-stack="never">
-        <div class="kp-formgrid__row">
-          <label class="kp-formgrid__label" for="{{ m }}-body">Body of the test request</label>
-          <div class="kp-formgrid__control" data-kp-formgrid-span="control-value"><textarea class="kp-field__input kp-field__input--multiline" id="{{ m }}-body" data-kp-json="{{ 'strict' if test_json else 'allow-text' }}"{% if not test_json %} data-kp-json-format="off"{% endif %} rows="3"{% if not (c.active and has_test_route) %} disabled{% endif %} data-manage-body>{{ test_body }}</textarea></div>
-          <div class="kp-formgrid__actions manage-test__send">
-            {% if c.active and has_test_route %}<button type="button" class="kp-button kp-button--primary kp-button--sm" data-kp-flash-button data-kp-flash-words="Sent,Refused" data-kp-refusal="toast" data-manage-send>Send test</button>
-            {% else %}<button type="button" class="kp-button kp-button--primary kp-button--sm" disabled aria-describedby="{{ m }}-send-why">Send test</button>{% endif %}
-            <p class="kp-dialog__note" id="{{ m }}-send-why">{% if not c.active %}A revoked {{ vocab.singular }} cannot send a test.{% elif not has_test_route %}This service declares no test route.{% else %}The answer appears at the top of the requests.{% endif %}</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="manage-requests" aria-labelledby="{{ m }}-h-req">
-      <div class="manage-requests__in">
-        <h3 class="kp-dialog__heading" id="{{ m }}-h-req">Requests</h3>
-        <div class="kp-card kp-inspector" data-kp-requests data-kp-requests-open="failed" data-kp-requests-test="false" data-kp-requests-max="5" id="{{ m }}-requests"></div>
-        <p class="kp-dialog__note">Secrets are masked, bodies are cut at {{ capture_body_bytes }} bytes, requests are kept {{ capture_ttl_minutes }} minutes.</p>
-      </div>
-    </section>
-
-    <section class="manage-danger" aria-labelledby="{{ m }}-h-danger">
-      <div class="manage-danger__head kp-dialog__section--danger">
-        <h3 class="kp-dialog__heading" id="{{ m }}-h-danger">Danger zone</h3>
-        <p class="kp-dialog__note">Revoking keeps the row and its history; deleting does not. Re-issuing keeps the name and the history.</p>
-      </div>
-      <div class="manage-danger__acts">
-        <div class="manage-act">
-          <button type="button" class="kp-button" data-kp-flash-button data-kp-flash-words="Re-issued,Refused" data-kp-refusal="toast" data-kp-post="/api/clients/{{ c.id }}/reissue" data-kp-reload="page" data-manage-reissue data-kp-destructive data-kp-confirm="Re-issue the token of {{ c.name }}?" data-kp-confirm-label="Re-issue" data-kp-confirm-loses="{{ m }}-lost-reissue"{% if not c.active %} disabled{% endif %}>Re-issue</button>
-          <p class="kp-dialog__note">{% if c.active %}A new token, the same name and history.{% else %}Already revoked: its token no longer works.{% endif %}</p>
-        </div>
-        <div class="manage-act">
-          <button type="button" class="kp-button kp-button--destructive" data-kp-flash-button data-kp-flash-words="Revoked,Refused" data-kp-refusal="toast" data-kp-post="/api/clients/{{ c.id }}/revoke" data-kp-reload="page" data-kp-destructive data-kp-confirm="Revoke the token of {{ c.name }}?" data-kp-confirm-label="Revoke"{% if not c.active %} disabled{% endif %}>Revoke</button>
-          <p class="kp-dialog__note">{% if c.active %}The token stops working at once; the history stays.{% else %}Already revoked: the history stays.{% endif %}</p>
-        </div>
-        <div class="manage-act">
-          <button type="button" class="kp-button kp-button--destructive" data-kp-flash-button data-kp-flash-words="Deleted,Refused" data-kp-refusal="toast" data-kp-post="/api/clients/{{ c.id }}" data-kp-method="DELETE" data-kp-reload="page" data-kp-destructive data-kp-confirm="Delete {{ c.name }} and its history?" data-kp-confirm-type="{{ c.name }}" data-kp-confirm-loses="{{ m }}-lost-delete" data-kp-confirm-label="Delete for good">Delete</button>
-          <p class="kp-dialog__note">The {{ vocab.singular }} and its history are removed.</p>
-        </div>
-      </div>
-      <template id="{{ m }}-lost-reissue"><ul class="kp-type-confirm__list"><li>The current token stops working at once; the program must be given the new one.</li></ul></template>
-      <template id="{{ m }}-lost-delete"><ul class="kp-type-confirm__list"><li>the token, which stops working at once</li><li>{{ c.uses }} {{ 'request' if c.uses == 1 else 'requests' }} of history</li></ul></template>
-    </section>
-  </div></div>
-  <div class="kp-dialog__actions">
-    <button type="button" class="kp-button" data-kp-dialog-close>Close</button>
-  </div>
-</dialog>
-{% endfor %}
-{% endif %}
 {% endblock %}

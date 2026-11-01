@@ -1,31 +1,36 @@
-/* The Clients page's manage dialog (wide layout).
+/* A client's own page (wide layout).
    Imported by ../chassis.css; the import order is the cascade order. */
 
 /* ======================================================================
-   clients-manage (kit-kp11, the approved round 3): the manage dialog is a
+   clients-manage (kit-kp11, the approved round 3; ux-chassis-5: now the
+   page of one client, no longer a dialog over the list): a
    composition on the 12-column grid. The head is the client's identity
    (columns 1-5) against its three facts (6-12); the control rail (1-5)
    holds token, command and the project's actions in fixed order; the Test it
    card and the request inspector stand in 6-12, the inspector as tall as the
    rail in every state; the danger band repeats the split, its words under the
    rail and its three actions, each with its consequence, in three equal
-   cells. A revoked client keeps every area. The dialog is the container the
+   cells; the confirmation of an action opens under the band, over all twelve
+   columns. A revoked client keeps every area. The page is the container the
    phone arrangement answers to. Only tokens.
    ====================================================================== */
 
-.manage-dialog {
-  --kp-dialog-wide: 76rem;
+.manage-page {
   container: managed / inline-size;
+  display: grid;
+  gap: var(--kp-space-md, 1rem);
+  min-inline-size: 0;
 }
-.manage-dialog [hidden] { display: none !important; }
-.manage-dialog .kp-dialog__head { margin: 0; }
-/* The plain-page h2/h3 margins at the top of this file are not for dialogs. */
-.manage-dialog :is(.kp-dialog__title, .kp-dialog__heading) { margin: 0; }
+.manage-page [hidden] { display: none !important; }
+/* The plain-page h1/h3 margins at the top of this file are not for this grid. */
+.manage-page :is(.manage-head__title, .kp-dialog__heading) { margin: 0; }
+.manage-page .kp-breadcrumb { margin: 0; }
 
 .manage-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-template-rows: auto auto minmax(var(--manage-requests, 16.5rem), 1fr) auto auto;
+  /* Panels of the danger band are placed after these rows and take no room until one opens. */
   column-gap: var(--kp-space-lg, 1.5rem);
   row-gap: var(--kp-space-md, 1rem);
   min-inline-size: 0;
@@ -38,7 +43,7 @@
 }
 .manage-grid > * { min-inline-size: 0; }
 
-.manage-dialog .manage-head {
+.manage-page .manage-head {
   grid-area: id;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -53,18 +58,21 @@
 /* Beside the figure tiles the head's first line starts where the tiles'
    first line does (their padding), not on the middle of the row. */
 @container managed (min-width: 40rem) {
-  .manage-dialog .manage-head {
+  .manage-page .manage-head {
     align-content: start;
     /* the tile's padding plus its 1 px border */
     padding-block-start: calc(var(--kp-space-md, 1rem) + 1px);
     align-items: start;
   }
-  .manage-dialog .manage-head > .kp-idmark { align-self: center; }
+  .manage-page .manage-head > .kp-idmark { align-self: center; }
 }
 .manage-head > .kp-idmark { grid-area: mark; }
-.manage-head > .kp-dialog__title { grid-area: title; }
+.manage-head > .manage-head__title {
+  grid-area: title;
+  overflow-wrap: anywhere;
+}
 .manage-head > .kp-badge { grid-area: badge; }
-.manage-head > .kp-dialog__description { grid-area: desc; margin: 0; }
+.manage-head > .manage-head__about { grid-area: desc; margin: 0; color: var(--muted-foreground, inherit); }
 
 .manage-facts {
   grid-area: facts;
@@ -90,7 +98,7 @@
 }
 .manage-tool > * { margin: 0; }
 .manage-tool .kp-button[data-kp-flash-button] { inline-size: 100%; }
-.manage-dialog .kp-secret { --kp-secret-min: 8rem; }
+.manage-page .kp-secret { --kp-secret-min: 8rem; }
 
 /* The project's own buttons stand in equal cells. */
 .manage-actions {
@@ -211,4 +219,21 @@
   .manage-act > .kp-dialog__note {
     margin-block-start: calc((var(--kp-space-xs, 0.25rem) - var(--kp-space-md, 1rem)) / 2);
   }
+}
+
+/* The confirmation of one action: a panel in the page under the danger band,
+   over all twelve columns, closed until the action is pressed. Its words are
+   the alert's; Cancel and the confirming button stand at the end of a row. */
+.manage-confirm {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--kp-space-sm, 0.5rem);
+  min-inline-size: 0;
+}
+.manage-confirm > * { margin: 0; min-inline-size: 0; }
+.manage-confirm__acts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 12rem));
+  justify-content: end;
+  gap: var(--kp-space-sm, 0.5rem);
 }

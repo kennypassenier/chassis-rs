@@ -21,6 +21,16 @@ pub(super) fn attr_escape(s: &str) -> String {
     out
 }
 
+/// The phrase for a destructive action that named none: the honest words for
+/// a revoke (its label starts with "revoke"), the generic ones otherwise.
+fn default_confirm(label: &str) -> &'static str {
+    if label.trim_start().to_lowercase().starts_with("revoke") {
+        REVOKE_CONFIRM
+    } else {
+        DEFAULT_CONFIRM
+    }
+}
+
 impl Action {
     /// What the template renders: the route with `{id}` filled in and a
     /// confirm phrase whenever the action is destructive. The route is
@@ -38,7 +48,7 @@ impl Action {
             Some(
                 self.confirm
                     .clone()
-                    .unwrap_or_else(|| DEFAULT_CONFIRM.to_string()),
+                    .unwrap_or_else(|| default_confirm(&self.label).to_string()),
             )
         } else {
             None

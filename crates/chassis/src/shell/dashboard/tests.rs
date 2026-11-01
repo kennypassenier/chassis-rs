@@ -162,3 +162,35 @@ fn every_renamed_theme_maps_to_a_theme_that_exists() {
         "renamed and removed themes are all mapped ({pairs})"
     );
 }
+
+/// ux-chassis-6: a destructive action that names no phrase gets the honest
+/// words for a revoke and the generic ones (true for a delete) for the rest.
+#[test]
+fn a_revoke_without_a_phrase_says_what_a_revoke_does() {
+    let action = |label: &str| Action {
+        label: label.into(),
+        route: "/x/{id}".into(),
+        method: "POST".into(),
+        destructive: true,
+        confirm: None,
+        busy_label: None,
+    };
+    let phrase = |label: &str| {
+        action(label).view(Some("7"))["confirm"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    assert_eq!(phrase("Revoke access"), REVOKE_CONFIRM);
+    assert!(phrase("Revoke access").contains("wiped"));
+    assert_eq!(phrase("Purge events"), DEFAULT_CONFIRM);
+    let own = Action {
+        confirm: Some("Purge?".into()),
+        ..action("Revoke it")
+    };
+    assert_eq!(
+        own.view(None)["confirm"],
+        "Purge?",
+        "a phrase the project gave wins"
+    );
+}

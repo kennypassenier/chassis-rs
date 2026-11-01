@@ -1,11 +1,12 @@
-// The Clients page's auto-refresh: ask the page again and swap the figures,
-// the rows and the closed dialogs in place. A change of shape (a new client,
-// the first call) is a reload, unless a dialog is open. Split out of
+// The Clients page's refresh: ask the page again and swap the figures and the
+// rows in place, on the timer and after the issue dialog closes (a new row
+// appears without a reload, ux-chassis-5). Only a change of the page's
+// shape (the first client or the first call, when the onboarding cards give
+// way to the list) is a reload, and not while a dialog is open. Split out of
 // clients-page.js: everything that re-reads.
 export function wireRefresh(ctx) {
   const { root } = ctx;
   const modalOpen = () => document.querySelector('dialog[open]') !== null;
-  const rowIds = (scope) => [...scope.querySelectorAll('tbody tr[data-kp-row-key]')].map((tr) => tr.dataset.kpRowKey).sort().join();
 
   function swapFigures(next) {
     for (const tile of next.querySelectorAll('[data-clients-filter]')) {
@@ -23,6 +24,9 @@ export function wireRefresh(ctx) {
     if (body && nextBody) {
       body.replaceChildren(...[...nextBody.children].map((row) => document.adoptNode(row)));
       ctx.tableHandle()?.refresh();
+      // New rows come with empty marks and no cards: give them theirs.
+      ctx.modules.idmark?.attachIdmarks(body);
+      ctx.modules.hovercard?.attachHoverCards(body);
     }
   }
 
@@ -33,19 +37,13 @@ export function wireRefresh(ctx) {
     const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
     const next = doc.querySelector('[data-clients-page]');
     if (!next) return false;
-    const reshaped = next.hasAttribute('data-clients-onboarding') !== root.hasAttribute('data-clients-onboarding') || rowIds(next) !== rowIds(root);
+    const reshaped = next.hasAttribute('data-clients-onboarding') !== root.hasAttribute('data-clients-onboarding');
     if (reshaped) {
       if (!modalOpen()) window.location.reload();
       return true;
     }
     swapFigures(next);
     swapRows(next);
-    // A dialog that is open keeps what it shows; the others are replaced so
-    // "last used" is current the next time one opens.
-    for (const fresh of doc.querySelectorAll('dialog.manage-dialog')) {
-      const mine = document.getElementById(fresh.id);
-      if (mine && !mine.open) mine.replaceWith(document.adoptNode(fresh));
-    }
     ctx.paintProblems();
     return true;
   }
@@ -65,6 +63,8 @@ export function wireRefresh(ctx) {
     handle?.state(ok ? 'ready' : 'failed');
     return ok;
   }
+  // The issue dialog closed with a client issued: show its row.
+  document.addEventListener('clients-issued', readAgain);
   root.addEventListener('kp-refresh', async (event) => event.detail.done(await readAgain()));
   root.addEventListener('kp-datatable-retry', readAgain);
 }

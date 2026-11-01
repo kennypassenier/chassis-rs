@@ -82,12 +82,8 @@ function wireRun(ctx, run, sendTest) {
     const { value, href } = event.detail;
     if (href) return; // a page: the palette follows the link
     if (run[value]) run[value]();
-    else if (value.startsWith('manage-')) {
-      const id = value.slice(7);
-      const open = $(`[data-manage="${CSS.escape(id)}"]`);
-      if (open) open.click();
-      else if (ctx.clientsPath) ctx.go(ctx.clientsPath);
-    } else if (value.startsWith('test-')) sendTest(value.slice(5));
+    else if (value.startsWith('manage-')) ctx.go(`${ctx.clientsPath || '/clients'}/${encodeURIComponent(value.slice(7))}`);
+    else if (value.startsWith('test-')) sendTest(value.slice(5));
   });
   $('[data-kp-palette-open]')?.setAttribute('aria-haspopup', 'dialog');
 }
