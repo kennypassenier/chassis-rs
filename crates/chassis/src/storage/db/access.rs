@@ -79,7 +79,7 @@ impl Db {
         out
     }
 
-    fn note_write<T>(&self, out: &Result<T, Error>) {
+    pub(super) fn note_write<T>(&self, out: &Result<T, Error>) {
         // A business refusal (Invalid, NotFound) is not a sick file.
         match out {
             Err(e) if matches!(e.kind, Kind::Dependency | Kind::Overloaded | Kind::Internal) => {

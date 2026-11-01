@@ -10,7 +10,7 @@ use std::time::Duration;
 use rusqlite::{Connection, OpenFlags};
 
 use super::migrate::migrate;
-use super::{BUSY_TIMEOUT, Db, Inner, Migration, READERS, WAL_SIZE_LIMIT};
+use super::{BUSY_TIMEOUT, Db, DbOptions, Inner, Migration, WAL_SIZE_LIMIT, snapshot};
 use crate::core::error::{Error, Kind};
 
 /// Bookkeeping the kit itself needs (import markers, format versions),
@@ -47,6 +47,17 @@ pub(super) fn pragmas(conn: &Connection, wal: bool) -> Result<(), Error> {
 impl Db {
     /// Open (creating it) the file at `path`, bring its schema up to date.
     pub fn open(path: &Path, migrations: &[Migration]) -> Result<Db, Error> {
+        Db::open_with(path, migrations, &DbOptions::new())
+    }
+
+    /// [`Db::open`] with the pool size, reader kind and pre-migration
+    /// copies of [`DbOptions`].
+    pub fn open_with(
+        path: &Path,
+        migrations: &[Migration],
+        options: &DbOptions,
+    ) -> Result<Db, Error> {
+        options.validate()?;
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| {
                 Error::config(
@@ -69,6 +80,7 @@ impl Db {
             let setup = (|| {
                 pragmas(&writer, true)?;
                 writer.execute_batch(META_DDL)?;
+                copy_before_migrating(&writer, path, migrations.len(), options)?;
                 migrate(&mut writer, migrations, &shown)
             })();
             match setup {
@@ -79,18 +91,20 @@ impl Db {
                 other => break other?,
             }
         };
-        let mut readers = Vec::with_capacity(READERS);
-        for _ in 0..READERS {
-            let r = Connection::open_with_flags(
-                path,
-                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-            )
-            .map_err(|e| {
-                Error::config(
-                    format!("cannot open a read connection to {shown}: {e}"),
-                    "check the file's permissions",
-                )
-            })?;
+        let mode = if options.writable_readers {
+            OpenFlags::SQLITE_OPEN_READ_WRITE
+        } else {
+            OpenFlags::SQLITE_OPEN_READ_ONLY
+        };
+        let mut readers = Vec::with_capacity(options.readers);
+        for _ in 0..options.readers {
+            let r = Connection::open_with_flags(path, mode | OpenFlags::SQLITE_OPEN_NO_MUTEX)
+                .map_err(|e| {
+                    Error::config(
+                        format!("cannot open a read connection to {shown}: {e}"),
+                        "check the file's permissions",
+                    )
+                })?;
             pragmas(&r, false)?;
             readers.push(Mutex::new(r));
         }
@@ -123,4 +137,23 @@ impl Db {
             }),
         })
     }
+}
+
+/// Take the pre-migration copy when the options ask for one and an existing
+/// file (schema 1 or later) is about to move forward. A fresh file has
+/// nothing to lose, so 0 -> 1 takes none.
+fn copy_before_migrating(
+    conn: &Connection,
+    path: &Path,
+    known: usize,
+    options: &DbOptions,
+) -> Result<(), Error> {
+    if options.keep_snapshots == 0 {
+        return Ok(());
+    }
+    let current = conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))? as usize;
+    if current == 0 || current >= known {
+        return Ok(());
+    }
+    snapshot::before_migration(conn, path, current, options.keep_snapshots).map(|_| ())
 }

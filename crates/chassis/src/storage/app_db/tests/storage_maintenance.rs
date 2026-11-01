@@ -34,6 +34,7 @@ fn a_wrong_declaration_is_a_start_error() {
     ] {
         let err = AppDb::open_in_memory(
             AppDbSpec {
+                options: Default::default(),
                 migrations: schema(),
                 import: None,
             },
@@ -44,6 +45,7 @@ fn a_wrong_declaration_is_a_start_error() {
     }
     let err = AppDb::open_in_memory(
         AppDbSpec {
+            options: Default::default(),
             migrations: schema(),
             import: None,
         },
@@ -57,6 +59,7 @@ fn a_wrong_declaration_is_a_start_error() {
     assert!(err.message.contains("finished_by_definition"), "{err}");
     let err = AppDb::open_in_memory(
         AppDbSpec {
+            options: Default::default(),
             migrations: schema(),
             import: None,
         },
@@ -112,6 +115,7 @@ fn compact_reclaims_the_pages_a_delete_freed_and_is_refused_while_paused() {
     let app = AppDb::open(
         &dir.path().join("a.db"),
         AppDbSpec {
+            options: Default::default(),
             migrations: schema(),
             import: None,
         },
