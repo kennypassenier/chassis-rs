@@ -7,6 +7,13 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed
+
+- **The PWA service worker no longer handles event streams** (`webapp`): a
+  request asking for `text/event-stream` goes straight to the network. A
+  live channel outside `/api` kept one connection open per page through the
+  worker, and Firefox stopped loading pages after six.
+
 ## [4.1.0] - 2026-10-31
 
 ### Changed

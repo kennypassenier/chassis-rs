@@ -43,6 +43,7 @@ self.addEventListener('fetch', (event) => {
         url: req.url,
         origin: self.location.origin,
         hasRange: req.headers.has('range'),
+        accept: req.headers.get('accept') || '',
     });
     if (wanted) event.respondWith(networkFirst(event, req));
 });

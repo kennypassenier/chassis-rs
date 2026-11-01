@@ -105,7 +105,7 @@ function worker({ network }) {
     return { handle, store };
 }
 const request = (path, mode = 'cors', method = 'GET') => ({
-    url: origin + path, method, mode, headers: { has: () => false },
+    url: origin + path, method, mode, headers: { has: () => false, get: () => null },
 });
 
 test('the network wins whenever it answers, and the cache only fills in offline', async () => {
@@ -141,4 +141,13 @@ test('a redirected login page and a 303 are never stored', async () => {
     const w2 = worker({ network: () => res({ status: 303, type: 'opaqueredirect' }) });
     await w2.handle(request('/', 'navigate'));
     assert.equal(w2.store.size, 0);
+});
+
+test('an event stream is left to the browser, wherever it is mounted', () => {
+    // Habits, 2026-11-01: a Live channel outside /api went through the
+    // worker's fetch() and never ended; after six pages Firefox stalled.
+    const live = req('/live/updates', 'GET', { accept: 'text/event-stream' });
+    assert.equal(logic.isCacheableRequest(live), false);
+    assert.equal(logic.isCacheableRequest(req('/live/updates', 'GET', { accept: 'text/html' })), true);
+    assert.equal(logic.isCacheableRequest(req('/x')), true, 'no Accept header is a page or a file');
 });

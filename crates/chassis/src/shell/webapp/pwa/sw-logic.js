@@ -26,9 +26,15 @@ function staleCaches(names, current) {
     return names.filter((n) => n.startsWith(CACHE_PREFIX) && n !== current);
 }
 
-/** Whether the worker handles this request at all (else the browser does). */
-function isCacheableRequest({ method, url, origin, hasRange }) {
+/**
+ * Whether the worker handles this request at all (else the browser does).
+ * An event stream is never handled: a never-ending response routed through
+ * the worker's own fetch() held a connection per page, and Firefox stopped
+ * loading pages after six (Habits, 2026-11-01).
+ */
+function isCacheableRequest({ method, url, origin, hasRange, accept = '' }) {
     if (method !== 'GET' || hasRange) return false;
+    if (accept.includes('text/event-stream')) return false;
     let u;
     try {
         u = new URL(url);
