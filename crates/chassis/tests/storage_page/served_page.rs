@@ -13,7 +13,7 @@ async fn the_page_is_the_approved_frame_behind_the_login() {
     // (8) against the empty space (4), the kinds across all twelve.
     for part in [
         "data-chassis-storage",
-        r#"class="kp-ops kit-ops storage""#,
+        r#"class="kp-ops chassis-ops kit-ops storage""#,
         r#"data-kp-span="8" data-kp-state="loading" data-storage-card="budget""#,
         r#"data-kp-span="4" data-kp-state="loading" data-storage-card="compact""#,
         r#"data-kp-span="12" data-kp-state="ready" data-storage-card="kinds""#,

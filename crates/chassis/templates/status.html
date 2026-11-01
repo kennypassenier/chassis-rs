@@ -37,7 +37,7 @@
 {% block content %}
 {% set degraded = health.status != "ok" %}
 {% set parts_ok = parts.total - parts.failing %}
-<div class="kp-ops chassis-status" data-chassis-status data-kp-ops-sticky="none" data-kp-ops-failed="plate">
+<div class="kp-ops chassis-ops chassis-status" data-chassis-status data-kp-ops-sticky="none" data-kp-ops-failed="plate">
   <header class="kp-ops__head kp-page-header">
     <div class="kp-page-header__inner">
       <div>

@@ -6,6 +6,19 @@ body {
     padding-bottom: 4rem;
 }
 
+/* The kit's one page container [ux-chassis-1] (Kenny, 2026-10-25: page
+   elements fill the 80 % container, never narrower). <main class="kp-page">
+   is that container: kp-themes caps it at max(80vw, 64rem) and pads it. The
+   .kp-ops column inside it would cap and pad a second time (80 % of the
+   window less 48 px, 976 of 1280), so on the kit's pages it takes the
+   container's whole width and leaves the inline padding to <main>. Every kit
+   page (Status, Clients, Storage, Passkeys, the error page) carries
+   .chassis-ops. */
+.chassis-ops {
+    --kp-ops-width: none;
+    --kp-ops-pad-inline: 0px;
+}
+
 h1 { font-size: 1.75rem; margin: 0 0 0.5rem; }
 h2 { font-size: 1.25rem; margin: 2rem 0 0.75rem; }
 
