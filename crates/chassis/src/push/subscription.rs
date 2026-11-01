@@ -12,27 +12,27 @@ const MAX_ENDPOINT_BYTES: usize = 2048;
 
 /// The body of `POST /api/kit/push/subscribe`.
 #[derive(Debug, Deserialize)]
-pub struct SubscribeBody {
+pub(crate) struct SubscribeBody {
     pub endpoint: String,
     pub keys: Keys,
 }
 
 /// The two secrets of the subscription, base64url as the browser gives them.
 #[derive(Debug, Deserialize)]
-pub struct Keys {
+pub(crate) struct Keys {
     pub p256dh: String,
     pub auth: String,
 }
 
 /// The body of `POST /api/kit/push/unsubscribe`.
 #[derive(Debug, Deserialize)]
-pub struct UnsubscribeBody {
+pub(crate) struct UnsubscribeBody {
     pub endpoint: String,
 }
 
 /// A subscription that passed the checks, in the form the store keeps.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Checked {
+pub(crate) struct Checked {
     pub endpoint: String,
     pub p256dh: String,
     pub auth: String,

@@ -11,7 +11,7 @@ use crate::shell::config_load::Loaded;
 
 /// What the sender runs with.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PushKnobs {
+pub(crate) struct PushKnobs {
     /// The VAPID `sub` claim; `None` until the owner sets `push_subject`.
     pub subject: Option<String>,
     /// How long a push service keeps a message for an offline device.

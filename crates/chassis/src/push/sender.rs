@@ -16,8 +16,10 @@ use crate::core::error::Error;
 use crate::shell::time::now_epoch;
 use crate::storage::push_store::{PushStore, Stored};
 
-/// What [`Sender::send`] did, per message.
+/// What [`Sender::send`] did, per message. Sealed, so a later field is
+/// not a breaking change; read the fields, never build one.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct PushReport {
     /// Subscriptions whose push service accepted the message.
     pub accepted: usize,
