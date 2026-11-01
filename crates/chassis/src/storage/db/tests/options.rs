@@ -121,3 +121,16 @@ fn the_pool_size_and_kind_follow_the_options_and_a_huge_pool_is_refused() {
         Db::open_with(&path, &steps(1), &DbOptions::new().readers(MAX_READERS + 1)).unwrap_err();
     assert!(e.message.contains("readers"), "{e:?}");
 }
+
+/// kyu, 2026-11-01: a passing probe proves only the lock, so a failure a
+/// real write recorded stays visible, with its age.
+#[test]
+fn a_passing_probe_keeps_a_real_write_failure_and_its_age() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Db::open(&dir.path().join("a.db"), &steps(1)).unwrap();
+    db.note_failure(&Error::dependency("disk full", "free space"));
+    db.probe_writable().unwrap();
+    let (why, age) = db.recent_write_failure_age().expect("still recorded");
+    assert_eq!(why, "disk full");
+    assert!(age < std::time::Duration::from_secs(5), "{age:?}");
+}

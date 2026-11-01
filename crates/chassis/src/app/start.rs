@@ -106,12 +106,23 @@ impl App {
         for hook in self.start_hooks.drain(..) {
             hook();
         }
+        #[allow(unused_mut)]
+        let mut flushes = mounted.flushes;
+        // kyu, 2026-11-01: fold the write-ahead logs into their files as the
+        // last step of a clean stop, after the project's own flushes, so a
+        // stopped service leaves no log behind and the next start (or a
+        // backup of the stopped files) needs no recovery.
+        #[cfg(feature = "storage")]
+        {
+            let storage = stores.storage.clone();
+            flushes.push(Box::new(move || storage.settle_logs()));
+        }
         Ok(Running {
             addr,
             stop: stop_tx,
             task,
             shutdown_timeout: self.shutdown_timeout,
-            flushes: mounted.flushes,
+            flushes,
             #[cfg(unix)]
             backup,
             #[cfg(feature = "storage")]

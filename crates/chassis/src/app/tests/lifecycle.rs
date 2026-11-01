@@ -163,3 +163,36 @@ async fn body_cap_answers_413() {
     assert_eq!(res.status(), 200);
     running.stop().await;
 }
+
+/// kyu, 2026-11-01: a clean stop folds the write-ahead log into the app file
+/// as its last step, so the stopped service leaves no log to replay.
+#[cfg(feature = "storage")]
+#[tokio::test]
+async fn a_clean_stop_leaves_an_empty_write_ahead_log() {
+    let _gate = crate::shell::backup::TEST_GATE.read().await;
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = from_args_secret(spec(), argv(&secrets_env(dir.path())), Router::new()).unwrap();
+    let db = app
+        .app_db(crate::storage::AppDbSpec::new(vec![
+            crate::storage::Migration::sql("CREATE TABLE t (v TEXT NOT NULL) STRICT;"),
+        ]))
+        .unwrap();
+    let running = app.start().await.unwrap();
+    db.db()
+        .unwrap()
+        .write(|tx| Ok(tx.execute("INSERT INTO t VALUES ('x')", [])?))
+        .await
+        .unwrap();
+    let path = db.db().unwrap().path().unwrap().to_path_buf();
+    let wal = crate::storage::wal_path(&path);
+    assert!(
+        std::fs::metadata(&wal).map_or(0, |m| m.len()) > 0,
+        "the write sits in the log"
+    );
+    running.stop().await;
+    assert_eq!(
+        std::fs::metadata(&wal).map_or(0, |m| m.len()),
+        0,
+        "folded at stop"
+    );
+}
