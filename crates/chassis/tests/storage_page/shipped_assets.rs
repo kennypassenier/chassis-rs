@@ -158,9 +158,12 @@ fn sample_cards_wrap_long_values() {
 /// refreshes every five minutes by default, and "Every 5 min" is offered.
 #[test]
 fn storage_defaults_to_five_minutes() {
+    // [ux-chassis-10] The control is the kit's one: the page only seeds its
+    // default, and "Every 5 min" is among the kit's choices.
     let page = kit_file("templates/storage.html");
-    assert!(page.contains(r#"data-kp-refresh="300""#));
-    assert!(page.contains(r#"data-kp-refresh-choices="0,15,30,60,300""#));
+    assert!(page.contains("refresh_default = 300"));
+    let control = kit_file("static/chassis/refresh-control.js");
+    assert!(control.contains("choices: '0,15,30,60,300'"));
 }
 
 /// Kenny, 2026-10-30 (almanac, kyu): "updated 0 s ago" never counted on.

@@ -91,10 +91,7 @@ async function startStorage(root) {
   /* ------------------------------------------------------------- start -- */
   await ctx.mountTable();
   await ctx.attachParts(root);
-  // The first read goes through the header's own control, so its line says
+  // The first read goes through the kit's own control, so its line says
   // when the page was read ("updated now") and a failure shows there too.
-  const { refreshOf } = await ctx.kp('auto-refresh');
-  const refreshControl = refreshOf(root.querySelector('.kp-refresh'));
-  if (refreshControl) refreshControl.now('now');
-  else await ctx.load();
+  if (!window.chassisRefresh.now()) await ctx.load();
 }

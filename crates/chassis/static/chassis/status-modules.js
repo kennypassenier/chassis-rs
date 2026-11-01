@@ -8,7 +8,6 @@ export async function attachStatusModules(root, kp) {
   // theme picker and the confirmations are chassis.js's own and stay single.
   const modules = [
     ['freshness', '[data-kp-ago]', (m) => m.attachAgo(root)],
-    ['auto-refresh', '[data-kp-refresh]', (m) => m.attachRefresh(root)],
     ['patterns', '[data-kp-copy]', (m) => m.attachPatterns(root)],
     ['version-delta', '[data-kp-version-to]', (m) => m.attachVersionDeltas(root)],
     ['uptime', '[data-kp-uptime]', (m) => m.attachUptimes(root)],

@@ -10,15 +10,6 @@
    to, so the same dialog is right on a desktop and on a phone.
    ====================================================================== */
 
-/* The header's freshness line and refresh control stand under the description. */
-.storage-fresh {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--kp-space-sm, 0.5rem) var(--kp-space-md, 1rem);
-  margin-block-start: var(--kp-space-sm, 0.5rem);
-}
-
 /* --- the cards of the page: their stage is the container the arrangements answer to --- */
 .storage-card .kp-card__data { container: storagec / inline-size; }
 

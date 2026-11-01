@@ -38,10 +38,10 @@ export function createRefresh(ctx) {
     ctx.root.addEventListener('kp-datatable-retry', () => load());
   }
 
-  // The header's refresh control reads again, quietly; a phone shows the
+  // The kit's refresh tick reads again, quietly (chassisRefresh, ux-chassis-10); a phone shows the
   // kinds as cards, so crossing that width draws the table again.
   function wireTriggers() {
-    ctx.root.addEventListener('kp-refresh', async (event) => event.detail.done(await load({ quiet: true })));
+    window.chassisRefresh.onTick(() => load({ quiet: true }));
     ctx.narrow.addEventListener('change', async () => {
       if (!ctx.data) return;
       await ctx.mountTable();

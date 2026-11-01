@@ -1,0 +1,8 @@
+{#- [ux-chassis-10] The kit's ONE refresh control, in the header row of a page.
+    This is only the slot: chassis/refresh-control.js (loaded by every kit page
+    and by the web-app runtime) fills it with the kp-themes auto-refresh
+    control, so the interval, its remembered choice and the freshness line
+    are the kit's, not the page's. A page may set `refresh_default` (seconds)
+    for when the reader has not chosen yet; the choice, once made, is shared
+    by every page. -#}
+<div class="chassis-fresh"><div data-chassis-refresh{% if refresh_default %} data-chassis-refresh-default="{{ refresh_default }}"{% endif %}></div></div>

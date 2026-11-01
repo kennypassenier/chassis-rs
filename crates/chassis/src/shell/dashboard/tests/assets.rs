@@ -56,7 +56,7 @@ fn refresh_bar_rules_are_scoped_to_the_kits_header() {
         seen += 1;
         assert!(
             line.trim_start()
-                .starts_with(".chassis-status__fresh .kp-refresh__bar"),
+                .starts_with(".chassis-fresh .kp-refresh__bar"),
             "unscoped: {line}"
         );
     }

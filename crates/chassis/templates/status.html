@@ -43,7 +43,7 @@
       <div>
         <h1 class="kp-page-header__title">Status</h1>
         <p class="kp-page-header__description">What this service is running, and whether each part of it is doing its job right now.</p>
-        <div class="chassis-status__fresh"><div class="kp-refresh" data-kp-refresh="30" data-kp-remember="chassis-status-refresh" data-kp-look="menu" data-kp-refresh-choices="0,15,30,60"></div></div>
+        {% include "refresh_slot.html" %}
       </div>
       <div class="kp-page-header__actions">
         <button type="button" class="kp-button" data-kp-flash-button data-kp-flash-words="Up to date,Update found,Refused" data-chassis-update-check{% if not update_facts.can_check %} disabled data-kp-disabled-reason="This service is not set up to look for new releases"{% endif %}>Check for updates</button>

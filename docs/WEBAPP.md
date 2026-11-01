@@ -84,6 +84,30 @@ demand specific markup, so a page that wants them still calls them.
 - `.without_kit_runtime()` opts out, for an app that runs the
   runtime itself.
 
+## The refresh control for a web app's pages (ux-chassis-10)
+
+The runtime above also gives every page `window.chassisRefresh`: the kit's one
+refresh control, one freshness line and one remembered interval, the same ones
+Status and Storage use. Do not draw a bar of your own. Put
+`<div data-chassis-refresh></div>` in the header row of the page (a
+single-page app may add it whenever its header is drawn) and listen to the
+kit's tick. The runtime is injected after your own head scripts, so register
+in a `DOMContentLoaded` handler (or load your script at the end of `<body>`):
+
+```js
+const off = chassisRefresh.onTick(async ({ interval, reason }) => {
+  await reload();                  // throw or return false: the control says the read failed
+});
+chassisRefresh.markFresh(new Date(serverTime));
+```
+
+A server-rendered fragment follows the tick with
+`<section data-chassis-refresh-section="/fragments/queue">…</section>`. The
+full API (`onTick`, `onInterval`, `interval`, `setInterval`, `now`,
+`markFresh`, the `chassis:refresh` event) and the migration steps are in
+docs/DASHBOARD.md, "The refresh control and the freshness line".
+`WebApp::without_kit_runtime()` also leaves this out.
+
 ## Installable (PWA) (feat-webapp-4)
 
 A web app at the root is installable with no code of its own: the kit

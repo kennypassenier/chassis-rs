@@ -429,6 +429,56 @@ impl StatusSection for Orders {
 - `/api/kit/status` carries the merged list as `section_assets`
   (`{ module_scripts, stylesheets }`) for a web app that draws the page.
 
+## The refresh control and the freshness line: the kit's, one per page (ux-chassis-10)
+
+Every page has ONE refresh control and ONE freshness line ("Every 30 s",
+"updated 12 s ago", Refresh now), drawn by the kit in the header row under the
+description. Status, Storage and Clients carry it already; a page of a web app
+puts `<div data-chassis-refresh></div>` in its own header row and the kit
+(the web-app runtime, `webapp-runtime.js`) fills it with the kp-themes
+auto-refresh control. A page has one: a second slot is left empty and a
+warning is logged. A slot drawn later by a single-page app is picked up.
+
+- **One remembered interval.** The reader's choice is stored under one key
+  (`chassis-refresh`, through the kit's preferences, so it follows the login)
+  and is the same on every page: choose 1 min on Status and Storage and the
+  app's pages open on 1 min. A page may set the default for a reader who has
+  not chosen yet: `data-chassis-refresh-default="300"` (Storage does).
+- **Listen to the tick instead of drawing a bar.**
+
+```js
+// The runtime is injected after your own head scripts, so register once the
+// document is parsed (DOMContentLoaded), or load your script at the end of <body>.
+// Runs on every tick: the timer, "Refresh now", Retry now and the R key.
+const off = window.chassisRefresh.onTick(async ({ interval, reason }) => {
+  await reloadMyData();            // throw, reject or return false = the read failed
+});
+window.chassisRefresh.markFresh(new Date(serverTime));   // the data is as old as this
+```
+
+  | API | What it does |
+  | --- | --- |
+  | `onTick(fn)` | `fn({ reason, interval })` on every tick, async allowed; returns the stop function. A failure shows the control's "Last refresh failed" note with Retry now. |
+  | `onInterval(fn)` / `interval()` | `fn(seconds)` when the interval changes (0 = paused); the current value, `null` before the control exists. |
+  | `setInterval(s)` / `now()` | Change the interval from code; read at once (`false` when the page has no control). |
+  | `markFresh(date?)` | The data is as new as `date` (default now); the freshness line follows. Call it when data arrives outside a tick (a push). |
+  | `chassis:refresh` | The same tick as a DOM event on the document: `detail.interval`, `detail.reason`, and `detail.until(promise)` to make the tick wait for your read. |
+
+  The page counts as fresh when it is drawn, so the line never says "not
+  updated yet" beside "updated 0 s ago".
+- **A server-rendered section follows the tick** with one attribute on its
+  element, in `Section.html` or in a web-app page:
+  `<div data-chassis-refresh-section="/fragments/queue">…first paint…</div>`.
+  On every tick the kit fetches that address (same origin, with the session)
+  and replaces the content when the answer differs, so an unchanged section
+  keeps its focus, selection and scroll; a failed read keeps what is shown
+  and fails the tick. `SectionBody::Json` cards already re-read on the tick.
+- **Migrating an app** that drew its own bar (the 6-segment refresh bar,
+  "updated N s ago" and "not updated yet" lines): delete the bar and its
+  freshness line, put the slot in the header row, move the body of your
+  timer or of the bar's handler into `onTick`, call `markFresh` where you
+  know the data's age, and drop your own storage of the interval.
+
 ## A section that keeps its own card state (kit-r4)
 
 chassis.js polls `/api/kit/status` and, on every poll and every re-read,
@@ -512,8 +562,8 @@ never from a list in the layout:
 - **A page offers commands** by marking the control that does it
   `data-chassis-command="issue"` (focused, or clicked if it is not a field),
   `"filter-idle"` or `"search"`; the palette and the `n`, `/` keys only list
-  what the page carries. `r` is answered by the page's own refresh control
-  (`[data-kp-refresh]`); the sheet dims it where there is none.
+  what the page carries. `r` is answered by the kit's refresh control
+  (`[data-chassis-refresh]`); the sheet dims it where there is none.
 - **The sheet** (`?`) is filled from the registered shortcuts, so it cannot
   promise a key that does nothing.
 - **The connection line** takes no room while all is well. The kit wraps

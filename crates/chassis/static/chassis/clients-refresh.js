@@ -65,6 +65,7 @@ export function wireRefresh(ctx) {
     handle?.state(ok ? 'ready' : 'failed');
     return ok;
   }
-  root.addEventListener('kp-refresh', async (event) => event.detail.done(await readAgain()));
+  // The kit's refresh tick (chassisRefresh, ux-chassis-10) reads the list again.
+  window.chassisRefresh.onTick(() => readAgain());
   root.addEventListener('kp-datatable-retry', readAgain);
 }

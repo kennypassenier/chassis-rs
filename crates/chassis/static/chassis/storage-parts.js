@@ -23,7 +23,6 @@ export const PARTS = [
   ['tables', '.kp-table-wrap', (m, r) => m.attachTableRegions(r)],
   ['datatable', '[data-kp-datatable]', (m, r) => m.attachDataTables(r)],
   ['card-state', '.kp-card[data-kp-state]', (m, r) => m.attachCardStates(r)],
-  ['auto-refresh', '[data-kp-refresh]', (m, r) => m.attachRefresh(r)],
   // The refresh control's "updated … ago" only counts on when the freshness
   // ticker runs; without it the line stayed at "0 s ago" (Kenny,
   // 2026-10-30, almanac and kyu). The control draws its line after attach,

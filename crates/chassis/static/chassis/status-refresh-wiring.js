@@ -22,13 +22,13 @@ export function wireRefresh(ctx) {
     }
   });
 
-  // The refresh control: the app fetches, the control keeps the line.
+  // The kit's refresh tick (chassisRefresh, ux-chassis-10): the page reads,
+  // the control keeps the line. A failed read returns false, so the control says so.
   // The first read after the page is drawn shows that it reads, in every
   // part's own loading state (and its failed plate when the service does not
   // answer); the reads after it are quiet.
   let firstRead = true;
-  ctx.refreshEl?.addEventListener('kp-refresh', async (event) => {
-    const { done } = event.detail;
+  window.chassisRefresh.onTick(async () => {
     try {
       if (firstRead) {
         firstRead = false;
@@ -36,13 +36,12 @@ export function wireRefresh(ctx) {
       } else await ctx.refreshAll();
       ctx.failures = 0;
       ctx.showFailure(false);
-      done(true);
     } catch (_) {
       ctx.failures += 1;
       // One blip is the refresh line's to report; a second in a row means
       // the numbers on the page can no longer be trusted.
       if (ctx.failures >= 2) ctx.showFailure(true);
-      done(false);
+      return false;
     }
   });
 

@@ -22,7 +22,6 @@ export const CLIENTS_MODULES = [
   ['.kp-steplist', 'steplist', 'attachSteplists'],
   ['[data-kp-art]', 'art', 'attachArt'],
   ['[data-kp-problems]', 'problems', 'attachProblems'],
-  ['[data-kp-refresh]', 'auto-refresh', 'attachRefresh'],
   // The refresh line counts on only with the freshness ticker (see Storage).
   ['[data-kp-refresh], [data-kp-ago]', 'freshness', 'attachAgo'],
   ['.kp-ops', 'footprint', 'attachFootprints'],

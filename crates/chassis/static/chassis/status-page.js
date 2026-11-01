@@ -46,7 +46,6 @@ async function buildContext(root) {
   const { setCardState } = await kp('card-state');
   const { runFlashButton } = await kp('flash');
   const { toast } = await kp('overlays');
-  const { refreshOf } = await kp('auto-refresh');
   const { attachAgo } = await kp('freshness');
   const { attachVersionDeltas } = await kp('version-delta');
   const { attachDataTables, dataTable } = await kp('datatable');
@@ -56,7 +55,6 @@ async function buildContext(root) {
   const ctx = {
     root,
     kp,
-    refreshOf,
     setProblems,
     setUptime,
     setStatus,
@@ -68,7 +66,6 @@ async function buildContext(root) {
     attachDataTables,
     dataTable,
     attachKpiStrips,
-    refreshEl: root.querySelector('.kp-refresh'),
     say: (text) => toast(text, { ms: 3200 }),
     only: (selector) => root.querySelector(selector),
     showFailure: (on) => drawFailure(root, setAttention, on),
@@ -98,5 +95,5 @@ async function startStatus(root) {
   if (strip) ctx.drawUptime(strip, JSON.parse(strip.getAttribute('data-chassis-uptime') || '[]'));
   for (const card of root.querySelectorAll('[data-chassis-json]')) ctx.loadJson(card);
   // The page is as fresh as the moment it was drawn.
-  ctx.refreshOf(ctx.refreshEl)?.now?.('now');
+  window.chassisRefresh.now();
 }

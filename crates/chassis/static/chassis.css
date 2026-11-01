@@ -11,6 +11,7 @@
    depends on it. */
 @import url("chassis/base.css");
 @import url("chassis/shell.css");
+@import url("chassis/refresh.css");
 @import url("chassis/status.css");
 @import url("chassis/clients-list.css");
 @import url("chassis/clients-issue.css");

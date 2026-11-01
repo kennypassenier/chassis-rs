@@ -9,6 +9,19 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **One refresh control and one freshness line, owned by the kit**
+  ([ux-chassis-10]; Kenny's decision "De kit beheert hem"): Status,
+  Storage and Clients draw the same kp-themes auto-refresh control from one
+  slot (`<div data-chassis-refresh>`), and a web app's pages get it from the
+  runtime by putting that slot in their header row. The interval is one
+  remembered choice (`chassis-refresh`, per login through the preferences)
+  shared by every page. App code uses `window.chassisRefresh`
+  (`onTick`, `onInterval`, `interval`, `setInterval`, `now`, `markFresh`),
+  the `chassis:refresh` event, and `data-chassis-refresh-section="/url"` to
+  have a server-rendered section re-read on the kit's tick instead of its own
+  bar. Additive. **Migration** for an app with its own bar: delete the bar
+  and its "updated" line, add the slot, move the bar's handler into
+  `onTick`; see docs/DASHBOARD.md and docs/WEBAPP.md.
 - **Home-screen shortcuts and a share target for installable web apps**
   (`webapp`; Habits, 2026-11-01): `Pwa::shortcut(Shortcut::new(name, url))`
   and `Pwa::share_target(ShareTarget::get(action))` (or `post`, `.params`,
@@ -18,6 +31,11 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Changed
 
+- **Status, Storage and Clients no longer keep an interval each**: the
+  three remembered keys (`chassis-status-refresh`, `chassis-storage-refresh`,
+  `clients-refresh`) are replaced by the one shared key. A reader's earlier
+  choice per page is not carried over; Storage still opens on 5 min until a
+  choice is made.
 - **The kit's pages fill the page container** (Status, Clients, Storage,
   Passkeys, the error page; Kenny's 80 % rule, kit-page UX review): the
   page column inside `<main class="kp-page">` capped and padded a second
