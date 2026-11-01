@@ -7,6 +7,15 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **Home-screen shortcuts and a share target for installable web apps**
+  (`webapp`; Habits, 2026-11-01): `Pwa::shortcut(Shortcut::new(name, url))`
+  and `Pwa::share_target(ShareTarget::get(action))` (or `post`, `.params`,
+  `.files`) add `shortcuts` and `share_target` to the manifest. Checked at
+  start: a path outside the app, an empty name or more than four shortcuts
+  refuses with a remedy. See docs/WEBAPP.md.
+
 ### Fixed
 
 - **The PWA service worker no longer handles event streams** (`webapp`): a

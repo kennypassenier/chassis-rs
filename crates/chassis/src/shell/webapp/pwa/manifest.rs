@@ -35,5 +35,6 @@ pub(super) fn manifest(pwa: &Pwa, name: &str) -> Value {
     if let Some(d) = &pwa.description {
         m["description"] = json!(d);
     }
+    super::extras::extend(&mut m, &pwa.shortcuts, pwa.share_target.as_ref());
     m
 }

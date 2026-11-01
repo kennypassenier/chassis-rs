@@ -40,7 +40,7 @@ mod validate;
 
 use std::path::PathBuf;
 
-pub use pwa::{Display, Pwa};
+pub use pwa::{Display, Pwa, ShareTarget, Shortcut};
 
 /// The policy a web app gets unless it names its own: the kit's pages'
 /// policy. `'unsafe-inline'` for styles covers `style=""` attributes that
@@ -164,6 +164,8 @@ impl WebApp {
     }
 }
 
+#[cfg(test)]
+mod pwa_extras_tests;
 #[cfg(test)]
 mod pwa_tests;
 #[cfg(test)]

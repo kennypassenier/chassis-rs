@@ -3,6 +3,7 @@
 //! the configuration is public API, while the manifest, the icons and the
 //! service worker (child modules) are implementation.
 
+mod extras;
 mod glyphs;
 pub(super) mod icons;
 mod manifest;
@@ -11,6 +12,7 @@ mod routes;
 mod worker;
 
 use crate::core::error::Error;
+pub use extras::{ShareTarget, Shortcut};
 
 /// How the installed app is framed (`display` in the web app manifest).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,6 +53,8 @@ pub struct Pwa {
     pub(super) display: Display,
     pub(super) theme_color: String,
     pub(super) background_color: String,
+    pub(super) shortcuts: Vec<Shortcut>,
+    pub(super) share_target: Option<ShareTarget>,
 }
 
 impl Default for Pwa {
@@ -69,6 +73,8 @@ impl Pwa {
             display: Display::Standalone,
             theme_color: DEFAULT_THEME_COLOR.into(),
             background_color: DEFAULT_BACKGROUND_COLOR.into(),
+            shortcuts: Vec::new(),
+            share_target: None,
         }
     }
 
@@ -110,8 +116,24 @@ impl Pwa {
         self
     }
 
-    /// Refuse a colour that could break out of the attribute it lands in.
+    /// One entry in the long-press menu of the home-screen icon (at most
+    /// four; checked at start).
+    pub fn shortcut(mut self, shortcut: Shortcut) -> Self {
+        self.shortcuts.push(shortcut);
+        self
+    }
+
+    /// Show the app in the system's Share sheet; what is shared arrives at
+    /// the target's action.
+    pub fn share_target(mut self, target: ShareTarget) -> Self {
+        self.share_target = Some(target);
+        self
+    }
+
+    /// Refuse a colour that could break out of the attribute it lands in,
+    /// and shortcuts or a share target a browser would drop.
     pub(super) fn validate(&self) -> Result<(), Error> {
+        extras::validate(&self.shortcuts, self.share_target.as_ref())?;
         for (what, c) in [
             ("theme_color", &self.theme_color),
             ("background_color", &self.background_color),

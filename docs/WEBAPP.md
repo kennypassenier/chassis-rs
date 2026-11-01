@@ -145,6 +145,33 @@ app.webapp(WebApp::embedded(FILES).pwa(
   offline from the cache; `/api` data is never kept. A shared device should
   clear site data after logging out.
 
+### Shortcuts and the share target
+
+Two optional manifest members, set on the `Pwa` builder and checked at
+start (a path outside the app, an empty name or more than four shortcuts
+refuses the start with the remedy):
+
+```rust
+use chassis::shell::webapp::{Pwa, ShareTarget, Shortcut, WebApp};
+
+app.webapp(WebApp::embedded(FILES).pwa(
+    Pwa::new()
+        .shortcut(Shortcut::new("Inbox", "/inbox"))      // long press on the icon
+        .shortcut(Shortcut::new("Focus", "/focus").short_name("Focus"))
+        .share_target(ShareTarget::get("/capture")),   // the system Share sheet
+));
+```
+
+`ShareTarget::get(action)` receives the shared `title`, `text` and `url` as
+query parameters; `ShareTarget::post(action)` as a form POST;
+`.params(title, text, url)` renames the three fields and `.files(field,
+&["image/*"])` also accepts files, which makes it a multipart POST. The
+action is the app's own route; the kit adds nothing behind it.
+
+The service worker never handles a request that asks for
+`text/event-stream`, so a live channel mounted anywhere stays a direct
+connection.
+
 ## Pages and the navigation (feat-pages-1)
 
 One list holds every page the service shows, the kit's and the project's,
