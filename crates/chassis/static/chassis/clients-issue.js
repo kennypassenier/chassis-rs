@@ -15,8 +15,6 @@ import { wireSubmit } from './clients-issue-submit.js';
 // state. The token lives in this dialog's ctx only, never in the page: the secret
 // field asks for it when it is shown or copied.
 
-export const ISSUE_OPEN_KEY = 'chassis-open-manage';
-
 export async function startIssueDialog(dialog, load, one) {
   const [forms, combobox, usual, patterns, command, flash, idmark, lede] = await Promise.all(
     ['forms', 'combobox', 'usual-picker', 'patterns', 'command', 'flash', 'idmark', 'lede'].map(load),
@@ -51,19 +49,17 @@ export async function startIssueDialog(dialog, load, one) {
   cardSync.wire();
   wireSubmit(ctx);
 
-  // "Open the client": the page reloads (the list is stale) and opens its manage dialog.
+  // "Open the client": the client's own page (ux-chassis-5), not a reload of the list.
   $('[data-issue-open]').addEventListener('click', () => {
     ctx.opening = true;
-    try {
-      sessionStorage.setItem(ISSUE_OPEN_KEY, ctx.issued.id);
-    } catch (_) {
-      // Without storage the page just reloads.
-    }
-    window.location.reload();
+    window.location.assign(`/clients/${encodeURIComponent(ctx.issued.id)}`);
   });
-  // Whatever closes it, an issued client means the list on the page is out of date.
+  // Whatever closes it, an issued client means the list on the page is out of date: the list reads itself
+  // again and shows the new row in place (clients-refresh), no reload.
   dialog.addEventListener('close', () => {
     window.clearInterval(ctx.pollTimer);
-    if (ctx.issued && !ctx.opening) window.location.reload();
+    if (!ctx.issued || ctx.opening) return;
+    dialog.dispatchEvent(new CustomEvent('clients-issued', { bubbles: true }));
+    ctx.resetToForm();
   });
 }

@@ -82,6 +82,11 @@ fn add_templates(env: &mut Environment<'static>) -> Result<(), Error> {
         include_str!("../../../templates/clients.html"),
     )
     .map_err(template_error)?;
+    env.add_template(
+        "client.html",
+        include_str!("../../../templates/client.html"),
+    )
+    .map_err(template_error)?;
     env.add_template("error.html", include_str!("../../../templates/error.html"))
         .map_err(template_error)?;
     env.add_template(

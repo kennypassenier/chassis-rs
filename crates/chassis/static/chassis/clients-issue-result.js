@@ -69,5 +69,30 @@ export function createResult(ctx) {
     ctx.pollTimer = window.setInterval(watchFirstCall, CLIENTS_POLL_MS);
   }
 
-  return { showIssued };
+  // The dialog as the page drew it, kept so it can go back to it: the list no
+  // longer reloads after an issue (ux-chassis-5), so a second "Issue" must find the
+  // form again and not the first receipt.
+  const initialTexts = [
+    '[data-issue-title]', '[data-issue-description]', '[data-issue-main-title]', '[data-issue-main-about]',
+    '[data-issue-main-foot]', '[data-issue-side-title]', '[data-issue-side-about]', '[data-issue-side-foot]',
+  ].map((selector) => [selector, ctx.$(selector)?.textContent ?? '']);
+  const initialState = { className: ctx.state.className, text: ctx.state.textContent };
+  const initialBadgeHidden = ctx.$('[data-issue-title-badge]').hidden;
+
+  function resetToForm() {
+    window.clearInterval(ctx.pollTimer);
+    for (const [selector, text] of initialTexts) setText(selector, text);
+    ctx.$('[data-issue-title-badge]').hidden = initialBadgeHidden;
+    ctx.state.className = initialState.className;
+    ctx.state.textContent = initialState.text;
+    ctx.$('[data-issue-pane="form"]').hidden = false;
+    ctx.$('[data-issue-pane="result"]').hidden = true;
+    ctx.$('[data-issue-actions="form"]').hidden = false;
+    ctx.$('[data-issue-actions="done"]').hidden = true;
+    ctx.form.reset();
+    ctx.issued = null;
+    ctx.token = '';
+  }
+
+  return { showIssued, resetToForm };
 }
