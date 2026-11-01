@@ -37,7 +37,7 @@ impl AppDb {
         spec: AppDbSpec,
         kinds: Vec<DataKind>,
     ) -> Result<(), Error> {
-        let db = Db::open(path, &spec.migrations)?;
+        let db = Db::open_with(path, &spec.migrations, &spec.options)?;
         let dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
         self.finish(db, spec.import, kinds, &dir)
     }

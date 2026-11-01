@@ -5,6 +5,7 @@ use super::*;
 
 mod maintenance;
 mod migrations;
+mod options;
 mod pool;
 
 pub(super) fn two() -> Vec<Migration> {

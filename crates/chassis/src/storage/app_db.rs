@@ -21,7 +21,7 @@ use rusqlite::Transaction;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 
-use super::db::{Db, Migration};
+use super::db::{Db, DbOptions, Migration};
 use super::kinds::{DataKind, KindStats, ResolvedSelector, Selector};
 use crate::core::error::Error;
 
@@ -127,6 +127,8 @@ pub struct AppDbSpec {
     pub migrations: Vec<Migration>,
     /// Move the project's old data in, once.
     pub import: Option<ImportHook>,
+    /// The pool and pre-migration copies (default: [`DbOptions::new`]).
+    pub options: DbOptions,
 }
 
 impl AppDbSpec {
@@ -135,7 +137,16 @@ impl AppDbSpec {
         AppDbSpec {
             migrations,
             import: None,
+            options: DbOptions::new(),
         }
+    }
+
+    /// Open the app file with these pool and copy options (see
+    /// [`DbOptions`]), e.g. four read-write readers and three copies kept
+    /// before a migration.
+    pub fn with_options(mut self, options: DbOptions) -> Self {
+        self.options = options;
+        self
     }
 
     /// Move the project's old data in, once (see the module docs).

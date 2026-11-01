@@ -32,7 +32,9 @@ pub use app_db::{
     AppDb, AppDbSpec, CompactPreview, Deleted, ImportContext, ImportHook, ImportReport,
     ImportState, ImportStore, KindOverview, Preview, StorageProblem,
 };
-pub use db::{Db, FileSizes, Inspection, Migration, meta_get, meta_set, wal_path};
+pub use db::{
+    Db, DbOptions, FileSizes, Inspection, MAX_READERS, Migration, meta_get, meta_set, wal_path,
+};
 pub use kinds::{
     DataKind, Filter, FilterKind, KindOps, KindStats, Now, ResolvedSelector, Selector, TimeFormat,
 };

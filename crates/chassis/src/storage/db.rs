@@ -32,10 +32,14 @@ mod inspect;
 mod maintenance;
 mod migrate;
 mod open;
+mod options;
+mod probe;
+mod snapshot;
 #[cfg(test)]
 mod tests;
 
 pub(crate) use maintenance::vacuum_into_conn;
+pub use options::{DbOptions, MAX_READERS};
 
 /// How long a statement waits for a lock before it gives up.
 pub const BUSY_TIMEOUT: Duration = Duration::from_millis(5_000);

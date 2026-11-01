@@ -9,6 +9,18 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **What kyu's store needed, in the kit's storage** (`storage`, kyu
+  2026-11-01): `Db::open_with(path, migrations, &DbOptions)` and
+  `AppDbSpec::with_options` with `DbOptions::readers(n)` (up to
+  `MAX_READERS`), `writable_readers()` and `pre_migration_snapshots(n)`: an
+  existing file is copied to `<stem>.pre-v<N>.db` before it migrates (a
+  failed copy refuses the migration) and only the newest n copies are kept,
+  newest by version number. `Db::probe_writable()` (`BEGIN IMMEDIATE`, then a
+  rollback) for `/healthz`. `Db::write_as` / `write_blocking_as` return the
+  project's own error type (`E: From<chassis::Error>`); the closure's own
+  refusals never count as a sick store, and `Db::note_failure` reports one
+  the project saw itself. `Db::open` behaves as before.
+
 - **Home-screen shortcuts and a share target for installable web apps**
   (`webapp`; Habits, 2026-11-01): `Pwa::shortcut(Shortcut::new(name, url))`
   and `Pwa::share_target(ShareTarget::get(action))` (or `post`, `.params`,

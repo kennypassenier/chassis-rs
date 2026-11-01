@@ -51,6 +51,7 @@ pub(super) fn kinds() -> Vec<DataKind> {
 pub(super) fn seeded() -> AppDb {
     let app = AppDb::open_in_memory(
         AppDbSpec {
+            options: Default::default(),
             migrations: schema(),
             import: None,
         },
