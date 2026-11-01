@@ -22,6 +22,15 @@ fn k35_features_resolve_what_the_project_lists_and_what_it_implies() {
         "passkeys brings the dashboard it lives on"
     );
     assert_eq!(
+        features(r#"chassis = { git = "g", tag = "v1", features = ["push"] }"#),
+        ["core", "storage", "dashboard", "assets", "webapp", "push"],
+        "push brings the web app, which brings the dashboard (their knob rows reach KIT.md)"
+    );
+    assert_eq!(
+        features(r#"chassis = { git = "g", tag = "v1", features = ["webapp"] }"#),
+        ["core", "storage", "dashboard", "assets", "webapp"],
+    );
+    assert_eq!(
         features(
             r#"chassis = { git = "g", tag = "v1", default-features = false, features = ["core", "self-update"] }"#
         ),

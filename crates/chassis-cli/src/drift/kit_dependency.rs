@@ -47,8 +47,9 @@ fn chassis_dep(table: &toml::Table) -> Option<&toml::Value> {
 }
 
 /// Every kit feature, in the order a document lists them. `assets` sits
-/// after `dashboard` because that is what pulls it in.
-pub const KIT_FEATURES: [&str; 7] = [
+/// after `dashboard` because that is what pulls it in; `webapp` and `push`
+/// come last because each builds on the ones before.
+pub const KIT_FEATURES: [&str; 9] = [
     "core",
     "storage",
     "dashboard",
@@ -56,6 +57,8 @@ pub const KIT_FEATURES: [&str; 7] = [
     "passkeys",
     "self-update",
     "notify",
+    "webapp",
+    "push",
 ];
 
 /// What one feature switches on besides itself, mirroring `[features]` in
@@ -66,7 +69,8 @@ fn implied(feature: &str) -> &'static [&'static str] {
     match feature {
         "dashboard" => &["core", "assets", "storage"],
         "assets" | "storage" => &["core"],
-        "passkeys" => &["dashboard", "assets", "storage", "core"],
+        "passkeys" | "webapp" => &["dashboard", "assets", "storage", "core"],
+        "push" => &["webapp", "dashboard", "assets", "storage", "core"],
         "self-update" | "notify" => &["core"],
         _ => &[],
     }
