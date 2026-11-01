@@ -63,13 +63,16 @@ async fn k29_row_actions_render_on_active_rows_and_post_to_the_project_route() {
     .await;
     assert_eq!(status, 200);
 
-    let (_, _, page) = http(addr, "GET", "/clients", &admin, "").await;
+    // ux-chassis-5: the project's buttons stand on the client's own page, and
+    // a destructive one confirms in the page (inline), not in a second dialog.
+    let (_, _, page) = http(addr, "GET", &format!("/clients/{live}"), &admin, "").await;
+    let (_, _, gone_page) = http(addr, "GET", &format!("/clients/{gone}"), &admin, "").await;
     let sync_button = format!(
         "data-post=\"/sources/{live}/sync\" data-method=\"POST\" data-busy-label=\"Syncing…\">Sync now</button>"
     );
     assert!(page.contains(&sync_button), "{page}");
     let purge_button = format!(
-        "class=\"kp-button kp-button--destructive\" data-post=\"/sources/{live}/events\" data-method=\"DELETE\" data-kp-destructive data-kp-confirm=\"Purge every event of this source?\">Purge events</button>"
+        "class=\"kp-button kp-button--destructive\" data-post=\"/sources/{live}/events\" data-method=\"DELETE\" data-kp-destructive data-kp-confirm=\"Purge every event of this source?\" data-kp-confirm-mode=\"inline\">Purge events</button>"
     );
     assert!(page.contains(&purge_button), "rule 31 attributes: {page}");
     assert!(
@@ -77,8 +80,8 @@ async fn k29_row_actions_render_on_active_rows_and_post_to_the_project_route() {
         "registration order"
     );
     assert!(
-        !page.contains(&format!("/sources/{gone}/")),
-        "no action on a revoked row: {page}"
+        !gone_page.contains(&format!("/sources/{gone}/")),
+        "no action on a revoked row: {gone_page}"
     );
     assert!(
         !page.contains("{id}"),

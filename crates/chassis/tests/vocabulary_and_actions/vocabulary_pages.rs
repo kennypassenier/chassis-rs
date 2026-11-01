@@ -55,11 +55,6 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     let id = id_of(&body);
     let (_, _, full) = http(addr, "GET", "/clients", &admin, "").await;
     assert_eq!(says_client(&visible_text(&full)), None, "{full}");
-    // Kenny 2026-10-21: the copy-paste command's variable follows the
-    // vocabulary, and `CLIENT_TOKEN` is nowhere on the page.
-    assert!(full.contains("export SOURCE_TOKEN="), "{full}");
-    assert!(full.contains("Bearer $SOURCE_TOKEN"), "{full}");
-    assert!(!full.contains("CLIENT_TOKEN"), "{full}");
     // ux-chassis-2: the onboarding cards are the empty state; once a source
     // exists the list takes their place. ux-chassis-3: the issue dialog
     // explains where requests go, in the page's vocabulary.
@@ -93,13 +88,24 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
         full.contains("Registered sources (1)"),
         "the list heading speaks the vocabulary and counts exactly: {full}"
     );
+    // ux-chassis-5: the client's own page carries the actions and the
+    // confirmations, in the project's words; the API paths are not vocabulary.
+    let (status, _, page) = http(addr, "GET", &format!("/clients/{id}"), &admin, "").await;
+    assert_eq!(status, 200, "{page}");
+    assert_eq!(says_client(&visible_text(&page)), None, "{page}");
+    // Kenny 2026-10-21: the copy-paste command's variable follows the
+    // vocabulary, and `CLIENT_TOKEN` is nowhere on the page (it stands on the
+    // client's own page since ux-chassis-5).
+    assert!(page.contains("export SOURCE_TOKEN="), "{page}");
+    assert!(page.contains("Bearer $SOURCE_TOKEN"), "{page}");
+    assert!(!page.contains("CLIENT_TOKEN"), "{page}");
     assert!(
-        full.contains(&format!("data-kp-post=\"/api/clients/{id}/revoke\"")),
-        "API paths are not vocabulary: {full}"
+        page.contains(&format!("data-kp-post=\"/api/clients/{id}/revoke\"")),
+        "API paths are not vocabulary: {page}"
     );
     assert!(
-        full.contains("Delete job-tracker and its history?"),
-        "{full}"
+        page.contains("Delete job-tracker and its history?"),
+        "{page}"
     );
     // ask-1, second half (kp-themes 5.1.0): the wrap override is the
     // package's own knob now, and it belongs on the COLUMN. The kit marks
@@ -126,15 +132,17 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     // so what is left is what a person actually reads. Kenny's case was
     // `2026-09-10T02:16:47Z` sitting in a live table column. Drilled red by
     // rendering `{{ c.issued_at }}` without the filter.
-    let shown = visible_text(&full);
+    for html in [&full, &page] {
+        let shown = visible_text(html);
+        assert!(
+            iso_timestamp_in(&shown).is_none(),
+            "a machine timestamp reached the page: {:?}",
+            iso_timestamp_in(&shown)
+        );
+    }
     assert!(
-        iso_timestamp_in(&shown).is_none(),
-        "a machine timestamp reached the page: {:?}",
-        iso_timestamp_in(&shown)
-    );
-    assert!(
-        full.contains("<time datetime=\""),
-        "and the exact value is still there for whoever needs it: {full}"
+        page.contains("<time datetime=\""),
+        "and the exact value is still there for whoever needs it: {page}"
     );
 
     // feat-clients-4: the row carries one control and nothing else. Kenny's
@@ -147,29 +155,31 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
         .and_then(|(_, rest)| rest.split_once("</tbody>"))
         .map(|(inner, _)| inner.to_string())
         .expect("the clients table has a tbody");
+    // ux-chassis-5: that one control is the link to the client's page.
     assert_eq!(
-        body.matches("<button").count(),
+        body.matches("<button").count() + body.matches("<a class=\"kp-button\"").count(),
         1,
-        "one button per row, and this page has one {}: {body}",
+        "one control per row, and this page has one {}: {body}",
         "client"
     );
+
     assert!(
         !full.contains("<th>Token</th>"),
         "the token column is gone from the table: {full}"
     );
     assert!(
-        full.contains("data-manage=") && full.contains("manage-dialog"),
-        "and the row's button opens the dialog that holds the rest: {full}"
+        full.contains(&format!("<a class=\"kp-button\" href=\"/clients/{id}\""))
+            && !full.contains("manage-dialog")
+            && !full.contains("data-kp-reload=\"page\""),
+        "and the row's control is a link to the page that holds the rest: {full}"
     );
 
     // Every confirmation the kit renders is read by a person and is not
     // reached by `visible_text`, which strips attributes. Drilled red by
-    // putting "caller" back in the Revoke confirmation.
-    let confirms = confirm_texts(&full);
-    assert!(
-        confirms.iter().any(|c| c.contains("job-tracker")),
-        "the confirmations name the thing by its own name: {confirms:?}"
-    );
+    // putting "caller" back in the Revoke confirmation. The page's own
+    // panels are text, so `visible_text` above covers them; the attribute
+    // phrases of a project's own actions are read here.
+    let confirms = confirm_texts(&page);
     for c in &confirms {
         assert_eq!(
             says_client(c),
@@ -177,6 +187,10 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
             "a confirmation names the thing the project's own way: {c}"
         );
     }
+    assert!(
+        page.contains("Revoke the token of job-tracker?"),
+        "the confirmations name the thing by its own name: {page}"
+    );
 
     let (_, _, status_page) = http(addr, "GET", "/", &admin, "").await;
     assert_eq!(
@@ -202,7 +216,15 @@ async fn k28_without_vocabulary_the_pages_still_say_client() {
     assert!(says_client(&visible_text(&page)).is_some(), "{page}");
     let (status, body) = issue(addr, &cookie, "job-tracker").await;
     assert_eq!(status, 201, "{body}");
-    let (_, _, full) = http(addr, "GET", "/clients", &[("Cookie", &cookie)], "").await;
+    let id = id_of(&body);
+    let (_, _, full) = http(
+        addr,
+        "GET",
+        &format!("/clients/{id}"),
+        &[("Cookie", &cookie)],
+        "",
+    )
+    .await;
     assert!(full.contains("export CLIENT_TOKEN="), "{full}");
     running.stop().await;
 }

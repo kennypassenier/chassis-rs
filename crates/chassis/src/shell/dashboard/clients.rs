@@ -4,6 +4,7 @@
 //! standing rules into the document the clients template draws.
 
 use super::*;
+use crate::core::error::Kind;
 
 #[derive(Serialize)]
 struct ClientRow {
@@ -42,6 +43,42 @@ pub(super) fn page(d: &Dashboard) -> Result<Html<String>, Error> {
             logged_in => true,
             idle_clients => d.idle_clients(),
             active_nav => "/clients",
+            ..minijinja::Value::from_serialize(&data)
+        },
+    )
+}
+
+/// `GET /clients/{id}` — the page of one client: its token, the command, the
+/// test, the request log and the danger zone (ux-chassis-5). It is drawn from
+/// the same rows as the list, so the two never disagree; an id that names no
+/// client is a 404 in the project's words.
+pub(super) fn detail(d: &Dashboard, id: &str) -> Result<Html<String>, Error> {
+    let mut data = clients_data(d);
+    let row = data["clients"]
+        .as_array()
+        .and_then(|rows| rows.iter().find(|r| r["id"] == id))
+        .cloned()
+        .ok_or_else(|| {
+            Error::new(
+                Kind::NotFound,
+                format!("there is no {} at this address", d.vocab.singular),
+                format!(
+                    "open the {} list and pick one; it may have been deleted",
+                    d.vocab.singular
+                ),
+            )
+        })?;
+    // The list's rows are not the detail page's business.
+    if let Some(map) = data.as_object_mut() {
+        map.remove("clients");
+    }
+    d.render(
+        "client.html",
+        context! {
+            logged_in => true,
+            idle_clients => d.idle_clients(),
+            active_nav => "/clients",
+            c => row,
             ..minijinja::Value::from_serialize(&data)
         },
     )

@@ -1,5 +1,5 @@
 // The Clients page: figures as filters, idle callout, auto-refresh and the
-// wiring of the issue and manage dialogs.
+// wiring of the issue dialog.
 // Split out of chassis.js by responsibility; the page runs exactly as
 // before.
 
@@ -8,7 +8,6 @@ import { watchForFirstCall } from './clients-first-call.js';
 import { startIssueDialog } from './clients-issue.js';
 import { createFilters } from './clients-filters.js';
 import { wireRefresh } from './clients-refresh.js';
-import { startManageDialogs } from './clients-manage.js';
 
 // ============================================================================
 // clients (kit-kp11): the Clients page, as approved in the clients-list and
@@ -17,15 +16,14 @@ import { startManageDialogs } from './clients-manage.js';
 //   - the kp modules the page uses (loaded only on this page),
 //   - the four figures as filters (a click toggles, a second click resets),
 //   - the idle callout with "Show them",
-//   - the auto-refresh (swaps the figures, the rows and the dialogs in place),
+//   - the auto-refresh (swaps the figures and the rows in place),
 //   - the first-client walk-through: with no call yet, the page asks
 //     /api/kit/clients every 5 seconds and finishes step 3 by itself,
 //   - the issue dialog (clients-issue): the live client card that follows
 //     the form, and the swap to the token, the first command and the receipt
 //     after Issue, without a reload,
-//   - the manage dialogs (clients-manage): kp-themes parts attached when a
-//     dialog first opens; the token is a .kp-secret that asks the service,
-//     the requests are a .kp-inspector, Send test is a flash button.
+//   - nothing for managing a client: Manage is a link to the client's own
+//     page (client-page.js, ux-chassis-5).
 //
 // Dates are written by the server in dd/mm/yyyy HH:mm (Europe/Brussels);
 // `formatBrussels` is the same format for the few times the browser writes.
@@ -46,7 +44,6 @@ async function startClientsPage(root) {
   modules.hovercard.attachHoverCards(document);
   const issueDialog = document.getElementById('issue-dialog');
   if (issueDialog) await startIssueDialog(issueDialog, load, root.dataset.clientsOne);
-  startManageDialogs(root, load);
   for (const [, name, attach] of wanted) modules[name][attach](root);
 
   // The page's shared context: the kp modules and the words the filters use.

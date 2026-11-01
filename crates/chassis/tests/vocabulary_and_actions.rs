@@ -8,6 +8,8 @@ mod support;
 
 #[path = "vocabulary_and_actions/actions.rs"]
 mod actions;
+#[path = "vocabulary_and_actions/client_page.rs"]
+mod client_page;
 #[path = "vocabulary_and_actions/fixtures.rs"]
 mod fixtures;
 #[path = "vocabulary_and_actions/html_text.rs"]

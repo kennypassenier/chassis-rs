@@ -48,9 +48,10 @@ fn the_client_dialogs_are_form_grids() {
         !html.contains("kp-autogrid"),
         "the old auto grid is gone from the clients page"
     );
+    let client = kit_file("templates/client.html");
     assert!(
-        html.contains(r#"class="kp-formgrid manage-test__grid" data-kp-formgrid-stack="never""#)
-            && html.contains(r#"class="kp-formgrid__actions manage-test__send""#),
+        client.contains(r#"class="kp-formgrid manage-test__grid" data-kp-formgrid-stack="never""#)
+            && client.contains(r#"class="kp-formgrid__actions manage-test__send""#),
         "the manage test is one form-grid row, Send test on the actions track"
     );
     let css = kit_file("static/chassis.css");

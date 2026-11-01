@@ -18,7 +18,10 @@ document.addEventListener('click', async (event) => {
     async () => {
       const res = await fetch(post.dataset.post, { method: post.dataset.method || 'POST', headers: { accept: 'application/json' } });
       if (res.ok) {
-        window.location.reload();
+        // A page that can show the result in place (a client's own page) takes
+        // the event and cancels the reload; everywhere else the page reloads.
+        const reload = post.dispatchEvent(new CustomEvent('chassis-post-done', { bubbles: true, cancelable: true }));
+        if (reload) window.location.reload();
         return 'Done';
       }
       const body = await res.json().catch(() => ({}));

@@ -92,7 +92,10 @@ pub(super) fn build(
         pages_admin = pages_admin.route("/status", get(dashboard::status_page));
     }
     if kit_renders && clients_on {
-        pages_admin = pages_admin.route("/clients", get(dashboard::clients_page));
+        pages_admin = pages_admin
+            .route("/clients", get(dashboard::clients_page))
+            // ux-chassis-5: one page per client; not a nav entry.
+            .route("/clients/{id}", get(dashboard::client_page));
     }
     // 3.11.0: the Storage page. Its data is `/api/kit/storage` (below), so
     // the page and a project's own web app draw from one source.

@@ -58,7 +58,14 @@ async fn the_test_it_field_sends_the_edited_body_to_the_test_route() {
     let (_, issued) = issue(addr, &cookie, "job-tracker").await;
     let id = id_of(&issued);
 
-    let (_, _, page) = http(addr, "GET", "/clients", &[("Cookie", &cookie)], "").await;
+    let (_, _, page) = http(
+        addr,
+        "GET",
+        &format!("/clients/{id}"),
+        &[("Cookie", &cookie)],
+        "",
+    )
+    .await;
     assert!(
         page.contains("data-manage-body") && page.contains("data-kp-json=\"strict\""),
         "the field starts from a JSON route and checks JSON: {page}"
