@@ -52,7 +52,10 @@ impl WebApp {
 /// Refuse a service whose web apps would install as more than one app: the
 /// manifest, worker and icons live at the root, so there is room for one.
 /// The remedy names the mounts, so the project knows which to opt out.
+/// Two web apps on the same mount are refused first: their routers would
+/// collide when merged, which panics instead of saying why.
 pub fn single_installable(apps: &[WebApp]) -> Result<(), Error> {
+    distinct_mounts(apps)?;
     let mounts: Vec<&str> = apps
         .iter()
         .filter(|a| a.is_installable())
@@ -67,6 +70,20 @@ pub fn single_installable(apps: &[WebApp]) -> Result<(), Error> {
             ),
             "call .without_pwa() on every web app except the one to install",
         ));
+    }
+    Ok(())
+}
+
+/// Refuse two web apps mounted at the same path.
+fn distinct_mounts(apps: &[WebApp]) -> Result<(), Error> {
+    let mut seen = std::collections::BTreeSet::new();
+    for mount in apps.iter().map(WebApp::mount) {
+        if !seen.insert(mount) {
+            return Err(Error::config(
+                format!("two web apps are mounted at {mount}"),
+                "give each web app its own path with .at(...)",
+            ));
+        }
     }
     Ok(())
 }

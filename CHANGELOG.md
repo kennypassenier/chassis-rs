@@ -213,6 +213,9 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Fixed
 
+- **Two web apps on one mount are refused at start** (`[fix-mounts-1]`):
+  now that `App::webapp` takes several, two on the same path would have
+  panicked in the router merge; start and `--check` say which path instead.
 - **The service worker no longer caches an app's own data** (Habits, 2026-11-02;
   `[fix-swcache-1]`): it cached any same-origin GET outside `/api`, `/login`
   and a few more, so `/data/*.json` answers lingered in browser storage and

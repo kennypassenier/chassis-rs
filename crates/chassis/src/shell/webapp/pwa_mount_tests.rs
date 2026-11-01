@@ -173,3 +173,11 @@ fn the_page_head_helper_adds_the_register_script() {
             .is_none()
     );
 }
+
+#[test]
+fn two_web_apps_on_one_mount_are_refused_before_the_router_merge() {
+    let a = WebApp::embedded(FILES).at("/ui").without_pwa();
+    let b = WebApp::embedded(FILES).at("/ui").without_pwa();
+    let err = single_installable(&[a, b]).unwrap_err().to_string();
+    assert!(err.contains("/ui") && err.contains(".at("), "{err}");
+}
