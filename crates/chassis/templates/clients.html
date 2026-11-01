@@ -16,7 +16,7 @@
         <h1 class="kp-page-header__title">{{ clients_label }}</h1>
         <p class="kp-page-header__description">Every program that calls this service is one {{ vocab.singular }} with its own token, so you can switch one off without touching the rest.</p>
         {% if not onboarding %}
-        <div class="clients-fresh"><div class="kp-refresh" data-kp-refresh="30" data-kp-remember="clients-refresh" data-kp-look="menu" data-kp-refresh-choices="0,15,30,60"></div></div>
+        {% include "refresh_slot.html" %}
         {% endif %}
       </div>
       <div class="kp-page-header__actions">

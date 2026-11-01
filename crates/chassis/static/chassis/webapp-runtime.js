@@ -16,6 +16,7 @@
 import { configureRemember } from '../kp/dist/kp-themes.min.js';
 import { attachKitEffects } from './kit-effects.js';
 import { registerPwa } from './pwa-register.js';
+import { installRefresh } from './refresh-kit.js';
 
 /**
  * Install the runtime on `win`/`doc` unless it is already there. The attach
@@ -29,6 +30,9 @@ export function installRuntime(win, doc, deps = {}) {
     // server) data-kp-remember follows the login across devices; without
     // them localStorage stays as it was.
     if (win.chassisPrefs) remember({ storage: win.chassisPrefs.storage });
+    // The kit's one refresh control and `window.chassisRefresh` (ux-chassis-10):
+    // after the store above, so the control reads the login's remembered interval.
+    (deps.installRefresh ?? installRefresh)(win, doc);
     const effects = attach(doc);
     // An installable app (feat-webapp-4) links the kit's manifest; only then
     // does the page register the service worker.

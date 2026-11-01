@@ -23,7 +23,7 @@
       <div>
         <h1 class="kp-page-header__title">Storage</h1>
         <p class="kp-page-header__description">How much room this service’s data takes, what it is made of, and how to clear out what you no longer need.</p>
-        <div class="storage-fresh"><div class="kp-refresh" data-kp-refresh="300" data-kp-remember="chassis-storage-refresh" data-kp-look="menu" data-kp-refresh-choices="0,15,30,60,300"></div></div>
+        {% with refresh_default = 300 %}{% include "refresh_slot.html" %}{% endwith %}
       </div>
       <div class="kp-page-header__actions"></div>
     </div>

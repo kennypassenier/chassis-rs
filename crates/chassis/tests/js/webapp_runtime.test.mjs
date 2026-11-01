@@ -13,12 +13,13 @@ const { installRuntime } = await import('../../static/chassis/webapp-runtime.js'
 delete globalThis.window;
 
 function deps() {
-    const calls = { attach: 0, remember: [] };
+    const calls = { attach: 0, remember: [], refresh: 0 };
     return {
         calls,
         deps: {
             attachKitEffects: () => { calls.attach += 1; return { current: () => 'fx' }; },
             configureRemember: (o) => calls.remember.push(o),
+            installRefresh: () => { calls.refresh += 1; },
         },
     };
 }
@@ -29,6 +30,7 @@ test('a second install on the same page does nothing', () => {
     const first = installRuntime(win, {}, d);
     const second = installRuntime(win, {}, d);
     assert.equal(calls.attach, 1);
+    assert.equal(calls.refresh, 1);
     assert.equal(first, second);
     assert.equal(win.chassisRuntime.effects, 'fx');
 });

@@ -1,0 +1,47 @@
+/* The kit's one refresh control [ux-chassis-10].
+   Imported by ../chassis.css; the import order is the cascade order. */
+
+/* The header's freshness line and refresh control stand under the
+   description, on one row that wraps as whole items. The same slot is on
+   Status, Storage and Clients (templates/refresh_slot.html). */
+.chassis-fresh {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--kp-space-sm, 0.5rem) var(--kp-space-md, 1rem);
+    margin-block-start: var(--kp-space-sm, 0.5rem);
+}
+
+/* One visual row, one row track (Kenny, 2026-10-19): the control's three
+   parts share top and bottom edges instead of being centred at their own
+   heights, and the freshness line keeps its column when the page is narrow
+   instead of wrapping its button under it. Scoped to the kit's own slot
+   (kit-r4): a section's own `.kp-refresh` lives in a form grid, and these
+   unlayered rules would beat the package's subgrid tracks there. */
+.chassis-fresh .kp-refresh__bar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: stretch;
+    column-gap: var(--kp-space-md, 1rem);
+}
+.chassis-fresh .kp-refresh__bar > .kp-button {
+    block-size: auto;
+    min-block-size: 0;
+}
+.chassis-fresh .kp-refresh__bar > :not(.kp-button):not(.kp-menu-button) {
+    display: flex;
+    align-items: center;
+}
+/* On a phone the freshness line (which keeps room for its longest wording)
+   takes a row of its own under the chooser and the button: three columns
+   would push "updating…" past the edge. */
+@media (max-width: 39.99rem) {
+    .chassis-fresh .kp-refresh__bar {
+        grid-template-columns: minmax(0, 1fr) auto;
+        row-gap: var(--kp-space-sm, 0.5rem);
+    }
+    .chassis-fresh .kp-refresh__bar > .kp-refresh__line {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+}

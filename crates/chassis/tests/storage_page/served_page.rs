@@ -20,7 +20,7 @@ async fn the_page_is_the_approved_frame_behind_the_login() {
         "Space used",
         "Give back empty space",
         "What is stored",
-        "data-kp-refresh",
+        "data-chassis-refresh-default=\"300\"",
     ] {
         assert!(html.contains(part), "the page lacks {part}");
     }

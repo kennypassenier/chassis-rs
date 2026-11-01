@@ -17,15 +17,6 @@
   .kp-datatable[data-kp-cards] .clients-fit { inline-size: auto; }
 }
 
-/* The refresh control stands under the description, on its own row. */
-.clients-fresh {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--kp-space-sm, 0.5rem) var(--kp-space-md, 1rem);
-  margin-block-start: var(--kp-space-sm, 0.5rem);
-}
-
 /* The primary button that ends the walk-through. */
 .clients-actions {
   margin-block-start: var(--kp-space-sm, 0.5rem);

@@ -90,6 +90,11 @@ fn add_templates(env: &mut Environment<'static>) -> Result<(), Error> {
     )
     .map_err(template_error)?;
     env.add_template(
+        "refresh_slot.html",
+        include_str!("../../../templates/refresh_slot.html"),
+    )
+    .map_err(template_error)?;
+    env.add_template(
         "status_notify.html",
         include_str!("../../../templates/status_notify.html"),
     )
