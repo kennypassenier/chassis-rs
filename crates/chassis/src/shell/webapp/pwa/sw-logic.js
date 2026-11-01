@@ -16,6 +16,30 @@ const MAX_ENTRIES = 200;
 // worker itself.
 const NEVER_CACHED = ['/api', '/login', '/logout', '/sw.js', '/manifest.webmanifest'];
 
+// What the worker may keep, as an allow-list (fix-swcache-1): pages the user
+// navigates to, and the app's static files. Everything else, above all the
+// app's own JSON data (e.g. /data/tasks.json), goes straight to the network:
+// a cached answer would linger in browser storage and show a stale snapshot
+// offline (Habits: an item added offline later duplicated).
+const ASSET_PREFIXES = ['/static/', '/pwa/'];
+const ASSET_EXTENSIONS = new Set([
+    'js', 'mjs', 'css', 'map', 'woff2', 'ttf', 'png', 'svg', 'ico',
+    'jpg', 'jpeg', 'webp', 'gif', 'webmanifest',
+]);
+
+/** Whether the request loads a page: a navigation, a document or an HTML Accept. */
+function isNavigation({ mode = '', destination = '', accept = '' }) {
+    return mode === 'navigate' || destination === 'document' || accept.includes('text/html');
+}
+
+/** Whether the path is one of the kit's or the app's static files. */
+function isAssetPath(pathname) {
+    if (ASSET_PREFIXES.some((p) => pathname.startsWith(p))) return true;
+    const name = pathname.slice(pathname.lastIndexOf('/') + 1);
+    const dot = name.lastIndexOf('.');
+    return dot > 0 && ASSET_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
+}
+
 /** The cache's name: it changes with the kit's assets and with the app. */
 function cacheNameFor(kitVersion, appVersion) {
     return `${CACHE_PREFIX}${kitVersion}-${appVersion}`;
@@ -27,12 +51,13 @@ function staleCaches(names, current) {
 }
 
 /**
- * Whether the worker handles this request at all (else the browser does).
+ * Whether the worker handles this request at all (else the browser does):
+ * only pages and static files (see the allow-list above).
  * An event stream is never handled: a never-ending response routed through
  * the worker's own fetch() held a connection per page, and Firefox stopped
  * loading pages after six (Habits, 2026-11-01).
  */
-function isCacheableRequest({ method, url, origin, hasRange, accept = '' }) {
+function isCacheableRequest({ method, url, origin, hasRange, accept = '', mode = '', destination = '' }) {
     if (method !== 'GET' || hasRange) return false;
     if (accept.includes('text/event-stream')) return false;
     let u;
@@ -42,7 +67,8 @@ function isCacheableRequest({ method, url, origin, hasRange, accept = '' }) {
         return false;
     }
     if (u.origin !== origin) return false;
-    return !NEVER_CACHED.some((p) => u.pathname === p || u.pathname.startsWith(`${p}/`));
+    if (NEVER_CACHED.some((p) => u.pathname === p || u.pathname.startsWith(`${p}/`))) return false;
+    return isNavigation({ mode, destination, accept }) || isAssetPath(u.pathname);
 }
 
 /**
@@ -55,9 +81,9 @@ function isCacheableRequest({ method, url, origin, hasRange, accept = '' }) {
 function isCacheableResponse(res) {
     if (res.status !== 200 || res.type !== 'basic' || res.redirected) return false;
     const type = res.headers.get('content-type') || '';
-    if (type.startsWith('text/event-stream')) return false;
+    if (type.startsWith('text/event-stream') || type.includes('application/json')) return false;
     const control = (res.headers.get('cache-control') || '').toLowerCase();
-    return !control.includes('no-store');
+    return !control.includes('no-store') && !control.includes('private');
 }
 
 /** The oldest keys beyond `max`, in the order the cache lists them. */

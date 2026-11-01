@@ -18,6 +18,7 @@ const logic = (() => {
 
 const origin = 'https://meds.example';
 const req = (path, method = 'GET', extra = {}) => ({ method, url: origin + path, origin, hasRange: false, ...extra });
+const nav = { mode: 'navigate' };
 const res = ({ headers = {}, ...over } = {}) => ({
     status: 200,
     type: 'basic',
@@ -28,17 +29,17 @@ const res = ({ headers = {}, ...over } = {}) => ({
 });
 
 test('only same-origin GETs outside the API and the login are handled', () => {
-    assert.equal(logic.isCacheableRequest(req('/')), true);
+    assert.equal(logic.isCacheableRequest(req('/', 'GET', nav)), true);
     assert.equal(logic.isCacheableRequest(req('/static/chassis.css?v=1')), true);
     assert.equal(logic.isCacheableRequest(req('/js/main.js')), true);
     for (const path of ['/api', '/api/kit/status', '/login', '/logout', '/sw.js', '/manifest.webmanifest']) {
         assert.equal(logic.isCacheableRequest(req(path)), false, path);
     }
-    assert.equal(logic.isCacheableRequest(req('/apiary')), true, 'a prefix match is not a path match');
+    assert.equal(logic.isCacheableRequest(req('/apiary', 'GET', nav)), true, 'a prefix match is not a path match');
     for (const method of ['POST', 'PUT', 'DELETE', 'PATCH']) {
         assert.equal(logic.isCacheableRequest(req('/x', method)), false, method);
     }
-    assert.equal(logic.isCacheableRequest(req('/x', 'GET', { hasRange: true })), false);
+    assert.equal(logic.isCacheableRequest(req('/x.js', 'GET', { hasRange: true })), false);
     assert.equal(logic.isCacheableRequest({ ...req('/x'), url: 'https://other.example/x' }), false);
     assert.equal(logic.isCacheableRequest({ ...req('/x'), url: 'not a url' }), false);
 });
@@ -149,5 +150,36 @@ test('an event stream is left to the browser, wherever it is mounted', () => {
     const live = req('/live/updates', 'GET', { accept: 'text/event-stream' });
     assert.equal(logic.isCacheableRequest(live), false);
     assert.equal(logic.isCacheableRequest(req('/live/updates', 'GET', { accept: 'text/html' })), true);
-    assert.equal(logic.isCacheableRequest(req('/x')), true, 'no Accept header is a page or a file');
+});
+
+test('only pages and static files are cached; the app data is not (fix-swcache-1)', () => {
+    assert.equal(logic.isCacheableRequest(req('/data/tasks.json')), false, 'app JSON data');
+    assert.equal(logic.isCacheableRequest(req('/data/tasks.json', 'GET', { accept: 'application/json' })), false);
+    assert.equal(logic.isCacheableRequest(req('/x')), false, 'no page, no asset');
+    assert.equal(logic.isCacheableRequest(req('/tasks', 'GET', nav)), true, 'a page navigation');
+    assert.equal(logic.isCacheableRequest(req('/tasks', 'GET', { destination: 'document' })), true);
+    assert.equal(logic.isCacheableRequest(req('/tasks', 'GET', { accept: 'text/html,*/*' })), true);
+    assert.equal(logic.isCacheableRequest(req('/static/x.js')), true);
+    assert.equal(logic.isCacheableRequest(req('/static/chassis/data')), true, 'under /static/');
+    assert.equal(logic.isCacheableRequest(req('/pwa/icon-192.png')), true);
+    assert.equal(logic.isCacheableRequest(req('/app/a.WOFF2')), true, 'by extension');
+    assert.equal(logic.isCacheableRequest(req('/data/x.json.map')), true);
+});
+
+test('a JSON or private response is never stored (fix-swcache-1)', () => {
+    assert.equal(logic.isCacheableResponse(res({ headers: { 'content-type': 'application/json' } })), false);
+    assert.equal(logic.isCacheableResponse(res({ headers: { 'content-type': 'application/json; charset=utf-8' } })), false);
+    assert.equal(logic.isCacheableResponse(res({ headers: { 'cache-control': 'Private, max-age=0' } })), false);
+    assert.equal(logic.isCacheableResponse(res({ headers: { 'content-type': 'text/html' } })), true);
+});
+
+test('the worker passes app data through untouched and keeps no copy', async () => {
+    const w = worker({ network: () => res({ body: '[]', headers: { 'content-type': 'application/json' } }) });
+    assert.equal(await w.handle(request('/data/tasks.json')), undefined, 'not handled');
+    assert.equal(w.store.size, 0);
+    const page = worker({ network: () => res({ body: 'x' }) });
+    await page.handle(request('/tasks', 'navigate'));
+    await page.handle(request('/static/x.js'));
+    await page.handle(request('/pwa/icon-192.png'));
+    assert.equal(page.store.size, 3);
 });
