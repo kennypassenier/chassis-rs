@@ -27,7 +27,7 @@ pub(super) fn parse_bool(loaded: &Loaded, key: &str) -> Result<bool, Error> {
     }
 }
 
-pub(super) fn parse_u64(loaded: &Loaded, key: &str, min: u64) -> Result<u64, Error> {
+pub(crate) fn parse_u64(loaded: &Loaded, key: &str, min: u64) -> Result<u64, Error> {
     let raw = loaded.get(key).unwrap_or("");
     let v: u64 = raw.trim().parse().map_err(|_| {
         Error::config(

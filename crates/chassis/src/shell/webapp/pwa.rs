@@ -4,15 +4,22 @@
 //! service worker (child modules) are implementation.
 
 mod extras;
+mod fields;
 mod glyphs;
+mod head;
 pub(super) mod icons;
 mod manifest;
 mod png;
 mod routes;
+mod screenshots;
+mod svg;
 mod worker;
 
 use crate::core::error::Error;
 pub use extras::{ShareTarget, Shortcut};
+pub use fields::{ClientMode, Dir, Orientation, Reload};
+pub(super) use head::HeadTag;
+pub use screenshots::{FormFactor, Screenshot};
 
 /// How the installed app is framed (`display` in the web app manifest).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,6 +62,8 @@ pub struct Pwa {
     pub(super) background_color: String,
     pub(super) shortcuts: Vec<Shortcut>,
     pub(super) share_target: Option<ShareTarget>,
+    pub(super) screenshots: Vec<Screenshot>,
+    fields: fields::Fields,
 }
 
 impl Default for Pwa {
@@ -75,6 +84,8 @@ impl Pwa {
             background_color: DEFAULT_BACKGROUND_COLOR.into(),
             shortcuts: Vec::new(),
             share_target: None,
+            screenshots: Vec::new(),
+            fields: fields::Fields::default(),
         }
     }
 
@@ -130,10 +141,19 @@ impl Pwa {
         self
     }
 
+    /// One picture for the install prompt (call it more than once for
+    /// more; checked at start).
+    pub fn screenshot(mut self, screenshot: Screenshot) -> Self {
+        self.screenshots.push(screenshot);
+        self
+    }
+
     /// Refuse a colour that could break out of the attribute it lands in,
-    /// and shortcuts or a share target a browser would drop.
+    /// and shortcuts, a share target or screenshots a browser would drop.
     pub(super) fn validate(&self) -> Result<(), Error> {
         extras::validate(&self.shortcuts, self.share_target.as_ref())?;
+        screenshots::validate(&self.screenshots)?;
+        fields::validate(&self.fields)?;
         for (what, c) in [
             ("theme_color", &self.theme_color),
             ("background_color", &self.background_color),
@@ -155,56 +175,19 @@ impl Pwa {
     }
 }
 
-/// One tag a page may already carry: `key` is what a page mentions when it
-/// has the tag (compared with quotes removed), `html` is the tag.
-pub(super) struct HeadTag {
-    pub(super) key: &'static str,
-    pub(super) html: String,
-}
-
-impl Pwa {
-    /// The tags the pages carry: manifest, theme colour, touch icon.
-    pub(super) fn head_tags(&self) -> Vec<HeadTag> {
-        vec![
-            HeadTag {
-                key: "rel=manifest",
-                html: format!("<link rel=\"manifest\" href=\"{}\">", routes::MANIFEST_PATH),
-            },
-            HeadTag {
-                key: "name=theme-color",
-                html: format!(
-                    "<meta name=\"theme-color\" content=\"{}\">",
-                    self.theme_color
-                ),
-            },
-            HeadTag {
-                key: "apple-touch-icon",
-                html: format!(
-                    "<link rel=\"apple-touch-icon\" href=\"{}\">",
-                    routes::TOUCH_ICON_PATH
-                ),
-            },
-        ]
-    }
-
-    /// All the tags as one string, for the kit's own layout (the login page).
-    pub(crate) fn head_html(&self) -> String {
-        self.head_tags().iter().map(|t| t.html.as_str()).collect()
-    }
-}
-
 impl super::WebApp {
     /// The tags to add to the app's HTML pages; `None` when the app is not
-    /// installable (opted out, below the root or without the kit runtime).
+    /// installable (opted out or without the kit runtime).
     pub(super) fn page_tags(&self) -> Option<Vec<HeadTag>> {
-        self.installable().map(Pwa::head_tags)
+        self.installable()
+            .map(|p| p.head_tags(svg::present(&self.source)))
     }
 
-    /// The install settings, when the app is installable at all.
+    /// The install settings, when the app is installable at all. Where the
+    /// app is mounted does not matter: the whole service is the installed
+    /// app (scope `/`), the web app only supplies its files and start page.
     fn installable(&self) -> Option<&Pwa> {
-        self.pwa
-            .as_ref()
-            .filter(|_| self.at_root() && self.kit_runtime)
+        self.pwa.as_ref().filter(|_| self.kit_runtime)
     }
 
     /// The public routes (manifest, worker, icons) for the dashboard mount to
@@ -215,6 +198,28 @@ impl super::WebApp {
 
     /// The tags for the kit's own pages (the login page), same condition.
     pub(crate) fn pwa_head_html(&self) -> Option<String> {
-        self.installable().map(Pwa::head_html)
+        self.installable()
+            .map(|p| p.head_html(svg::present(&self.source)))
+    }
+
+    /// The head markup for a page the project renders itself (outside the
+    /// web app's files, which get it injected): the manifest link, theme
+    /// colour, touch icon, tab icons and (with `push`) the push marker, plus
+    /// the `<script type="module">` that registers the service worker. The
+    /// script is a kit asset, so it runs under `script-src 'self'`. `None`
+    /// when the app is not installable. Add it inside `<head>`.
+    pub fn pwa_page_head(&self) -> Option<String> {
+        self.pwa_head_html().map(|tags| {
+            format!(
+                "{tags}<script type=\"module\" src=\"/static/chassis/pwa-boot.js?v={}\"></script>",
+                crate::shell::assets::asset_version()
+            )
+        })
+    }
+
+    /// Whether the install settings are on (the web app opted in and has
+    /// the kit runtime); at most one web app of a service may be.
+    pub(crate) fn is_installable(&self) -> bool {
+        self.installable().is_some()
     }
 }

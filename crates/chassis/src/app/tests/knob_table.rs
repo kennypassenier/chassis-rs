@@ -4,7 +4,14 @@
 use super::*;
 
 /// Every feature a knob can name; `core` knobs carry `None`.
-const ALL_FEATURES: [&str; 5] = ["dashboard", "passkeys", "self-update", "notify", "storage"];
+const ALL_FEATURES: [&str; 6] = [
+    "dashboard",
+    "passkeys",
+    "self-update",
+    "notify",
+    "storage",
+    "push",
+];
 
 /// K31: the table has one row per knob, in `knobs()` order, and the
 /// two secrets show `(secret)` where a default would be — never a
@@ -126,7 +133,7 @@ fn k31_every_knob_has_a_doc_sentence() {
             assert!(
                 matches!(
                     f,
-                    "dashboard" | "passkeys" | "self-update" | "notify" | "storage"
+                    "dashboard" | "passkeys" | "self-update" | "notify" | "storage" | "push"
                 ),
                 "{}: unknown feature {f}",
                 k.key

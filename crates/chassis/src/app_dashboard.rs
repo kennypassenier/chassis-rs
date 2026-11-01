@@ -87,6 +87,9 @@ pub(crate) struct MountExtra {
     /// 3.15.0: the notification channel behind the Status card.
     #[cfg(feature = "notify")]
     pub notify: Option<crate::shell::notify_api::NotifyState>,
+    /// habits-push-1: the app's push handle, connected at mount.
+    #[cfg(feature = "push")]
+    pub push: Option<crate::push::PushHandle>,
 }
 
 /// Everything the mount stages share: the app's identity and limits, the
@@ -170,6 +173,22 @@ pub(crate) async fn mount_with(
     )?;
     let kit = kit_routes::build(&extra, &built, &auth, &login_limit);
     let clients_api = kit_routes::clients_router(&extra.disabled, api, &built, &auth);
+    // habits-push-1: Web Push, behind the admin login (empty when it is off).
+    #[cfg(feature = "push")]
+    let push_api = match (
+        extra.push.as_ref(),
+        extra.storage.as_ref().and_then(|s| s.kit_db()),
+    ) {
+        (Some(handle), Some(kit_db)) => crate::push::mount::mount(crate::push::mount::PushInput {
+            loaded: ctx.loaded,
+            kit: kit_db,
+            seal_key: &ctx.seal_key,
+            open: ctx.open,
+            handle,
+            auth: &auth,
+        })?,
+        _ => Router::new(),
+    };
     #[cfg(feature = "passkeys")]
     let passkey_routes = passkey_routes::routes(
         &ctx,
@@ -221,6 +240,10 @@ pub(crate) async fn mount_with(
     #[cfg(feature = "notify")]
     {
         all = all.merge(kit.notify_api);
+    }
+    #[cfg(feature = "push")]
+    {
+        all = all.merge(push_api);
     }
     #[cfg(feature = "passkeys")]
     {

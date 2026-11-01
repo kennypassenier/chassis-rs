@@ -30,6 +30,11 @@ notify = ["core", "dep:backon"]
 # feat-webapp-1: a project's own static browser app (HTML, ES modules, CSS)
 # under one path, behind the dashboard's login; hence it implies it.
 webapp = ["dashboard"]
+# habits-push-1: Web Push (RFC 8030/8188/8291/8292) for the installed web
+# app: subscriptions in the kit file, our own message encryption and VAPID
+# signing on `ring`, delivery over the existing `reqwest`. Implies `webapp`
+# because the page side (`window.chassisPush`) and the worker live there.
+push = ["webapp", "dep:ring"]
 # feat-live-1: a Server-Sent Events channel a project publishes to. Needs
 # only the core; the project decides which router (login or token) guards it.
 live = ["core", "dep:futures-util"]
@@ -88,6 +93,11 @@ webauthn-rs = { version = "0.5", optional = true }
 # 3.11.0: sqlite, bundled like kyu's (same version), so a static musl
 # build needs no system library.
 rusqlite = { version = "0.40.2", features = ["bundled"], optional = true }
+
+# habits-push-1: P-256 ECDH and ECDSA, HKDF and AES-128-GCM for Web Push.
+# Already in the tree through rustls; optional so a service without `push`
+# links nothing new.
+ring = { version = "0.17", optional = true }
 
 # L5: signed self-update (K18–K21) and the notifier (K22)
 minisign-verify = { version = "0.2", optional = true }

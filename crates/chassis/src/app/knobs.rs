@@ -9,6 +9,7 @@ use super::{AppSpec, compiled_features};
 mod dashboard;
 mod guards;
 mod notify_storage;
+mod push;
 mod update;
 
 /// Feature names a knob row is tagged with; `None` marks a core knob.
@@ -17,6 +18,7 @@ const PASSKEYS: Option<&str> = Some("passkeys");
 const UPDATE: Option<&str> = Some("self-update");
 const NOTIFY: Option<&str> = Some("notify");
 const STORAGE: Option<&str> = Some("storage");
+const PUSH: Option<&str> = Some("push");
 
 /// One ordinary knob row.
 fn k(
@@ -97,6 +99,7 @@ pub(super) fn rows(default_listen: &'static str) -> Vec<Knob> {
         dashboard::rows(),
         update::rows(),
         notify_storage::rows(),
+        push::rows(),
     ]
     .concat()
 }

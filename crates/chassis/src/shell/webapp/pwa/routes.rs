@@ -10,30 +10,37 @@ use std::sync::Arc;
 use axum::Router;
 use axum::extract::State;
 use axum::http::{HeaderMap, HeaderValue, header};
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
 
 use super::super::files::read;
 use super::super::serving::file_response;
 use super::super::{DEFAULT_CSP, Source, WebApp};
-use super::icons::{default_icon, initial};
+use super::icons::{default_icon, initial, monochrome_icon};
 use super::png::SIGNATURE;
 use super::{Pwa, manifest, worker};
 
+/// Where browsers look for a tab icon when the page names none.
+const FAVICON_PATH: &str = "/favicon.ico";
 pub(super) const MANIFEST_PATH: &str = "/manifest.webmanifest";
 pub(super) const SW_PATH: &str = "/sw.js";
 pub(super) const TOUCH_ICON_PATH: &str = "/pwa/icon-180.png";
 pub(super) const ICON_192_PATH: &str = "/pwa/icon-192.png";
 pub(super) const ICON_512_PATH: &str = "/pwa/icon-512.png";
 pub(super) const ICON_MASKABLE_PATH: &str = "/pwa/icon-maskable-512.png";
+pub(super) const ICON_MASKABLE_192_PATH: &str = "/pwa/icon-maskable-192.png";
+pub(super) const ICON_SVG_PATH: &str = "/pwa/icon.svg";
+pub(super) const ICON_MONOCHROME_PATH: &str = "/pwa/icon-monochrome-512.png";
 
-/// (URL path, side in px) of every icon; a file of the web app at the same
-/// path without the leading slash replaces the generated one.
-const ICONS: [(&str, u32); 4] = [
-    (TOUCH_ICON_PATH, 180),
-    (ICON_192_PATH, 192),
-    (ICON_512_PATH, 512),
-    (ICON_MASKABLE_PATH, 512),
+/// (URL path, side in px, monochrome) of every icon; a file of the web app
+/// at the same path without the leading slash replaces the generated one.
+const ICONS: [(&str, u32, bool); 6] = [
+    (TOUCH_ICON_PATH, 180, false),
+    (ICON_192_PATH, 192, false),
+    (ICON_512_PATH, 512, false),
+    (ICON_MASKABLE_192_PATH, 192, false),
+    (ICON_MASKABLE_PATH, 512, false),
+    (ICON_MONOCHROME_PATH, 512, true),
 ];
 
 /// What the routes serve, fixed when the server starts.
@@ -42,27 +49,36 @@ pub(in crate::shell::webapp) struct PwaState {
     csp: String,
     pwa: Pwa,
     name: String,
+    /// Where the installed app opens: `Pwa::start_url`, else the mount.
+    start_url: String,
     generated: Vec<(&'static str, Vec<u8>)>,
 }
 
 impl PwaState {
     /// The state for `app`, or `None` when it is not installable: opted
-    /// out, mounted below the root (the worker's scope would be wrong) or
-    /// without the kit runtime (which registers the worker).
+    /// out or without the kit runtime (which registers the worker). A web
+    /// app mounted below the root is installable too: its manifest, worker
+    /// and icons are still served at the root, from the app's own files.
     pub(in crate::shell::webapp) fn for_app(app: &WebApp, brand: &str) -> Option<Arc<Self>> {
-        let pwa = app
-            .pwa
-            .clone()
-            .filter(|_| app.at_root() && app.kit_runtime)?;
+        let pwa = app.pwa.clone().filter(|_| app.kit_runtime)?;
+        let start_url = pwa.fields.start_url.clone().unwrap_or_else(|| {
+            if app.at_root() {
+                "/".to_string()
+            } else {
+                format!("{}/", app.mount)
+            }
+        });
         let name = pwa.name.clone().unwrap_or_else(|| brand.to_string());
         let letter = initial(&name);
         let generated = ICONS
             .iter()
-            .map(|(path, side)| {
-                (
-                    *path,
-                    default_icon(*side, letter, &pwa.theme_color, &pwa.background_color),
-                )
+            .map(|(path, side, mono)| {
+                let png = if *mono {
+                    monochrome_icon(*side, letter, &pwa.theme_color)
+                } else {
+                    default_icon(*side, letter, &pwa.theme_color, &pwa.background_color)
+                };
+                (*path, png)
             })
             .collect();
         Some(Arc::new(PwaState {
@@ -70,6 +86,7 @@ impl PwaState {
             csp: app.csp.clone(),
             pwa,
             name,
+            start_url,
             generated,
         }))
     }
@@ -86,10 +103,27 @@ pub(in crate::shell::webapp) fn router(state: Arc<PwaState>) -> Router {
         .route(SW_PATH, get(serve_worker))
         .route("/pwa/offline", get(serve_offline))
         .route("/pwa/offline.js", get(serve_offline_js));
-    for (path, _) in ICONS {
+    for (path, _, _) in ICONS {
         r = r.route(path, get(serve_icon));
     }
-    r.with_state(state)
+    r = r.route(ICON_SVG_PATH, get(serve_svg_icon));
+    // Shortcut icons are the app's own files, public like the icons above
+    // (the launcher fetches them without a session).
+    for path in super::extras::icon_paths(&state.pwa.shortcuts) {
+        if !ICONS.iter().any(|(p, _, _)| *p == path) {
+            r = r.route(path, get(serve_icon));
+        }
+    }
+    // Screenshots are the app's own PNG/WebP files, public for the same
+    // reason; a path another route already owns is not routed twice.
+    for path in super::screenshots::paths(&state.pwa.screenshots) {
+        let taken = ICONS.iter().any(|(p, _, _)| *p == path)
+            || super::extras::icon_paths(&state.pwa.shortcuts).contains(&path);
+        if !taken {
+            r = r.route(path, get(serve_screenshot));
+        }
+    }
+    r.route(FAVICON_PATH, get(serve_favicon)).with_state(state)
 }
 
 /// A text answer that is never cached by the browser's HTTP cache.
@@ -102,7 +136,8 @@ fn text(content_type: &'static str, body: String, csp: HeaderValue) -> Response 
 }
 
 async fn serve_manifest(State(s): State<Arc<PwaState>>) -> Response {
-    let body = manifest::manifest(&s.pwa, &s.name).to_string();
+    let svg = super::svg::present(&s.source);
+    let body = manifest::manifest(&s.pwa, &s.name, &s.start_url, svg).to_string();
     text("application/manifest+json", body, s.csp())
 }
 
@@ -128,7 +163,8 @@ async fn serve_offline_js(State(s): State<Arc<PwaState>>) -> Response {
 }
 
 /// An icon: the web app's own file at the same path when it is a PNG, else
-/// the generated one.
+/// the generated one. A shortcut icon has no generated stand-in, so a
+/// missing file is a 404 rather than an empty image.
 async fn serve_icon(
     State(s): State<Arc<PwaState>>,
     uri: axum::http::Uri,
@@ -138,9 +174,66 @@ async fn serve_icon(
     let own = read(&s.source, path.trim_start_matches('/'))
         .await
         .filter(|b| b.starts_with(&SIGNATURE));
-    let body = own.unwrap_or_else(|| {
-        let generated = s.generated.iter().find(|(p, _)| *p == path);
-        Cow::Owned(generated.map(|(_, b)| b.clone()).unwrap_or_default())
-    });
+    let body = match own {
+        Some(b) => b,
+        None => match s.generated.iter().find(|(p, _)| *p == path) {
+            Some((_, b)) => Cow::Owned(b.clone()),
+            None => return axum::http::StatusCode::NOT_FOUND.into_response(),
+        },
+    };
     file_response("icon.png", body, false, &headers, s.csp())
+}
+
+/// The web app's own `pwa/icon.svg`, only when it is really SVG text; there
+/// is no generated stand-in, so anything else is a 404.
+async fn serve_svg_icon(State(s): State<Arc<PwaState>>, headers: HeaderMap) -> Response {
+    let found = read(&s.source, super::svg::FILE)
+        .await
+        .filter(|b| super::svg::is_svg(b));
+    match found {
+        Some(body) => file_response("icon.svg", body, false, &headers, s.csp()),
+        None => axum::http::StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// Browsers that ask for `/favicon.ico` directly: the web app's own
+/// `favicon.ico` when it ships one (this public route must not hide it),
+/// else a redirect to the app's icon instead of the login redirect (the tab
+/// icon page link covers the rest).
+async fn serve_favicon(State(s): State<Arc<PwaState>>, headers: HeaderMap) -> Response {
+    match read(&s.source, FAVICON_PATH.trim_start_matches('/')).await {
+        Some(own) if !own.is_empty() => file_response("favicon.ico", own, false, &headers, s.csp()),
+        _ => {
+            let mut res = Redirect::permanent(ICON_192_PATH).into_response();
+            let cache = HeaderValue::from_static("public, max-age=86400");
+            res.headers_mut().insert(header::CACHE_CONTROL, cache);
+            res
+        }
+    }
+}
+
+/// A declared screenshot: the web app's own file at that path, when its
+/// first bytes say it is the PNG or WebP the extension promises.
+async fn serve_screenshot(
+    State(s): State<Arc<PwaState>>,
+    uri: axum::http::Uri,
+    headers: HeaderMap,
+) -> Response {
+    let path = uri.path();
+    let found = read(&s.source, path.trim_start_matches('/'))
+        .await
+        .filter(|b| is_image_of(path, b));
+    match found {
+        Some(body) => file_response(path, body, false, &headers, s.csp()),
+        None => axum::http::StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// Whether `bytes` start like the image type `path`'s extension names.
+fn is_image_of(path: &str, bytes: &[u8]) -> bool {
+    if path.ends_with(".webp") {
+        bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP"
+    } else {
+        bytes.starts_with(&SIGNATURE)
+    }
 }

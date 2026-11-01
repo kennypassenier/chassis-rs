@@ -40,7 +40,11 @@ mod validate;
 
 use std::path::PathBuf;
 
-pub use pwa::{Display, Pwa, ShareTarget, Shortcut};
+pub use pwa::{
+    ClientMode, Dir, Display, FormFactor, Orientation, Pwa, Reload, Screenshot, ShareTarget,
+    Shortcut,
+};
+pub use validate::single_installable;
 
 /// The policy a web app gets unless it names its own: the kit's pages'
 /// policy. `'unsafe-inline'` for styles covers `style=""` attributes that
@@ -166,6 +170,12 @@ impl WebApp {
 
 #[cfg(test)]
 mod pwa_extras_tests;
+#[cfg(test)]
+mod pwa_fields_tests;
+#[cfg(test)]
+mod pwa_mount_tests;
+#[cfg(test)]
+mod pwa_screenshots_tests;
 #[cfg(test)]
 mod pwa_tests;
 #[cfg(test)]

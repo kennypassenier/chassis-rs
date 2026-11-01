@@ -76,7 +76,7 @@ impl App {
             api_router: Router::new(),
             dashboard_router: Router::new(),
             #[cfg(feature = "webapp")]
-            webapp: None,
+            webapp: Vec::new(),
             checks: Vec::new(),
             flush: None,
             start_hooks: Vec::new(),
@@ -138,6 +138,8 @@ impl App {
             notify_drain: notify.1,
             #[cfg(feature = "notify")]
             notify_code_targets: None,
+            #[cfg(feature = "push")]
+            push: crate::push::PushHandle::default(),
         }
     }
 
@@ -208,6 +210,9 @@ impl App {
         LogFormat::parse(loaded.get("log_format").unwrap_or("text"))?;
         let limits = Limits::parse(&loaded)?;
         limits.validate(&spec, &loaded)?;
+        // habits-push-1: a bad push knob stops `--check` too.
+        #[cfg(feature = "push")]
+        crate::push::PushKnobs::parse(&loaded)?;
         #[cfg(feature = "notify")]
         let notify = super::notify::prepare_notifier(&spec, &loaded, &env, &limits)?;
         super::validate::validate_login_config(&spec, &loaded, &limits)?;
