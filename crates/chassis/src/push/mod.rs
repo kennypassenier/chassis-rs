@@ -42,3 +42,5 @@ pub(crate) use config::PushKnobs;
 mod api_tests;
 #[cfg(test)]
 mod delivery_tests;
+#[cfg(test)]
+mod fake_service;
