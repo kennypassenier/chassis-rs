@@ -7,8 +7,47 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Migration
+
+No breaking change; these are the steps that pick up the unreleased fixes.
+
+- **Almanac**: call `app.webapp(WebApp::embedded(..).at("/ui"))` first, then
+  add `app.pwa_page_head()` to the `<head>` of its own server-rendered pages
+  (the routes at `/`), and set `Pwa::new().start_url("/")` so the installed
+  app opens on them. Nothing else changes: the web app at `/ui` becomes
+  installable without further code.
+- **HTTPSwitchboard**: no code change; its web app at `/app/hsb` is
+  installable from this release, with the icons in `web/pwa/` (including
+  `icon.svg`).
+- **Habits**: drop the `no-store` stand-in on the app's JSON data; the worker
+  no longer caches it. Users need no step: the next release of the worker
+  replaces the old cache and the cached `/data/*.json` copies go with it.
+- A service that called `app.webapp(..)` twice used to keep only the second
+  app; both are now mounted, and two installable ones are refused at start
+  (add `.without_pwa()` to all but one).
+
 ### Added
 
+- **A web app mounted below the root is installable** (`webapp` PWA, HTTPSwitchboard
+  at `/app/hsb`, Almanac at `/ui`; `[feat-pwa-mount-1]`): the whole service is
+  the installed app. The manifest, `/sw.js`, `/pwa/*` and `/favicon.ico` stay
+  at the root with scope `/`, so the kit's pages and the project's own routes
+  are inside it; icons, shortcut icons and screenshots are read from the web
+  app's own files (`pwa/icon-192.png` of the mount serves `/pwa/icon-192.png`).
+  `start_url` defaults to the mount (`/app/hsb/`); `Pwa::start_url(path)` sets
+  another (checked: a path of the app). `App::webapp` can be called more than
+  once; two installable web apps are refused at start and at `--check`, naming
+  the mounts. The root case is unchanged.
+- **`App::pwa_page_head()` / `WebApp::pwa_page_head()`**: the head markup for
+  pages a project renders itself (manifest link, theme colour, touch and tab
+  icons, the push marker) plus a `<script type="module">` for the new
+  `/static/chassis/pwa-boot.js` that registers the worker; `script-src 'self'`
+  is enough. `None` when no web app is installable.
+- **`pwa/icon.svg`**: a web app that ships it lists
+  `{src: "/pwa/icon.svg", sizes: "any", type: "image/svg+xml"}` in the manifest
+  and gets `<link rel="icon" href="/pwa/icon.svg" type="image/svg+xml">` ahead
+  of the PNG link. `/pwa/icon.svg` is public; it answers only when the file is
+  SVG text, else 404.
 - **Web Push** (feature `push`, implies `webapp`; Habits, 2026-11-02, design in
   `docs/PUSH_DESIGN.md`): `app.push().send(Push::new("Water drinken").body(..)
   .url("/habits/water").tag(..).action("done", "Gedaan", "/api/habits/water/done"))`
@@ -174,6 +213,19 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Fixed
 
+- **The service worker no longer caches an app's own data** (Habits, 2026-11-02;
+  `[fix-swcache-1]`): it cached any same-origin GET outside `/api`, `/login`
+  and a few more, so `/data/*.json` answers lingered in browser storage and
+  showed a stale snapshot offline (an item added offline later duplicated). It
+  now caches an allow-list: navigations (request mode, destination or an HTML
+  `Accept`) and assets (`/static/**`, `/pwa/**`, or an asset extension: js mjs
+  css map woff2 ttf png svg ico jpg jpeg webp gif webmanifest). Everything
+  else goes to the network untouched. A response with `Cache-Control: private`
+  or an `application/json` type is never stored either.
+- **`docs/KIT.md` lacked the knobs of `webapp` and `push`**: `chassis-cli`'s
+  feature list stopped at `notify`, so a project built with them got no
+  knob rows for them. Both are listed now, with what they imply
+  (`[fix-cli-features-1]`).
 - **Static files no longer count towards `max_in_flight`** (Habits,
   2026-11-01): a cold page that preloads its module graph (114 requests) got
   503 on about 60 of them, and a browser never fetches an ES module again
