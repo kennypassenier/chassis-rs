@@ -149,11 +149,55 @@ pub async fn csrf_guard(req: Request<Body>, next: Next) -> Response {
 }
 
 /// In-flight cap: over the limit → 503 with `Retry-After` (K10).
+///
+/// Static files do not count (Habits, 2026-11-01): a cold page preloads its
+/// whole module graph at once (114 requests), so the 64-request cap answered
+/// 503 to about 60 of them, and a browser never fetches an ES module again
+/// after a 503, which left the page on its loading screen. A static file is
+/// served from memory or a small disk read; the cap is for the handlers that
+/// do work.
 pub async fn in_flight_guard(State(g): State<Guards>, req: Request<Body>, next: Next) -> Response {
+    if is_static_file(req.method(), req.uri().path()) {
+        return next.run(req).await;
+    }
     match g.max_in_flight.clone().try_acquire_owned() {
         Ok(_permit) => next.run(req).await,
         Err(_) => overloaded(g.retry_after, "the service is at its in-flight limit"),
     }
+}
+
+/// File types a browser fetches as part of a page (scripts, styles, fonts,
+/// images, source maps, the manifest).
+const STATIC_EXTENSIONS: &[&str] = &[
+    "js",
+    "mjs",
+    "css",
+    "map",
+    "woff2",
+    "woff",
+    "ttf",
+    "png",
+    "svg",
+    "ico",
+    "jpg",
+    "jpeg",
+    "webp",
+    "gif",
+    "webmanifest",
+];
+
+/// A GET or HEAD for a page asset: anything under `/static/`, or a path whose
+/// last segment ends in one of [`STATIC_EXTENSIONS`] (a web app's own files).
+pub(crate) fn is_static_file(method: &axum::http::Method, path: &str) -> bool {
+    if method != axum::http::Method::GET && method != axum::http::Method::HEAD {
+        return false;
+    }
+    if path.starts_with("/static/") {
+        return true;
+    }
+    let last = path.rsplit('/').next().unwrap_or("");
+    last.rsplit_once('.')
+        .is_some_and(|(_, ext)| STATIC_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
 }
 
 /// Request timeout with per-prefix exemptions (critic #14).

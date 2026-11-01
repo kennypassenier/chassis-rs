@@ -120,6 +120,13 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Fixed
 
+- **Static files no longer count towards `max_in_flight`** (Habits,
+  2026-11-01): a cold page that preloads its module graph (114 requests) got
+  503 on about 60 of them, and a browser never fetches an ES module again
+  after a 503, so the page stayed on its loading screen. GET and HEAD under
+  `/static/` and for page assets (`.js`, `.css`, fonts, images, maps, the
+  manifest) skip the cap; handlers still meet it.
+
 - **The Issue dialog opens as a form again after an issue** (`dashboard`;
   merge of ux-chassis-5): with no reload after an issue, a second "Issue"
   showed the first receipt. The dialog now returns to its form when it closes.
