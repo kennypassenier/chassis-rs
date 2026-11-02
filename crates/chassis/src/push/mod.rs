@@ -25,6 +25,7 @@ mod config;
 mod delivery;
 mod ece;
 mod handle;
+mod host;
 mod keys;
 mod message;
 pub(crate) mod mount;
