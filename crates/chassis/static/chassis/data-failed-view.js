@@ -38,7 +38,7 @@ export function createFailedView({ win, doc, kp, data, messages = {}, describe =
         const list = doc.createElement('ul');
         list.className = 'chassis-failed__list';
         list.style.cssText = 'display:grid;grid-template-columns:minmax(0,1fr);gap:var(--kp-space-3);margin:0;padding:0;list-style:none';
-        list.append(...items.map((e) => renderEntry(doc, e, text, describe)));
+        list.append(...items.map((e) => renderEntry(doc, e, text, describe, wordsOf(messages))));
         body().replaceChildren(items.length ? list : renderEmpty(doc, text));
         const foot = dialog.querySelector('.kp-drawer__foot');
         foot.hidden = items.length === 0;

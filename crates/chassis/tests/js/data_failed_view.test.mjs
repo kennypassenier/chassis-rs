@@ -77,3 +77,20 @@ test('describe(entry) names a failed card; no, empty or throwing describe falls 
     const { normalize } = await import('../../static/chassis/data-config.js');
     assert.throws(() => normalize({ routes: ['/a'], describe: 'nope' }), /describe must be a function/);
 });
+
+test('the Why line takes the app\'s words, with the server\'s sentence as the secondary line (fix-habits-drawer-10)', async () => {
+    const { whyOf } = await import('../../static/chassis/data-failed.js');
+    const t = FAILED_MESSAGES;
+    const server = { error: 'this item was changed since you read it', remedy: 'Read it again.' };
+    const stale = { conflict: { status: 409, body: server } };
+    assert.deepEqual(whyOf(stale, t, { reasonStale: 'Elders gewijzigd.' }), { reason: 'Elders gewijzigd.', detail: 'this item was changed since you read it Read it again.' });
+    assert.equal(whyOf(stale, t, { stale: 'Verouderd.', reasonStale: 'x' }).reason, 'Verouderd.');
+    const fn = (status, body) => (body?.error ? `Geweigerd (${status})` : '');
+    assert.equal(whyOf({ conflict: { status: 422, body: { error: 'Name is empty' } } }, t, { refusedReason: fn }).reason, 'Geweigerd (422)');
+    assert.equal(whyOf({ conflict: { status: 500 } }, t, { refusedReason: fn, reasonOther: 'Niet gelukt.' }).reason, 'Niet gelukt.');
+    assert.deepEqual(whyOf(stale, t, {}), { reason: 'this item was changed since you read it Read it again.', detail: '' }, 'no app words: the server\'s sentence alone');
+    const card = renderEntry(fakeDoc(), { id: 2, method: 'PUT', path: '/a', at: 0, state: 'failed', conflict: { status: 409, body: server } }, t, null, { reasonStale: 'Elders gewijzigd.' });
+    const dds = card.children[1].children.filter((c) => c.tag === 'dd');
+    assert.equal(dds[1].textContent, 'Elders gewijzigd.');
+    assert.equal(dds[1].children[0].textContent, 'this item was changed since you read it Read it again.');
+});

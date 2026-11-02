@@ -35,13 +35,45 @@ export const FAILED_MESSAGES = {
 /** The edits that need a person: refused (failed) or held; waiting ones are not. */
 export const reviewable = (queue) => queue.filter((e) => e.state === 'failed' || e.state === 'held');
 
-/** The server's reason for a refused edit, in its own words when it gave some. */
-export function reasonOf(entry, text) {
-    const body = entry.conflict?.body;
-    const said = body && typeof body === 'object' && typeof body.error === 'string' ? body.error.trim() : '';
-    if (said) return typeof body.remedy === 'string' && body.remedy.trim() ? `${said} ${body.remedy.trim()}` : said;
-    return entry.conflict?.status === 409 || entry.conflict?.status === 412 ? text.reasonStale : text.reasonOther;
+const STALE = [409, 412];
+const nonBlank = (v) => (typeof v === 'string' && v.trim() ? v.trim() : '');
+
+/** The server's own sentence for a refusal: its `error` and `remedy`. */
+function serverWords(body) {
+    if (!body || typeof body !== 'object') return '';
+    const said = nonBlank(body.error);
+    return said && nonBlank(body.remedy) ? `${said} ${nonBlank(body.remedy)}` : said;
 }
+
+/** The app's own reason, from `refusedReason(status, body)`, `stale` / `reasonStale` or `reasonOther`; '' when it gave none. */
+function ownReason(status, body, given) {
+    if (typeof given.refusedReason === 'function') {
+        try {
+            const said = nonBlank(given.refusedReason(status, body ?? null));
+            if (said) return said;
+        } catch (err) {
+            console.warn('chassisData: messages.refusedReason threw; the next wording is used.', err);
+        }
+    }
+    return nonBlank(STALE.includes(status) ? given.stale ?? given.reasonStale : given.reasonOther);
+}
+
+/**
+ * Why an edit was refused: `{ reason, detail }`. With the app's words
+ * (`given` = its `messages`) the reason is in them and the server's own
+ * sentence becomes the secondary `detail`; without, the server's sentence is
+ * the reason and the kit's English text only fills in when it said nothing.
+ */
+export function whyOf(entry, text, given = {}) {
+    const { status, body } = entry.conflict ?? {};
+    const server = serverWords(body);
+    const own = ownReason(status, body, given);
+    if (own) return { reason: own, detail: server && server !== own ? server : '' };
+    return { reason: server || (STALE.includes(status) ? text.reasonStale : text.reasonOther), detail: '' };
+}
+
+/** The reason line alone (see `whyOf`). */
+export const reasonOf = (entry, text, given = {}) => whyOf(entry, text, given).reason;
 
 function node(doc, tag, className, words) {
     const el = doc.createElement(tag);
@@ -77,19 +109,26 @@ export function labelOf(entry, text, describe = null) {
     return { title: `${text.verbs[entry.method] ?? entry.method} ${entry.path}`, detail: '' };
 }
 
-function fields(doc, entry, text) {
+function fields(doc, entry, text, given) {
     const list = node(doc, 'dl', 'kp-help__list');
+    const { reason, detail } = whyOf(entry, text, given);
     const rows = [
         [text.when, Number.isFinite(entry.at) ? formatBrussels(new Date(entry.at)) : ''],
-        [text.why, reasonOf(entry, text)],
+        [text.why, reason],
         [text.state, entry.state === 'held' ? text.stateHeld : text.stateFailed],
     ];
     for (const [term, value] of rows) list.append(node(doc, 'dt', '', term), node(doc, 'dd', '', value));
+    if (detail) { // the server's own sentence, under the reason
+        const why = list.children[3];
+        const more = node(doc, 'small', 'chassis-failed__detail', detail);
+        more.style.display = 'block';
+        why.append(more);
+    }
     return list;
 }
 
 /** One refused edit as a card: what it was, the facts, its two actions. */
-export function renderEntry(doc, entry, text, describe = null) {
+export function renderEntry(doc, entry, text, describe = null, given = {}) {
     const card = node(doc, 'li', 'kp-card chassis-failed__item');
     card.dataset.chassisFailedItem = String(entry.id);
     const label = labelOf(entry, text, describe);
@@ -100,7 +139,7 @@ export function renderEntry(doc, entry, text, describe = null) {
     const actions = node(doc, 'div', 'kp-card__actions');
     actions.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:var(--kp-space-2);margin-block-start:var(--kp-space-3)';
     actions.append(button(doc, text.discard, '', 'discard', entry.id), button(doc, text.saveAgain, 'kp-button--primary', 'save', entry.id));
-    card.append(head, fields(doc, entry, text), actions);
+    card.append(head, fields(doc, entry, text, given), actions);
     return card;
 }
 

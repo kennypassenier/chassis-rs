@@ -55,6 +55,12 @@ a language that is known only after `configure()`.
 `{ title, detail? }` for a failed or held entry; the drawer card shows it instead of
 `verb + path`, which stays the fallback (no `describe`, no title, or a throw, which is warned).
 
+**The drawer's "Why"** (fix-habits-drawer-10). The reason is the app's wording:
+`messages.refusedReason(status, body)` (empty string = pass), else `messages.stale`
+(alias `reasonStale`) for 409 / 412, else `messages.reasonOther`. The server's `error` +
+`remedy` is the secondary line beneath. With none of these given, the server's sentence
+is the reason and the kit's English text appears only when the server said nothing.
+
 A write to an item path also reaches the **stored lists that hold the item**
 (fix-habits-data-3): the entry (found through `itemKey`) is replaced (PUT),
 merged (PATCH) or removed (DELETE) in every stored list of the item route's
