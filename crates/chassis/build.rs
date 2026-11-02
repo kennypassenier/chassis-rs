@@ -10,6 +10,9 @@
 //! An extension the script does not know is a build error, never a silent
 //! skip: a new kind of file must be classified here on purpose.
 
+#[path = "build/kp_guards.rs"]
+mod kp_guards;
+
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::{env, fs, process};
@@ -19,7 +22,7 @@ const MIME_BY_EXTENSION: &[(&str, &str)] = &[
     ("css", "text/css; charset=utf-8"),
     ("js", "text/javascript; charset=utf-8"),
     ("woff2", "font/woff2"),
-    // The bundle's source map, fetched only by browser devtools.
+    // Source maps (the bundle, the split folder, the stylesheets), fetched only by devtools.
     ("map", "application/json"),
 ];
 
@@ -54,12 +57,6 @@ const CORE_KP_JS: &[&str] = &[
     "kp/js/effects/rule.js",
 ];
 
-/// The one-file kp-themes module (chassis' own JS and the web apps import
-/// from it). It is not under `kp/js/`, so the rule below puts it in `ASSETS`
-/// (the core table) already; naming it here makes a vendoring that forgets it
-/// a build error, because the kit pages cannot start without it.
-const KP_BUNDLE: &str = "kp/dist/kp-themes.min.js";
-
 /// Prefix of the kp-themes JavaScript tree, split between the two tables.
 const KP_JS_PREFIX: &str = "kp/js/";
 
@@ -68,6 +65,7 @@ fn main() {
         PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR")).join("static");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=static");
+    println!("cargo:rerun-if-changed=build");
     let mut files = Vec::new();
     collect(&root, &root, &mut files);
     files.sort();
@@ -83,13 +81,7 @@ fn main() {
             core_rows.push_str(&entry)
         }
     }
-    for needed in CORE_KP_JS.iter().chain([&KP_BUNDLE]) {
-        if !files.iter().any(|f| f == needed) {
-            fail(&format!(
-                "CORE_KP_JS / KP_BUNDLE names {needed}, which is not under static/"
-            ));
-        }
-    }
+    guard_kp_files(&files);
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
     write(&out.join("assets_core.rs"), &core_rows);
     write(&out.join("assets_webapp.rs"), &webapp);
@@ -99,6 +91,26 @@ fn main() {
     let manifest = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
     fs::write(out.join("generated_for.rs"), format!("{manifest:?}\n"))
         .unwrap_or_else(|e| fail(&format!("write generated_for.rs: {e}")));
+}
+
+/// The kp-themes files the kit pages need must all be vendored: the core
+/// list, the one-file bundle, the split entries (and the folder they import
+/// whole), the base stylesheet and the fallback register.
+fn guard_kp_files(files: &[String]) {
+    use kp_guards::*;
+    let root =
+        PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR")).join("static");
+    let split = import_closure(&root, SPLIT_ENTRIES);
+    let checks = [
+        require_files(files, CORE_KP_JS, "CORE_KP_JS"),
+        require_files(files, &[KP_BUNDLE], "KP_BUNDLE"),
+        require_files(files, SPLIT_ENTRIES, "SPLIT_ENTRIES"),
+        require_files(files, SPLIT_CSS, "SPLIT_CSS"),
+        check_split_folder(files, &split),
+    ];
+    if let Some(msg) = checks.into_iter().find_map(Result::err) {
+        fail(&msg);
+    }
 }
 
 /// `start` and every module they import, transitively, as paths relative to
