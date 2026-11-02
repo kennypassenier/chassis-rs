@@ -26,6 +26,23 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 - A service that called `app.webapp(..)` twice used to keep only the second
   app; both are now mounted, and two installable ones are refused at start
   (add `.without_pwa()` to all but one).
+- **An app that imports `/static/kp/dist/kp-themes.min.js` itself** (every
+  web app today): nothing to do. The one-file bundle, `dist/kp-themes.css`
+  and `css/fonts.css` are still vendored and served, and the web app's kit
+  runtime (`webapp-runtime.js`) stays on the bundle, so such a page keeps one
+  copy of kp-themes' state. To move a page to the split delivery (about a
+  sixth of the CSS and, once its own code imports names lazily, a fraction
+  of the JavaScript): replace its stylesheet links with
+  `/static/kp/dist/kp-themes-base.min.css`; put the kit's `theme-boot.js` tag
+  below it with the three data attributes the layout writes
+  (`data-register-pattern="/static/kp/dist/css/{theme}-register.min.css"`,
+  `data-themes`, `data-fallback`), keeping the script external; call
+  `attachLazyRegisters({ pattern })` from `dist/js/lazy-register.js` before
+  the theme picker; load `dist/js/auto.js` as a module; and change every
+  `import ... from '/static/kp/dist/kp-themes.min.js'` to
+  `/static/kp/dist/js/index.js` (or `core.js` for `applyTheme`) in the same
+  release. Never mix the bundle, `dist/js/` and the loose `js/*.js` modules on
+  one page: each holds its own theme state.
 
 ### Added
 
@@ -167,6 +184,26 @@ No breaking change; these are the steps that pick up the unreleased fixes.
   refuses with a remedy. See docs/WEBAPP.md.
 
 ### Changed
+
+- **kp-themes split delivery for the kit's pages** (kp-themes 12.2.0, vendored
+  from main as `12.2.0-pre.936bec6d4` until it is released). A kit page now
+  links `dist/kp-themes-base.min.css` instead of the unminified 4.4 MB
+  `dist/kp-themes.css` plus `fonts.css`, and the worn theme's
+  `dist/css/<theme>-register.min.css` is written before first paint by
+  `theme-boot.js` (still an external file; the server puts the pattern, the
+  theme names and the fallback on its tag) and fetched on demand when a theme
+  is picked (`attachLazyRegisters`, the change is held until the register has
+  loaded). The module entry is `dist/js/auto.js`; the kit's JavaScript
+  imports `dist/js/index.js` / `lazy-register.js` instead of the bundle.
+  `chunk-*.js` files of `dist/js/` are served `immutable` for a year; the
+  entries keep `?v=` / revalidation. `scripts/vendor-kp-themes.sh` takes
+  `--from-dir` to vendor an unreleased tree and now also selects the base
+  stylesheet, the registers and `dist/js/`. The web app's offline page links
+  the base and the formal register only. The embedded assets grow by 20 MB
+  (maps included). Brotli is not added yet. Measured: a kit page's CSS drops from
+  850 KiB to 148 KiB gzip; its JavaScript does not drop yet, because the kit's
+  code imports `dist/js/index.js` (every module, 235 files, 754 KiB gzip
+  against 633 KiB for the bundle) until it imports only the names it uses.
 
 - **Status, Storage and Clients no longer keep an interval each**: the
   three remembered keys (`chassis-status-refresh`, `chassis-storage-refresh`,
