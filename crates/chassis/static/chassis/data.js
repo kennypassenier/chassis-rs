@@ -9,6 +9,7 @@ import { bindBand } from './data-band.js';
 import { normalize } from './data-config.js';
 import { createData } from './data-client.js';
 import { createFailedView } from './data-failed-view.js';
+import { wordsOf } from './data-errors.js';
 import { installLogoutGuard } from './logout-guard.js';
 import { memoryStore, openStore } from './data-store.js';
 
@@ -39,7 +40,7 @@ export function installData(win, doc, deps = {}, kp = null) {
     let words = {};
     // The logout guard needs no configure(): it reads the stored queues of
     // every chassis-data database, and adds the open client's own once there.
-    installLogoutGuard({ win, doc, confirm: kp?.openConfirmation, client: async () => (ready ? await ready : null), messages: () => words });
+    installLogoutGuard({ win, doc, confirm: kp?.openConfirmation, client: async () => (ready ? await ready : null), messages: () => wordsOf(words) });
     const configure = (options) => {
         if (ready) throw new Error('chassisData: configure() was already called on this page.');
         const config = normalize(options);

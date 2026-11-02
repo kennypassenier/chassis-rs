@@ -9,6 +9,10 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Fixed
 
+- **Toast, drawer and logout words follow the page language** [fix-habits-data-7] (Habits). `configure({ messages })`
+  accepts a function returning the object; it is called each time the conflict, storage and band toasts are shown, the
+  failed-edits drawer is drawn or opened, and the logout dialog is asked, so a language known only after the first read
+  applies. An object still works.
 - **`If-Match: *` is sent bare** [fix-habits-data-8] (Habits). `rev: '*'` was sent as `"*"`, which the kit's own
   `Precondition::parse` refuses with 400; only real revisions are quoted now.
 - **A write to an item reaches the stored lists that hold it** [fix-habits-data-3] (Habits). `put` / `patch` / `delete`

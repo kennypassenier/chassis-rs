@@ -30,6 +30,10 @@ helper for the app's own axum routes.
    not touch the copy again until the server answers. There is no `overwrite`
    policy.
 
+`configure({ messages })` is an object, or a function returning one (fix-habits-data-7);
+a function is called at show time (toasts, drawer, logout dialog), so the words follow
+a language that is known only after `configure()`.
+
 A write to an item path also reaches the **stored lists that hold the item**
 (fix-habits-data-3): the entry (found through `itemKey`) is replaced (PUT),
 merged (PATCH) or removed (DELETE) in every stored list of the item route's
