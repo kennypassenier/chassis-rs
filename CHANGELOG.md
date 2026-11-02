@@ -251,6 +251,34 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Fixed
 
+- **A logout empties the service worker's cache of pages and private files**
+  (`[fix-hunt-pwa-1]`): the worker keeps the last copy of every page and of
+  the app's own files for offline use, in browser storage that outlives the
+  session; offline after a logout, the next person at the device read the last
+  page that was open. The worker now deletes every stored entry except the
+  kit's `/static/` and `/pwa/` files when `/logout` is requested.
+- **A share target whose action carries a query was not guarded**
+  (`[fix-hunt-pwa-2]`): `ShareTarget::get("/share?src=pwa")` made the
+  cross-site guard compare the whole string with the request path, which
+  never matched, so the route was open to a link on another site. The guard
+  now compares the path alone.
+- **`?env=prod` froze a file for a year** (`[fix-hunt-pwa-3]`): the web app
+  server took any query containing the text `v=` (`env=`, `prev=`, `dev=`)
+  for a version and answered `immutable, max-age=31536000`. Only a parameter
+  named exactly `v` does now.
+- **The public `/pwa/icon.svg` is an SVG document and runs no script**
+  (`[fix-hunt-pwa-4]`): any file containing the text `<svg` passed, an HTML
+  page with an inline `<svg` included; the root element must be `<svg` now
+  (after a BOM, XML declaration, comments and doctype). The route answers with
+  its own policy (`default-src 'none'; sandbox`), so a project that loosened
+  the app's CSP does not make the public icon a script host.
+- **Content types for `.webmanifest`, `.ttf`, `.otf` and `.avif`**
+  (`[fix-hunt-pwa-5]`): the web app server answered `application/octet-stream`
+  for them; they now get `application/manifest+json`, `font/ttf`, `font/otf`
+  and `image/avif`.
+- **A page's own `rel="shortcut icon"` is no longer doubled** (`[fix-hunt-pwa-6]`):
+  the injected tab icon was added next to it because only `rel="icon"` was
+  recognised.
 - **A GET share target is no longer forgeable from another site**
   (habits, `[fix-sec-share-1]`): `ShareTarget::get(path)` writes on GET by
   design, and the `Lax` session cookie rides a top-level navigation from any

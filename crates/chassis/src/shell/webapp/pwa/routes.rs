@@ -191,7 +191,10 @@ async fn serve_svg_icon(State(s): State<Arc<PwaState>>, headers: HeaderMap) -> R
         .await
         .filter(|b| super::svg::is_svg(b));
     match found {
-        Some(body) => file_response("icon.svg", body, false, &headers, s.csp()),
+        Some(body) => {
+            let csp = HeaderValue::from_static(super::svg::CSP);
+            file_response("icon.svg", body, false, &headers, csp)
+        }
         None => axum::http::StatusCode::NOT_FOUND.into_response(),
     }
 }

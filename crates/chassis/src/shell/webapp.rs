@@ -174,6 +174,8 @@ mod pwa_extras_tests;
 #[cfg(test)]
 mod pwa_fields_tests;
 #[cfg(test)]
+mod pwa_hardening_tests;
+#[cfg(test)]
 mod pwa_mount_tests;
 #[cfg(test)]
 mod pwa_screenshots_tests;
