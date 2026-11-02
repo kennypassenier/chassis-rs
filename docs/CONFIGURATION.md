@@ -113,14 +113,18 @@ the binary was built without are accepted and ignored. The
 `[[notify.webhook]]` entries themselves live only in the file (see
 OPERATIONS.md § Notifications). 3.15.0 adds the shared sender's knobs
 `notify_url` (primary target, a kyu topic; default none),
-`notify_fallback_url` (default none) and `notify_outbox_max` (5000); an
+`notify_fallback_url` (default none) and `notify_outbox_max` (5000), and 4.2.0
+adds `notify_kit_url` (default none: where the kit's own events go instead of
+`notify_url`; configuration only, not editable on the Status page); an
 address set by flag, environment or file is locked on the Status page's
 Notifications card, then the value saved on the card applies, then
 `App::notify_targets`, then none. A webhook id comes in through `${VAR}` or
 the environment only. `notify_token` (secret, environment only, 16 to 512
 visible characters) is the bearer token kyu asks for; it goes to the
-primary target only and the Status page shows just whether it is set.
-Design: docs/NOTIFY_DESIGN.md. Proven by:
+hub targets (the primary and `notify_kit_url`), never to the fallback, and the Status page shows just whether it is set.
+The `push_*` knobs (feature `push`, 4.2.0) are listed by `--knobs` like the
+rest; what they do is in docs/PUSH_DESIGN.md. Design: docs/NOTIFY_DESIGN.md.
+Proven by:
 `app::tests::shipped_defaults_pass_their_own_validation` (the defaults
 survive their own parser; `--max-in-flight 0` is refused),
 `app::tests::k31_knob_table_lists_every_knob_once_and_no_secret_default`,
