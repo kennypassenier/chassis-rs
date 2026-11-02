@@ -19,6 +19,11 @@ scaffold writes. A breaking change in either is a major and carries a
   immediate; "Stay" now leaves the Log out button usable (the page's busy
   state no longer runs for a held submit).
 
+- **The connection band follows a language change** (`[fix-offline-band-lang-1]`).
+  kp-themes writes the band's words only when its state is set, so they kept
+  the language of page load. The band is redrawn on `kp-strings-change`
+  (offline, reconnecting and refused; the pending count stays).
+
 ## [4.3.0] - 2026-11-02
 
 ### Fixed

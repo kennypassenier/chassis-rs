@@ -29,6 +29,23 @@ function paint(doc, kp, state, pending, why) {
     }
 }
 
+/** States whose words kp-themes writes at `set()` time and that a redraw can repeat unchanged. */
+const REDRAWABLE = ['offline', 'reconnecting', 'refused'];
+
+/**
+ * Write the band's words again in the current language (fix-offline-band-lang-1).
+ * kp-themes draws them only when the state is set, so a language change after
+ * that left them in the language of page load. `refused` keeps the reason the
+ * band already holds (no `why` passed); `back` and `online` are momentary.
+ */
+export function redrawBand(doc, kp, pending) {
+    for (const el of doc.querySelectorAll(BAND)) {
+        const handle = kp.connectionOf(el);
+        const state = handle?.state();
+        if (state && REDRAWABLE.includes(state)) handle.set(state, { pending });
+    }
+}
+
 /** Wire the page's events to the band and the toasts; returns an unbind function. */
 export function bindBand({ win, doc, kp, data, messages = {} }) {
     const text = { ...MESSAGES, ...messages };
@@ -57,6 +74,8 @@ export function bindBand({ win, doc, kp, data, messages = {} }) {
             if (level === 'full') once(text.full);
         }),
         on(doc, 'kp-connection-retry', () => data.retry()),
+        // The language changed (kp setLanguage / setStrings): the band words follow.
+        on(doc, 'kp-strings-change', () => redrawBand(doc, kp, data.pending())),
     ];
     return () => offs.forEach((off) => off());
 }
