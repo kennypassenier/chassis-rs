@@ -29,6 +29,7 @@ mod prefs_rules;
 #[cfg(feature = "dashboard")]
 pub(crate) mod push_store;
 mod runtime;
+pub mod sync;
 
 pub use app_db::{
     AppDb, AppDbSpec, CompactPreview, Deleted, ImportContext, ImportHook, ImportReport,

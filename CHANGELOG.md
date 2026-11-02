@@ -7,6 +7,22 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **Local database, server half** [feat-localdb-2] (Kitchen first). `chassis::storage::sync`: declare collections with
+  `App::sync_collection(SyncCollection::new("dishes").key("id").index("name").shared().retain(..))` and
+  `App::sync_load(..)` (the current body of the keys that changed, read in the feed's own snapshot); record every
+  change in the write transaction with `tx.sync_upsert` / `tx.sync_delete` (`SyncWrite`, per-login variants `_for`), into
+  the new `chassis_sync` table of the app file (one row per item, tombstones for deletes, one counter per file in
+  `chassis_meta`). Served behind the dashboard login as `GET /api/sync` (manifest with key, indexes and schema hash)
+  and `GET /api/sync/<collection>?since=&limit=` (pages with an opaque cursor; a cursor below the retention floor
+  answers 410 `code: "resync"`). The daily cleanup removes tombstones past `<P>_SYNC_RETAIN_DAYS` (default 30; a
+  collection's `retain` applies when the knob is not set) and raises the floor. `SyncSource` is the port
+  (`SqliteChangeLog` the adapter; `App::sync_source` takes an app's own), `check_create` / `client_key` are the
+  client-UUID create rules, `publish_hint` sends the `sync` hint on the live channel, and
+  `storage::sync::conformance::assert_conforms` (test or `testing` feature) checks any adapter. The wire shapes are in
+  `docs/LOCAL_DB_DESIGN.md`, section "Server contract, as built".
+
 ### Fixed
 
 - **The drawer and the logout dialog have separate headings** [fix-habits-drawer-11] (Habits). `messages.failedTitle`

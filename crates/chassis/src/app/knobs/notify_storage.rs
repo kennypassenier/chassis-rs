@@ -105,5 +105,11 @@ pub(super) fn rows() -> Vec<Knob> {
             STORAGE,
             "Most synced preferences one login may hold.",
         ),
+        k(
+            "sync_retain_days",
+            Some("30"),
+            STORAGE,
+            "Days the local database's feeds remember deletions (tombstones); a device away longer starts over with a full resync. Only used by a service that declares App::sync_collection; when set it wins over a collection's own retain().",
+        ),
     ]
 }

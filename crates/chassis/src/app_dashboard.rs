@@ -84,6 +84,8 @@ pub(crate) struct MountExtra {
     /// 3.12.0: the synced browser preferences; their routes join the admin
     /// API and every signed-in HTML page carries them.
     pub prefs: Option<crate::storage::Prefs>,
+    /// feat-localdb-1: the local database's manifest and feeds.
+    pub sync: Option<crate::storage::sync::SyncService>,
     /// 3.15.0: the notification channel behind the Status card.
     #[cfg(feature = "notify")]
     pub notify: Option<crate::shell::notify_api::NotifyState>,
@@ -252,6 +254,7 @@ pub(crate) async fn mount_with(
         .merge(clients_api)
         .merge(kit.storage_api)
         .merge(kit.prefs_api)
+        .merge(kit.sync_api)
         .merge(project_pages)
         .merge(api_routes);
     if let Some(pwa) = extra.pwa_routes.take() {
