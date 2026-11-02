@@ -29,6 +29,31 @@
     inset-inline-start: calc(50% + var(--kp-tabbar-icon, 1.5rem) / 2 + var(--kp-space-xs, 0.25rem));
 }
 
+/* [fix-hsb-ux-2] A tab's label wraps to two lines instead of ending in an
+   ellipsis ("TRY A TRANSLA..."). The icons stay on one line across the bar
+   (the tab keeps its content at the top), and a bar of one-line labels is as
+   tall as before. A single word wider than a tab still needs Page::short_label. */
+.chassis-tabbar .kp-tabbar__tab { align-content: start; }
+.chassis-tabbar .kp-tabbar__label {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+    text-wrap: balance;
+    overflow-wrap: break-word;
+}
+
+/* [fix-hsb-ux-1] The connection banner keeps ONE footprint in every state
+   (offline, reconnecting, refused, back): the mark, the words and the Retry
+   slot stand on the same lines and the same columns whatever the state says,
+   so a state change moves nothing. kp-themes holds the height; this holds the
+   inside: the words start at the top (they were centred, so a shorter state
+   moved them), and Retry now keeps its width while it is idle or not there. */
+.kp-connection__band { align-items: start; }
+.kp-connection__body { align-self: stretch; align-content: start; }
+.kp-connection__retry { min-inline-size: 7.5rem; align-self: center; }
+
 /* The connection line stands on the phone's tab bar, not behind it
    (js/tabbar.js writes the bar's measured height). */
 .kp-connection:not([data-kp-placement='top']) {

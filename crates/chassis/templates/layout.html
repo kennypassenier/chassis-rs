@@ -171,7 +171,7 @@
       the tab bar or in More, never both. -#}
   {%- set tabs = namespace(n=0) -%}
   {% for item in nav %}{% set page = pages[loop.index0] %}{% if not page.secondary and tabs.n < tab_limit %}{% set tabs.n = tabs.n + 1 %}
-  <a class="kp-tabbar__tab" href="{{ item.href }}" data-kp-tab="{{ page.id }}"{% if item.href == active_nav %} aria-current="page"{% endif %}{% if page.id == "clients" and idle_clients %} data-kp-count="{{ idle_clients }}"{% endif %}><span class="kp-tabbar__icon">{{ glyph(page.id) }}</span><span class="kp-tabbar__label">{{ item.label }}</span>{% if page.id == "clients" and idle_clients %}<span class="kp-badge kp-tabbar__badge">{{ idle_clients }}</span>{% endif %}</a>
+  <a class="kp-tabbar__tab" href="{{ item.href }}" data-kp-tab="{{ page.id }}"{% if item.href == active_nav %} aria-current="page"{% endif %}{% if page.id == "clients" and idle_clients %} data-kp-count="{{ idle_clients }}"{% endif %}><span class="kp-tabbar__icon">{{ glyph(page.id) }}</span><span class="kp-tabbar__label">{{ page.short_label or item.label }}</span>{% if page.id == "clients" and idle_clients %}<span class="kp-badge kp-tabbar__badge">{{ idle_clients }}</span>{% endif %}</a>
   {% endif %}{% endfor %}
   <button type="button" class="kp-tabbar__tab kp-tabbar__tab--more" data-kp-dialog="chassis-more"><span class="kp-tabbar__icon kp-tabbar__icon--more" aria-hidden="true"></span><span class="kp-tabbar__label">More</span></button>
 </nav>
