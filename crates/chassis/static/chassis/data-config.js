@@ -52,7 +52,7 @@ export function normalize(options = {}) {
         throw fail('routes is empty', 'List the item and list routes of the app, e.g. ["/api/dishes", "/api/dishes/:id"].');
     }
     if (merged.onConflict !== null && typeof merged.onConflict !== 'function') {
-        throw fail('onConflict must be a function', 'Return "hold", "drop" or "overwrite".');
+        throw fail('onConflict must be a function', 'Return "skip", "hold" or "drop".');
     }
     if (!(merged.warnRatio > 0 && merged.warnRatio < 1)) {
         throw fail('warnRatio must be between 0 and 1', 'For example 0.8 warns at 80 percent of the cap.');

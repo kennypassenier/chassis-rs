@@ -10,6 +10,7 @@
 import { createCache } from './data-cache.js';
 import { createQueue } from './data-queue.js';
 import { createReads } from './data-reads.js';
+import { createReconciler } from './data-reconcile.js';
 import { createSettings } from './data-settings.js';
 import { createWrites } from './data-writes.js';
 import { send } from './data-send.js';
@@ -22,7 +23,8 @@ function queueHooks(emit, schedule, writes) {
                 failed: entries.filter((e) => e.state === 'failed').length });
             schedule();
         },
-        onSent: (entry, rev, outcome) => writes().afterWrite(entry, rev, outcome.body),
+        onSent: (entry, rev, outcome) => writes().afterWrite(entry, rev, outcome.body, true),
+        onRefused: (entry, outcome) => writes().restore(entry, outcome.body),
         onHeld: (entry) => emit('chassis-data-conflict', { entry }),
         onSyncing: (on) => emit('chassis-data-syncing', { syncing: on }),
         onSynced: (summary) => emit('chassis-data-synced', summary),
@@ -60,15 +62,16 @@ export async function createData({ config, fetch, store, storage, emit = () => {
         extraBytes: () => queue?.bytes() ?? 0,
         onLevel: (detail) => emit('chassis-data-storage', detail),
     });
+    const reconcile = createReconciler({ config, cache, hasPending: (path) => queue.list().some((e) => e.path === path && e.state !== 'failed') });
     const { current, api: settingsApi } = createSettings({ storage, config, cache });
     queue = createQueue({
         store, send: (e) => send(fetch, e), field: config.rev, policy: config.onConflict,
         hooks: queueHooks(emit, replayer.schedule, () => writes),
     });
     await queue.load();
-    const ctx = { config, cache, fetch, now, uuid, settings: current, queue: () => queue, kick: replayer.kick };
+    const ctx = { config, cache, reconcile, fetch, now, uuid, settings: current, queue: () => queue, kick: replayer.kick };
     writes = createWrites(ctx);
-    const { afterWrite: _ignored, ...writeApi } = writes;
+    const { afterWrite: _ignored, restore: _restore, ...writeApi } = writes;
     replayer.schedule();
     return {
         get: createReads(ctx).get,
@@ -84,8 +87,11 @@ export async function createData({ config, fetch, store, storage, emit = () => {
             if (ok) replayer.kick(); // a dropped hold lets the edits behind it go
             return ok;
         },
+        // A fresh user action: the edit goes on top of the newest server revision we hold.
         resave: async (id, options = {}) => {
-            const ok = await queue.resave(id, options.rev);
+            const entry = queue.list().find((e) => e.id === id);
+            const held = options.rev === undefined && entry ? await cache.read(entry.path) : null;
+            const ok = await queue.resave(id, options.rev ?? held?.rev ?? undefined);
             if (ok) replayer.kick();
             return ok;
         },

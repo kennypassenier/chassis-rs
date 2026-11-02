@@ -27,6 +27,14 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Changed
 
+- **The server is the master in the offline client** [fix-server-wins-1] [fix-server-wins-2] (Kenny's sync rule).
+  A queued write refused on replay (409 or other 4xx) resets the local copy of its path to the server's version at
+  once (`current` from the 409 body, else a refetch); the refused edit stays in the failed list only as a record, and
+  "Save again" is a new edit on top of the newest revision held. Optimistic copies roll back on refusal and give way to
+  the server's answer on success (a refetch when the answer has no body). The `overwrite` conflict policy is removed:
+  `onConflict` answering it is treated as `skip` with a console warning. Online answers replace the copy whole;
+  items missing from a whole list answer, or answered 404 / 410, lose their copy and list entries unless a write for
+  them is still pending. Rules written at the top of `docs/OFFLINE_DESIGN.md`.
 - **Offline keeping is trimmed** (`[feat-offline-keep-1]`). With `keepAll` off, a stored list answer now holds only the
   entries of kept items (the new `itemKey` option, default `'id'`, maps an entry to its `:id` path) and item routes are
   stored only for kept items, instead of the whole list once any item was kept. `keepItem(path, false)` removes the

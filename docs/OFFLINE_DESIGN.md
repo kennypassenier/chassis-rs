@@ -7,6 +7,33 @@ files only, and never JSON (`fix-swcache-1` stands). This adds explicit app
 data with revisions, in two halves: a runtime client in the page and an opt-in
 helper for the app's own axum routes.
 
+**The server is the master: it is always right** (Kenny's standing sync rule,
+2026-11-02). Three rules, which the coming local-database design follows too:
+
+1. **Online answers always replace the local copy.** A fresh answer is stored
+   whole, never merged: no local field survives it. After a queued write
+   succeeds, the copy becomes the server's answer (a POST's or an empty-bodied
+   answer is followed by a refetch of the path when a copy exists).
+2. **Server deletions remove the local items.** A whole list answer (route
+   without a query string) that no longer holds an item drops that item's copy
+   and its entry in every stored list; a 404 / 410 on an item GET deletes its
+   copy. Exception: an item with a queued write still pending keeps its copy
+   until the replay, where the server's 404 / 410 sends the write to the failed
+   list.
+3. **A refused queued edit never overrides the server.** On a 409 or any other
+   4xx at replay the local copy of that path becomes the server's version at
+   once (`current` from the 409 body, else a refetch; a path the server no
+   longer has loses its copy). No refused edit lingers in the copy. The edit
+   stays in the failed list only as a record; the person decides. "Save again"
+   is a fresh user action: it sends the edit as a NEW write on top of the newest
+   revision the client holds (the copy's, else the one of the refusal), and does
+   not touch the copy again until the server answers. There is no `overwrite`
+   policy.
+
+Optimistic copies (a queued write amending the stored copy, `post`'s
+`opts.optimistic`) are therefore only a preview: rolled back to the server's
+version on refusal, replaced by its answer on success.
+
 ```js
 chassisData.configure({
   name: 'kitchen',                       // IndexedDB database chassis-data:kitchen
@@ -37,6 +64,7 @@ async fn put_dish(IfMatch(want): IfMatch, ...) -> Result<Revisioned<Dish>, Confl
 | `data-trim.js`, `data-trimmer.js` | Pure: list-to-item mapping and `storable` (what of an answer is kept); and the trim of the stored copy after a switch-off. |
 | `data-store.js` | IndexedDB behind a flat store interface (`reads`, `queue`). The only file that touches IndexedDB. |
 | `data-cache.js` | Reads copy with byte accounting and the cap. |
+| `data-reconcile.js` | Server deletions: items missing from a whole list answer or answered 404 / 410 lose their copy (not while a write is pending). |
 | `data-queue.js` | The write queue and its replay (ordering, stop rules, rebase). |
 | `data-client.js` | `createData`: get / put / patch / delete wired from the above; `fetch` is injected. |
 | `data-band.js` | Connection band (`data-kp-pending`, syncing) and the stale/conflict toast. The only file that touches the DOM, with `data-logout.js` and `data.js`. |
@@ -108,11 +136,12 @@ persisted queue store with `state: 'failed'` and the server's answer, it is
 never sent again by itself, and the rest of the queue continues at once, in
 order. `chassis-data-conflict` fires and the kit's toast says so with a
 "Review" action. `chassisData.failed()` lists them, `drop(id)` discards one,
-`resave(id)` re-sends it with the server's current revision (the person looked
-and decided their version wins) or an `{rev}` they pass. `pending()` counts
+`resave(id)` is the person's fresh decision to send it again as a new edit on
+top of the server's newest revision the client holds (or an `{rev}` they pass);
+the server may refuse it again. `pending()` counts
 only edits still to send; `unsent()` is pending plus failed. The choice is
-`onConflict(entry, outcome) -> 'skip' | 'hold' | 'drop' | 'overwrite'` in
-`data-policy.js` (`defaultConflictPolicy` is the one place); `'hold'` stops the
+`onConflict(entry, outcome) -> 'skip' | 'hold' | 'drop'` in
+`data-policy.js` (`defaultConflictPolicy` is the one place; an `'overwrite'` answer is treated as `'skip'` with a console warning); `'hold'` stops the
 queue behind the edit until `drop` or `resave` (drop then replays at once).
 Other 4xx answers (400, 404, 422) go through the same function, because an edit
 that can never succeed must not be retried forever, nor vanish silently.

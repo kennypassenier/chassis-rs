@@ -103,7 +103,7 @@ test('with the hold policy, 409 on replay: the queue stops, the edit is held and
     svc.calls.length = 0;
     const r = await data.retry();
     assert.deepEqual([r.sent, r.remaining, r.stopped], [0, 2, 'held']);
-    assert.equal(svc.calls.length, 1, 'the second edit was not tried');
+    assert.deepEqual(svc.calls.map((c) => c.method), ['PUT', 'GET'], 'the second edit was not tried; the refused path was refetched');
     const [held, later] = data.queue();
     assert.deepEqual([held.state, held.conflict.status, later.state], ['held', 409, 'queued']);
     assert.equal(events.filter((e) => e.name === 'chassis-data-conflict').length, 1);
@@ -133,8 +133,8 @@ test('with the hold policy, re-saving a held edit sends it against the server re
     assert.equal(await data.resave(999), false);
 });
 
-test('another conflict policy is one function: drop and overwrite', async () => {
-    for (const [answer, name] of [['drop', 'Theirs'], ['overwrite', 'Mine']]) {
+test('another conflict policy is one function: drop', async () => {
+    for (const [answer, name] of [['drop', 'Theirs']]) {
         const svc = fakeService({ [D1]: dish('Soup') });
         const { data } = await makeClient(svc, { config: { onConflict: () => answer } });
         data.keepAll(true); await data.get(D1);
@@ -229,7 +229,7 @@ test('by default a refused edit goes to the failed list and the rest of the queu
     svc.calls.length = 0;
     const r = await data.retry();
     assert.deepEqual([r.sent, r.remaining, r.stopped], [1, 0, null], 'the second edit was sent');
-    assert.deepEqual(svc.calls.map((c) => c.path), [D1, '/api/dishes/2'], 'order kept: refused first, then the next');
+    assert.deepEqual(svc.calls.map((c) => c.path), [D1, D1, '/api/dishes/2'], 'order kept: refused first (then its refetch), then the next');
     assert.equal(svc.items['/api/dishes/2'].name, 'Later');
     assert.equal(svc.items[D1].name, 'Theirs');
     const failed = data.failed();
