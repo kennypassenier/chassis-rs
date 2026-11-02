@@ -7,6 +7,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [4.4.0] - 2026-11-02
+
 ### Added
 
 - **`chassisData.post(path, body, opts?)` and `IdempotencyKey`** [feat-offline-post-1] (Kitchen's freezer card). A POST
