@@ -9,9 +9,14 @@ export function revOf(body, etag, field) {
     return null;
 }
 
-/** The `If-Match` header value for a revision, or null for none. */
+/**
+ * The `If-Match` header value for a revision, or null for none. A real
+ * revision is quoted (an entity tag); `*` ("any current version") is sent
+ * bare, because `"*"` is a tag, not the wildcard, and the kit refuses it.
+ */
 export function ifMatchValue(rev) {
-    return rev === null || rev === undefined || rev === '' ? null : `"${rev}"`;
+    if (rev === null || rev === undefined || rev === '') return null;
+    return String(rev) === '*' ? '*' : `"${rev}"`;
 }
 
 /**

@@ -2,6 +2,7 @@
 // bytes it takes, and the cap. Store-agnostic; sizes are tracked in memory so
 // a write never rereads the whole copy.
 
+import { createLru } from './data-lru.js';
 import { capLevel, sizeOf } from './data-keep.js';
 
 /**
@@ -9,7 +10,9 @@ import { capLevel, sizeOf } from './data-keep.js';
  * counts against the cap); `onLevel(detail)` hears every change of level.
  */
 export async function createCache({ store, config, extraBytes = () => 0, onLevel = () => {}, now = Date.now }) {
-    const sizes = new Map((await store.allReads()).map((r) => [r.path, r.size ?? sizeOf(r.data)]));
+    const stored = await store.allReads();
+    const sizes = new Map(stored.map((r) => [r.path, r.size ?? sizeOf(r.data)]));
+    const lru = createLru(config, stored);
     let level = 'ok';
 
     const readBytes = () => [...sizes.values()].reduce((a, b) => a + b, 0);
@@ -31,7 +34,10 @@ export async function createCache({ store, config, extraBytes = () => 0, onLevel
         /** The paths of the stored answers. */
         paths: () => [...sizes.keys()],
         settle,
-        read: (path) => store.getRead(path),
+        read(path) {
+            lru.touch(path);
+            return store.getRead(path);
+        },
         /** Keep an answer. Returns false (and reports `full`) when it would pass the cap. */
         async remember(path, data, rev, partial = false) {
             const size = sizeOf(data);
@@ -43,6 +49,9 @@ export async function createCache({ store, config, extraBytes = () => 0, onLevel
             }
             await store.putRead({ path, data, rev: rev ?? null, partial, size, savedAt: now() });
             sizes.set(path, size);
+            lru.touch(path);
+            // Past the route's limit of query copies the least recently used go (the size cap still applies above).
+            for (const old of lru.over(path)) await this.forget(old);
             settle();
             return true;
         },
@@ -59,11 +68,13 @@ export async function createCache({ store, config, extraBytes = () => 0, onLevel
         async forget(path) {
             await store.deleteRead(path);
             sizes.delete(path);
+            lru.delete(path);
             settle();
         },
         async clear() {
             await store.clearReads();
             sizes.clear();
+            lru.clear();
             settle();
         },
     };
