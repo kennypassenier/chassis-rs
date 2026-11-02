@@ -16,7 +16,7 @@ import { installRefresh } from './refresh-kit.js';
 /**
  * Install the runtime on `win`/`doc` unless it is already there.
  * `kp` is { configureRemember, attachAgo, attachRefresh, refreshOf, setAgo,
- * connectionOf, openConfirmation, toast }
+ * connectionOf, openConfirmation, openDialog, toast }
  * plus `attachEffects` when the runtime should attach the effects (the bundle
  * variant; the modules variant leaves them to the app's auto.js). The
  * functions in `deps` replace the wiring steps in the node test.

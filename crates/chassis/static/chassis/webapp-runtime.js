@@ -18,10 +18,10 @@
 // Idempotent per page: `window.chassisRuntime` marks the first load, so the
 // same module under another URL (?v=…) or a second tag does nothing.
 
-import { attachAgo, attachEffects, attachRefresh, configureRemember, connectionOf, openConfirmation, refreshOf, setAgo, toast } from '../kp/dist/kp-themes.min.js';
+import { attachAgo, attachEffects, attachRefresh, configureRemember, connectionOf, openConfirmation, openDialog, refreshOf, setAgo, toast } from '../kp/dist/kp-themes.min.js';
 import { installRuntimeWith } from './webapp-runtime-core.js';
 
-const kp = { attachAgo, attachEffects, attachRefresh, configureRemember, connectionOf, openConfirmation, refreshOf, setAgo, toast };
+const kp = { attachAgo, attachEffects, attachRefresh, configureRemember, connectionOf, openConfirmation, openDialog, refreshOf, setAgo, toast };
 
 /** Install the runtime on `win`/`doc` unless it is already there (see the core). */
 export function installRuntime(win, doc, deps = {}) {

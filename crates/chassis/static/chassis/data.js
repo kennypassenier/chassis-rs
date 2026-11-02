@@ -8,11 +8,12 @@
 import { bindBand } from './data-band.js';
 import { normalize } from './data-config.js';
 import { createData } from './data-client.js';
+import { createFailedView } from './data-failed-view.js';
 import { installLogoutGuard } from './logout-guard.js';
 import { memoryStore, openStore } from './data-store.js';
 
 const METHODS = ['get', 'put', 'patch', 'delete', 'queue', 'pending', 'failed', 'unsent', 'retry', 'drop', 'resave',
-    'settings', 'keepAll', 'keepItem', 'isKept', 'usage', 'clearCopy', 'purge'];
+    'settings', 'keepAll', 'keepItem', 'isKept', 'usage', 'clearCopy', 'purge', 'review'];
 
 function storageOf(win) {
     try {
@@ -53,9 +54,10 @@ export function installData(win, doc, deps = {}, kp = null) {
                 clearTimer: (id) => win.clearTimeout(id),
                 now: () => Date.now(),
             });
-            if (kp) bindBand({ win, doc, kp, data, messages: config.messages });
+            const view = kp?.openDialog ? createFailedView({ win, doc, kp, data, messages: config.messages }) : null;
+            if (kp) bindBand({ win, doc, kp, data, messages: config.messages, view });
             win.addEventListener('online', () => data.retry());
-            return data;
+            return { ...data, review: (trigger) => view?.open(trigger) };
         })();
         return ready;
     };

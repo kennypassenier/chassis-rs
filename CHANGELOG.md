@@ -7,6 +7,19 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **A kit view for refused offline edits** (`[feat-offline-failed-view-1]`).
+  The conflict toast's "Review" action (and any element carrying
+  `data-chassis-review`, or `chassisData.review()`) opens a kit drawer built
+  from kp-themes parts: one card per refused or held edit with what it was,
+  when it was made, the service's own reason and its status, "Discard" and
+  "Save again" on each (the client's `drop()` / `resave()`), and "Discard all"
+  after one confirmation. Nothing refused shows a full-size empty state. The
+  `chassis-data-review` event is now cancelable: an app that builds its own
+  view calls `preventDefault()` and the kit's stays shut. Texts can be
+  replaced through `chassisData.configure({ messages })`.
+
 ### Fixed
 
 - **Logging out warns about unsent offline edits on every page**

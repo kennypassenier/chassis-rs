@@ -47,7 +47,7 @@ export function redrawBand(doc, kp, pending) {
 }
 
 /** Wire the page's events to the band and the toasts; returns an unbind function. */
-export function bindBand({ win, doc, kp, data, messages = {} }) {
+export function bindBand({ win, doc, kp, data, messages = {}, view = null }) {
     const text = { ...MESSAGES, ...messages };
     let toastEl = null;
     const once = (words, options) => {
@@ -58,7 +58,12 @@ export function bindBand({ win, doc, kp, data, messages = {} }) {
         return () => target.removeEventListener(name, fn);
     };
     const detail = (event) => event.detail ?? {};
-    const review = () => win.dispatchEvent(new win.CustomEvent('chassis-data-review', { detail: { queue: data.queue() } }));
+    // An app that builds its own view calls preventDefault(); otherwise the kit's opens.
+    const review = (trigger = null) => {
+        const event = new win.CustomEvent('chassis-data-review', { detail: { queue: data.queue() }, cancelable: true });
+        win.dispatchEvent(event);
+        if (!event.defaultPrevented && view) view.open(trigger).catch((err) => console.warn('chassisData: the failed-edits view could not open.', err));
+    };
     const offs = [
         on(win, 'chassis-data-queue', (e) => paint(doc, kp, null, detail(e).pending ?? 0)),
         on(win, 'chassis-data-syncing', (e) => detail(e).syncing && paint(doc, kp, 'reconnecting', data.pending())),
@@ -67,7 +72,7 @@ export function bindBand({ win, doc, kp, data, messages = {} }) {
             const why = { refused: text.refused, offline: undefined }[state];
             paint(doc, kp, state, data.pending(), detail(e).stopped === 'auth' ? text.expired : why);
         }),
-        on(win, 'chassis-data-conflict', (e) => once(detail(e).entry?.state === 'held' ? text.conflictHeld : text.conflict, { action: { label: text.review, onClick: review } })),
+        on(win, 'chassis-data-conflict', (e) => once(detail(e).entry?.state === 'held' ? text.conflictHeld : text.conflict, { action: { label: text.review, onClick: () => review() } })),
         on(win, 'chassis-data-storage', (e) => {
             const { level, used, max } = detail(e);
             if (level === 'warn') once(text.nearCap(Math.round((used / max) * 100)), { sticky: false });
@@ -76,6 +81,8 @@ export function bindBand({ win, doc, kp, data, messages = {} }) {
         on(doc, 'kp-connection-retry', () => data.retry()),
         // The language changed (kp setLanguage / setStrings): the band words follow.
         on(doc, 'kp-strings-change', () => redrawBand(doc, kp, data.pending())),
+        // Any element marked data-chassis-review opens the review, for an app's own button.
+        on(doc, 'click', (e) => e.target?.closest?.('[data-chassis-review]') && review(e.target.closest('[data-chassis-review]'))),
     ];
     return () => offs.forEach((off) => off());
 }
