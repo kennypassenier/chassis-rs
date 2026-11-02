@@ -14,7 +14,7 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 
 use crate::core::notify::{Event, Webhook};
-use crate::shell::time::now_rfc3339;
+use crate::core::notify_link::Link;
 
 /// Knobs (AR3).
 #[derive(Debug, Clone)]
@@ -26,6 +26,14 @@ pub struct NotifyConfig {
     pub queue_size: usize,
 }
 
+mod emit;
+
+/// What the webhook drain receives: the event and its optional link.
+struct Dispatch {
+    event: Event,
+    link: Option<Link>,
+}
+
 /// The drain task's future, spawned once a runtime exists.
 pub type Drain = std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>;
 
@@ -33,7 +41,7 @@ pub type Drain = std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
 #[derive(Clone)]
 pub struct Notifier {
     service: String,
-    tx: Option<mpsc::Sender<Event>>,
+    tx: Option<mpsc::Sender<Dispatch>>,
     /// Webhooks that claim an event keep it (3.15.0): the channel below only
     /// takes what no `[[notify.webhook]]` entry wants.
     routes: Arc<Vec<Webhook>>,
@@ -74,7 +82,7 @@ impl Notifier {
         if webhooks.is_empty() {
             return (Self::logging_only(service), None);
         }
-        let (tx, mut rx) = mpsc::channel::<Event>(cfg.queue_size.max(1));
+        let (tx, mut rx) = mpsc::channel::<Dispatch>(cfg.queue_size.max(1));
         let hooks = Arc::new(webhooks);
         let routes = hooks.clone();
         let drain = async move {
@@ -82,9 +90,9 @@ impl Notifier {
                 .timeout(cfg.timeout)
                 .build()
                 .expect("reqwest client");
-            while let Some(event) = rx.recv().await {
+            while let Some(Dispatch { event, link }) = rx.recv().await {
                 for hook in hooks.iter().filter(|h| h.wants(&event.kind)) {
-                    deliver(&client, hook, &event, &cfg).await;
+                    deliver(&client, hook, (&event, link.as_ref()), &cfg).await;
                 }
             }
         };
@@ -97,54 +105,6 @@ impl Notifier {
             },
             Some(Box::pin(drain)),
         )
-    }
-
-    /// Fire and forget. A full queue drops the event with one warning:
-    /// blocking a request handler on a webhook would be the wrong trade.
-    pub fn emit(&self, kind: &str, version: &str, detail: impl Into<String>) {
-        self.emit_inner(kind, version, detail.into(), None);
-    }
-
-    /// [`Notifier::emit`] with kyu's damping: a repeat of `dedup` inside its
-    /// window is not stored again by the hub and counts as delivered. Use it
-    /// for failures that repeat (a backup that fails every night); a success
-    /// message sends no key. Only the shared sender (primary and fallback
-    /// targets) carries it; a `[[notify.webhook]]` entry sends as before.
-    pub fn emit_keyed(
-        &self,
-        kind: &str,
-        version: &str,
-        detail: impl Into<String>,
-        dedup: crate::core::notify_target::Dedup,
-    ) {
-        self.emit_inner(kind, version, detail.into(), Some(dedup));
-    }
-
-    fn emit_inner(
-        &self,
-        kind: &str,
-        version: &str,
-        detail: String,
-        dedup: Option<crate::core::notify_target::Dedup>,
-    ) {
-        tracing::info!(event = kind, version, detail = %detail, "event");
-        let event = Event {
-            service: self.service.clone(),
-            kind: kind.to_string(),
-            at: now_rfc3339(),
-            version: version.to_string(),
-            detail,
-        };
-        if !self.routes.iter().any(|h| h.wants(kind)) {
-            self.intake.offer(crate::shell::notify_intake::Queued {
-                event: event.clone(),
-                dedup,
-            });
-        }
-        let Some(tx) = &self.tx else { return };
-        if let Err(e) = tx.try_send(event) {
-            tracing::warn!(error = %e, "notification queue full; event dropped (it is in the log above)");
-        }
     }
 
     /// The door the shared sender connects to at start.
@@ -168,8 +128,13 @@ pub fn redacted_url(url: &str) -> String {
     }
 }
 
-async fn deliver(client: &reqwest::Client, hook: &Webhook, event: &Event, cfg: &NotifyConfig) {
-    let body = match hook.render_body(event) {
+async fn deliver(
+    client: &reqwest::Client,
+    hook: &Webhook,
+    (event, link): (&Event, Option<&Link>),
+    cfg: &NotifyConfig,
+) {
+    let body = match hook.render_body_linked(event, link) {
         Ok(b) => b,
         Err(e) => {
             tracing::warn!(error = %e, url = %redacted_url(&hook.url), "webhook body template failed; event not sent");

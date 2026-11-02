@@ -3,6 +3,7 @@
 
 use super::{Channel, View, Which};
 use crate::core::error::Error;
+use crate::core::notify_link::body_json;
 use crate::core::notify_target::{Dedup, KEY_FALLBACK, KEY_PRIMARY};
 use crate::shell::time::{now_epoch, now_rfc3339};
 use crate::storage::notify_meta::{LastDelivery, LastError};
@@ -13,10 +14,10 @@ impl Channel {
     /// and a message nobody could ever have received is not worth keeping.
     pub(crate) fn enqueue(&self, q: &crate::shell::notify_intake::Queued) -> Result<(), Error> {
         let event = &q.event;
-        if !self.active() {
+        if !self.active_for(&event.kind) {
             return Ok(());
         }
-        let body = serde_json::to_string(event).expect("event serialises");
+        let body = body_json(event, q.link.as_ref());
         let dropped = self.inner.outbox.enqueue(
             &event.kind,
             &body,
@@ -70,6 +71,7 @@ impl Channel {
         Ok(View {
             primary: self.target(Which::Primary),
             fallback: self.target(Which::Fallback),
+            kit: self.kit_target(),
             saved: [
                 meta.stored(KEY_PRIMARY)?.is_some(),
                 meta.stored(KEY_FALLBACK)?.is_some(),

@@ -93,3 +93,32 @@ fn the_dedup_key_survives_the_outbox_reopening() {
     let b = outbox.next_due(10).unwrap().unwrap();
     assert_eq!((b.dedup_key, b.dedup_window), (None, None));
 }
+
+#[test]
+fn a_body_with_title_and_url_comes_back_byte_for_byte_after_a_reopen() {
+    use crate::core::notify::Event;
+    use crate::core::notify_link::{Link, body_json};
+    let event = Event {
+        service: "habits".into(),
+        kind: "task.due".into(),
+        at: "2026-11-02T08:00:00Z".into(),
+        version: "1.2.0".into(),
+        detail: "drink \"water\" \u{2014} now".into(),
+    };
+    let link = Link::new(Some("Water drinken"), Some("/tasks/42?a=1&b=2")).unwrap();
+    let body = body_json(&event, Some(&link));
+    let dir = tempfile::tempdir().unwrap();
+    Outbox::new(open(dir.path()), 10)
+        .enqueue("task.due", &body, None, 1)
+        .unwrap();
+    let back = Outbox::new(open(dir.path()), 10)
+        .next_due(10)
+        .unwrap()
+        .unwrap();
+    assert_eq!(back.body, body);
+    let json: serde_json::Value = serde_json::from_str(&back.body).unwrap();
+    assert_eq!(
+        (json["title"].as_str(), json["url"].as_str()),
+        (Some("Water drinken"), Some("/tasks/42?a=1&b=2"))
+    );
+}

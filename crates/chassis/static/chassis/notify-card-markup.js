@@ -66,12 +66,16 @@ export function factsHtml(d) {
   const tok = d.token ?? { set: false, env: '' };
   const tokenHtml = `<div class="kp-kv__row"><dt>Token</dt><dd data-notify-token="${tok.set ? 'set' : 'unset'}">${tok.set ? 'Set' : 'Not set'}</dd></div>`;
   const tokenNote = `The primary address’s token comes from the environment variable ${tok.env}; it is never shown or changed here.`;
+  // Present only when notify_kit_url is set: where the kit's own events go. Configuration only.
+  const kitHtml = d.kit
+    ? `<div class="kp-kv__row"><dt>Kit events</dt><dd data-notify-kit>${esc(d.kit.address ?? '')} <span class="kp-text-muted">service, update and health events; fixed by configuration</span></dd></div>`
+    : '';
   const last = d.last_delivery
     ? `${when(d.last_delivery.at)} <span class="kp-text-muted">via the ${esc(d.last_delivery.via)}</span>`
     : '<span class="kp-text-muted">Nothing delivered yet</span>';
   return `<div class="kp-kpis" role="group" aria-label="Messages waiting on disk" data-kp-kpis-columns="all 1"><div class="kp-kpi"${waiting > 0 ? ' data-kp-tone="warning"' : ''}><span class="kp-kpi__label">Waiting on disk</span><span class="kp-kpi__value">${num(waiting)}<small>${waiting === 1 ? 'message' : 'messages'}</small></span><span class="kp-kpi__trend">${esc(trend)}</span></div></div>
       <p class="kp-text-muted notify-card__note">${esc(kept)}</p>
-      <dl class="kp-kv kp-kv--lines"><div class="kp-kv__row"><dt>Last delivery</dt><dd>${last}</dd></div>${tokenHtml}</dl>
+      <dl class="kp-kv kp-kv--lines"><div class="kp-kv__row"><dt>Last delivery</dt><dd>${last}</dd></div>${kitHtml}${tokenHtml}</dl>
       <p class="kp-text-muted notify-card__note" data-notify-token-note>${esc(tokenNote)}</p>
       ${errorHtml}`;
 }

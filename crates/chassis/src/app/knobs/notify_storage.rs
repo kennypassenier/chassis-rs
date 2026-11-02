@@ -49,6 +49,12 @@ pub(super) fn rows() -> Vec<Knob> {
             NOTIFY,
             "Fallback notification target, asked once when the primary does not take a message (for example a Home Assistant webhook address). Unset = no fallback. Same rules as notify_url.",
         ),
+        k(
+            "notify_kit_url",
+            None,
+            NOTIFY,
+            "Where the kit's own events (service.started, update.*, health.*) go instead of notify_url, with the same outbox, retries and fallback. The app's events always go to notify_url. Unset = the kit's events go to notify_url too. Same address rules as notify_url; the Status page shows it but does not edit it.",
+        ),
         // A secret: environment only (latch puts it there), masked everywhere.
         Knob {
             key: "notify_token",

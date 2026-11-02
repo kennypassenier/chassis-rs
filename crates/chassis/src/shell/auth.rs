@@ -13,6 +13,9 @@
 //! (critic #12).
 
 mod caller;
+mod door_hint;
+#[cfg(test)]
+mod door_tests;
 mod limits;
 mod lookup;
 mod secrets;
@@ -37,6 +40,7 @@ use crate::shell::guards::{Guards, IpLimit};
 use crate::shell::store::{Clients, SessionStore};
 
 use caller::bearer;
+pub(crate) use door_hint::DoorHint;
 pub(crate) use lookup::{identify_request, still_valid_now};
 
 /// The two secrets, parsed. Built by `App` from the knobs.
@@ -100,7 +104,7 @@ pub async fn require_caller(
         None => Error::new(
             Kind::Unauthorized,
             "missing or invalid credentials",
-            "send Authorization: Bearer <client token>, or log in on /login",
+            door_hint::remedy_for(req.extensions().get::<DoorHint>(), req.headers()),
         )
         .into_response(),
     }

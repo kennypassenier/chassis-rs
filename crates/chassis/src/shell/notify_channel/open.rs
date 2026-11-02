@@ -9,7 +9,7 @@ use tokio::sync::Notify;
 use super::{Channel, ChannelConfig, CodeTargets, Credential, Inner, Which};
 use crate::core::config::Source;
 use crate::core::error::Error;
-use crate::core::notify_target::{self as target, Fixed, Inputs, Target, check_url};
+use crate::core::notify_target::{self as target, Fixed, Inputs, KEY_KIT, Target, check_url};
 use crate::core::notify_token::NotifyToken;
 use crate::shell::config_load::Loaded;
 use crate::storage::Db;
@@ -51,6 +51,7 @@ impl Channel {
         cfg: ChannelConfig,
     ) -> Result<Channel, Error> {
         let fixed = fixed_targets(loaded, prefix)?;
+        let kit = kit_target(loaded, prefix)?;
         let code = [code.primary, code.fallback];
         check_code_targets(&code)?;
         let auth = credential(loaded, prefix)?;
@@ -61,6 +62,7 @@ impl Channel {
                 meta: NotifyMeta::new(kit_db),
                 cfg,
                 fixed,
+                kit,
                 code,
                 resolved: Mutex::new([
                     Target {
@@ -132,6 +134,26 @@ fn fixed_targets(loaded: &Loaded, prefix: &str) -> Result<[Option<Fixed>; 2], Er
         fixed[which.index()] = f;
     }
     Ok(fixed)
+}
+
+/// `notify_kit_url`: configuration only (no page field, no code default), so
+/// it is resolved once. An unusable value stops the start naming its key.
+fn kit_target(loaded: &Loaded, prefix: &str) -> Result<Target, Error> {
+    let fixed = fixed_from(loaded, prefix, KEY_KIT);
+    if let Some(f) = &fixed
+        && !f.value.trim().is_empty()
+    {
+        check_url(&f.value).map_err(|e| {
+            Error::config(
+                format!("{} ({}) is not usable: {}", f.name, f.by, e.message),
+                e.remedy,
+            )
+        })?;
+    }
+    Ok(target::resolve(&Inputs {
+        fixed,
+        ..Default::default()
+    }))
 }
 
 /// The addresses `App::notify_targets` gave; one that is not usable stops

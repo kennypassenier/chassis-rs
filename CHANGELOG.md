@@ -46,6 +46,30 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Added
 
+- **A title and a link on a notification** (`[notify-link-1]`, Habits integration
+  test): `Notifier::emit_linked(kind, version, detail, Link)` and
+  `emit_linked_keyed(.., link, dedup)`. `Link::new(Some("Water drinken"),
+  Some("/tasks/42"))?` (or `Link::to(url)?`, in `core::notify_link`) checks
+  its parts when it is built: the url is a path of the app (one leading `/`)
+  or an absolute http(s) address, the title one line of at most 200
+  characters; anything else is refused with a remedy. The JSON body of the
+  shared sender, and so the outbox row, gains `"title"` and `"url"` after
+  `detail` for whichever is set; without a link the body is byte for byte the
+  old one. The public `Event` struct is untouched (the link travels beside
+  it), so this is a minor. The default body of a `[[notify.webhook]]` entry
+  gains the same two fields; a custom `body` template sees them as the
+  variables `title` and `url`, absent when unset (`{% if url %}`), via the new
+  `Webhook::render_body_linked` (`render_body` is unchanged).
+- **`notify_kit_url`** (`[notify-kit-1]`): where the kit's own events
+  (`KIT_EVENTS`: `service.started`, `update.*`, `health.*`; see the new
+  `core::notify::is_kit_event`) go instead of `notify_url`, through the same
+  outbox, retries and fallback. Flag, environment `<P>_NOTIFY_KIT_URL` or
+  config key, checked like `notify_url` (a bad value stops the start); not
+  editable on the Status page. The app's own events always go to `notify_url`.
+  Unset, everything behaves as before. The Notifications card shows a "Kit
+  events" line when it is set and `GET /api/kit/notify` answers `kit` (null
+  when unset); the Test button also tests it.
+
 - **A web app mounted below the root is installable** (`webapp` PWA, HTTPSwitchboard
   at `/app/hsb`, Almanac at `/ui`; `[feat-pwa-mount-1]`): the whole service is
   the installed app. The manifest, `/sw.js`, `/pwa/*` and `/favicon.ico` stay
@@ -251,6 +275,13 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Fixed
 
+- **The API door's 401 remedy speaks to the program that got it**
+  (habits, `[fix-door-1]`): a request that carried an `Authorization`
+  header with an unknown token (a rotated or mistyped one) now gets
+  "send the token issued for this source on the Sources page (/clients),
+  as Authorization: Bearer <token>", in the app's own vocabulary and clients
+  page label. A request with no header keeps the old remedy. The `error`
+  text and the 401 status are unchanged.
 - **Kit pages register the service worker** (almanac, `[fix-pwa-boot-1]`):
   `/`, Clients, Storage and every page rendered through the kit layout
   carried the manifest but not the script that registers the worker, so a

@@ -15,12 +15,15 @@ use std::sync::Mutex;
 use tokio::sync::mpsc;
 
 use crate::core::notify::Event;
+use crate::core::notify_link::Link;
 use crate::core::notify_target::Dedup;
 
 /// An event on its way to the outbox, with its optional damping key.
 pub(crate) struct Queued {
     pub event: Event,
     pub dedup: Option<Dedup>,
+    /// The optional title and link, merged into the body when it is written.
+    pub link: Option<Link>,
 }
 
 /// Events kept for a channel that has not started yet.
@@ -85,6 +88,7 @@ mod tests {
     fn event(kind: &str) -> Queued {
         Queued {
             dedup: None,
+            link: None,
             event: Event {
                 service: "svc".into(),
                 kind: kind.into(),

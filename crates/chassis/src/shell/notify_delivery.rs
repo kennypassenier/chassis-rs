@@ -129,18 +129,18 @@ pub(crate) async fn deliver(
 ) -> Result<(Which, Reply), Vec<String>> {
     let dedup = (msg.dedup_key.as_deref(), msg.dedup_window.as_deref());
     let mut errors = Vec::new();
-    for (which, url) in ch.targets() {
+    for (which, url) in ch.targets_for(&msg.kind) {
         // A primary that just failed a message gets one try for the next,
         // not a full ladder, so a dead hub does not stall the fallback.
-        let retries = if which == Which::Primary && *primary_down {
+        let retries = if which.is_hub() && *primary_down {
             0
         } else {
             ch.config().send.retries
         };
-        let auth = (which == Which::Primary).then(|| ch.primary_credential());
+        let auth = which.is_hub().then(|| ch.primary_credential());
         match send_with_retries(client, ch, &url, &msg.body, dedup, retries, auth).await {
             Ok(reply) => {
-                if which == Which::Primary {
+                if which.is_hub() {
                     *primary_down = false;
                 } else {
                     tracing::warn!(url = %redacted_url(&url), "delivered via the fallback target");
@@ -148,7 +148,7 @@ pub(crate) async fn deliver(
                 return Ok((which, reply));
             }
             Err(why) => {
-                if which == Which::Primary {
+                if which.is_hub() {
                     *primary_down = true;
                 }
                 tracing::warn!(url = %redacted_url(&url), error = %why, target = which.as_str(), "notification target did not take the message");
@@ -179,12 +179,15 @@ pub(crate) async fn send_test(ch: &Channel, service: &str, version: &str) -> ser
         .build()
         .expect("reqwest client");
     let mut results = Vec::new();
-    for which in Which::BOTH {
+    let asked = Which::BOTH
+        .into_iter()
+        .chain(ch.kit_target().map(|_| Which::Kit));
+    for which in asked {
         let Some(url) = ch.target(which).value else {
             results.push(serde_json::json!({"target": which.as_str(), "outcome": "not_set", "detail": "No address is set for it."}));
             continue;
         };
-        let auth = (which == Which::Primary).then(|| ch.primary_credential());
+        let auth = which.is_hub().then(|| ch.primary_credential());
         let (outcome, detail) = match send_once(&client, &url, &body, (None, None), auth).await {
             Ok(_) => (
                 "delivered",

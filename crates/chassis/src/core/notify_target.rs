@@ -18,6 +18,8 @@ use crate::core::error::Error;
 /// The knob keys: file key, flag and (upper-cased, prefixed) environment name.
 pub const KEY_PRIMARY: &str = "notify_url";
 pub const KEY_FALLBACK: &str = "notify_fallback_url";
+/// The optional third address: where the kit's own events go (configuration only).
+pub const KEY_KIT: &str = "notify_kit_url";
 
 /// The longest address the kit accepts.
 pub const MAX_URL_BYTES: usize = 2048;
