@@ -84,9 +84,11 @@ test('a live 409 is an error for the app, not queued', async () => {
     assert.equal(data.pending(), 0);
 });
 
-async function conflicted() {
+const HOLD = { onConflict: () => 'hold' };
+
+async function conflicted(config = {}) {
     const svc = fakeService({ [D1]: dish('Soup'), '/api/dishes/2': dish('Stew') });
-    const c = await makeClient(svc);
+    const c = await makeClient(svc, { config });
     c.data.keepAll(true); await c.data.get(D1);
     svc.up = false;
     await c.data.put(D1, { name: 'Mine' });
@@ -96,8 +98,8 @@ async function conflicted() {
     return c;
 }
 
-test('409 on replay: the queue stops, the edit is held and nothing behind it is sent', async () => {
-    const { data, events, svc } = await conflicted();
+test('with the hold policy, 409 on replay: the queue stops, the edit is held and nothing behind it is sent', async () => {
+    const { data, events, svc } = await conflicted(HOLD);
     svc.calls.length = 0;
     const r = await data.retry();
     assert.deepEqual([r.sent, r.remaining, r.stopped], [0, 2, 'held']);
@@ -110,18 +112,18 @@ test('409 on replay: the queue stops, the edit is held and nothing behind it is 
     assert.equal(svc.calls.length, 0, 'a hold stays until the person decides');
 });
 
-test('dropping a held edit lets the rest through', async () => {
-    const { data, svc } = await conflicted();
+test('with the hold policy, dropping a held edit lets the rest through at once', async () => {
+    const { data, svc } = await conflicted(HOLD);
     await data.retry();
     assert.equal(await data.drop(data.queue()[0].id), true);
-    const r = await data.retry();
-    assert.deepEqual([r.sent, r.remaining], [1, 0]);
+    await data.retry(); // joins the replay drop() started
+    assert.equal(data.pending(), 0);
     assert.equal(svc.items['/api/dishes/2'].name, 'Later');
     assert.equal(svc.items[D1].name, 'Theirs');
 });
 
-test('re-saving a held edit sends it against the server revision', async () => {
-    const { data, svc } = await conflicted();
+test('with the hold policy, re-saving a held edit sends it against the server revision', async () => {
+    const { data, svc } = await conflicted(HOLD);
     await data.retry();
     assert.equal(await data.resave(data.queue()[0].id), true);
     await data.retry();
@@ -220,4 +222,43 @@ test('a queue left by an earlier page load is replayed', async () => {
     svc.up = true;
     await second.data.retry();
     assert.equal(svc.items[D1].name, 'A');
+});
+
+test('by default a refused edit goes to the failed list and the rest of the queue continues', async () => {
+    const { data, svc, events } = await conflicted();
+    svc.calls.length = 0;
+    const r = await data.retry();
+    assert.deepEqual([r.sent, r.remaining, r.stopped], [1, 0, null], 'the second edit was sent');
+    assert.deepEqual(svc.calls.map((c) => c.path), [D1, '/api/dishes/2'], 'order kept: refused first, then the next');
+    assert.equal(svc.items['/api/dishes/2'].name, 'Later');
+    assert.equal(svc.items[D1].name, 'Theirs');
+    const failed = data.failed();
+    assert.deepEqual([failed.length, failed[0].state, failed[0].conflict.status, data.pending(), data.unsent()], [1, 'failed', 409, 0, 1]);
+    const conflict = events.filter((e) => e.name === 'chassis-data-conflict');
+    assert.deepEqual([conflict.length, conflict[0].detail.entry.state], [1, 'failed']);
+});
+
+test('a failed edit can be dropped or re-saved, and a new write goes straight through', async () => {
+    const { data, svc } = await conflicted();
+    await data.retry();
+    await data.put('/api/dishes/2', { name: 'Direct' });
+    assert.equal(svc.items['/api/dishes/2'].name, 'Direct', 'a failed edit does not hold new writes');
+    assert.equal(await data.resave(data.failed()[0].id), true);
+    await data.retry();
+    assert.deepEqual([data.unsent(), svc.items[D1].name], [0, 'Mine']);
+    svc.up = false;
+    await data.put(D1, { name: 'Again' });
+    svc.items[D1] = dish('Other', 9); svc.up = true;
+    await data.retry();
+    assert.equal(await data.drop(data.failed()[0].id), true);
+    assert.equal(data.unsent(), 0);
+});
+
+test('the failed list survives a reload', async () => {
+    const { data, store, storage, svc } = await conflicted();
+    await data.retry();
+    const again = await makeClient(svc, { store, storage });
+    assert.deepEqual(again.data.failed().map((e) => [e.state, e.path]), [['failed', D1]]);
+    assert.deepEqual([again.data.pending(), again.data.unsent()], [0, 1]);
+    assert.equal((await again.data.retry()).sent, 0, 'a failed edit is not sent again by itself');
 });

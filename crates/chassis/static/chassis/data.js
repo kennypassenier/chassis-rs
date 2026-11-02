@@ -11,7 +11,7 @@ import { createData } from './data-client.js';
 import { hookLogout } from './data-logout.js';
 import { memoryStore, openStore } from './data-store.js';
 
-const METHODS = ['get', 'put', 'patch', 'delete', 'queue', 'pending', 'retry', 'drop', 'resave',
+const METHODS = ['get', 'put', 'patch', 'delete', 'queue', 'pending', 'failed', 'unsent', 'retry', 'drop', 'resave',
     'settings', 'keepAll', 'keepItem', 'isKept', 'usage', 'clearCopy', 'purge'];
 
 function storageOf(win) {
@@ -49,7 +49,10 @@ export function installData(win, doc, deps = {}, kp = null) {
                 now: () => Date.now(),
             });
             if (kp) bindBand({ win, doc, kp, data, messages: config.messages });
-            hookLogout({ win, doc, purge: () => data.purge() });
+            hookLogout({
+                win, doc, purge: () => data.purge(), unsent: () => data.unsent(),
+                confirm: kp?.openConfirmation, messages: config.messages,
+            });
             win.addEventListener('online', () => data.retry());
             return data;
         })();

@@ -99,3 +99,26 @@ test('the facade waits for configure, configures once, and survives a missing In
     await facade.keepAll(true);
     assert.equal((await facade.settings()).all, true);
 });
+
+test('logout: no unsent edits goes at once; unsent edits ask first, Stay keeps the page, Log out anyway purges and submits', async () => {
+    const { logoutNeedsConfirm, askLogout, LOGOUT_MESSAGES } = await import('../../static/chassis/data-logout.js');
+    assert.deepEqual([0, 1, 3, undefined].map(logoutNeedsConfirm), [false, true, true, false]);
+    assert.equal(LOGOUT_MESSAGES.body(3), '3 changes have not been sent yet and will be lost.');
+    assert.equal(LOGOUT_MESSAGES.body(1), '1 change has not been sent yet and will be lost.');
+    for (const [answer, expected] of [['accept', ['purge', 'submit']], ['cancel', []]]) {
+        const order = []; const listeners = {};
+        const win = { location: { href: 'https://a.example/' }, setTimeout: (fn, ms) => setTimeout(fn, ms) };
+        const doc = { addEventListener: (n, fn) => (listeners[n] = fn), removeEventListener() {} };
+        const asked = [];
+        const confirm = (trigger, o) => { asked.push(o); (answer === 'accept' ? o.onAccept : o.onCancel)(); };
+        hookLogout({ win, doc, purge: async () => order.push('purge'), unsent: () => 3, confirm });
+        const form = { action: 'https://a.example/logout', dataset: {}, submit: () => order.push('submit') };
+        let prevented = false;
+        listeners.submit({ target: form, preventDefault: () => (prevented = true) });
+        await new Promise((r) => setTimeout(r, 20));
+        assert.equal(prevented, true);
+        assert.deepEqual(order, expected, answer);
+        assert.deepEqual([asked[0].acceptLabel, asked[0].strings.confirmCancel], ['Log out anyway', 'Stay']);
+    }
+    assert.equal(typeof askLogout, 'function');
+});

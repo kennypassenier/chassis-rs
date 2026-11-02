@@ -17,6 +17,7 @@ export async function send(fetchFn, { method, path, body, ifMatch }) {
             headers,
             body: body === undefined ? undefined : JSON.stringify(body),
             credentials: 'same-origin',
+            cache: 'no-store', // the client keeps its own copy; the browser's HTTP cache must not pose as a live answer
         });
     } catch (err) {
         if (err?.name === 'AbortError') throw err;

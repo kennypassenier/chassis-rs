@@ -44,9 +44,10 @@ test('statuses map to what the queue does', () => {
         [422, 'rejected'], [404, 'rejected'], [500, 'retry'], [200, 'ok']]) assert.equal(classify(s), k, String(s));
 });
 
-test('the conflict policy holds by default, accepts one-line replacements, and distrusts unknown answers', () => {
-    assert.equal(defaultConflictPolicy({}, {}), 'hold');
-    assert.equal(decide(null, {}, {}), 'hold');
+test('the conflict policy skips by default, accepts one-line replacements, and distrusts unknown answers', () => {
+    assert.equal(defaultConflictPolicy({}, {}), 'skip');
+    assert.equal(decide(null, {}, {}), 'skip');
+    assert.equal(decide(() => 'hold', {}, {}), 'hold');
     assert.equal(decide(() => 'drop', {}, {}), 'drop');
     const warn = console.warn; console.warn = () => {};
     assert.equal(decide(() => 'banana', {}, {}), 'hold');

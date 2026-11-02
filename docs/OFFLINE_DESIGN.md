@@ -61,17 +61,28 @@ for the same path that carried the old revision are rebased to the new one: they
 are the same person's follow-up edits, not stale saves. An optimistic local
 update (put / patch / delete of the copy) makes offline reads show the edit.
 
-**409 on replay: the queue stops and the edit is held** (default; Kenny is
-being asked). The refused edit stays in the queue marked `held` with the
-server's answer, nothing behind it is sent, the kit's toast says so with a
-"Review" action, and `chassisData.drop(id)` or `chassisData.resave(id)` ends
-the hold. `resave` re-sends with the server's current revision (the person
-looked and decided their version wins) or an `{rev}` they pass. The choice is
-`onConflict(entry, outcome) -> 'hold' | 'drop' | 'overwrite'` in
-`data-policy.js`; another answer is one line there (or the `onConflict` option).
+**409 on replay: skip and continue** (Kenny, form offline-conflict, "Overslaan",
+2026-11-02). The refused edit moves to the **failed list**: it stays in the same
+persisted queue store with `state: 'failed'` and the server's answer, it is
+never sent again by itself, and the rest of the queue continues at once, in
+order. `chassis-data-conflict` fires and the kit's toast says so with a
+"Review" action. `chassisData.failed()` lists them, `drop(id)` discards one,
+`resave(id)` re-sends it with the server's current revision (the person looked
+and decided their version wins) or an `{rev}` they pass. `pending()` counts
+only edits still to send; `unsent()` is pending plus failed. The choice is
+`onConflict(entry, outcome) -> 'skip' | 'hold' | 'drop' | 'overwrite'` in
+`data-policy.js` (`defaultConflictPolicy` is the one place); `'hold'` stops the
+queue behind the edit until `drop` or `resave` (drop then replays at once).
 Other 4xx answers (400, 404, 422) go through the same function, because an edit
 that can never succeed must not be retried forever, nor vanish silently.
 401 and 5xx stop the queue and are retried later.
+
+**Logout warns** (Kenny, form offline-logout, "Waarschuwen", 2026-11-02). With
+unsent edits (queued or failed) the logout form first opens the kit's confirm
+dialog (kp-themes `openConfirmation`): "N changes have not been sent yet and
+will be lost." with "Log out anyway" and "Stay" (texts overridable through
+`messages`). Only on confirm the copy is purged and the form sent; without
+unsent edits logout stays immediate.
 
 **Retry triggers.** `online` event, a timer while the queue is non-empty
 (`retryMs`, default 30 s), the band's retry button (`kp-connection-retry`) and

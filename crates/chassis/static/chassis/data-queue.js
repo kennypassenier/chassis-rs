@@ -3,8 +3,9 @@
 // answers `{ status, body, etag }` (status 0 = no answer) and `store` is the
 // flat store, so the node tests drive it with fakes.
 //
-// Entry: { id, method, path, body, ifMatch, at, state: 'queued' | 'held',
-//          conflict? }. A `held` entry blocks everything behind it.
+// Entry: { id, method, path, body, ifMatch, at, state: 'queued' | 'held' | 'failed',
+//          conflict? }. A `held` entry blocks everything behind it; a `failed`
+//          one (the default policy) is kept for the person and skipped.
 
 import { classify, decide } from './data-policy.js';
 import { conflictRev, rebase, revOf } from './data-rev.js';
@@ -47,9 +48,10 @@ export function createQueue({ store, send, field, policy, hooks = {} }) {
             await persist({ ...entry, overwritten: true, ifMatch: conflictRev(outcome.body, field) });
             return 'continue';
         }
-        const held = await persist({ ...entry, state: 'held', conflict: { status: outcome.status, body: outcome.body ?? null } });
+        const skipped = answer === 'skip';
+        const held = await persist({ ...entry, state: skipped ? 'failed' : 'held', conflict: { status: outcome.status, body: outcome.body ?? null } });
         call('onHeld', held);
-        return 'stop:held';
+        return skipped ? 'continue' : 'stop:held';
     }
 
     /** One entry's turn: 'sent' or 'continue' (dropped / overwritten) with the next, or 'stop:<why>'. */
@@ -67,13 +69,15 @@ export function createQueue({ store, send, field, policy, hooks = {} }) {
         return `stop:${kind}`;
     }
 
+    /** The first entry that is not parked in the failed list. */
+    const nextToSend = () => entries.find((e) => e.state !== 'failed');
+
     async function replayAll() {
         let sent = 0;
         let stopped = null;
         call('onSyncing', true);
         try {
-            while (entries.length > 0 && stopped === null) {
-                const head = entries[0];
+            for (let head = nextToSend(); head && stopped === null; head = nextToSend()) {
                 if (head.state === 'held') {
                     stopped = 'held';
                     break;
@@ -86,14 +90,16 @@ export function createQueue({ store, send, field, policy, hooks = {} }) {
         } finally {
             call('onSyncing', false);
         }
-        const summary = { sent, remaining: entries.length, stopped };
+        const summary = { sent, remaining: entries.filter((e) => e.state !== 'failed').length, stopped };
         call('onSynced', summary);
         return summary;
     }
 
     return {
         list: () => entries.map((e) => ({ ...e })),
-        pending: () => entries.length,
+        pending: () => entries.filter((e) => e.state !== 'failed').length,
+        failed: () => entries.filter((e) => e.state === 'failed').map((e) => ({ ...e })),
+        unsent: () => entries.length,
         bytes: () => entries.reduce((n, e) => n + JSON.stringify(e).length, 0),
         async load() {
             entries = (await store.allQueue()).sort((a, b) => a.id - b.id);
@@ -137,7 +143,7 @@ export function createQueue({ store, send, field, policy, hooks = {} }) {
         },
         /** End a hold: send the edit again with `rev` (default: the server's current one). */
         async resave(id, rev) {
-            const entry = entries.find((e) => e.id === id && e.state === 'held');
+            const entry = entries.find((e) => e.id === id && e.state !== 'queued');
             if (!entry) return false;
             const current = rev ?? conflictRev(entry.conflict?.body, field);
             const { conflict: _gone, ...rest } = entry;

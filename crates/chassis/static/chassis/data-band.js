@@ -7,7 +7,8 @@
 // pending count, which is what a replay looks like.
 
 export const MESSAGES = {
-    conflict: 'An edit made offline was refused: this item was changed elsewhere. Later edits wait until you decide.',
+    conflict: 'An edit made offline was refused: this item was changed elsewhere. It is kept in the failed list; the other edits were sent.',
+    conflictHeld: 'An edit made offline was refused: this item was changed elsewhere. Later edits wait until you decide.',
     review: 'Review',
     nearCap: (pct) => `The offline copy uses ${pct}% of its space.`,
     full: 'The offline copy is full: new items are not kept offline until you clear some.',
@@ -49,7 +50,7 @@ export function bindBand({ win, doc, kp, data, messages = {} }) {
             const why = { refused: text.refused, offline: undefined }[state];
             paint(doc, kp, state, data.pending(), detail(e).stopped === 'auth' ? text.expired : why);
         }),
-        on(win, 'chassis-data-conflict', () => once(text.conflict, { action: { label: text.review, onClick: review } })),
+        on(win, 'chassis-data-conflict', (e) => once(detail(e).entry?.state === 'held' ? text.conflictHeld : text.conflict, { action: { label: text.review, onClick: review } })),
         on(win, 'chassis-data-storage', (e) => {
             const { level, used, max } = detail(e);
             if (level === 'warn') once(text.nearCap(Math.round((used / max) * 100)), { sticky: false });
