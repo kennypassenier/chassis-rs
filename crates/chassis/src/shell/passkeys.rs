@@ -200,6 +200,16 @@ pub struct LoginFinish {
     pub credential: PublicKeyCredential,
 }
 
+/// [`LoginFinish`] plus the `next` the login page was opened with (kept
+/// apart so the public type is unchanged).
+#[derive(Deserialize)]
+pub(crate) struct LoginFinishNext {
+    pub ceremony: String,
+    pub credential: PublicKeyCredential,
+    #[serde(default)]
+    pub next: Option<String>,
+}
+
 /// `POST /passkeys/login/finish` (public over HTTPS): verify and open an
 /// admin session, exactly as the token login would.
 pub async fn login_finish(
@@ -207,6 +217,22 @@ pub async fn login_finish(
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(body): Json<LoginFinish>,
+) -> Result<Response, Error> {
+    let body = LoginFinishNext {
+        ceremony: body.ceremony,
+        credential: body.credential,
+        next: None,
+    };
+    login::finish(State(s), ConnectInfo(peer), headers, Json(body)).await
+}
+
+/// The kit's own route for [`login_finish`]: the same ceremony, landing on
+/// the checked `next`.
+pub(crate) async fn login_finish_next(
+    State(s): State<PasskeyState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(body): Json<LoginFinishNext>,
 ) -> Result<Response, Error> {
     login::finish(State(s), ConnectInfo(peer), headers, Json(body)).await
 }

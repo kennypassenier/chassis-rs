@@ -32,7 +32,10 @@ async fn html_gets_the_tag_once_before_the_head_end() {
     let html = body(res).await;
     assert_eq!(len, html.len(), "content-length follows the injected bytes");
     assert_eq!(count(&html), 1);
-    assert!(html.contains(&format!("{}</head>", inject::runtime_tag())));
+    assert!(html.contains(&format!(
+        "{}</head>",
+        inject::runtime_tag_for(inject::Runtime::Bundle)
+    )));
     // The SPA fallback is the same page.
     assert_eq!(
         count(&body(get_path(&r, "/stacks/media", &[]).await).await),
@@ -40,7 +43,10 @@ async fn html_gets_the_tag_once_before_the_head_end() {
     );
     // No head: before the body end; the match ignores case.
     let html = body(get_path(&r, "/body.html", &[]).await).await;
-    assert!(html.contains(&format!("{}</BODY>", inject::runtime_tag())));
+    assert!(html.contains(&format!(
+        "{}</BODY>",
+        inject::runtime_tag_for(inject::Runtime::Bundle)
+    )));
 }
 
 #[tokio::test]
@@ -100,4 +106,37 @@ fn the_runtime_file_is_one_the_kit_serves_and_the_csp_allows_it() {
         crate::shell::assets::all_assets().any(|(n, _, _)| *n == "chassis/webapp-runtime.js");
     assert!(served, "static/chassis/webapp-runtime.js is embedded");
     assert!(DEFAULT_CSP.contains("script-src 'self'"), "same origin");
+}
+
+#[tokio::test]
+async fn kp_modules_injects_the_modules_runtime_only() {
+    let r = WebApp::embedded(FILES)
+        .without_pwa()
+        .kp_modules()
+        .router()
+        .unwrap();
+    let html = body(get_path(&r, "/", &[]).await).await;
+    let tag = inject::runtime_tag_for(inject::Runtime::Modules);
+    assert!(html.contains(&format!("{tag}</head>")));
+    assert!(html.contains("webapp-runtime-modules.js?v="));
+    assert!(!html.contains("webapp-runtime.js"), "never both variants");
+}
+
+#[tokio::test]
+async fn without_the_switch_the_bundle_runtime_stays() {
+    let r = WebApp::embedded(FILES).without_pwa().router().unwrap();
+    let html = body(get_path(&r, "/", &[]).await).await;
+    assert!(html.contains(&inject::runtime_tag_for(inject::Runtime::Bundle)));
+    assert!(!html.contains("webapp-runtime-modules.js"));
+}
+
+#[tokio::test]
+async fn a_page_with_either_variant_is_left_alone_in_modules_mode() {
+    let r = WebApp::embedded(FILES)
+        .without_pwa()
+        .kp_modules()
+        .router()
+        .unwrap();
+    let html = body(get_path(&r, "/own.html", &[]).await).await;
+    assert_eq!(html.as_bytes(), HAS_TAG);
 }

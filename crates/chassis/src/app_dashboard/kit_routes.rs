@@ -61,11 +61,11 @@ pub(super) fn build(
         Router::new().route("/static/{*name}", get(assets::serve_conditional)),
     );
     let pages_public = Router::new()
-        .route("/login", get(dashboard::login_get))
+        .route("/login", get(dashboard::login_get_next))
         .merge(static_files)
         .with_state(dash.clone());
     let login = Router::new()
-        .route("/login", post(dashboard::login_post))
+        .route("/login", post(dashboard::login_post_next))
         .layer(from_fn_with_state(login_limit.clone(), ip_rate_limit))
         .with_state(dash.clone());
     let logout = Router::new()

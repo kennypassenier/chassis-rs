@@ -7,14 +7,35 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed
+
+- **The login lands on the page the visitor came from.** A logged-out page
+  load is redirected to `/login?next=<path and query>`, the login form keeps
+  it in a hidden field, and a successful login (token or passkey) goes there
+  instead of always to `/`. Only a plain same-origin path is followed: `//host`,
+  `/\host`, a scheme, control characters, `/login` and `/logout` all fall back
+  to `/`. The home page itself and non-GET requests still redirect to plain
+  `/login`. (Reported by Kitchen.)
+
 ### Added
 
+- **`WebApp::kp_modules()`: the injected runtime on kp-themes' per-module
+  entries.** A web app that imports `/static/kp/dist/js/<entry>.js` instead of
+  the one-file bundle held two copies of kp-themes' state next to the runtime
+  (which imported the bundle): the kit's refresh control lost the app's
+  `setStrings` words. With the switch the server injects
+  `webapp-runtime-modules.js`, which imports only entries (`remember.js`,
+  `freshness.js`, `auto-refresh.js`) and leaves effects, dialogs and pickers to
+  the app's `auto.js`. Without the switch nothing changes: the runtime stays on
+  the bundle as in 4.2.0. Both variants share one core
+  (`webapp-runtime-core.js`).
 - **Offline app data** [feat-offline-1] (Kitchen, Kenny: "Hele keuken offline"): `window.chassisData`, loaded by
   `webapp-runtime.js` on every web-app page and inert until `chassisData.configure({ name, routes })`. An app JSON client
   (`get / put / patch / delete`) that keeps a per-app IndexedDB copy of GET answers (all, or per item), queues writes
   made without a connection with their `If-Match` and replays them in order (online event, a timer, the band's retry,
-  `chassisData.retry()`). A 409 on replay stops the queue and holds the refused edit until the person calls
-  `drop(id)` or `resave(id)` (one policy function, `data-policy.js`, `onConflict` option); the kit's toast says so.
+  `chassisData.retry()`). A 409 on replay moves the refused edit to a persisted failed list (`failed()`, `drop(id)`, `resave(id)`) and the rest of
+  the queue continues (one policy function, `data-policy.js`, `onConflict` option can also hold, drop or overwrite); the
+  kit's toast says so. Logging out with unsent edits asks first (kit confirm: "Log out anyway" / "Stay").
   The connection band gets `data-kp-pending` and shows `reconnecting` while a replay runs (kp has no `syncing` state:
   gap recorded). Per-device settings (`keepAll`, `keepItem`, `isKept`, `clearCopy`), a size cap (`maxBytes`, default
   50 MB, warning at 80 %, refusing new copies at the cap). No tokens or custom headers are ever sent or stored;
@@ -27,7 +48,11 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Migration
 
-For Kitchen (no source break): replace the hand-written `if_match` parsing (`src/routes.rs`) and the 409 body with
+- **Kitchen (and any app on the per-module entries):** call
+  `.kp_modules()` on the `WebApp` when the app imports `dist/js/` entries.
+  Apps still on the bundle (Almanac, Habits, Medicine Cabinet,
+  HTTPSwitchboard) change nothing.
+- **Kitchen, offline data** (no source break): replace the hand-written `if_match` parsing (`src/routes.rs`) and the 409 body with
 `IfMatch` / `Conflict` (`code: "stale"` is kept, `rev` is the stored revision); on the page replace `web/js/api/save.js`
 and the stale toast plumbing by `chassisData.configure({ name: 'kitchen', rev: 'rev', routes: [...] })` and its
 `get/put/patch/delete`; the held-edit toast text is overridable with `messages`. `window.chassisData` appears on every
