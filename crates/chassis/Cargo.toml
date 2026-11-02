@@ -119,6 +119,8 @@ tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 # Tests sign their own fake releases; production only ever verifies.
 minisign = "0.9"
+# Tests decode gzip answers by hand.
+flate2 = "1"
 
 [lints.rust]
 unsafe_code = "forbid"

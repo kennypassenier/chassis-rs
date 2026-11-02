@@ -13,8 +13,19 @@ use crate::core::error::Error;
 
 impl WebApp {
     /// The routes, unprotected: the caller layers the login in front.
+    #[cfg(test)]
     pub(crate) fn router(self) -> Result<Router, Error> {
-        Ok(crate::shell::compress::compressed(self.plain_router()?))
+        self.router_with(|r| r)
+    }
+
+    /// Like [`WebApp::router`], with `inner` wrapped around the routes
+    /// BEFORE gzip is layered on. A layer that rewrites the HTML (the
+    /// preferences block) must sit here: outside the compression it would
+    /// only ever see gzip bytes and skip them (fix-prefs-gzip-1).
+    pub(crate) fn router_with(self, inner: impl FnOnce(Router) -> Router) -> Result<Router, Error> {
+        Ok(crate::shell::compress::compressed(inner(
+            self.plain_router()?,
+        )))
     }
 
     /// The routes before gzip is layered on.
