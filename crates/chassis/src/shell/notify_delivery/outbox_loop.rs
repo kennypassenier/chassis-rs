@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-use super::{Reply, deliver};
+use super::{Down, Reply, deliver};
 use crate::shell::notify_channel::Channel;
 use crate::shell::time::now_epoch;
 use crate::storage::outbox::Waiting;
@@ -35,7 +35,8 @@ pub(crate) async fn run(ch: Channel) {
         .timeout(ch.config().send.timeout)
         .build()
         .expect("reqwest client");
-    let mut primary_down = false;
+    let mut down = Down::default();
+    let mut write_trouble = WriteTrouble::default();
     let mut failures = 0u32;
     loop {
         let now = now_epoch() as i64;
@@ -46,7 +47,7 @@ pub(crate) async fn run(ch: Channel) {
                 continue;
             }
         };
-        match deliver(&client, &ch, &msg, &mut primary_down).await {
+        match deliver(&client, &ch, &msg, &mut down).await {
             Ok((via, reply)) => {
                 failures = 0;
                 if reply == Reply::Duplicate {
@@ -63,14 +64,51 @@ pub(crate) async fn run(ch: Channel) {
                 let delay = round_delay(&ch, msg.attempts);
                 let retry_at = now_epoch() as i64 + delay.as_secs() as i64;
                 let (o, id) = (ch.outbox().clone(), msg.id);
-                let _ = blocking(move || o.failed(id, retry_at)).await;
-                ch.record_error("primary", &errors.join(" "));
+                let written = blocking(move || o.failed(id, retry_at)).await;
+                for (which, sentence) in &errors {
+                    ch.record_error(which.as_str(), sentence);
+                }
+                // The retry time could not be saved: the row is still due,
+                // so without a pause the loop would send it again at once.
+                if let Err(e) = &written {
+                    let (first, exponent) = write_trouble.note();
+                    if first {
+                        tracing::warn!(error = %e, "notify: the retry time of a failed message could not be saved; pausing before the next try");
+                        ch.record_error(
+                            "outbox",
+                            "The retry time of a failed message could not be saved to disk, so sending pauses and tries again.",
+                        );
+                    }
+                    idle(&ch, round_delay(&ch, exponent)).await;
+                    continue;
+                }
+                write_trouble.cleared();
                 // Two failures in a row: the targets are away. Stop asking.
                 if failures >= 2 {
                     idle(&ch, delay).await;
                 }
             }
         }
+    }
+}
+
+/// Failed writes of the retry time, in a row. Only the first of a streak is
+/// reported; the rest just lengthen the pause.
+#[derive(Debug, Default)]
+pub(super) struct WriteTrouble {
+    streak: u32,
+}
+
+impl WriteTrouble {
+    /// A write failed. Returns whether to report it (first of the streak)
+    /// and the pause exponent, which grows with the streak.
+    pub(super) fn note(&mut self) -> (bool, i64) {
+        self.streak = self.streak.saturating_add(1);
+        (self.streak == 1, i64::from(self.streak))
+    }
+
+    pub(super) fn cleared(&mut self) {
+        self.streak = 0;
     }
 }
 
@@ -90,17 +128,22 @@ enum Next {
 /// Look at the outbox: the oldest due message when there is one and a
 /// target to send it to, else how long to wait.
 async fn next_message(ch: &Channel, now: i64) -> Next {
+    // Rows with no target are skipped inside the query, so they cannot
+    // hold up the deliverable rows behind them (they stay queued).
     let due = {
-        let o = ch.outbox().clone();
-        blocking(move || o.next_due(now)).await
+        let (o, c) = (ch.outbox().clone(), ch.clone());
+        blocking(move || o.next_due(now, |kind| c.active_for(kind))).await
     };
     match due {
-        Ok(Some(m)) if ch.active_for(&m.kind) => Next::Message(m),
-        // Messages wait, nothing to send them to.
-        Ok(Some(_)) => Next::Wait(Duration::from_secs(60)),
+        Ok(Some(m)) => Next::Message(m),
         Ok(None) => {
-            let o = ch.outbox().clone();
-            let next = blocking(move || o.earliest_retry()).await.ok().flatten();
+            // Rows with nowhere to go have no retry to wait for; saving an
+            // address wakes the loop.
+            let (o, c) = (ch.outbox().clone(), ch.clone());
+            let next = blocking(move || o.earliest_retry(|kind| c.active_for(kind)))
+                .await
+                .ok()
+                .flatten();
             Next::Wait(
                 next.map(|t| Duration::from_secs((t - now).max(1) as u64))
                     .unwrap_or(Duration::from_secs(3600))

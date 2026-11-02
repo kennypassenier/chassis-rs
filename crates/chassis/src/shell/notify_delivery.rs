@@ -13,6 +13,8 @@
 //! `200` with `Kyu-Duplicate: true`; that is a delivery, not a failure.
 
 mod outbox_loop;
+#[cfg(test)]
+mod tests;
 
 pub(crate) use outbox_loop::run;
 
@@ -28,6 +30,36 @@ pub(crate) enum Reply {
     Accepted,
     /// kyu already had this key inside the window; nothing was stored.
     Duplicate,
+}
+
+/// Which targets just failed a message. A target that failed gets one try
+/// for the next message, not a full ladder, so a dead target does not stall
+/// the others; each target is remembered on its own, so a dead kit target
+/// does not take the retries away from a healthy primary.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct Down([bool; 3]);
+
+impl Down {
+    fn slot(which: Which) -> usize {
+        match which {
+            Which::Primary => 0,
+            Which::Kit => 1,
+            Which::Fallback => 2,
+        }
+    }
+
+    pub(crate) fn is_down(&self, which: Which) -> bool {
+        self.0[Self::slot(which)]
+    }
+
+    pub(crate) fn set(&mut self, which: Which, down: bool) {
+        self.0[Self::slot(which)] = down;
+    }
+
+    /// The retries for `which` on the next message.
+    fn retries(&self, which: Which, configured: u32) -> u32 {
+        if self.is_down(which) { 0 } else { configured }
+    }
 }
 
 /// Extra request headers for the damping contract.
@@ -120,41 +152,32 @@ async fn send_with_retries(
 }
 
 /// Offer one message to the targets in order. `Ok` names who took it;
-/// `Err` has one sentence per target that was asked.
+/// `Err` has one sentence per target that was asked, with that target.
 pub(crate) async fn deliver(
     client: &reqwest::Client,
     ch: &Channel,
     msg: &Waiting,
-    primary_down: &mut bool,
-) -> Result<(Which, Reply), Vec<String>> {
+    down: &mut Down,
+) -> Result<(Which, Reply), Vec<(Which, String)>> {
     let dedup = (msg.dedup_key.as_deref(), msg.dedup_window.as_deref());
     let mut errors = Vec::new();
     for (which, url) in ch.targets_for(&msg.kind) {
-        // A primary that just failed a message gets one try for the next,
-        // not a full ladder, so a dead hub does not stall the fallback.
-        let retries = if which.is_hub() && *primary_down {
-            0
-        } else {
-            ch.config().send.retries
-        };
+        let retries = down.retries(which, ch.config().send.retries);
         let auth = which.is_hub().then(|| ch.primary_credential());
         match send_with_retries(client, ch, &url, &msg.body, dedup, retries, auth).await {
             Ok(reply) => {
-                if which.is_hub() {
-                    *primary_down = false;
-                } else {
+                down.set(which, false);
+                if !which.is_hub() {
                     tracing::warn!(url = %redacted_url(&url), "delivered via the fallback target");
                 }
                 return Ok((which, reply));
             }
             Err(why) => {
-                if which.is_hub() {
-                    *primary_down = true;
-                }
+                down.set(which, true);
                 tracing::warn!(url = %redacted_url(&url), error = %why, target = which.as_str(), "notification target did not take the message");
-                errors.push(format!(
-                    "The {} target did not take it: {why}.",
-                    which.as_str()
+                errors.push((
+                    which,
+                    format!("The {} target did not take it: {why}.", which.as_str()),
                 ));
             }
         }

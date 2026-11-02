@@ -126,9 +126,28 @@ never sent to the primary afterwards. If neither accepts it, it stays on disk,
 the attempt is counted and it is retried after 30 s, doubling to 15 min, and
 the next round starts at the primary again. After two failed messages in a
 row the loop stops asking for the retry delay (the targets are away), and a
-primary that just failed gets a single attempt for the next message instead
-of a full ladder, so a dead hub does not stall the fallback. An address
-change makes every waiting message due at once.
+target that just failed gets a single attempt for the next message instead
+of a full ladder, so a dead target does not stall the others. That memory is
+per target (primary, kit, fallback; `[fix-outbox-2]`): a dead kit target does
+not take the primary's retries away. An address change makes every waiting
+message due at once.
+
+**A message with nowhere to go does not block the others**
+(`[fix-outbox-1]`). The loop takes the oldest due message that HAS a target
+for its kind; a row without one (an app event after the primary was cleared
+while `notify_kit_url` is set) is skipped, stays queued and is counted in
+`outbox.no_target` of `GET /api/kit/notify`; the card says so. Saving an
+address wakes the loop. If the write of a failed message's retry time itself
+fails, the first failure of a streak is logged and shown as an `outbox` error
+and the loop pauses with a growing delay instead of resending at once
+(`[fix-outbox-3]`).
+
+**The event log line** names the kind, version and detail length, never the
+detail text (`[fix-notify-log-1]`).
+
+**Errors per target.** `last_error` is the latest failure; `last_errors` has
+the last failure of each target (`primary`, `kit`, `fallback`) under its own
+name, and each says which target it was.
 
 **kyu damping.** An event may carry a dedup key and window:
 `Notifier::emit_keyed(kind, version, detail, Dedup::new(key, window)?)`.
@@ -162,8 +181,8 @@ derived from its kind: `is_kit_event(kind)` (the exact names in `KIT_EVENTS`)
 and `notify_kit_url` set means kit target, then the fallback; anything else
 primary, then the fallback. Nothing new is stored in the outbox, so a retry
 after a restart routes the same way and the schema stays at step 2. The kit
-target is a hub like the primary: it gets the bearer token and shares the
-"primary is down" memory. Consequence to know: an app that emits a kit name
+target is a hub like the primary: it gets the bearer token and has its own
+"down" memory. Consequence to know: an app that emits a kit name
 itself (`health.degraded`) is routed as a kit event. Not editable on the
 page (configuration only; no saved value, no code default) because the
 use is a deployment decision.
