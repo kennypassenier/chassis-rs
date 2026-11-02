@@ -39,6 +39,22 @@ scaffold writes. A breaking change in either is a major and carries a
   the app's `auto.js`. Without the switch nothing changes: the runtime stays on
   the bundle as in 4.2.0. Both variants share one core
   (`webapp-runtime-core.js`).
+- **Offline app data** [feat-offline-1] (Kitchen, Kenny: "Hele keuken offline"): `window.chassisData`, loaded by
+  `webapp-runtime.js` on every web-app page and inert until `chassisData.configure({ name, routes })`. An app JSON client
+  (`get / put / patch / delete`) that keeps a per-app IndexedDB copy of GET answers (all, or per item), queues writes
+  made without a connection with their `If-Match` and replays them in order (online event, a timer, the band's retry,
+  `chassisData.retry()`). A 409 on replay moves the refused edit to a persisted failed list (`failed()`, `drop(id)`, `resave(id)`) and the rest of
+  the queue continues (one policy function, `data-policy.js`, `onConflict` option can also hold, drop or overwrite); the
+  kit's toast says so. Logging out with unsent edits asks first (kit confirm: "Log out anyway" / "Stay").
+  The connection band gets `data-kp-pending` and shows `reconnecting` while a replay runs (kp has no `syncing` state:
+  gap recorded). Per-device settings (`keepAll`, `keepItem`, `isKept`, `clearCopy`), a size cap (`maxBytes`, default
+  50 MB, warning at 80 %, refusing new copies at the cap). No tokens or custom headers are ever sent or stored;
+  logout purges the copy and the queue (page hook and worker). Design: `docs/OFFLINE_DESIGN.md`.
+- **`IfMatch`, `Revisioned`, `Conflict`** [feat-offline-1]: the server half for an app's data routes. `IfMatch` extractor
+  (`5`, `"5"`, `W/"5"`, `*`; 400 in the kit's shape when malformed), `if_match.check(current_rev)?` gives a 409
+  `{error, remedy, code: "stale", rev, current?}` with the stored `ETag`, `Revisioned::new(rev, body)` answers JSON with
+  `ETag: "<rev>"`. Pure parts in `chassis::core::revision` (`Precondition`, `check`, `etag`). Opt-in; nothing changes for
+  a route that does not use them. check-api: a minor.
 
 ### Migration
 
@@ -46,6 +62,11 @@ scaffold writes. A breaking change in either is a major and carries a
   `.kp_modules()` on the `WebApp` when the app imports `dist/js/` entries.
   Apps still on the bundle (Almanac, Habits, Medicine Cabinet,
   HTTPSwitchboard) change nothing.
+- **Kitchen, offline data** (no source break): replace the hand-written `if_match` parsing (`src/routes.rs`) and the 409 body with
+`IfMatch` / `Conflict` (`code: "stale"` is kept, `rev` is the stored revision); on the page replace `web/js/api/save.js`
+and the stale toast plumbing by `chassisData.configure({ name: 'kitchen', rev: 'rev', routes: [...] })` and its
+`get/put/patch/delete`; the held-edit toast text is overridable with `messages`. `window.chassisData` appears on every
+web-app page but does nothing until configured.
 
 ## [4.2.0] - 2026-11-02
 

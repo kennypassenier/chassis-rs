@@ -9,12 +9,14 @@
 import { attachKitEffects } from './kit-effects.js';
 import { registerPwa } from './pwa-register.js';
 import { followThemeColor } from './theme-color.js';
+import { installData } from './data.js';
 import { installPush } from './push.js';
 import { installRefresh } from './refresh-kit.js';
 
 /**
  * Install the runtime on `win`/`doc` unless it is already there.
- * `kp` is { configureRemember, attachAgo, attachRefresh, refreshOf, setAgo }
+ * `kp` is { configureRemember, attachAgo, attachRefresh, refreshOf, setAgo,
+ * connectionOf, openConfirmation, toast }
  * plus `attachEffects` when the runtime should attach the effects (the bundle
  * variant; the modules variant leaves them to the app's auto.js). The
  * functions in `deps` replace the wiring steps in the node test.
@@ -41,6 +43,10 @@ export function installRuntimeWith(kp, win, doc, deps = {}) {
     // Web Push (habits-push-1): `window.chassisPush`, only on a page the
     // server marked with the push meta tag.
     (deps.installPush ?? installPush)(win, doc);
+    // Offline app data (feat-offline-1): `window.chassisData`, inert until the
+    // app calls `configure()`. It gets the band and toast functions of the
+    // same copy of kp-themes' state as everything above.
+    (deps.installData ?? ((w, d) => installData(w, d, {}, kp)))(win, doc);
     win.chassisRuntime = { get effects() { return effects.current(); } };
     return win.chassisRuntime;
 }

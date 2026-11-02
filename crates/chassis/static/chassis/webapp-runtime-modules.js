@@ -14,9 +14,12 @@
 import { attachAgo, setAgo } from '../kp/dist/js/freshness.js';
 import { attachRefresh, refreshOf } from '../kp/dist/js/auto-refresh.js';
 import { configureRemember } from '../kp/dist/js/remember.js';
+import { connectionOf } from '../kp/dist/js/connection.js';
+import { openConfirmation } from '../kp/dist/js/components.js';
+import { toast } from '../kp/dist/js/overlays.js';
 import { installRuntimeWith } from './webapp-runtime-core.js';
 
-const kp = { attachAgo, attachRefresh, configureRemember, refreshOf, setAgo };
+const kp = { attachAgo, attachRefresh, configureRemember, connectionOf, openConfirmation, refreshOf, setAgo, toast };
 
 /** Install the runtime on `win`/`doc` unless it is already there (see the core). */
 export function installRuntime(win, doc, deps = {}) {

@@ -19,5 +19,6 @@ pub mod notify_target;
 // Only the shared sender (notify + dashboard) sends the token.
 #[cfg(all(feature = "notify", feature = "dashboard"))]
 pub(crate) mod notify_token;
+pub mod revision;
 pub mod session;
 pub mod update;
