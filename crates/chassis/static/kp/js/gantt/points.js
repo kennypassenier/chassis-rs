@@ -2,6 +2,7 @@
 import { dayKey, formatDayKey } from '../calendar.js';
 import { CLUSTER_PLATE_PX, CLUSTER_PX, keyOf, make, toMs } from './constants.js';
 import { clock, rel } from './scale.js';
+import { getStrings } from '../strings.js';
 /** @typedef {import('./constants.js').GanttLane} GanttLane */
 /** @typedef {import('./constants.js').GanttLaneModel} GanttLaneModel */
 /** @typedef {import('./constants.js').GanttModel} GanttModel */
@@ -13,7 +14,8 @@ import { clock, rel } from './scale.js';
  */
 export function fillLaneLabel(c, label, lane) {
     const doc = c.el.ownerDocument;
-    const key = `${lane.label}\u0000${lane.sub ?? ''}\u0000${lane.href ?? ''}`;
+    const end = laneEnd(lane);
+    const key = `${lane.label}\u0000${lane.sub ?? ''}\u0000${lane.href ?? ''}\u0000${end?.text ?? ''}`;
     if (label.dataset.kpLaneKey === key) return;
     label.dataset.kpLaneKey = key;
     label.title = lane.sub ? `${lane.label} · ${lane.sub}` : lane.label;
@@ -36,6 +38,29 @@ export function fillLaneLabel(c, label, lane) {
         holder = words;
     }
     label.replaceChildren(holder);
+    // The mark at the lane's end of its name: tries left, or the page's own word [forms-1102].
+    if (end) {
+        const tone = end.tone === 'warning' ? ' kp-badge--warning' : end.tone === 'danger' ? ' kp-badge--destructive' : '';
+        const mark = make(doc, 'span', `kp-badge kp-gantt__mark${tone}`, end.text);
+        mark.dataset.kpTone = end.tone;
+        label.append(mark);
+        label.title = `${label.title} · ${end.text}`;
+    }
+    label.toggleAttribute('data-kp-gantt-marked', Boolean(end));
+}
+
+/**
+ * A lane's end mark [forms-1102]: `tries` (a whole number) says how many tries are left ("1 try left": warning at one, danger at
+ * none), `mark` is the page's own word (muted); null without either.
+ * @param {GanttLane} lane
+ * @returns {{ text: string, tone: 'muted' | 'warning' | 'danger' } | null}
+ */
+export function laneEnd(lane) {
+    if (typeof lane.tries === 'number' && Number.isFinite(lane.tries)) {
+        const n = Math.max(0, Math.round(lane.tries));
+        return { text: getStrings().ganttTriesLeft(n), tone: n === 0 ? 'danger' : n === 1 ? 'warning' : 'muted' };
+    }
+    return lane.mark ? { text: lane.mark, tone: 'muted' } : null;
 }
 /** When a point happened, as a person reads it: a day alone, or the day and the time. @param {GanttModel} c @param {GanttPoint} point @param {number} ms */
 function pointWhen(c, point, ms) {

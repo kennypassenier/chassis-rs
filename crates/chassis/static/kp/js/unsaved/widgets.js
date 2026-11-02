@@ -14,13 +14,17 @@ import { FIELDS } from '../timefield/state.js';
 import { setTime } from '../timefield/api.js';
 import { CHANGE_EVENT } from '../combobox/constants.js';
 import { combobox } from '../combobox/handle.js';
+import { TRACKED, TRACK_DEFAULT, TRACK_DEFAULT_TEXT, TRACK_EVENT, TRACK_TEXT, isTracked, outerTracked, readTrackText, readTrackValue, writeTrackValue } from '../track-value.js';
 
 /** A tag input: a combobox that holds a list of values. */
 const TAG_INPUT = '[data-kp-combobox][data-kp-tags]';
-/** Every composite field the bar tracks as one value. */
-export const WIDGET = `${QUANTITY}, ${TIME}, ${TAG_INPUT}`;
+/** Every composite field the bar tracks as one value; a control with `data-kp-track-value` too [forms-1102, js/track-value.js]. */
+export const WIDGET = `${QUANTITY}, ${TIME}, ${TAG_INPUT}, ${TRACKED}`;
 /** The events those fields fire when a person changes them (a plain combobox's choice is in `kp-combobox-change` too). */
-export const WIDGET_EVENTS = [QUANTITY_EVENT, TIME_EVENT, CHANGE_EVENT];
+export const WIDGET_EVENTS = [QUANTITY_EVENT, TIME_EVENT, CHANGE_EVENT, TRACK_EVENT];
+
+/** The words each tracked control's values were seen with, so "was" reads as words after the control moved on. @type {WeakMap<Element, Map<string, string>>} */
+const SEEN_TEXT = new WeakMap();
 
 /** The values a tag input holds, in order: each tag's `data-value`, else its text (as the combobox reads them). @param {HTMLElement} root */
 function tagValues(root) {
@@ -37,6 +41,9 @@ export const isWidget = (el) => el.matches(WIDGET);
  * @returns {HTMLElement | null}
  */
 export function widgetOf(node) {
+    // A tracked control counts as one, with every field and tracked control inside it [forms-1102].
+    const outer = outerTracked(node);
+    if (outer) return outer.matches('[data-kp-untracked]') ? null : outer;
     const root = /** @type {HTMLElement | null} */ (node.closest(WIDGET));
     if (!root || root.matches('[data-kp-untracked]') || root.querySelector('[data-kp-untracked]')) return null;
     return root;
@@ -48,6 +55,16 @@ export function widgetOf(node) {
  * @param {HTMLElement} root
  */
 export function readWidget(root) {
+    if (isTracked(root)) {
+        const value = readTrackValue(root);
+        // Only words the control wrote: a value written back has none until the control repaints.
+        if (root.hasAttribute(TRACK_TEXT)) {
+            const seen = SEEN_TEXT.get(root) ?? new Map();
+            seen.set(value, readTrackText(root));
+            SEEN_TEXT.set(root, seen);
+        }
+        return value;
+    }
     if (root.matches(QUANTITY)) return String(getQuantity(root));
     if (root.matches(TIME)) return FIELDS.get(root)?.value ?? root.getAttribute('data-kp-value') ?? '';
     return JSON.stringify(tagValues(root));
@@ -55,6 +72,10 @@ export function readWidget(root) {
 
 /** What a composite field's value reads as in the list (a tag input's values joined). @param {HTMLElement} root @param {string} value */
 export function showWidget(root, value) {
+    if (isTracked(root)) {
+        const saved = root.getAttribute(TRACK_DEFAULT) === value ? root.getAttribute(TRACK_DEFAULT_TEXT) : null;
+        return saved ?? SEEN_TEXT.get(root)?.get(value) ?? value;
+    }
     if (!root.matches(TAG_INPUT)) return value;
     return /** @type {string[]} */ (JSON.parse(value || '[]')).join(', ');
 }
@@ -64,7 +85,8 @@ export function showWidget(root, value) {
  * @param {HTMLElement} root @param {string} value
  */
 export function writeWidget(root, value) {
-    if (root.matches(QUANTITY)) setQuantity(root, Number(value));
+    if (isTracked(root)) writeTrackValue(root, value);
+    else if (root.matches(QUANTITY)) setQuantity(root, Number(value));
     else if (root.matches(TIME)) setTime(root, value);
     else {
         const handle = combobox(root);

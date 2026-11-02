@@ -81,6 +81,9 @@ export class PopoverFormControl extends Controller {
         /** @param {KeyboardEvent} event */
         const escape = (event) => {
             if (event.key !== 'Escape') return;
+            // A part of the form that is open itself (the date picker's calendar, the time field's list) takes Escape first: it
+            // closes that and the form stays [parts-1102].
+            if (this.form?.querySelector('[aria-expanded="true"]')) return;
             // Its own Escape: a dialog the form stands in does not close as well.
             event.preventDefault();
             event.stopPropagation();

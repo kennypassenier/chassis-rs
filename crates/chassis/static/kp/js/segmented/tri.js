@@ -4,6 +4,7 @@ import { getStrings } from '../strings.js';
 import { SAY_DELAY_MS, SEGMENTED, TRI_ATTRIBUTE, TRI_STATES } from './constants.js';
 import { getSegmentedTri, isAll, itemsOf, labelOf, triOf, valueOf } from './read.js';
 import { roving } from './roving.js';
+import { writeGroupTrack } from './track.js';
 
 /**
  * The words of a three-way group's states: its own `data-kp-segmented-words`, else the dictionary's.
@@ -108,6 +109,7 @@ export function paintTri(group) {
     }
     summaryOf(group, chosen);
     roving(group);
+    writeGroupTrack(group);
 }
 
 /**

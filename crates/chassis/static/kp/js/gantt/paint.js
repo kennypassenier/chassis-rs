@@ -174,6 +174,8 @@ export function paint(c) {
         'data-kp-gantt-subs',
         lanes.some((l) => Boolean(l.lane.sub)),
     );
+    // A lane with tries or a mark: every lane keeps the mark's room, so the names end on one edge [forms-1102].
+    c.body.toggleAttribute('data-kp-gantt-marks', lanes.some((l) => typeof l.lane.tries === 'number' || Boolean(l.lane.mark)));
     paintPoints(c, lanes);
     paintZones(c, lanes);
     paintKinds(c);

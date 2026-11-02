@@ -1,4 +1,11 @@
 // Warns before the page is left with unsaved changes: the browser's own prompt, and a confirmation on in-page links.
+//
+// Handing the link to an app router [forms-1102]. `kp-unsaved-leave` `{ href, link, route }` fires, cancelable, before the
+// package asks. Two ways for a page with a history-API router:
+//   1. its own question: `event.preventDefault()`, ask, then `router.go(event.detail.href)` (the click is already held back);
+//   2. the package's question, the router's move: `event.detail.route((href) => router.go(href))`; Leave then calls that
+//      instead of loading the page, so the app keeps its state. The page clears or keeps the changes itself afterwards
+//      (markUnsavedClean, discardUnsaved).
 
 import { openConfirmation } from '../components.js';
 import { UNSAVED_LEAVE_EVENT } from './config.js';
@@ -48,7 +55,12 @@ export class LeaveGuard {
         const to = new URL(a.href, win.location.href);
         if (to.origin === win.location.origin && to.pathname === win.location.pathname && to.search === win.location.search) return;
         event.preventDefault();
-        const asked = el.dispatchEvent(new CustomEvent(UNSAVED_LEAVE_EVENT, { bubbles: true, cancelable: true, detail: { href: a.href } }));
+        /** The page's router, if it handed one over. @type {((href: string) => void) | null} */
+        let router = null;
+        const route = (/** @type {(href: string) => void} */ go) => {
+            router = typeof go === 'function' ? go : null;
+        };
+        const asked = el.dispatchEvent(new CustomEvent(UNSAVED_LEAVE_EVENT, { bubbles: true, cancelable: true, detail: { href: a.href, link: a, route } }));
         if (!asked) return;
         const n = tracker.changes().length;
         openConfirmation(a, {
@@ -57,7 +69,11 @@ export class LeaveGuard {
             initialFocus: 'cancel',
             onAccept: () => {
                 this.leaving = true;
-                win.location.href = a.href;
+                const go = /** @type {((href: string) => void) | null} */ (router);
+                if (go) {
+                    go(a.href);
+                    this.leaving = false;
+                } else win.location.href = a.href;
             },
         });
     }

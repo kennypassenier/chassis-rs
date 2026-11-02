@@ -4,6 +4,8 @@ import { CONTROL, ROW } from './config.js';
 import { readDefault, readValue } from './values.js';
 import { COMBOBOX } from '../combobox/constants.js';
 import { WIDGET, isWidget, showWidget, widgetOf } from './widgets.js';
+import { Baseline } from './baseline.js';
+import { isTracked } from '../track-value.js';
 
 /** What the bar can track: the plain controls and the package's composite fields. */
 const TRACKABLE = `${CONTROL}, ${WIDGET}`;
@@ -24,7 +26,7 @@ export class ChangeTracker {
         this.s = s;
         this.words = words;
         /** What each tracked control held when the bar looked (the markup's value). @type {Map<HTMLElement, string>} */
-        this.baseline = new Map();
+        this.baseline = new Baseline();
     }
 
     /**
@@ -87,6 +89,8 @@ export class ChangeTracker {
             const text = copy.textContent?.replace(/\s+/g, ' ').trim();
             if (text) return text;
         }
+        // A tracked control that is its own row is named by its own name [forms-1102].
+        if (isTracked(row) && row.getAttribute('aria-label')) return /** @type {string} */ (row.getAttribute('aria-label'));
         const c = row.matches(CONTROL) ? row : row.querySelector(CONTROL);
         return c?.getAttribute('aria-label') ?? c?.getAttribute('name') ?? c?.id ?? this.s.unsavedUnnamed;
     }

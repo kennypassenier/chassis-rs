@@ -67,7 +67,7 @@ export class TableEdit {
         const button = /** @type {HTMLButtonElement | null} */ (cell?.querySelector(EDIT_CELL) ?? null);
         if (kind === null || kind === undefined || cell === undefined || button === null) return;
         const s = getStrings();
-        const key = columns.keyOf(row);
+        const key = columns.nameOf(row, columns.keyOf(row));
         const previous = columns.cellText(row, column);
         const holder = identity.make('div', 'kp-datatable__editor');
         holder.dataset.kpDatatableEditorWrap = '';
@@ -107,7 +107,7 @@ export class TableEdit {
         if (current.busy) return false;
         const s = getStrings();
         const { row, column, kind, button, control, previous } = current;
-        const key = this.t.columns.keyOf(row);
+        const key = this.t.columns.nameOf(row, this.t.columns.keyOf(row));
         if (!save) {
             this.closeEditor();
             this.logEdit(s.tableEditCancelled);
@@ -156,7 +156,7 @@ export class TableEdit {
         this.lastEdit = null;
         this.writeCell(/** @type {HTMLTableCellElement} */ (last.row.cells[last.column]), last.before);
         this.t.reorder.labelRow(last.row);
-        this.logEdit(s.tableEditUndone(this.t.columns.keyOf(last.row), this.t.columns.labelOf(last.column), last.before));
+        this.logEdit(s.tableEditUndone(this.t.columns.nameOf(last.row, this.t.columns.keyOf(last.row)), this.t.columns.labelOf(last.column), last.before));
         /** @type {HTMLElement | null} */ (last.row.cells[last.column]?.querySelector(EDIT_CELL) ?? null)?.focus();
     }
 

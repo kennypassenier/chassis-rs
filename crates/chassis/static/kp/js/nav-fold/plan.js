@@ -6,7 +6,9 @@
  * Items are kept from the start for as long as they fit beside the More
  * button; the first that does not fit folds with everything after it. An
  * item marked to keep stays in the bar wherever it is. When everything fits
- * without the More button, nothing folds.
+ * without the More button, nothing folds. An item pinned behind More
+ * (`data-kp-nav-more`) folds whatever the width, and while one is pinned the
+ * More button always takes its room [parts-1102].
  *
  * @param {object} at
  * @param {readonly number[]} at.widths each item's natural width
@@ -14,18 +16,22 @@
  * @param {number} at.room the width the list has
  * @param {number} at.moreWidth the More item's width
  * @param {readonly boolean[]} [at.keep] items that never fold
+ * @param {readonly boolean[]} [at.pinned] items that always fold
  * @returns {boolean[]} per item: true when it folds
  */
-export function planFold({ widths, gap, room, moreWidth, keep = [] }) {
-    const n = widths.length;
-    const total = widths.reduce((sum, w) => sum + w, 0) + gap * Math.max(0, n - 1);
-    if (total <= room) return widths.map(() => false);
+export function planFold({ widths, gap, room, moreWidth, keep = [], pinned = [] }) {
+    const inBar = widths.map((_, i) => pinned[i] !== true);
+    const shown = widths.filter((_, i) => inBar[i]);
+    const total = shown.reduce((sum, w) => sum + w, 0) + gap * Math.max(0, shown.length - 1);
+    const anyPinned = inBar.includes(false);
+    if (!anyPinned && total <= room) return widths.map(() => false);
+    if (anyPinned && total + (shown.length ? gap : 0) + moreWidth <= room) return inBar.map((b) => !b);
     const budget = room - moreWidth - gap;
-    const fits = widths.map((_, i) => keep[i] === true);
+    const fits = widths.map((_, i) => inBar[i] && keep[i] === true);
     let count = fits.filter(Boolean).length;
     let used = widths.reduce((sum, w, i) => (fits[i] ? sum + w : sum), 0) + gap * Math.max(0, count - 1);
-    for (let i = 0; i < n; i += 1) {
-        if (fits[i]) continue;
+    for (let i = 0; i < widths.length; i += 1) {
+        if (fits[i] || !inBar[i]) continue;
         const next = used + widths[i] + (count > 0 ? gap : 0);
         if (next > budget) break;
         fits[i] = true;

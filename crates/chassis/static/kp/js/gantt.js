@@ -88,7 +88,11 @@
 //            under them: a lane's own (`lane`, a thin band: waiting since the
 //            last contact) or the whole plot's (a band: the follow-up is due).
 //            A lane with `href` is a link; `sub` is a second line under its
-//            label. The range word `all` fits the window to everything on the
+//            label. [forms-1102] `tries` (a whole number) puts a mark at the end
+//            of the lane's name, beside the plot: "1 try left" (warning), "No
+//            tries left" (danger), "3 tries left" (muted); `mark` is the page's
+//            own word in that place (muted). The name column is as wide as the
+//            name and its mark, and never cuts either. The range word `all` fits the window to everything on the
 //            timeline and now, and stays fitted as the data changes. The axis
 //            steps go up to four weeks, a week starting on Monday
 //   chrome   [gaps-time-1019] options read again when the attribute changes (js/live-options.js):

@@ -3489,6 +3489,23 @@
             }
         }
 
+        /* `data-kp-header-actions="equal"` on the header [parts-1102; almanac 21]: two buttons on two equal tracks, so a
+         * pair of actions reads as one block across the phone's column, also where the header is too narrow for the default
+         * pair (a long label then wraps inside its button, at its spaces). "auto" (the default) is the rows above. Read by CSS
+         * alone, so it switches at run time. */
+        .kp-page-header[data-kp-header-actions='equal'] .kp-page-header__actions:has(> :nth-child(2 of .kp-button, .kp-menu-button)):not(:has(> :nth-child(3 of .kp-button, .kp-menu-button))) {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .kp-page-header[data-kp-header-actions='equal'] .kp-page-header__actions > .kp-menu-button {
+            inline-size: auto;
+        }
+
+        .kp-page-header[data-kp-header-actions='equal'] .kp-page-header__actions > .kp-menu-button > button {
+            flex: 1 1 auto;
+            justify-content: center;
+        }
+
         .kp-page-header__actions > .kp-button {
             justify-content: center;
             white-space: normal;
@@ -6858,6 +6875,13 @@
         align-self: start;
     }
 
+    /* Without data-kp-subgrid a band in a form grid is one block across the grid's tracks, label to actions [parts-1102]: as a
+       plain grid item it fell into the label track, and its words broke after every word (Almanac's Settings, 92 px wide). */
+    .kp-formgrid > .kp-attention:not([data-kp-subgrid]),
+    .kp-formgrid__group > .kp-attention:not([data-kp-subgrid]) {
+        grid-column: label-start / actions-end;
+    }
+
     /* The narrow fold, inside a form grid or not: under 36rem of the nearest size container (the form grid, a card, the
        page), or of the screen where there is none, each item is two tracks, the icon and the words, with its fix under
        them on the full width. Written twice, once per query, as a container query cannot fall back to the viewport. */
@@ -8179,7 +8203,8 @@
     }
 
     .kp-nav:where([data-kp-nav-fold]) > .kp-nav__links > li[data-kp-nav-folded],
-    .kp-nav:where([data-kp-nav-fold]) > .kp-nav__links > [data-kp-nav-more][data-kp-nav-idle] {
+    .kp-nav:where([data-kp-nav-fold]) > .kp-nav__links > .kp-nav__more[data-kp-nav-idle],
+    .kp-nav:where([data-kp-nav-fold]:not([data-kp-nav-fold-ready], :has(> .kp-nav__toggle))) > .kp-nav__links > li[data-kp-nav-more]:not(.kp-nav__more) {
         /* !important: a register that dresses the list items (cyberpunk's `position: relative` on every one) sits in a
          * later layer and would put a folded item, and the idle More, back in the flow; it would push the More button
          * out of the bar. An important declaration of this layer beats every normal one of a later layer. */
@@ -8279,8 +8304,18 @@
             white-space: normal;
         }
 
-        .kp-nav:where([data-kp-nav-fold]):has(> .kp-nav__toggle) > .kp-nav__links > [data-kp-nav-more] {
+        .kp-nav:where([data-kp-nav-fold]):has(> .kp-nav__toggle) > .kp-nav__links > .kp-nav__more {
             display: none;
+        }
+    }
+
+    /* A link pinned behind More (`data-kp-nav-more` on its item) [parts-1102] never shows in the bar, not even in the frame
+     * before the script has fitted it; where the bar's own toggle is shown it is a link of the open list like the others. */
+    @container kp-nav (min-width: 40.0625rem) {
+        .kp-nav:where([data-kp-nav-fold]:not([data-kp-nav-fold-ready])) > .kp-nav__links > li[data-kp-nav-more]:not(.kp-nav__more) {
+            position: absolute !important;
+            visibility: hidden !important;
+            pointer-events: none;
         }
     }
 
@@ -8360,6 +8395,42 @@
 
     .kp-nav__link[aria-current='page'] {
         font-weight: 600;
+        text-decoration-thickness: 2px;
+    }
+
+    /* A menu button that is one of the bar's links [parts-1102; Medicine Cabinet 28]. A list item of `.kp-nav__links` may
+     * hold the package's menu button (js/menu-button.js) instead of a link: its button is a bar link with the disclosure's
+     * caret, its menu the rich menu (groups under small capitals, a label over a one-line hint per entry, the menu's keys and
+     * placement), so a page needs no classes of its own:
+     *
+     *   <li>
+     *     <div class="kp-menu-button" data-kp-menu-button>
+     *       <button type="button" class="kp-nav__link kp-nav__disclosure">Stock</button>
+     *       <div class="kp-menu kp-menu--rich" role="menu" aria-label="Stock"></div>
+     *     </div>
+     *   </li>
+     *
+     * setMenu(wrapper, groups) fills it, an entry with `href` is a link and `attrs: { 'aria-current': 'page' }` marks the page
+     * shown. While the page shown is one of its entries the page writes `aria-current="true"` on the button, which then reads
+     * as the bar's current link (as More does when the current page is folded behind it). Every register that dresses a bar
+     * link dresses the button; the menu is the theme's raised plate. In a folding bar (`data-kp-nav-fold`) such an item never
+     * folds behind More (a menu inside a menu): give it `data-kp-nav-keep`. */
+    .kp-nav__links > li > .kp-menu-button {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    /* The menu hangs from the button's start edge, as a bar's dropdown does; the script moves it back in where it would leave
+     * the window (menuPlacement). */
+    .kp-nav__links > li > .kp-menu-button > .kp-menu {
+        inset-inline-start: 0;
+        inset-inline-end: auto;
+    }
+
+    .kp-nav__links > li > .kp-menu-button > .kp-nav__link[aria-current='true'] {
+        font-weight: 600;
+        text-decoration: underline;
         text-decoration-thickness: 2px;
     }
 
@@ -16082,6 +16153,89 @@
         min-inline-size: 0;
     }
 
+    /* Two fields side by side [parts-1102; Homelab's "Snooze until"]: `.kp-popover-form__pair` holds two
+     * `.kp-popover-form__field`s (a label over its control, a date picker and a time field, say). The plate is then two tracks:
+     * the first field takes the room, the second a track of its own (--kp-popover-form-pair-second, 8.5rem, a time field's width); the labels share one row and the controls the next, so both
+     * controls start and end on one line. The problem line stands under the first field and the accept button
+     * (`.kp-popover-form__accept`) under the second, as wide as it, so the button ends on the fields' edge. The plate has a
+     * width of its own, so a form opened near the window's edge is not squeezed: the knob --kp-popover-form-pair-width
+     * (min(24rem, 100vw - 2rem)); on a phone the two tracks stay. */
+    .kp-popover-form > .kp-popover-form__panel:has(> .kp-popover-form__pair) {
+        grid-template-columns: minmax(0, 1fr) minmax(0, var(--kp-popover-form-pair-second, 8.5rem));
+        column-gap: var(--kp-space-sm, 0.5rem);
+        inline-size: var(--kp-popover-form-pair-width, min(24rem, 100vw - 2rem));
+        max-inline-size: none;
+    }
+
+    .kp-popover-form__panel:has(> .kp-popover-form__pair) > * {
+        grid-column: 1 / -1;
+    }
+
+    .kp-popover-form__panel > .kp-popover-form__pair {
+        display: grid;
+        grid-template-columns: subgrid;
+        grid-template-rows: auto auto;
+        row-gap: var(--kp-space-xs, 0.25rem);
+        margin-block-end: var(--kp-space-xs, 0.25rem);
+    }
+
+    .kp-popover-form__pair > .kp-popover-form__field {
+        display: grid;
+        grid-row: span 2;
+        grid-template-rows: subgrid;
+        align-items: stretch;
+        min-inline-size: 0;
+    }
+
+    /* The labels stand on the controls; the controls share the taller one's height (a time field is a fingertip high on a
+     * phone), so both start and end on one line. */
+    .kp-popover-form__field > .kp-popover-form__label {
+        align-self: end;
+    }
+
+    /* Each control fills its track: the date picker's input gives way to its calendar button, the time field is the track's width. */
+    .kp-popover-form__field > * {
+        min-inline-size: 0;
+    }
+
+    .kp-popover-form__field > .kp-datepicker {
+        flex-wrap: nowrap;
+        align-items: stretch;
+    }
+
+    .kp-popover-form__field > .kp-datepicker > [data-kp-date-open] {
+        align-self: center;
+    }
+
+    .kp-popover-form__field > .kp-datepicker > .kp-field__input {
+        flex: 1 1 0;
+        min-inline-size: 0;
+    }
+
+    .kp-popover-form__field > .kp-time {
+        display: block;
+    }
+
+    .kp-popover-form__field > .kp-time > .kp-time__control {
+        display: flex;
+    }
+
+    .kp-popover-form__field > .kp-time .kp-time__input.kp-field__input {
+        flex: 1 1 auto;
+        inline-size: 100%;
+        min-inline-size: 0;
+    }
+
+    .kp-popover-form__panel:has(> .kp-popover-form__pair) > .kp-popover-form__problem {
+        grid-column: 1;
+        align-self: center;
+    }
+
+    .kp-popover-form__panel:has(> .kp-popover-form__pair) > .kp-popover-form__accept {
+        grid-column: 2;
+        justify-content: center;
+    }
+
     .kp-popover-form__problem {
         min-block-size: 1lh;
         margin: 0;
@@ -16146,6 +16300,605 @@
         display: none;
     }
 
+    /* --- Day timeline [parts-1102] ---------------------------------------------------------------------------------------
+ * `.kp-dayline` (js/dayline.js): one day from top to bottom. The all-day strip above, then a box that scrolls inside a fixed
+ * height (--kp-dayline-height), so a page never grows with the hours. Inside the box a grid of two tracks: the hours' gutter
+ * (--kp-dayline-gutter) and the blocks' track, on one row per step, an hour being --kp-dayline-hour tall (taller under a coarse
+ * pointer, so a finger can hold a handle). The ruled hours lie behind the blocks; the now line crosses both tracks with its time
+ * on the gutter. Tokens only; every register paints it with its own card, border, radius and ink. */
+    .kp-dayline {
+        --kp-dayline-row: calc(var(--kp-dayline-hour, 4.5rem) / var(--kp-dayline-per-hour, 4));
+        container: kp-dayline / inline-size;
+        display: grid;
+        gap: var(--kp-space-sm, 0.5rem);
+        min-inline-size: 0;
+    }
+
+    @media (pointer: coarse) {
+        .kp-dayline {
+            --kp-dayline-hour: 6rem;
+        }
+    }
+
+    /* A narrow day (a phone) gives the blocks more of its width: a slimmer gutter. */
+    @container kp-dayline (max-width: 30rem) {
+        .kp-dayline__grid,
+        .kp-dayline__allday {
+            --kp-dayline-gutter: 3.25rem;
+        }
+
+        .kp-dayline__hour,
+        .kp-dayline__allday-name {
+            padding-inline: var(--kp-space-xs, 0.25rem);
+        }
+    }
+
+    .kp-dayline__frame {
+        position: relative;
+        min-inline-size: 0;
+    }
+
+    .kp-dayline__scroll {
+        block-size: var(--kp-dayline-height, clamp(22rem, 62vh, 40rem));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        border: 1px solid var(--border);
+        border-radius: var(--radius, 0.5rem);
+        background: var(--background);
+    }
+
+    .kp-dayline__scroll:focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
+    }
+
+    .kp-dayline__grid {
+        position: relative;
+        display: grid;
+        grid-template-columns: var(--kp-dayline-gutter, 4.5rem) minmax(0, 1fr);
+        grid-template-rows: repeat(var(--kp-dayline-rows, 96), var(--kp-dayline-row));
+        padding-block: var(--kp-space-md, 0.75rem);
+        padding-inline-end: var(--kp-space-sm, 0.5rem);
+    }
+
+    /* An hour rule on every hour's first row, a fainter one at the half hour, drawn once behind the blocks. */
+    .kp-dayline__lines {
+        grid-column: 2;
+        grid-row: 1 / -1;
+        background:
+            repeating-linear-gradient(to bottom, var(--border) 0 1px, transparent 1px var(--kp-dayline-hour, 4.5rem)),
+            repeating-linear-gradient(
+                to bottom,
+                transparent 0 calc(var(--kp-dayline-hour, 4.5rem) / 2),
+                color-mix(in srgb, var(--border) 45%, transparent) calc(var(--kp-dayline-hour, 4.5rem) / 2) calc(var(--kp-dayline-hour, 4.5rem) / 2 + 1px),
+                transparent calc(var(--kp-dayline-hour, 4.5rem) / 2 + 1px) var(--kp-dayline-hour, 4.5rem)
+            );
+    }
+
+    .kp-dayline__hour {
+        grid-column: 1;
+        align-self: start;
+        translate: 0 -50%;
+        padding-inline: var(--kp-space-sm, 0.5rem);
+        text-align: end;
+        font-size: var(--kp-text-xs, 0.75rem);
+        font-variant-numeric: tabular-nums;
+        line-height: 1.2;
+        color: var(--muted-foreground);
+    }
+
+    /* The now line across the blocks, its time on the gutter on the primary plate. */
+    .kp-dayline__now {
+        position: relative;
+        z-index: 3;
+        grid-column: 1 / -1;
+        grid-row: 1 / -1;
+        pointer-events: none;
+    }
+
+    .kp-dayline__now[hidden] {
+        display: none;
+    }
+
+    .kp-dayline__now::before {
+        content: '';
+        position: absolute;
+        inset-inline: var(--kp-dayline-gutter, 4.5rem) 0;
+        inset-block-start: calc(var(--kp-dayline-now, 0) * 100%);
+        border-block-start: 2px solid var(--primary);
+    }
+
+    .kp-dayline__now-label {
+        position: absolute;
+        inset-inline-start: var(--kp-space-xs, 0.25rem);
+        inset-block-start: calc(var(--kp-dayline-now, 0) * 100%);
+        translate: 0 -50%;
+        padding: 0.0625rem var(--kp-space-xs, 0.25rem);
+        border-radius: var(--kp-radius-sm, calc(var(--radius, 0.5rem) / 2));
+        background: var(--primary);
+        color: var(--primary-foreground);
+        font-size: var(--kp-text-xs, 0.75rem);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    /* A block stands on its rows and in its lane: the items that overlap share the track's width. Its first column is the
+     * handle (a read-only item keeps the column empty, so the words line up), then the time over the label. The edge on the
+     * start side is the item's tone; a read-only item is dashed on the muted plate, a done one quiet and struck through. */
+    .kp-dayline__item {
+        --kp-dayline-tone: var(--primary);
+        position: relative;
+        z-index: 1;
+        grid-column: 2;
+        justify-self: start;
+        display: grid;
+        grid-template-columns: var(--kp-dayline-handle, 1.75rem) minmax(0, 1fr);
+        align-items: start;
+        box-sizing: border-box;
+        inline-size: calc(100% / var(--kp-dayline-lanes, 1) - 2px);
+        margin-block: 1px;
+        margin-inline-start: calc(100% * var(--kp-dayline-lane, 0) / var(--kp-dayline-lanes, 1));
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-inline-start: 3px solid var(--kp-dayline-tone);
+        border-radius: var(--kp-radius-sm, calc(var(--radius, 0.5rem) / 2));
+        background: var(--card);
+        color: var(--card-foreground);
+    }
+
+    @media (pointer: coarse) {
+        .kp-dayline__item {
+            --kp-dayline-handle: var(--kp-touch-target, 2.75rem);
+        }
+    }
+
+    .kp-dayline__item[data-kp-tone='success'] {
+        --kp-dayline-tone: var(--success);
+    }
+
+    .kp-dayline__item[data-kp-tone='warning'] {
+        --kp-dayline-tone: var(--warning);
+    }
+
+    .kp-dayline__item[data-kp-tone='destructive'] {
+        --kp-dayline-tone: var(--destructive);
+    }
+
+    .kp-dayline__item[data-kp-tone='info'] {
+        --kp-dayline-tone: var(--info);
+    }
+
+    .kp-dayline__item[data-kp-tone='muted'] {
+        --kp-dayline-tone: var(--muted-foreground);
+    }
+
+    .kp-dayline__item[data-kp-tone='cat'] {
+        --kp-dayline-tone: var(--kp-cat, var(--primary));
+    }
+
+    .kp-dayline__item[data-kp-readonly] {
+        border-style: dashed;
+        border-inline-start-style: dashed;
+        background: var(--muted);
+        color: var(--muted-foreground);
+    }
+
+    .kp-dayline__item[data-kp-done] > .kp-dayline__body {
+        opacity: 0.6;
+    }
+
+    .kp-dayline__item[data-kp-done] .kp-dayline__label {
+        text-decoration: line-through;
+    }
+
+    /* Hovered or focused, a block whose words need more room than its rows grows down over what follows, so its label is read
+     * whole; at rest it shows what its rows hold (its whole label is its name and its body's title). */
+    .kp-dayline__item:is(:hover, :focus-within):not([data-kp-dragging]) {
+        z-index: 4;
+        align-self: start;
+        min-block-size: calc(100% - 2px);
+        box-shadow: 0 0 0 1px var(--ring);
+    }
+
+    .kp-dayline__item[data-kp-dragging] {
+        z-index: 4;
+        box-shadow: 0 0 0 2px var(--ring);
+    }
+
+    .kp-dayline__handle.kp-icon-button {
+        inline-size: var(--kp-dayline-handle, 1.75rem);
+        block-size: var(--kp-dayline-handle, 1.75rem);
+        min-inline-size: 0;
+        min-block-size: 0;
+        padding: 0;
+        cursor: grab;
+        touch-action: none;
+    }
+
+    .kp-dayline__item[data-kp-dragging] .kp-dayline__handle {
+        cursor: grabbing;
+    }
+
+    .kp-dayline__fixed {
+        block-size: 100%;
+    }
+
+    /* The body: a plain button that takes the block's height, the time over the label. */
+    .kp-dayline__body {
+        display: grid;
+        align-content: start;
+        gap: 0 var(--kp-space-xs, 0.25rem);
+        box-sizing: border-box;
+        min-inline-size: 0;
+        block-size: 100%;
+        margin: 0;
+        padding: var(--kp-space-xs, 0.25rem) var(--kp-space-sm, 0.5rem) var(--kp-space-xs, 0.25rem) var(--kp-space-xs, 0.25rem);
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        text-align: start;
+    }
+
+    button.kp-dayline__body {
+        cursor: pointer;
+    }
+
+    button.kp-dayline__body:focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: -2px;
+    }
+
+    /* A short block puts its time and label on one line. */
+    .kp-dayline__item[data-kp-short] > .kp-dayline__body {
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: baseline;
+    }
+
+    .kp-dayline__time {
+        font-size: var(--kp-text-xs, 0.75rem);
+        font-variant-numeric: tabular-nums;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+    }
+
+    .kp-dayline__label {
+        min-inline-size: 0;
+        font-size: var(--kp-text-sm, 0.8125rem);
+        font-weight: 600;
+        overflow-wrap: anywhere;
+    }
+    /* The all-day strip: its name in the gutter's width, then the items as plates that wrap onto rows; a read-only plate dashed.
+     * It takes no room while the page gives none. */
+    .kp-dayline__allday {
+        display: grid;
+        grid-template-columns: var(--kp-dayline-gutter, 4.5rem) minmax(0, 1fr);
+        align-items: start;
+        min-inline-size: 0;
+    }
+
+    .kp-dayline__allday[hidden] {
+        display: none;
+    }
+
+    .kp-dayline__allday-name {
+        margin: 0;
+        padding: var(--kp-space-xs, 0.25rem) var(--kp-space-sm, 0.5rem);
+        text-align: end;
+        font-size: var(--kp-text-xs, 0.75rem);
+        color: var(--muted-foreground);
+    }
+
+    .kp-dayline__allday-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--kp-space-xs, 0.25rem);
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        min-inline-size: 0;
+    }
+
+    .kp-dayline__allday-item {
+        --kp-dayline-tone: var(--primary);
+        padding: var(--kp-space-xs, 0.25rem) var(--kp-space-sm, 0.5rem);
+        border: 1px solid var(--border);
+        border-inline-start: 3px solid var(--kp-dayline-tone);
+        border-radius: var(--kp-radius-sm, calc(var(--radius, 0.5rem) / 2));
+        background: var(--card);
+        font-size: var(--kp-text-sm, 0.8125rem);
+        overflow-wrap: anywhere;
+    }
+
+    .kp-dayline__allday-item[data-kp-tone='cat'] {
+        --kp-dayline-tone: var(--kp-cat, var(--primary));
+    }
+
+    .kp-dayline__allday-item[data-kp-tone='muted'],
+    .kp-dayline__allday-item[data-kp-readonly] {
+        --kp-dayline-tone: var(--muted-foreground);
+        border-style: dashed;
+        background: var(--muted);
+        color: var(--muted-foreground);
+    }
+
+    .kp-dayline__allday-none {
+        padding: var(--kp-space-xs, 0.25rem) 0;
+        font-size: var(--kp-text-sm, 0.8125rem);
+        color: var(--muted-foreground);
+    }
+
+    /* Where an item held over the hours would start: a dashed band on its row with the time. */
+    .kp-dayline__drop {
+        z-index: 2;
+        grid-column: 2;
+        align-self: start;
+        padding: 0 var(--kp-space-sm, 0.5rem);
+        border: 1px dashed var(--ring);
+        border-radius: var(--kp-radius-sm, calc(var(--radius, 0.5rem) / 2));
+        background: var(--accent);
+        color: var(--accent-foreground);
+        font-size: var(--kp-text-xs, 0.75rem);
+        font-variant-numeric: tabular-nums;
+        pointer-events: none;
+    }
+
+    .kp-dayline__drop[hidden] {
+        display: none;
+    }
+
+    /* The package's plate over the whole box: an empty day lets presses and drops through to the hours, a failed one does not. */
+    .kp-dayline__plate {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        display: grid;
+        padding: var(--kp-space-md, 0.75rem);
+    }
+
+    .kp-dayline__plate[hidden] {
+        display: none;
+    }
+
+    .kp-dayline__plate[data-kp-state='empty'] {
+        pointer-events: none;
+    }
+
+    .kp-dayline__plate > .kp-stateplate {
+        block-size: 100%;
+        box-sizing: border-box;
+        margin: 0;
+    }
+    /* --- Swipe row [parts-1102] ---------------------------------------------------------------------------------------------
+ * A row of a `[data-kp-swipe]` list (js/swipe.js) while a finger slides it: its parts follow (--kp-swipe-x) and the room they
+ * leave is the action's plate in its tone (`--success` with `--success-foreground`, and so on), its words at the edge the parts
+ * left, cut to the plate so they never show through the row. Armed past the threshold, the words go bold and the plate's inner
+ * edge takes a rule in the words' ink. The row's own frame stays put. The slide home runs on the theme's own motion
+ * (--fx-duration, --fx-ease: formal's eased glide, brutalism's hard step, titanium's milled curve), none under reduced motion.
+ * On a coarse pointer the rows leave the vertical move to the page's scroll. Tokens only. */
+    @media (pointer: coarse) {
+        [data-kp-swipe]:not([data-kp-swipe='off']) > * {
+            touch-action: pan-y;
+        }
+    }
+
+    [data-kp-swipe] > [data-kp-swiping],
+    [data-kp-swipe] > [data-kp-swipe-settling] {
+        --kp-swipe-plate: var(--primary);
+        --kp-swipe-ink: var(--primary-foreground);
+        position: relative;
+        overflow: hidden;
+        user-select: none;
+    }
+
+    [data-kp-swipe] > [data-kp-swipe-settling] {
+        transition: --kp-swipe-x var(--fx-duration, 180ms) var(--fx-ease, ease-out);
+    }
+
+    [data-kp-swipe] > :is([data-kp-swiping], [data-kp-swipe-settling]) > :not(.kp-swipe__plate) {
+        translate: var(--kp-swipe-x, 0px) 0;
+    }
+
+    [data-kp-swipe] > [data-kp-swipe-tone='success'] {
+        --kp-swipe-plate: var(--success);
+        --kp-swipe-ink: var(--success-foreground);
+    }
+
+    [data-kp-swipe] > [data-kp-swipe-tone='info'] {
+        --kp-swipe-plate: var(--info);
+        --kp-swipe-ink: var(--info-foreground);
+    }
+
+    [data-kp-swipe] > [data-kp-swipe-tone='warning'] {
+        --kp-swipe-plate: var(--warning);
+        --kp-swipe-ink: var(--warning-foreground);
+    }
+
+    [data-kp-swipe] > [data-kp-swipe-tone='destructive'] {
+        --kp-swipe-plate: var(--destructive);
+        --kp-swipe-ink: var(--destructive-foreground);
+    }
+
+    [data-kp-swipe] > [data-kp-swipe-tone='none'] {
+        --kp-swipe-plate: var(--muted);
+        --kp-swipe-ink: var(--muted-foreground);
+    }
+
+    /* The plate: as wide as the room the parts left, on the side they left. */
+    .kp-swipe__plate {
+        position: absolute;
+        inset-block: 0;
+        z-index: 0;
+        display: grid;
+        align-items: center;
+        box-sizing: border-box;
+        inline-size: max(0px, var(--kp-swipe-x, 0px));
+        overflow: hidden;
+        background: var(--kp-swipe-plate);
+        color: var(--kp-swipe-ink);
+        pointer-events: none;
+    }
+
+    [data-kp-swipe-side='right'] > .kp-swipe__plate {
+        left: 0;
+        justify-items: start;
+    }
+
+    [data-kp-swipe-side='left'] > .kp-swipe__plate {
+        right: 0;
+        justify-items: end;
+        inline-size: max(0px, calc(-1 * var(--kp-swipe-x, 0px)));
+    }
+
+    .kp-swipe__words {
+        padding-inline: var(--kp-space-md, 0.75rem);
+        white-space: nowrap;
+        font-size: var(--kp-text-sm, 0.8125rem);
+        font-weight: 500;
+    }
+
+    [data-kp-swipe-armed] > .kp-swipe__plate > .kp-swipe__words {
+        font-weight: 700;
+    }
+
+    [data-kp-swipe-side='right'][data-kp-swipe-armed] > .kp-swipe__plate {
+        box-shadow: inset -3px 0 0 var(--kp-swipe-ink);
+    }
+
+    [data-kp-swipe-side='left'][data-kp-swipe-armed] > .kp-swipe__plate {
+        box-shadow: inset 3px 0 0 var(--kp-swipe-ink);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        [data-kp-swipe] > [data-kp-swipe-settling] {
+            transition: none;
+        }
+    }
+    /* --- Settled row [parts-1102] -----------------------------------------------------------------------------------------
+ * A row of a list whose item left while the page is open (js/settled.js): it keeps its place and the height it had
+ * (--kp-settled-height, measured when it settled), its frame turns dashed and its ground clear, its parts fade
+ * (--kp-settled-fade) and its title is struck through, and where the item went stands at its end on the muted plate, over the
+ * faded actions, so the row reads as finished at a glance and never as a row to press. Nothing in it answers a press. Tokens only;
+ * every register paints it with its own border and ink. */
+    [data-kp-settled] {
+        position: relative;
+        min-block-size: var(--kp-settled-height, auto);
+        border-style: dashed;
+        background: transparent;
+        box-shadow: none;
+        pointer-events: none;
+        user-select: none;
+    }
+
+    [data-kp-settled] > :not(.kp-settled__word) {
+        opacity: var(--kp-settled-fade, 0.45);
+    }
+
+    [data-kp-settled] :is(.kp-task-row__title, .kp-checklist__label) {
+        text-decoration: line-through;
+    }
+
+    .kp-settled__word,
+    [data-kp-settled]:not(:has(> .kp-settled__word))::after {
+        position: absolute;
+        inset-block: 0;
+        inset-inline-end: 0;
+        display: grid;
+        align-content: center;
+        max-inline-size: 60%;
+        padding-inline: var(--kp-space-md, 0.75rem);
+        border-inline-start: 1px dashed var(--border);
+        background: var(--muted);
+        color: var(--muted-foreground);
+        font-size: var(--kp-text-sm, 0.8125rem);
+        font-weight: 600;
+        overflow-wrap: anywhere;
+    }
+
+    [data-kp-settled]:not(:has(> .kp-settled__word))::after {
+        content: attr(data-kp-settled);
+    }
+    /* --- Swatch picker [parts-1102] ---------------------------------------------------------------------------------------
+ * `.kp-swatches` (js/swatches.js): the theme's categorical colours as a grid of round toggle buttons, at most
+ * --kp-swatches-columns to a row (fewer when the picker is narrower), each --kp-swatch-size (2.25rem; the touch target under a
+ * coarse pointer). A swatch is its colour edge to edge with a hairline in the ground's border so a pale one still shows; hovered it
+ * shows a thin ring; the current one wears the ground's ring round it and a check in the categorical ink (--kp-cat-ink); the focus
+ * ring is the theme's. The current colour's name stands under the grid. Tokens only. */
+    .kp-swatches {
+        --kp-swatch-size: 2.25rem;
+        --kp-swatches-gap: var(--kp-space-sm, 0.5rem);
+        display: grid;
+        gap: var(--kp-space-sm, 0.5rem);
+        justify-items: start;
+        min-inline-size: 0;
+    }
+
+    @media (pointer: coarse) {
+        .kp-swatches {
+            --kp-swatch-size: var(--kp-touch-target, 2.75rem);
+        }
+    }
+
+    .kp-swatches__grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, var(--kp-swatch-size));
+        gap: var(--kp-swatches-gap);
+        box-sizing: border-box;
+        inline-size: min(100%, calc(var(--kp-swatches-columns, 6) * (var(--kp-swatch-size) + var(--kp-swatches-gap)) - var(--kp-swatches-gap) + 9px));
+        padding: 4px;
+        margin: -4px;
+    }
+
+    .kp-swatches__swatch {
+        display: grid;
+        place-items: center;
+        box-sizing: border-box;
+        inline-size: var(--kp-swatch-size);
+        block-size: var(--kp-swatch-size);
+        margin: 0;
+        padding: 0;
+        border: 1px solid var(--border);
+        border-radius: 50%;
+        background: var(--kp-swatch, var(--muted));
+        color: var(--kp-cat-ink, var(--background));
+        cursor: pointer;
+        transition: box-shadow var(--fx-duration, 160ms) var(--fx-ease, ease-out);
+    }
+
+    .kp-swatches__swatch:hover {
+        box-shadow: 0 0 0 2px var(--background), 0 0 0 3px var(--muted-foreground);
+    }
+
+    .kp-swatches__swatch[aria-pressed='true'] {
+        box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--foreground);
+    }
+
+    .kp-swatches__swatch[aria-pressed='true']::after {
+        content: var(--kp-glyph-check, '✓');
+        font-size: calc(var(--kp-swatch-size) * 0.45);
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .kp-swatches__swatch:focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 4px;
+    }
+
+    .kp-swatches__name {
+        margin: 0;
+        font-size: var(--kp-text-sm, 0.8125rem);
+        color: var(--muted-foreground);
+    }
+
+    .kp-swatches__name[hidden] {
+        display: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .kp-swatches__swatch {
+            transition: none;
+        }
+    }
     /* --- Board: lanes of cards a person moves between [habits-1101] ----------
  * `section.kp-board[data-kp-board]` (js/board.js). Each lane is the pipeline's lane (`.kp-pipeline__lane`, its head, name and
  * count), so every register paints it as its own; the cards are the page's, in a reorder list the lanes share. Wide, the lanes
@@ -20902,6 +21655,18 @@
         display: inline-flex;
         align-items: center;
         gap: var(--kp-keys-caps-gap, 0.125rem);
+    }
+
+    /* A chord, keys one after the other [parts-1102]: the caps a little apart, the dictionary's "then" between them in the
+       line's own small muted words, so "O then T" never reads as O and T pressed together. */
+    .kp-keys__caps--chord {
+        gap: var(--kp-space-xs, 0.25rem);
+    }
+
+    .kp-keys__then {
+        font-size: var(--kp-text-xs, 0.75rem);
+        font-style: italic;
+        color: var(--muted-foreground);
     }
 
     /* --- Action tiles, status rows, facet list [kpadopt2-tiles] ---------------
@@ -37217,6 +37982,86 @@
     }
 }
 
+/* --- The one-line empty plate [parts-1102; homelab UX review 2026-11-01] ---------------------------------------------------
+ * `data-kp-empty="compact"` on a `.kp-empty`: one line, a mark and the words, for a small card with nothing in it
+ * ("✓ No open alerts"), where the full plate (heading size, the theme's art above the words, the whole footprint) would
+ * outweigh the card. Opt-in: every other empty area keeps the prominent plate (DEMO_RULES ch. 3).
+ *
+ *   <p class="kp-empty" data-kp-empty="compact">
+ *     <span class="kp-empty__icon" aria-hidden="true">✓</span>
+ *     <span class="kp-empty__title">No open alerts</span>
+ *   </p>
+ *
+ * The plate keeps its theme's own ground, edge and title voice; the theme's art leaves (there is no room for a sun, a stamp
+ * or a raster over one line) and comes back as the dress of the mark, which each register gives (`.kp-empty__icon`). A
+ * second line (`.kp-empty__body`) stands under the words in the same track. Without a mark the words start on the plate's
+ * edge. "full" (the default) is the plate as it was. Knobs [KT6]: --kp-empty-compact-height (2.75rem, at least one touch
+ * target), --kp-empty-compact-pad (the air round the line), --kp-empty-compact-mark (1.5rem, the mark's size). */
+@layer kp.components {
+    .kp-empty__icon {
+        display: inline-grid;
+        place-items: center;
+        box-sizing: border-box;
+        inline-size: var(--kp-empty-compact-mark, 1.5rem);
+        block-size: var(--kp-empty-compact-mark, 1.5rem);
+        border-radius: 50%;
+        background: color-mix(in oklab, var(--foreground) 10%, transparent);
+        color: var(--foreground);
+        font-size: var(--kp-text-sm, 0.8125rem);
+        font-weight: 700;
+        line-height: 1;
+    }
+}
+
+/* The shape lives in the last layer: every register sets the plate's padding, art and title margin in a later layer than the
+ * components and would undo a one-line plate. Ground, edge, colours and type stay the register's. */
+@layer kp.layout {
+    .kp-empty[data-kp-empty='compact'] {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        align-content: center;
+        column-gap: var(--kp-space-sm, 0.5rem);
+        box-sizing: border-box;
+        min-block-size: var(--kp-empty-compact-height, 2.75rem);
+        margin: 0;
+        padding: var(--kp-empty-compact-pad, var(--kp-space-sm, 0.5rem) var(--kp-space-md, 0.75rem));
+        text-align: start;
+    }
+
+    .kp-empty[data-kp-empty='compact']:not(:has(> .kp-empty__icon)) {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .kp-empty[data-kp-empty='compact']::before,
+    .kp-empty[data-kp-empty='compact']::after {
+        content: none;
+        display: none;
+    }
+
+    .kp-empty[data-kp-empty='compact'] > .kp-empty__icon {
+        grid-row: 1 / span 2;
+        align-self: center;
+    }
+
+    .kp-empty[data-kp-empty='compact'] > :is(.kp-empty__title, .kp-empty__body) {
+        grid-column: -2;
+        justify-self: start;
+        min-inline-size: 0;
+        margin: 0;
+        overflow-wrap: break-word;
+    }
+
+    .kp-empty[data-kp-empty='compact'] > .kp-empty__title {
+        font-size: var(--kp-text-md, 1rem);
+        line-height: 1.35;
+    }
+
+    .kp-empty[data-kp-empty='compact'] > .kp-empty__body {
+        font-size: var(--kp-text-sm, 0.8125rem);
+    }
+}
+
 @layer kp.components {
     /* --- A live log viewer [gap-log-viewer] ------------------------------
  *
@@ -39839,6 +40684,336 @@
         min-block-size: 1lh;
     }
 }
+@layer kp.components {
+    /* --- A free note on a row of the next times [forms-1102] ---
+     * `setRuns(el, [{ at, note: '1 try left' }])` (js/runs.js): the app's own plain words on a row, in a column of their own
+     * between the distance and the marks, muted, on the row's line. The list has that column only while a row shows a note
+     * (`data-kp-runs-notes`, written by the module), so a list without notes keeps its three columns. Narrower than 26rem the
+     * note follows the distance on the second line, as the mark does. */
+    .kp-runs[data-kp-runs-notes] .kp-runs__list {
+        grid-template-columns: max-content max-content max-content minmax(0, 1fr);
+    }
+
+    .kp-runs__note {
+        grid-column: 3;
+        color: var(--muted-foreground);
+        font-size: var(--kp-text-sm, 0.8125rem);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+    .kp-runs[data-kp-runs-notes] .kp-runs__flag {
+        grid-column: 4;
+    }
+
+    /* Narrow: the time on the first line, then the distance and the note on two tracks every row shares, the mark under them. */
+    @container kp-runs (max-width: 26rem) {
+        .kp-runs[data-kp-runs-notes] .kp-runs__list {
+            grid-template-columns: max-content minmax(0, 1fr);
+        }
+
+        .kp-runs[data-kp-runs-notes] .kp-runs__row:not(.kp-runs__row--wait) {
+            display: grid;
+            grid-template-columns: subgrid;
+            align-content: center;
+            row-gap: var(--kp-space-xs, 0.25rem);
+        }
+
+        .kp-runs[data-kp-runs-notes] .kp-runs__when,
+        .kp-runs[data-kp-runs-notes] .kp-runs__flag {
+            grid-column: 1 / -1;
+        }
+
+        .kp-runs[data-kp-runs-notes] .kp-runs__rel {
+            grid-column: 1;
+        }
+
+        .kp-runs[data-kp-runs-notes] .kp-runs__note {
+            grid-column: 2;
+            white-space: normal;
+        }
+    }
+}
+@layer kp.components {
+    /* --- The mark at the end of a lane's name [forms-1102] ---
+     * A lane with `tries` or `mark` (js/gantt.js) carries a small badge at the end of its name, beside the plot: "1 try left"
+     * on the warning plate, "No tries left" on the destructive plate, any other count or the page's own word on the plain badge.
+     * The name keeps the start edge and wraps before the mark is pushed; the mark never wraps and stands on the lane's first
+     * row, where its bars stand. A mark is at least 6.5rem wide, so the marks of all lanes start on one edge. */
+    /* The name takes the room up to the mark, and a lane without a mark keeps the mark's room while another lane has one, so every
+       name ends on one edge and every mark starts on one; name and mark stand on one centre line. */
+    .kp-gantt__body[data-kp-gantt-marks] .kp-gantt__lane {
+        gap: var(--kp-space-sm, 0.5rem);
+        align-items: center;
+    }
+
+    .kp-gantt__body[data-kp-gantt-marks] .kp-gantt__lane:not(.kp-gantt__ghost) > :is(span, a):first-child {
+        flex: 1 1 auto;
+    }
+
+    .kp-gantt__body[data-kp-gantt-marks] .kp-gantt__lane:not([data-kp-gantt-marked], .kp-gantt__ghost)::after {
+        content: '';
+        flex: none;
+        inline-size: 6.5rem;
+    }
+
+    .kp-gantt__lane:not(.kp-gantt__ghost) > .kp-gantt__mark {
+        display: inline-flex;
+        flex: none;
+        justify-content: center;
+        align-items: center;
+        box-sizing: border-box;
+        min-inline-size: 6.5rem;
+        min-block-size: 0;
+        padding-inline: var(--kp-space-xs, 0.25rem);
+        font-size: var(--kp-text-xs, 0.75rem);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+}
+@layer kp.components {
+    /* --- A chip's menu and rename [forms-1102] ---
+     * js/segmented-menu.js: a `.kp-segmented__menu` stands in a chip group right after its chip. The chip and its ⋯ read as one
+     * pill split by a hair line: the chip gives up its end rounding and the ⋯ carries it, on the chip's own edge and ground
+     * (--kp-chip-edge, --kp-chip-ground, --kp-chip-radius), so each theme's chip look reaches the menu. The chip's fill when it is
+     * on stays the chip's; the ⋯ keeps the card ground, a tool beside the choice. While a chip is renamed it is a field as wide
+     * as the chip was (at least 8rem), at the chip's height, and the refusal stands under it over what follows. */
+    .kp-segmented--chips:has(> .kp-segmented__menu) {
+        position: relative;
+    }
+
+    .kp-segmented--chips > .kp-segmented__item:has(+ .kp-segmented__menu) {
+        border-start-end-radius: 0;
+        border-end-end-radius: 0;
+    }
+
+    .kp-segmented--chips > .kp-segmented__menu {
+        display: inline-flex;
+        margin-inline-start: calc(-1 * var(--kp-chip-gap, 0.375rem));
+    }
+
+    .kp-segmented--chips > .kp-segmented__menu > .kp-icon-button {
+        box-sizing: border-box;
+        min-inline-size: 2rem;
+        inline-size: auto;
+        block-size: auto;
+        min-block-size: var(--kp-chip-height, max(1.75rem, calc(var(--kp-control-height, 2.25rem) - var(--kp-space-sm, 0.5rem))));
+        padding-inline: var(--kp-space-sm, 0.5rem);
+        border: 1px solid var(--kp-chip-edge, var(--border-strong));
+        border-inline-start-color: var(--border);
+        border-start-start-radius: 0;
+        border-end-start-radius: 0;
+        border-start-end-radius: var(--kp-chip-radius, var(--kp-radius-pill, 999px));
+        border-end-end-radius: var(--kp-chip-radius, var(--kp-radius-pill, 999px));
+        background: var(--kp-chip-ground, var(--card));
+        color: var(--muted-foreground);
+        line-height: 1;
+    }
+
+    .kp-segmented--chips > .kp-segmented__menu > .kp-icon-button:is(:hover, [aria-expanded='true']) {
+        color: var(--foreground);
+        background: var(--accent, var(--muted));
+    }
+
+    .kp-segmented--chips > .kp-segmented__item[data-kp-segmented-renaming] {
+        display: none;
+    }
+
+    .kp-segmented--chips > .kp-segmented__rename {
+        box-sizing: border-box;
+        inline-size: max(8rem, var(--kp-seg-rename-w, 8rem));
+        min-block-size: var(--kp-chip-height, max(1.75rem, calc(var(--kp-control-height, 2.25rem) - var(--kp-space-sm, 0.5rem))));
+        block-size: auto;
+        padding-block: 0;
+        border-start-end-radius: 0;
+        border-end-end-radius: 0;
+    }
+
+    .kp-segmented > .kp-segmented__refusal {
+        position: absolute;
+        z-index: 2;
+        max-inline-size: min(20rem, 100%);
+        margin: 0;
+        padding: var(--kp-space-xs, 0.25rem) var(--kp-space-sm, 0.5rem);
+        border: 1px solid var(--destructive);
+        border-radius: var(--radius, 0.5rem);
+        background: var(--popover, var(--card));
+        box-shadow: var(--fx-shadow-offset, 0px) var(--fx-shadow-offset, 0px) 0 0 var(--border-strong);
+    }
+}
+@layer kp.components {
+    /* --- The error icon [forms-1102] ---
+     * A field's message (`.kp-field__error`) is text in the destructive ink; showError gives it `role="status"`, so it is said
+     * once as it appears. With `data-kp-error-icon` on the message or any element round it (`<html>` for the whole app), and in
+     * every add row, the message starts with a round "!" mark in the same ink, the words on a hanging indent beside it, so a
+     * second line starts under the first word, never under the mark. The mark is a status plate (--destructive with its
+     * --destructive-foreground), hidden from a screen reader (an empty alternative text): the message itself says what is wrong. */
+    :is([data-kp-error-icon], .kp-addrow) .kp-field__error:not([hidden]),
+    .kp-field__error[data-kp-error-icon]:not([hidden]) {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        column-gap: var(--kp-space-xs, 0.25rem);
+        align-items: start;
+    }
+
+    :is([data-kp-error-icon], .kp-addrow) .kp-field__error:not([hidden])::before,
+    .kp-field__error[data-kp-error-icon]:not([hidden])::before {
+        content: '!' / '';
+        display: grid;
+        place-items: center;
+        inline-size: 1.125em;
+        block-size: 1.125em;
+        margin-block-start: calc((1lh - 1.125em) / 2);
+        border-radius: 50%;
+        background: var(--destructive);
+        color: var(--destructive-foreground);
+        font-size: 0.875em;
+        font-weight: 700;
+        line-height: 1;
+    }
+}
+@layer kp.components {
+    /* --- The add row [forms-1102] ---
+     * js/add-row.js. Over a data table (`data-kp-addrow-for`): a band on the card's ground with the table's border, its cells on
+     * one track per table column (the module writes the tracks from the header's widths and shifts them with the table's
+     * sideways scroll, `--kp-addrow-shift`), each cell with the table cell's inline padding so a typed word starts where the
+     * column's words start. The column headings name the fields, so the labels are for screen readers; the Add button fills
+     * its column. Under its cards (`data-kp-addrow-stacked`): one column, labels shown over their fields, the Add button the
+     * whole width, a card among the table's cards. The refusal and the kit form's summary stand under the cells.
+     * In a form grid (`.kp-addrow--line`): a block of the grid, its row a line of it; the fields share the control track as
+     * name (2fr) and unit (1fr), the Add button in the actions track, the refusal under the control and actions tracks.
+     * Knobs: --kp-addrow-gap (the sm step), --kp-addrow-pad (the sm step, top and bottom of the band). */
+    .kp-addrow:not(.kp-addrow--line) {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: var(--kp-addrow-gap, var(--kp-space-sm, 0.5rem));
+        margin: 0 0 var(--kp-space-sm, 0.5rem);
+        padding-block: var(--kp-addrow-pad, var(--kp-space-sm, 0.5rem));
+        border: 1px solid var(--border);
+        border-radius: var(--radius, 0.5rem);
+        background: var(--card);
+        color: var(--card-foreground, var(--foreground));
+        overflow-x: clip;
+        overflow-clip-margin: 4px;
+    }
+
+    .kp-addrow__cells {
+        display: grid;
+        grid-auto-flow: dense;
+        align-items: start;
+        min-inline-size: 0;
+        transform: translateX(var(--kp-addrow-shift, 0px));
+    }
+
+    .kp-addrow:not([data-kp-addrow-stacked]) .kp-addrow__cells > :is(.kp-addrow__cell, .kp-addrow__submit) {
+        grid-row: 1;
+        box-sizing: border-box;
+        min-inline-size: 0;
+        padding-inline: var(--kp-table-cell-inline, 0.625rem);
+    }
+
+    .kp-addrow:not([data-kp-addrow-stacked]) .kp-addrow__cell > .kp-field__label {
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .kp-addrow__cell {
+        display: grid;
+        gap: var(--kp-space-xs, 0.25rem);
+        margin: 0;
+    }
+
+    .kp-addrow__cell > .kp-field__input {
+        inline-size: 100%;
+        min-inline-size: 0;
+        box-sizing: border-box;
+    }
+
+    .kp-addrow__submit {
+        display: grid;
+    }
+
+    .kp-addrow__submit > .kp-button {
+        inline-size: 100%;
+        white-space: nowrap;
+    }
+
+    .kp-addrow:not(.kp-addrow--line) > :is(.kp-form__summary, .kp-addrow__refusal) {
+        margin: 0;
+        padding-inline: var(--kp-table-cell-inline, 0.625rem);
+    }
+
+    .kp-addrow[data-kp-addrow-stacked]:not(.kp-addrow--line) {
+        padding: var(--kp-space-md, 0.75rem);
+    }
+
+    .kp-addrow[data-kp-addrow-stacked] .kp-addrow__cells {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: var(--kp-space-sm, 0.5rem);
+        transform: none;
+    }
+
+    .kp-addrow[data-kp-addrow-stacked]:not(.kp-addrow--line) > :is(.kp-form__summary, .kp-addrow__refusal) {
+        padding-inline: 0;
+    }
+
+    /* The line in a form grid. */
+    .kp-addrow--line .kp-addrow__fields {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+        column-gap: var(--kp-addrow-gap, var(--kp-space-sm, 0.5rem));
+        align-items: start;
+    }
+
+    .kp-addrow--line .kp-addrow__fields > .kp-field {
+        display: grid;
+        gap: var(--kp-space-xs, 0.25rem);
+        min-inline-size: 0;
+        margin: 0;
+    }
+
+    .kp-addrow--line .kp-addrow__fields .kp-field__input {
+        inline-size: 100%;
+        box-sizing: border-box;
+    }
+
+    .kp-addrow--line .kp-addrow__fields > .kp-field > .kp-field__label {
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .kp-addrow--line > .kp-form__summary {
+        grid-column: label-start / actions-end;
+        margin: 0;
+    }
+
+    .kp-addrow--line > .kp-addrow__refusal {
+        grid-column: control-start / actions-end;
+        margin: 0;
+    }
+
+    .kp-addrow--line[data-kp-addrow-stacked] .kp-addrow__fields {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: var(--kp-space-sm, 0.5rem);
+    }
+
+    .kp-addrow--line[data-kp-addrow-stacked] .kp-addrow__fields > .kp-field > .kp-field__label {
+        position: static;
+        inline-size: auto;
+        block-size: auto;
+        overflow: visible;
+        clip-path: none;
+        white-space: normal;
+    }
+}
 
 @layer kp.register {
     /* @kp-soft/themes — css/cyberpunk-register.css
@@ -40169,7 +41344,7 @@
         position: relative;
     }
 
-    [data-theme='cyberpunk'] .kp-nav__link:is([aria-current='page'], .kp-nav__more-button[aria-current='true']) {
+    [data-theme='cyberpunk'] .kp-nav__link:is([aria-current='page'], .kp-nav__more-button[aria-current='true'], .kp-menu-button > [aria-current='true']) {
         text-decoration: underline;
         text-underline-offset: 0.3em;
     }
@@ -43959,6 +45134,16 @@
         margin: 0;
         font-family: var(--kp-mono);
         font-size: 0.8rem;
+    }
+
+    /* The one-line plate's mark [parts-1102]: a cut-corner chip in the neon edge, mono. */
+    [data-theme='cyberpunk'] .kp-empty[data-kp-empty='compact'] > .kp-empty__icon {
+        border: 1px solid var(--primary);
+        border-radius: 0;
+        background: hsl(from var(--primary) h s l / 0.12);
+        color: var(--accent);
+        font-family: var(--kp-mono);
+        clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%);
     }
 
     [data-theme='cyberpunk'] a:not([class], :is(nav, [role='navigation'], [role='menu'], [role='menubar'], .kp-nav, .kp-sidenav, .kp-footer) a) {
@@ -50854,6 +52039,12 @@
         letter-spacing: 0.04em;
     }
 
+    /* The one-line plate's mark [parts-1102]: the striped sun, small, the mark over it. */
+    [data-theme='synthwave'] .kp-empty[data-kp-empty='compact'] > .kp-empty__icon {
+        background: var(--kp-sig-sw-sun);
+        color: var(--background);
+    }
+
     [data-theme='synthwave'] a:not([class], :is(nav, [role='navigation'], [role='menu'], [role='menubar'], .kp-nav, .kp-sidenav, .kp-footer) a) {
         padding-block-end: 2px;
         text-decoration: none;
@@ -56723,6 +57914,16 @@
     [data-theme='brutalism'] .kp-empty__body {
         margin: 0;
         color: var(--foreground);
+    }
+
+    /* The one-line plate's mark [parts-1102]: the zero stamp, small: a hard ring on the accent, turned and dropped. */
+    [data-theme='brutalism'] .kp-empty[data-kp-empty='compact'] > .kp-empty__icon {
+        border: 2px solid var(--border-strong);
+        background: var(--accent);
+        color: var(--border-strong);
+        font-family: var(--theme-font-display);
+        box-shadow: 2px 2px 0 var(--border-strong);
+        rotate: -8deg;
     }
 
     [data-theme='brutalism'] a:not([class], :is(nav, [role='navigation'], [role='menu'], [role='menubar'], .kp-nav, .kp-sidenav, .kp-footer) a) {
@@ -62726,6 +63927,13 @@
         margin: 0;
         font-family: var(--theme-font-mono);
         font-size: 0.78rem;
+    }
+
+    /* The one-line plate's mark [parts-1102]: a milled square with a hairline edge, no rounding. */
+    [data-theme='titanium'] .kp-empty[data-kp-empty='compact'] > .kp-empty__icon {
+        border: 1px solid var(--border-strong);
+        border-radius: 2px;
+        background: linear-gradient(to bottom, hsl(from var(--foreground) h s l / 0.08), transparent);
     }
 
     [data-theme='titanium'] a:not([class], :is(nav, [role='navigation'], [role='menu'], [role='menubar'], .kp-nav, .kp-sidenav, .kp-footer) a) {
@@ -69912,6 +71120,13 @@
         margin: 0;
     }
 
+    /* The one-line plate's mark [parts-1102]: printed twice, the second pass a little off, stuck on. */
+    [data-theme='pastel'] .kp-empty[data-kp-empty='compact'] > .kp-empty__icon {
+        border: 1px solid var(--border-strong);
+        background: var(--muted);
+        box-shadow: 2px 2px 0 hsl(from var(--primary) h s l / 0.55);
+    }
+
     /* A link in running text: a mint plate grows in behind its words, start
        to end, on the landing in the contact time; a link in a navigation, a
        menu, a breadcrumb or the footer keeps its own component's look
@@ -74301,6 +75516,13 @@
         text-decoration-style: solid;
         text-decoration-color: var(--primary);
         text-decoration-thickness: 2px;
+    }
+
+    /* The one-line plate's mark [parts-1102]: a leaf, two round corners, on the forest's green. */
+    [data-theme='forest'] .kp-empty[data-kp-empty='compact'] > .kp-empty__icon {
+        border-radius: 0 50%;
+        background: hsl(from var(--primary) h s l / 0.2);
+        color: var(--primary);
     }
 
     @media (prefers-reduced-motion: no-preference) {
@@ -80742,6 +81964,14 @@
         font-size: 1.375rem;
     }
 
+    /* The one-line plate's mark [parts-1102]: a gold inlay ring, double, the mark in the display face. */
+    [data-theme='deco'] .kp-empty[data-kp-empty='compact'] > .kp-empty__icon {
+        border: 3px double var(--accent);
+        background: none;
+        color: var(--accent);
+        font-family: var(--theme-font-display);
+    }
+
     /* The dialog: lacquer, the double rule under its title (the dialog is
        what matters), no crest. */
     [data-theme='deco'] .kp-dialog {
@@ -86414,6 +87644,12 @@
 
     [data-theme='blueprint'] .kp-empty__body {
         margin: 0;
+    }
+
+    /* The one-line plate's mark [parts-1102]: a pencilled circle, dashed like the plate's edge. */
+    [data-theme='blueprint'] .kp-empty[data-kp-empty='compact'] > .kp-empty__icon {
+        border: 1px dashed hsl(from var(--foreground) h s l / 0.6);
+        background: none;
     }
 
     /* The link signature is for links in running text; a link in a navigation,
@@ -93166,6 +94402,19 @@
         text-decoration-thickness: 3px;
     }
 
+    /* The one-line plate's mark [parts-1102]: a square of ink tape, the mark in the terminal's face. */
+    [data-theme='nostromo'] .kp-empty[data-kp-empty='compact'] > .kp-empty__icon {
+        border-radius: 2px;
+        background: var(--foreground);
+        color: var(--primary-foreground);
+        font-family: var(--theme-font-mono);
+        font-weight: 400;
+    }
+
+    [data-theme='nostromo'] .kp-empty[data-kp-empty='compact'] > .kp-empty__title {
+        margin: 0;
+    }
+
     @media (prefers-reduced-motion: no-preference) {
         [data-theme='nostromo'] .kp-spinner::before {
             animation: kp-sig-nostromo-no-reel var(--kp-sig-dur) steps(20, end) infinite;
@@ -99633,6 +100882,12 @@
         letter-spacing: 0.02em;
     }
 
+    /* The one-line plate's mark [parts-1102]: a soft lit disc in the accent, the plate's glow in miniature. */
+    [data-theme='dark'] .kp-empty[data-kp-empty='compact'] > .kp-empty__icon {
+        background: hsl(from var(--primary) h s l / 0.18);
+        color: var(--primary);
+    }
+
     [data-theme='dark'] a:not([class], :is(nav, [role='navigation'], [role='menu'], [role='menubar'], .kp-nav, .kp-sidenav, .kp-footer) a) {
         text-decoration-thickness: 1px;
         text-decoration-color: hsl(from var(--foreground) h s l / 0.5);
@@ -104708,6 +105963,24 @@
         text-decoration-color: currentColor;
     }
 
+    /* The one-line plate's mark [parts-1102]: a clerk's seal, a hairline ring round the mark in the display face; the double rule
+       stays along the top outside a card, the ruled lines stay off (one line has no foot to rule). */
+    [data-theme='formal'] .kp-empty[data-kp-empty='compact'] {
+        background: none;
+    }
+
+    /* In a card the card's own rule is the line above it: a second double rule under the title would be two rules for one edge. */
+    [data-theme='formal'] .kp-card .kp-empty[data-kp-empty='compact'] {
+        border-block-start: 0;
+    }
+
+    [data-theme='formal'] .kp-empty[data-kp-empty='compact'] > .kp-empty__icon {
+        border: 1px solid var(--border-strong);
+        background: none;
+        font-family: var(--theme-font-display);
+        font-weight: 400;
+    }
+
     /* Growing and shrinking, this theme's way [scope-142; approved by Kenny
        on research/size-motion, 2026-10-04]. js/motion.js marks a gliding box
        `[data-kp-resizing]` and what arrives in it `[data-kp-arriving]` (which
@@ -109146,6 +110419,12 @@
         text-decoration-color: var(--primary);
         text-decoration-thickness: 2px;
         text-shadow: 0 0 14px hsl(from var(--primary) h s l / 0.35);
+    }
+
+    /* The one-line plate's mark [parts-1102]: the risen sun itself, the mark on its disc. */
+    [data-theme='solstice'] .kp-empty[data-kp-empty='compact'] > .kp-empty__icon {
+        background: radial-gradient(circle, var(--primary) 0 62%, hsl(from var(--primary) h s l / 0.25) 62% 72%, transparent 72%);
+        color: var(--primary-foreground);
     }
 
     @media (prefers-reduced-motion: no-preference) {

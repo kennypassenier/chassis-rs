@@ -35,8 +35,23 @@
 //
 // Anything not supplied falls back to the English below, so a consumer
 // overrides what it cares about and nothing else.
+//
+// Since 12.2.0 a language dictionary sits between the English and the
+// app's own words [habits-1101]: js/strings-nl.js holds the Dutch, and
+// js/auto.js registers it, so a page with `<html lang="nl">` (or nl-BE,
+// nl-NL, or `data-kp-lang="nl"`) speaks Dutch without a `setStrings()`.
 
 export { DEFAULT_STRINGS } from './strings/defaults.js';
-export { setStrings, stringProperties, applyStringProperties, getStrings, resolveStrings } from './strings/runtime.js';
+export {
+    setStrings,
+    stringProperties,
+    applyStringProperties,
+    getStrings,
+    resolveStrings,
+    registerDictionary,
+    setLanguage,
+    getLanguage,
+    languageReady,
+} from './strings/runtime.js';
 
 /** @typedef {import('./strings/types.js').Strings} Strings */

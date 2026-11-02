@@ -1,6 +1,6 @@
 // The More menu's groups for the folded items: one entry per link that clicks the real one, a named group for a dropdown, and a rule where a separator folded.
 
-import { counterOf, isSep, unavailable, wordsOf } from './read.js';
+import { counterOf, hintOf, isSep, pinnedGroup, unavailable, wordsOf } from './read.js';
 
 /** @typedef {import('../menu-button.js').MenuGroup} MenuGroup */
 /** @typedef {import('../menu-button.js').MenuItem} MenuItem */
@@ -19,6 +19,8 @@ export class FoldGroups {
         this.groups = [];
         /** The open group of plain links, while the folded items are plain links. @type {MenuItem[] | null} */
         this.plain = null;
+        /** The name of the open group of plain links: '' or the group a pinned item names [parts-1102]. */
+        this.plainName = '';
         /** A folded separator was seen: the next group stands below a rule. */
         this.rule = false;
         this.s = words();
@@ -33,6 +35,7 @@ export class FoldGroups {
         this.s = this.words();
         this.groups = [];
         this.plain = null;
+        this.plainName = '';
         this.rule = false;
         this.ruled = new Set();
         this.sources = [];
@@ -57,9 +60,14 @@ export class FoldGroups {
         const panel = li.querySelector(':scope > .kp-nav__menu');
         if (!panel) {
             if (!primary) return;
-            if (!this.plain) {
+            // A pinned item that names a group (`data-kp-nav-more="Kitchen"`) opens that group; the next one with the name joins it.
+            // A group named as the More button itself (chassis-rs Page::group "More") needs no heading inside that menu.
+            const named = pinnedGroup(li);
+            const name = named === this.s.navMore ? '' : named;
+            if (!this.plain || this.plainName !== name) {
                 this.plain = [];
-                this.open({ group: '', items: this.plain });
+                this.plainName = name;
+                this.open({ group: name, items: this.plain });
             }
             this.plain.push(this.entry(primary));
             return;
@@ -82,6 +90,8 @@ export class FoldGroups {
         const count = counterOf(el);
         /** @type {MenuItem} */
         const item = { label: count ? `${name} · ${count}` : name, value: String(this.sources.length) };
+        const hint = hintOf(el);
+        if (hint) item.hint = hint;
         const href = el.getAttribute('href');
         if (href && el.tagName === 'A') item.href = href;
         const current = el.getAttribute('aria-current');

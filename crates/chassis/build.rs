@@ -137,11 +137,18 @@ fn import_closure(root: &Path, start: &[&str]) -> std::collections::BTreeSet<Str
 }
 
 /// The relative `.js` specifiers in `from '…'`, `import '…'` and `import('…')`.
+/// Every quote opens a candidate (not every second one), so an apostrophe
+/// inside another string cannot shift the pairing and hide an import.
 fn relative_imports(text: &str) -> Vec<&str> {
     let mut out = Vec::new();
-    for quote in ['\'', '"'] {
-        for piece in text.split(quote).skip(1).step_by(2) {
-            if (piece.starts_with("./") || piece.starts_with("../")) && piece.ends_with(".js") {
+    for (at, quote) in text.char_indices().filter(|(_, c)| *c == '\'' || *c == '"') {
+        let rest = &text[at + 1..];
+        if !(rest.starts_with("./") || rest.starts_with("../")) {
+            continue;
+        }
+        if let Some(end) = rest.find(quote) {
+            let piece = &rest[..end];
+            if piece.ends_with(".js") && !piece.contains(char::is_whitespace) {
                 out.push(piece);
             }
         }

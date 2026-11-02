@@ -44,6 +44,7 @@ import { THEMES } from './theme-registry.js';
 import { restoreRemembered } from './remember.js';
 import { AutoLoader } from './auto/loader.js';
 import { applyStoredCalm } from './calm.js';
+import { languageReady, registerDictionary } from './strings/runtime.js';
 
 export { NEEDS } from './auto/needs.js';
 
@@ -79,6 +80,10 @@ if (typeof document !== 'undefined') {
     // runs after the parse and before the first frame. A state restored at
     // DOMContentLoaded instead would be a state the reader saw flip.
     restoreRemembered();
+    // kp's own Dutch [habits-1101]: registered as a loader, so an English
+    // page never fetches it, and a page whose root says `lang="nl"` (or
+    // `data-kp-lang="nl"`) has it before the first part draws its words.
+    registerDictionary('nl', () => import('./strings-nl.js').then((module) => module.NL_STRINGS));
     // `?theme=<name>` picks a theme for this load without storing it
     // [AR42], on a page that opts in with `data-kp-theme-from-query` on
     // <html>: the concept demo is one page rendered under every theme, and
@@ -96,6 +101,9 @@ if (typeof document !== 'undefined') {
         }
     }
     const start = () => {
+        void languageReady().then(attachEverything);
+    };
+    const attachEverything = () => {
         const attached = attachAll();
         attached.ready.then(() => document.documentElement.setAttribute(READY_ATTRIBUTE, attached.modules.join(' ')));
     };

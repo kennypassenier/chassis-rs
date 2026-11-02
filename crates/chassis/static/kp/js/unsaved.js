@@ -17,7 +17,11 @@
 // value back and offers Undo for `data-kp-undo-ms` (6000; 0 offers none). Ctrl or Cmd+S saves.
 // The package's own composite fields count as one control each [homelab 37]: a quantity (`kp-quantity-change`), a time
 // field (`kp-time-change`) and a tag input (`kp-combobox-change`) mark their row with their own value ("2 → 3", "a → a, b"),
-// and Discard and Revert put it back through the field's own setter; the inputs inside them are not tracked. A field marked
+// and Discard and Revert put it back through the field's own setter; the inputs inside them are not tracked.
+// A custom control counts too [forms-1102]: it says what it holds in `data-kp-track-value` (and in words in
+// `data-kp-track-text`), fires `kp-track-change` when a person changed it (setTrackValue in js/track-value.js), and repaints on
+// `kp-track-write` when Discard, Revert or Undo write a value back (onTrackWrite). The package's chip group, weekday picker
+// and row editor do this themselves once the page puts an empty `data-kp-track-value` on them. A field marked
 // `data-kp-untracked` (on itself or on an input inside it) is left out, for a page that keeps its own mirror.
 //
 // Options (markup, each with a default [KT6]):
@@ -34,7 +38,9 @@
 //   data-kp-name           the name the kept changes are stored under                      the element's id
 //
 // Leaving: closing the tab asks the browser's own question; following a link inside the page fires the cancelable
-// `kp-unsaved-leave` with `{ href }` and, if the page does not answer it, the package's confirmation dialog. Kept changes
+// `kp-unsaved-leave` with `{ href, link, route }` and, if the page does not answer it, the package's confirmation dialog. An app
+// with its own router either cancels the event, asks, and calls `router.go(detail.href)`, or keeps the package's question and
+// hands it the router with `detail.route((href) => router.go(href))`, which Leave then calls instead of loading the page. Kept changes
 // are restored on the next load with a toast ("2 changes kept from before you left"); a secret is never kept.
 // Where the kept changes go [wish-1028, chassis-rs 20]: `sessionStorage` by default, `localStorage` with `data-kp-keep="local"`, or any
 // browser `Storage` a consumer hands in, once for the page with configureUnsaved({ storage }) (the way configureRemember does it) or

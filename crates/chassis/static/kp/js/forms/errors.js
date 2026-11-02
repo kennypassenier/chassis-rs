@@ -57,6 +57,8 @@ export function showError(field, message, { wrapper = '.kp-field', invalidClass 
     box?.classList.add(invalidClass);
     if (holder === null) return;
     if (holder.id === '') holder.id = `${field.getAttribute('id') ?? `kp-field-${nextHolderNumber()}`}-error`;
+    // A message that appears is said once, politely, beside the field's description [forms-1102]; a page's own role stays.
+    if (!holder.hasAttribute('role')) holder.setAttribute('role', 'status');
     holder.textContent = message;
     holder.hidden = false;
     // Appended rather than replaced: a field with help text keeps

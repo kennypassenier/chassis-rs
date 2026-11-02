@@ -1,0 +1,3 @@
+/* @kp-soft/themes v12.1.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d,e,f,g,h,i,j,k,l,m,n,o}from"./chunk-GKNAAVVC.js";import"./chunk-3Z4KKGO5.js";import"./chunk-XZE4YPAG.js";import"./chunk-OG6L4GK2.js";export{g as ALTGR_KEYS,a as CHORD_MS,c as SHORTCUTS_LIVE_SHEET,d as SHORTCUT_EVENT,f as SHORTCUT_HINT_PLACES,e as SHORTCUT_PENDING_EVENT,b as UNKNOWN_MS,o as attachShortcuts,j as configureShortcuts,i as displayShortcutKeys,m as listShortcuts,h as parseShortcutKeys,l as registerShortcuts,n as renderShortcutSheet,k as shortcutClaims};
+//# sourceMappingURL=chunk-YL5WAVBC.js.map

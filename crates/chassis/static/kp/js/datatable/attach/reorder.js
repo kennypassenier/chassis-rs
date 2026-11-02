@@ -75,7 +75,7 @@ export class TableReorder {
         const toggleButton = /** @type {HTMLButtonElement | null} */ (row.querySelector(ROW_TOGGLE));
         if (toggleButton !== null) {
             const open = this.t.details.expanded.has(key);
-            toggleButton.setAttribute('aria-label', s.tableRowDetails(key));
+            toggleButton.setAttribute('aria-label', s.tableRowDetails(this.t.columns.nameOf(row, key)));
             toggleButton.setAttribute('aria-expanded', String(open));
             toggleButton.textContent = open ? this.t.controls.glyphs.collapse : this.t.controls.glyphs.expand;
             const detail = this.t.details.details.has(row) || open ? this.t.sync.detailFor(row) : undefined;
@@ -84,7 +84,7 @@ export class TableReorder {
         }
         for (const button of row.querySelectorAll(EDIT_CELL)) {
             const cell = /** @type {HTMLTableCellElement} */ (button.closest('td, th'));
-            button.setAttribute('aria-label', s.tableEdit(this.t.columns.labelOf(cell.cellIndex), key, this.t.columns.cellText(row, cell.cellIndex)));
+            button.setAttribute('aria-label', s.tableEdit(this.t.columns.labelOf(cell.cellIndex), this.t.columns.nameOf(row, key), this.t.columns.cellText(row, cell.cellIndex)));
         }
         const grip = row.querySelector(REORDER_HANDLE);
         if (grip !== null) {
@@ -110,7 +110,8 @@ export class TableReorder {
 
     /** @param {HTMLTableRowElement} row */
     reorderName(row) {
-        return (this.t.columns.keyColumn >= 0 ? this.t.columns.cellText(row, this.t.columns.keyColumn) : '') || this.t.columns.keyOf(row);
+        const shown = (this.t.columns.keyColumn >= 0 ? this.t.columns.cellText(row, this.t.columns.keyColumn) : '') || this.t.columns.keyOf(row);
+        return this.t.columns.nameOf(row, shown);
     }
 
     /**

@@ -78,6 +78,8 @@ export class DatePickerController extends Controller {
         if (initial !== null) input.dataset.kpDateValue = toISO(initial);
         // No rewrite at attach: the page's text stays until the field is left or the calendar opens (tidy).
         this.handle = this.makeHandle();
+        // A form reset puts the text back; the ISO value follows it, silently (the popover form resets on every open) [parts-1102].
+        if (input.form) this.listen(input.form, 'reset', () => queueMicrotask(() => this.followText()));
     }
 
     /** Put back what the picker changed on its markup. */
@@ -96,6 +98,14 @@ export class DatePickerController extends Controller {
         if (before.expanded === null) open.removeAttribute('aria-expanded');
         else open.setAttribute('aria-expanded', before.expanded);
         delete picker.dataset.kpDatepickerAttached;
+    }
+
+    /** The ISO value as the field's text reads now, without an event. */
+    followText() {
+        if (this.destroyed) return;
+        const date = this.read();
+        if (date === null) delete this.input.dataset.kpDateValue;
+        else this.input.dataset.kpDateValue = toISO(date);
     }
 
     /** The date in the field, or null when it is empty or not a date. */

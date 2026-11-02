@@ -210,7 +210,7 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 ### Changed
 
 - **kp-themes split delivery for the kit's pages** (kp-themes 12.2.0, vendored
-  from main as `12.2.0-pre.936bec6d4` until it is released). A kit page now
+  from main as `12.2.0-pre.00408fb91` until it is released). A kit page now The titanium register is now vendored as well.
   links `dist/kp-themes-base.min.css` instead of the unminified 4.4 MB
   `dist/kp-themes.css` plus `fonts.css`, and the worn theme's
   `dist/css/<theme>-register.min.css` is written before first paint by

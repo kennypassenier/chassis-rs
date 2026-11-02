@@ -30,6 +30,12 @@ export class RunsRows extends RunsCore {
             rel.textContent = runsRelative(run.at, read.now(), s);
             li.append(rel);
         }
+        if (run.note) {
+            const note = doc.createElement('span');
+            note.className = 'kp-runs__note';
+            note.textContent = run.note;
+            li.append(note);
+        }
         const marks = read.warn ? this.marksOf(run, before) : [];
         if (marks.length) {
             const flag = doc.createElement('span');
@@ -60,6 +66,8 @@ export class RunsRows extends RunsCore {
         const shown = this.expanded ? this.all : this.all.slice(0, count);
         const rows = this.state === 'loading' && shown.length === 0 ? this.waitRows() : shown.map((run, i) => this.row(run, i, i === 0 ? undefined : shown[i - 1]?.at));
         list.replaceChildren(...rows);
+        // The notes' column is there only while a row shown has a note [forms-1102].
+        this.host.toggleAttribute('data-kp-runs-notes', shown.some((run) => Boolean(run.note)));
         list.toggleAttribute('inert', this.state !== 'ready');
         if (this.state === 'loading') list.setAttribute('aria-busy', 'true');
         else list.removeAttribute('aria-busy');

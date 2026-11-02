@@ -2,7 +2,7 @@
 # Vendor one kp-themes release under crates/chassis/static/kp/.
 #
 #   scripts/vendor-kp-themes.sh 12.0.0
-#   scripts/vendor-kp-themes.sh 12.2.0-pre.936bec6d4 --from-dir ~/.cache/kp-split-src
+#   scripts/vendor-kp-themes.sh 12.2.0-pre.00408fb91 --from-dir ~/.cache/kp-split-src2
 #
 # --from-dir <path> skips the download and takes the tree from a built
 # kp-themes checkout (or `git archive` export) instead, so a release that is
@@ -71,8 +71,13 @@ fi
 count=$(wc -l < "$work/files")
 [ "$count" -gt 0 ] || { echo "vendor-kp-themes: the rule selected no files" >&2; exit 1; }
 
-# Each selected file must have its line in SHA256SUMS (a line listed twice counts once), and match it.
-awk 'NR==FNR { want[$0] = 1; next } ($2 in want) && !seen[$2]++' "$work/files" "$work/SHA256SUMS" > "$work/sums"
+# SHA256SUMS must not list a path twice (a duplicate means a broken release), and
+# each selected file must have exactly one line in it, matching its content.
+dups=$(awk '{print $2}' "$work/SHA256SUMS" | sort | uniq -d)
+if [ -n "$dups" ]; then
+  echo "vendor-kp-themes: SHA256SUMS lists paths twice:" >&2; echo "$dups" >&2; exit 1
+fi
+awk 'NR==FNR { want[$0] = 1; next } ($2 in want)' "$work/files" "$work/SHA256SUMS" > "$work/sums"
 listed=$(wc -l < "$work/sums")
 if [ "$listed" -ne "$count" ]; then
   echo "vendor-kp-themes: $count files selected, only $listed listed in SHA256SUMS:" >&2

@@ -3,6 +3,7 @@
 
 import { Controller } from '../controller.js';
 import { build, drawDisc, paint } from './draw.js';
+import { followLeader } from './follow.js';
 import { spinWheel } from './spin.js';
 import { part, stateOf } from './state.js';
 
@@ -14,6 +15,8 @@ export class WheelControl extends Controller {
         paint(root);
         this.listen(root, 'click', (event) => this.onClick(event));
         this.listen(root, 'keydown', (event) => this.onKey(/** @type {KeyboardEvent} */ (event)));
+        // A wheel that follows another turns with it (`data-kp-wheel-follows`) [parts-1102].
+        this.own(followLeader(root));
         // The kiosk attribute is live.
         this.observe(new MutationObserver(() => paint(root))).observe(root, { attributes: true, attributeFilter: ['data-kp-wheel-kiosk'] });
         // Labels are cut to their room in the theme's face: again once the fonts are in.

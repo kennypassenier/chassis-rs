@@ -33,6 +33,7 @@ import { Controller, attachAll, controllerOf } from './controller.js';
 import { getStrings } from './strings.js';
 import { announce, buildHead, makeList, emitRows, ensureAddAndStatus, numberRow, whole, writeAddButton, writeRemoveButtons } from './row-editor/dom.js';
 import { statePlate } from './state-plate.js';
+import { trackRows } from './row-editor/track.js';
 
 export const ROWS = '[data-kp-rows]';
 
@@ -83,6 +84,8 @@ export class RowEditor extends Controller {
         });
         this.own(() => this.release());
         this.sync();
+        // The rows as one value for the unsaved-changes bar, when the page asked for it [forms-1102].
+        this.own(trackRows(this));
     }
 
     /** The rows, in order. @returns {HTMLElement[]} */
@@ -155,10 +158,10 @@ export class RowEditor extends Controller {
         this.say(getStrings().rowsRemoved(this.units[0], at + 1, left.length));
     }
 
-    /** Attach the package's controls inside a new row, as the boot attached the first rows'. @param {HTMLElement} row */
+    /** Attach the package's controls inside a new row, as the boot attached the first rows'. @param {HTMLElement} row @returns {Promise<void>} */
     wire(row) {
-        if (this.host.getAttribute('data-kp-rows-attach') === 'none') return;
-        import('./auto/loader.js').then(({ AutoLoader }) => {
+        if (this.host.getAttribute('data-kp-rows-attach') === 'none') return Promise.resolve();
+        return import('./auto/loader.js').then(({ AutoLoader }) => {
             if (this.destroyed || !row.isConnected) return;
             this.inside.set(row, new AutoLoader(row).start());
         });

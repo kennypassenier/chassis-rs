@@ -3,6 +3,7 @@
 
 import { getStrings } from '../strings.js';
 import { FIELDS, POPOVER_FORM_ACCEPT_EVENT, POPOVER_FORM_PROBLEM } from './constants.js';
+import { firstInvalid, valuesOf } from './fields.js';
 
 /** The form's problem line, made after the fields when the markup left it out. @param {HTMLFormElement} form */
 export function problemLine(form) {
@@ -32,20 +33,6 @@ export function writeProblem(form, text, field = form.querySelector(FIELDS)) {
     field.setAttribute('aria-describedby', [...described].join(' '));
 }
 
-/** Every named field's value, as the form would send it. @param {HTMLFormElement} form */
-function valuesOf(form) {
-    /** @type {Record<string, string>} */
-    const values = {};
-    for (const [name, value] of new FormData(form)) if (typeof value === 'string') values[name] = value;
-    return values;
-}
-
-/** The first field the browser refuses, with its words; null when every field is valid. @param {HTMLFormElement} form */
-function firstInvalid(form) {
-    const field = /** @type {HTMLInputElement | null} */ (form.querySelector(':invalid:is(input, select, textarea)'));
-    return field ? { field, text: field.validationMessage || getStrings().popoverFormInvalid } : null;
-}
-
 /** Busy while the page's answer is on its way: the accept button keeps its width and takes no second press. @param {HTMLFormElement} form @param {boolean} busy */
 function setBusy(form, busy) {
     form.toggleAttribute('aria-busy', busy);
@@ -61,7 +48,9 @@ function setBusy(form, busy) {
 export async function acceptForm(wrapper, form, opener) {
     const invalid = firstInvalid(form);
     if (invalid) {
-        writeProblem(form, invalid.text, invalid.field);
+        // A field that says why itself (the time field's own line) keeps the form's line empty.
+        if (invalid.own) problemLine(form).textContent = '';
+        else writeProblem(form, invalid.text, invalid.field);
         invalid.field.focus();
         return false;
     }

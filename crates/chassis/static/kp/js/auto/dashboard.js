@@ -48,10 +48,18 @@ export const DASHBOARD_NEEDS = [
     { name: 'popover-form', when: '[data-kp-popover-form]', load: () => import('../popover-form.js'), attach: (m, root) => [m.attachPopoverForms(root)] },
     // The date navigation: previous, today and next [ux-1101].
     { name: 'date-nav', when: '[data-kp-date-nav]', load: () => import('../date-nav.js'), attach: (m, root) => [m.attachDateNavs(root)] },
+    // The day timeline, the swipe row, the settled row and the swatch picker [parts-1102].
+    { name: 'dayline', when: '[data-kp-dayline]', load: () => import('../dayline.js'), attach: (m, root) => [m.attachDaylines(root)] },
+    { name: 'swipe', when: '[data-kp-swipe]', load: () => import('../swipe.js'), attach: (m, root) => [m.attachSwipes(root)] },
+    { name: 'settled', when: '[data-kp-settled], [data-kp-settled-list], [data-kp-reorder], .kp-checklist, .kp-task-list', load: () => import('../settled.js'), attach: (m, root) => [m.attachSettled(root)] },
+    { name: 'swatches', when: '[data-kp-swatches]', load: () => import('../swatches.js'), attach: (m, root) => [m.attachSwatches(root)] },
     // The row deleted with Undo [ux-1101].
     { name: 'row-undo', when: '[data-kp-row-delete]', load: () => import('../row-undo.js'), attach: (m, root) => [m.attachRowUndo(root)] },
     // The segmented control, the list toolbar and the inline key line [kpadopt-controls].
     { name: 'segmented', when: '[data-kp-segmented]', load: () => import('../segmented.js'), attach: (m, root) => [m.attachSegmented(root)] },
+    // The chip filter of a data table, and a chip's own menu with its rename [forms-1102].
+    { name: 'chip-filter', when: '[data-kp-filter-for]', load: () => import('../chip-filter.js'), attach: (m, root) => [m.attachChipFilters(root)] },
+    { name: 'segmented-menu', when: '.kp-segmented__menu', load: () => import('../segmented-menu.js'), attach: (m, root) => [m.attachChipMenus(root)] },
     // Action tiles, status rows and the facet list [kpadopt2-tiles].
     { name: 'action-tiles', when: '.kp-action', load: () => import('../action-tiles.js'), attach: (m, root) => [m.attachActionTiles(root)] },
     { name: 'statusrow', when: '.kp-statuslist', load: () => import('../statusrow.js'), attach: (m, root) => [m.attachStatusLists(root)] },

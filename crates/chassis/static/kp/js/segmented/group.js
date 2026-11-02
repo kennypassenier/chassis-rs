@@ -10,6 +10,8 @@ import { LINK_ATTRIBUTE, SegmentedLink } from './link.js';
 import { paintTri, setTriValues, writeTri } from './tri.js';
 import { FIT_ATTRIBUTE, FOLD_AT_ATTRIBUTE, FOLD_ATTRIBUTE, fitGroup } from './fit.js';
 import { dropFold } from './fold.js';
+import { SEGMENTED_EVENT } from './constants.js';
+import { isTrackedGroup, listenGroupWrites, writeGroupTrack } from './track.js';
 
 /** Wires one group. Idempotent: `refresh()` brings the group in line again whenever a page touches it. */
 export class SegmentedGroup extends Controller {
@@ -59,6 +61,11 @@ export class SegmentedGroup extends Controller {
         if (group.hasAttribute(LINK_ATTRIBUTE)) {
             const link = attachOne(group, SegmentedLink);
             if (link) this.own(() => link.destroy());
+        }
+        // A tracked group [forms-1102]: a press is a person's change; a value written back (Discard, Undo) is painted.
+        if (isTrackedGroup(group)) {
+            this.listen(group, SEGMENTED_EVENT, (event) => event.target === group && writeGroupTrack(group, true));
+            this.own(listenGroupWrites(group, { values: (g, v) => paint(g, v), tri: (g, v) => setTriValues(g, v) }));
         }
         this.refresh();
     }

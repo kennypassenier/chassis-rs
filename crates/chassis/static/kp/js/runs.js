@@ -7,7 +7,9 @@
 //   setRuns(el, [Date.parse('2026-10-20T03:00:00+02:00'), …]);
 //
 // A time is a number (ms), an ISO string or a Date, or `{ at, conflict }` where `conflict` is a sentence the app words
-// ("Overlaps the backup of vault"); the row then carries it as a warning mark. Times are written as rule 52 does,
+// ("Overlaps the backup of vault"); the row then carries it as a warning mark. `{ at, note }` [forms-1102] is a free note of the
+// app's own on the row ("1 try left", "manual"), plain words in a column of their own before the marks; the list gets that
+// column (`data-kp-runs-notes`) only while a row has a note, so a list without notes keeps its approved three columns. Times are written as rule 52 does,
 // with the weekday, in Europe/Brussels unless `data-kp-time-zone` names another zone; beside each stands how far away it
 // is ("in 2 days"). A run that comes after the clock was turned (summer or winter time) carries the mark "Clock goes
 // back 1 h": the wall time is the schedule's, the moment is not the same distance from the run before.
@@ -38,10 +40,11 @@ export { RUNS, RUNS_RETRY_EVENT, RUNS_STATES } from './runs/values.js';
 export { runsRelative, zoneOffset, runMoment, clockShift } from './runs/time.js';
 
 /**
- * @typedef {number | string | Date | { at: number | string | Date, conflict?: string }} RunInput
+ * @typedef {number | string | Date | { at: number | string | Date, conflict?: string, note?: string }} RunInput
  * @typedef {object} Run
  * @property {number} at ms
  * @property {string} [conflict]
+ * @property {string} [note]  the app's own words on the row, "1 try left" [forms-1102]
  * @typedef {'ready' | 'empty' | 'loading' | 'error'} RunsState
  * @typedef {object} RunsOptions
  * @property {string} [reason] the sentence an empty list shows ("Pick a time")

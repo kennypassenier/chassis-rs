@@ -32,7 +32,7 @@ export const CLUSTER_PLATE_PX = 24;
  * @property {string} [detail] more words for the hover card
  * @property {number | string | null} [plannedEnd] a running run's planned end (epoch ms or an ISO string): the time it still has is drawn after now [wish-1028]
  * @property {1 | 2 | 3 | 4 | 5} [series] a finished run's colour, `--chart-1` … `--chart-5`, in place of the success colour [kpadopt3]
- * @typedef {{ id: string, label: string, href?: string, sub?: string }} GanttLane
+ * @typedef {{ id: string, label: string, href?: string, sub?: string, tries?: number, mark?: string }} GanttLane
  * @typedef {object} GanttPoint
  * @property {string} id what the page calls the moment; reported by `kp-gantt-open`
  * @property {string} lane the lane's id
