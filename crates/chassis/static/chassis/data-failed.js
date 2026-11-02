@@ -58,6 +58,25 @@ function button(doc, label, className, act, id) {
     return el;
 }
 
+/**
+ * What names a card: the app's `describe(entry) -> { title, detail? }` when it
+ * answers with a title, else the verb and the path. A throwing or empty
+ * describe falls back and says so on the console.
+ */
+export function labelOf(entry, text, describe = null) {
+    if (describe) {
+        try {
+            const label = describe(entry);
+            if (typeof label?.title === 'string' && label.title.trim()) {
+                return { title: label.title, detail: typeof label.detail === 'string' ? label.detail : '' };
+            }
+        } catch (err) {
+            console.warn('chassisData: describe() threw for a failed edit; its verb and path are shown.', err);
+        }
+    }
+    return { title: `${text.verbs[entry.method] ?? entry.method} ${entry.path}`, detail: '' };
+}
+
 function fields(doc, entry, text) {
     const list = node(doc, 'dl', 'kp-help__list');
     const rows = [
@@ -70,12 +89,13 @@ function fields(doc, entry, text) {
 }
 
 /** One refused edit as a card: what it was, the facts, its two actions. */
-export function renderEntry(doc, entry, text) {
+export function renderEntry(doc, entry, text, describe = null) {
     const card = node(doc, 'li', 'kp-card chassis-failed__item');
     card.dataset.chassisFailedItem = String(entry.id);
-    const verb = text.verbs[entry.method] ?? entry.method;
+    const label = labelOf(entry, text, describe);
     const head = node(doc, 'header', 'kp-card__header');
-    head.append(node(doc, 'h3', 'kp-card__title', `${verb} ${entry.path}`));
+    head.append(node(doc, 'h3', 'kp-card__title', label.title));
+    if (label.detail) head.append(node(doc, 'p', 'kp-card__subtitle', label.detail));
     // Two equal columns, so Discard and Save again line up from card to card.
     const actions = node(doc, 'div', 'kp-card__actions');
     actions.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:var(--kp-space-2);margin-block-start:var(--kp-space-3)';

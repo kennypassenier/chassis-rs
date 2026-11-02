@@ -24,7 +24,7 @@ function shell(doc, text, id) {
  * `kp` supplies openDialog and openConfirmation; `data` is the client
  * (queue(), drop(), resave()). Returns { open, refresh, destroy }.
  */
-export function createFailedView({ win, doc, kp, data, messages = {} }) {
+export function createFailedView({ win, doc, kp, data, messages = {}, describe = null }) {
     // Read each time the drawer draws, so it follows the page language (fix-habits-data-7).
     const wording = () => ({ ...FAILED_MESSAGES, ...wordsOf(messages) });
     let listening = false;
@@ -38,7 +38,7 @@ export function createFailedView({ win, doc, kp, data, messages = {} }) {
         const list = doc.createElement('ul');
         list.className = 'chassis-failed__list';
         list.style.cssText = 'display:grid;grid-template-columns:minmax(0,1fr);gap:var(--kp-space-3);margin:0;padding:0;list-style:none';
-        list.append(...items.map((e) => renderEntry(doc, e, text)));
+        list.append(...items.map((e) => renderEntry(doc, e, text, describe)));
         body().replaceChildren(items.length ? list : renderEmpty(doc, text));
         const foot = dialog.querySelector('.kp-drawer__foot');
         foot.hidden = items.length === 0;

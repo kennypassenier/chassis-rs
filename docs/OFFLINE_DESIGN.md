@@ -51,6 +51,10 @@ still refuses copies on top of this.
 a function is called at show time (toasts, drawer, logout dialog), so the words follow
 a language that is known only after `configure()`.
 
+**Naming a failed edit** (fix-habits-drawer-9). `configure({ describe(entry) })` returns
+`{ title, detail? }` for a failed or held entry; the drawer card shows it instead of
+`verb + path`, which stays the fallback (no `describe`, no title, or a throw, which is warned).
+
 A write to an item path also reaches the **stored lists that hold the item**
 (fix-habits-data-3): the entry (found through `itemKey`) is replaced (PUT),
 merged (PATCH) or removed (DELETE) in every stored list of the item route's

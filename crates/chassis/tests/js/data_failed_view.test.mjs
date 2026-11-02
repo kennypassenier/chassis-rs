@@ -61,3 +61,19 @@ test('the view routes Discard, Save again and Discard all to the client, asks on
     view.destroy();
     assert.equal(dialog.removed, true);
 });
+
+test('describe(entry) names a failed card; no, empty or throwing describe falls back to verb and path (fix-habits-drawer-9)', async () => {
+    const { labelOf } = await import('../../static/chassis/data-failed.js');
+    const entry = { id: 4, method: 'PUT', path: '/data/tasks/5703', at: 0, state: 'failed', conflict: { status: 409 } };
+    const t = FAILED_MESSAGES;
+    assert.deepEqual(labelOf(entry, t, (e) => ({ title: `Task ${e.id}`, detail: 'Buy milk' })), { title: 'Task 4', detail: 'Buy milk' });
+    assert.deepEqual(labelOf(entry, t, () => ({ title: '  ' })), { title: 'Change /data/tasks/5703', detail: '' });
+    const warn = console.warn; console.warn = () => {};
+    try { assert.equal(labelOf(entry, t, () => { throw new Error('x'); }).title, 'Change /data/tasks/5703'); } finally { console.warn = warn; }
+    assert.equal(labelOf(entry, t).title, 'Change /data/tasks/5703');
+    const card = renderEntry(fakeDoc(), entry, t, () => ({ title: 'Buy milk', detail: 'Tasks' }));
+    const head = card.children[0];
+    assert.deepEqual(head.children.map((c) => c.textContent), ['Buy milk', 'Tasks']);
+    const { normalize } = await import('../../static/chassis/data-config.js');
+    assert.throws(() => normalize({ routes: ['/a'], describe: 'nope' }), /describe must be a function/);
+});
