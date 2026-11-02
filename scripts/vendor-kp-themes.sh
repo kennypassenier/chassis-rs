@@ -47,7 +47,9 @@ assets_rs="$root/crates/chassis/src/shell/assets.rs"
 # move with the vendored files or the drift check refuses the release.
 cli_rs="$root/crates/chassis-cli/src/recorded.rs"
 
-work="$(mktemp -d)"
+# Scratch under ~/.cache, never /tmp (a small tmpfs on the dev PC).
+mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/vendor-kp-themes"
+work="$(mktemp -d -p "${XDG_CACHE_HOME:-$HOME/.cache}/vendor-kp-themes")"
 trap 'rm -rf "$work"' EXIT
 
 if [ -n "$from_dir" ]; then
