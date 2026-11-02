@@ -253,7 +253,7 @@ until they choose to; then `SqliteChangeLog` with one `sync_upsert` /
 
 1. Kitchen keeps its readable `kitchen.json` with its own sync adapter, or
    moves its data into the app database so it can use the kit's change log?
-2. Is 30 days the right time to remember deletions, after which a device that
-   was away longer downloads everything again?
-3. Should the background pull run every 5 minutes while the app is open, or
-   only on start, reconnect and hints?
+2. Decided (Kenny, 2026-11-02, localdb-retention "30 dagen"): tombstones are
+   kept 30 days by default, configurable per app.
+3. Decided (Kenny, 2026-11-02, localdb-pull "Elke 5 minuten"): an open app
+   also pulls every 5 minutes, besides start, reconnect, focus and hints.
