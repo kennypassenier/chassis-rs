@@ -14,6 +14,7 @@ export const DEFAULTS = Object.freeze({
     itemKey: 'id',
     queryCopies: 8,
     messages: {},
+    describe: null,
 });
 
 const PARAM = /^:[A-Za-z_][A-Za-z0-9_]*$/;
@@ -56,6 +57,9 @@ export function normalize(options = {}) {
     }
     if (merged.onConflict !== null && typeof merged.onConflict !== 'function') {
         throw fail('onConflict must be a function', 'Return "skip", "hold" or "drop".');
+    }
+    if (merged.describe !== null && typeof merged.describe !== 'function') {
+        throw fail('describe must be a function', 'Return { title, detail? } naming a failed edit, e.g. (entry) => ({ title: "Change task" }).');
     }
     if (!(merged.warnRatio > 0 && merged.warnRatio < 1)) {
         throw fail('warnRatio must be between 0 and 1', 'For example 0.8 warns at 80 percent of the cap.');

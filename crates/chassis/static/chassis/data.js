@@ -56,7 +56,7 @@ export function installData(win, doc, deps = {}, kp = null) {
                 clearTimer: (id) => win.clearTimeout(id),
                 now: () => Date.now(),
             });
-            const view = kp?.openDialog ? createFailedView({ win, doc, kp, data, messages: config.messages }) : null;
+            const view = kp?.openDialog ? createFailedView({ win, doc, kp, data, messages: config.messages, describe: config.describe }) : null;
             if (kp) bindBand({ win, doc, kp, data, messages: config.messages, view });
             win.addEventListener('online', () => data.retry());
             return { ...data, review: (trigger) => view?.open(trigger) };

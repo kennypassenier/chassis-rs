@@ -9,6 +9,17 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Fixed
 
+- **The drawer and the logout dialog have separate headings** [fix-habits-drawer-11] (Habits). `messages.failedTitle`
+  words the failed-edits drawer, `messages.logoutTitle` the logout question. `messages.title` still works as the
+  fallback for both, so existing apps keep their wording; the kit's English defaults apply when neither is given.
+- **The drawer's "Why" line speaks the app's language** [fix-habits-drawer-10] (Habits). The reason now comes from
+  `messages`: `refusedReason(status, body)` first (return an empty string to pass), then `stale` (alias `reasonStale`)
+  for 409 / 412, then `reasonOther`. The server's own `error` and `remedy` follow as a secondary line under it. When the
+  app gave no such wording, the server's sentence stays the reason as before.
+- **A failed edit can be named by the app** [fix-habits-drawer-9] (Habits). `configure({ describe(entry) })` returns
+  `{ title, detail? }`; the failed-edits drawer shows that as the card heading (and `detail` under it) instead of the
+  raw path. Without `describe`, or when it returns no title or throws (reported on the console), the card shows verb
+  and path as before.
 - **`get(path, { from })` takes over an answer the app already has** [fix-habits-data-4] (Habits). A
   `<link rel="preload" as="fetch">` cannot be reached by `get()` (it sends `no-store`), so the app hands over the
   response of its own early `fetch(path, { credentials: 'same-origin' })`, or a promise of it. A good answer for the

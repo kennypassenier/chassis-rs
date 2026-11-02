@@ -3,7 +3,7 @@
 // open, and routes the buttons to drop() / resave(). Markup pieces live in
 // data-failed.js.
 
-import { wordsOf } from './data-errors.js';
+import { titled, wordsOf } from './data-errors.js';
 import { FAILED_MESSAGES, renderEmpty, renderEntry, reviewable } from './data-failed.js';
 
 function shell(doc, text, id) {
@@ -14,7 +14,7 @@ function shell(doc, text, id) {
         + '<button type="button" class="kp-icon-button kp-dialog__close" data-chassis-failed-act="close">×</button>'
         + '<p class="kp-drawer__desc"></p></header><div class="kp-drawer__body"></div>'
         + '<footer class="kp-drawer__foot"></footer>';
-    dialog.querySelector('.kp-dialog__title').textContent = text.title;
+    dialog.querySelector('.kp-dialog__title').textContent = text.failedTitle;
     dialog.querySelector('.kp-dialog__close').setAttribute('aria-label', text.close);
     dialog.querySelector('.kp-drawer__desc').textContent = text.intro;
     return dialog;
@@ -24,9 +24,12 @@ function shell(doc, text, id) {
  * `kp` supplies openDialog and openConfirmation; `data` is the client
  * (queue(), drop(), resave()). Returns { open, refresh, destroy }.
  */
-export function createFailedView({ win, doc, kp, data, messages = {} }) {
+export function createFailedView({ win, doc, kp, data, messages = {}, describe = null }) {
     // Read each time the drawer draws, so it follows the page language (fix-habits-data-7).
-    const wording = () => ({ ...FAILED_MESSAGES, ...wordsOf(messages) });
+    const wording = () => {
+        const given = wordsOf(messages);
+        return { ...FAILED_MESSAGES, ...given, failedTitle: titled(given, 'failedTitle', FAILED_MESSAGES.failedTitle) };
+    };
     let listening = false;
     let dialog = null;
     const body = () => dialog.querySelector('.kp-drawer__body');
@@ -38,7 +41,7 @@ export function createFailedView({ win, doc, kp, data, messages = {} }) {
         const list = doc.createElement('ul');
         list.className = 'chassis-failed__list';
         list.style.cssText = 'display:grid;grid-template-columns:minmax(0,1fr);gap:var(--kp-space-3);margin:0;padding:0;list-style:none';
-        list.append(...items.map((e) => renderEntry(doc, e, text)));
+        list.append(...items.map((e) => renderEntry(doc, e, text, describe, wordsOf(messages))));
         body().replaceChildren(items.length ? list : renderEmpty(doc, text));
         const foot = dialog.querySelector('.kp-drawer__foot');
         foot.hidden = items.length === 0;

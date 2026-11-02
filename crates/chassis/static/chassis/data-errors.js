@@ -16,3 +16,6 @@ export function refusal(outcome) {
  * (fix-habits-data-7).
  */
 export const wordsOf = (messages) => (typeof messages === 'function' ? messages() : messages) ?? {};
+
+/** A heading by its own key, else the shared `title` (kept for compatibility), else the kit's default. */
+export const titled = (given, key, fallback) => given[key] ?? given.title ?? fallback;
