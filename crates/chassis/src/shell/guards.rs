@@ -3,9 +3,12 @@
 //! keyed rate limiter for login and tokens. Every number is a knob (AR3);
 //! the defaults pass their own validation (HTTPSwitchboard rule).
 
+mod cross_site;
 mod csrf;
 mod ip_limit;
 mod proxy_notice;
+
+pub(crate) use cross_site::cross_site;
 
 use std::collections::HashSet;
 use std::net::{IpAddr, SocketAddr};

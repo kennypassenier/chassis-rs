@@ -73,6 +73,7 @@ impl App {
             limits: core.limits,
             control: core.control,
             router,
+            shutdown: crate::shell::shutdown::ShutdownTrigger::new().0,
             api_router: Router::new(),
             dashboard_router: Router::new(),
             #[cfg(feature = "webapp")]

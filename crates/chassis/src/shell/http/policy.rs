@@ -1,6 +1,6 @@
 //! The browser-policy headers that depend on configuration: the
 //! `Permissions-Policy` (with the features an app opted back in),
-//! `Cross-Origin-Opener-Policy` and, over HTTPS only,
+//! `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy` and, over HTTPS only,
 //! `Strict-Transport-Security`. The static headers (CSP, nosniff, framing,
 //! referrer) stay in `hygiene`; these need state, so they are their own layer.
 
@@ -91,6 +91,11 @@ pub(crate) async fn policy_headers(
     let h = res.headers_mut();
     h.entry("permissions-policy").or_insert(p.permissions);
     h.entry("cross-origin-opener-policy")
+        .or_insert(HeaderValue::from_static("same-origin"));
+    // Nothing the kit serves is meant to be embedded by another origin: the
+    // PWA manifest and icons, the worker, the fonts and the API are all
+    // fetched by the page itself, and Web Push is server to push service.
+    h.entry("cross-origin-resource-policy")
         .or_insert(HeaderValue::from_static("same-origin"));
     if https {
         h.entry("strict-transport-security")

@@ -53,6 +53,11 @@ async fn every_kind_of_answer_carries_the_policy_headers() {
             "same-origin",
             "{path}"
         );
+        assert_eq!(
+            res.headers()["cross-origin-resource-policy"],
+            "same-origin",
+            "{path}"
+        );
         assert!(
             res.headers().get("strict-transport-security").is_none(),
             "{path}"

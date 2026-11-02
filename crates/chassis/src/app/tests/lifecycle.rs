@@ -196,3 +196,51 @@ async fn a_clean_stop_leaves_an_empty_write_ahead_log() {
         "folded at stop"
     );
 }
+
+/// [fix-shutdown-signal-1]: a handler parked in a long poll returns when the
+/// drain starts, so a stop does not wait out the shutdown timeout for it.
+#[tokio::test]
+async fn shutdown_signal_frees_a_long_poll_at_the_start_of_the_drain() {
+    let _gate = crate::shell::backup::TEST_GATE.read().await;
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = from_args_secret(spec(), argv(&secrets_env(dir.path())), Router::new()).unwrap();
+    app.shutdown_timeout = Duration::from_secs(5);
+    let stop = app.shutdown_signal();
+    assert!(!stop.is_shutting_down());
+    app.exempt_from_timeout("/poll");
+    let parked = stop.clone();
+    app.api_routes(Router::new().route(
+        "/poll",
+        get(move || {
+            let stop = parked.clone();
+            async move {
+                tokio::select! {
+                    () = stop.wait() => "stopped",
+                    () = tokio::time::sleep(Duration::from_secs(60)) => "timed out",
+                }
+            }
+        }),
+    ));
+    let running = app.start().await.unwrap();
+    let url = format!("http://{}/poll", running.addr);
+    let waiting = tokio::spawn(async move {
+        reqwest::Client::new()
+            .get(url)
+            .bearer_auth("a-login-token-that-is-long-enough")
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+    });
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let began = std::time::Instant::now();
+    running.stop().await;
+    let took = began.elapsed();
+    assert!(stop.is_shutting_down());
+    assert_eq!(waiting.await.unwrap().unwrap(), "stopped");
+    assert!(
+        took < Duration::from_secs(2),
+        "stop waited {took:?} for a parked handler"
+    );
+}

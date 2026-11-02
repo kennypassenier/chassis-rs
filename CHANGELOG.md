@@ -79,6 +79,41 @@ These are the steps that pick up the unreleased fixes:
   looked up per request. A bad prefix or a cap of 0 is refused at start.
   Documented in `docs/OPERATIONS.md`.
 
+
+- **`Cross-Origin-Resource-Policy: same-origin`** (`[fix-corp-1]`, Medicine
+  Cabinet): next to COOP on every answer, so no other origin can embed the
+  service's resources. Nothing the kit serves is loaded cross-origin by
+  design (the CSP already confines scripts, styles, fonts, images and
+  connections to the origin; the PWA manifest, icons and worker are fetched
+  by the page itself; Web Push is server to push service).
+- **Extractor rejections answer in the kit's JSON shape**
+  (`[fix-rejection-json-1]`, Medicine Cabinet): a failed `Query`, `Json`,
+  `Form` or `Path` used to answer axum's text ("Failed to deserialize query
+  string: ..."); a layer now turns those into `{error, remedy}` with the same
+  400/415/422. A layer, not only a wrapper, because it covers every existing
+  handler without a code change; axum's rejection sentences are fixed and a
+  handler's own plain-text 400 is left alone. New public extractors
+  `ApiJson<T>`, `ApiQuery<T>`, `ApiPath<T>`, `ApiForm<T>` give the same
+  answer explicitly, so an app can drop its own copy.
+- **JSON answers default to `Cache-Control: no-store`** (`[fix-no-store-1]`,
+  Medicine Cabinet audit): any `application/json` answer without its own
+  `Cache-Control` (app API routes, dashboard and kit JSON) is no longer
+  cacheable by a shared cache or kept for the back button.
+- **`RequireAdmin` extractor** (`[feat-require-admin-1]`, kyu): a handler on
+  an `api_routes` route takes `RequireAdmin` to admit only `Caller::Admin`; a
+  client token gets a 403 JSON `{error, remedy}`.
+- **API calls authenticated by the session cookie must be same-site**
+  (`[fix-api-csrf-1]`, kyu): the cookie is `Lax`, so `GET /t/{t}/next?as=x`
+  on an `api_routes` route could be triggered by a link on another website.
+  A call with no bearer whose `Sec-Fetch-Site` is not `same-origin`/`none`
+  (or, without it, whose `Referer` names another host) is now a 403 JSON
+  `{error, remedy}`. Bearer-token calls are unaffected. The rule is shared
+  with the GET share target (`guards::cross_site`).
+- **`App::shutdown_signal()`** (`[fix-shutdown-signal-1]`, kyu): a cloneable
+  `ShutdownSignal` that resolves at the START of the drain. A handler that
+  waits long (kyu's `GET /t/{topic}/next?wait=300`) selects on
+  `signal.wait()` and returns early; before, it held every restart for the
+  whole shutdown timeout.
 - **Browser-policy headers on every answer** (`[fix-sec-headers-1]`, Habits
   security review): `Cross-Origin-Opener-Policy: same-origin`; a
   `Permissions-Policy` that turns off `accelerometer`, `camera`,
