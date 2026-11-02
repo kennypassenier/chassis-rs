@@ -29,6 +29,12 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Added
 
+- **`Cross-Origin-Resource-Policy: same-origin`** (`[fix-corp-1]`, Medicine
+  Cabinet): next to COOP on every answer, so no other origin can embed the
+  service's resources. Nothing the kit serves is loaded cross-origin by
+  design (the CSP already confines scripts, styles, fonts, images and
+  connections to the origin; the PWA manifest, icons and worker are fetched
+  by the page itself; Web Push is server to push service).
 - **Extractor rejections answer in the kit's JSON shape**
   (`[fix-rejection-json-1]`, Medicine Cabinet): a failed `Query`, `Json`,
   `Form` or `Path` used to answer axum's text ("Failed to deserialize query
