@@ -8,11 +8,12 @@
 import { bindBand } from './data-band.js';
 import { normalize } from './data-config.js';
 import { createData } from './data-client.js';
-import { hookLogout } from './data-logout.js';
+import { createFailedView } from './data-failed-view.js';
+import { installLogoutGuard } from './logout-guard.js';
 import { memoryStore, openStore } from './data-store.js';
 
 const METHODS = ['get', 'put', 'patch', 'delete', 'queue', 'pending', 'failed', 'unsent', 'retry', 'drop', 'resave',
-    'settings', 'keepAll', 'keepItem', 'isKept', 'usage', 'clearCopy', 'purge'];
+    'settings', 'keepAll', 'keepItem', 'isKept', 'usage', 'clearCopy', 'purge', 'review'];
 
 function storageOf(win) {
     try {
@@ -35,9 +36,14 @@ async function storeFor(win, name, deps) {
 export function installData(win, doc, deps = {}, kp = null) {
     if (win.chassisData) return win.chassisData;
     let ready = null;
+    let words = {};
+    // The logout guard needs no configure(): it reads the stored queues of
+    // every chassis-data database, and adds the open client's own once there.
+    installLogoutGuard({ win, doc, confirm: kp?.openConfirmation, client: async () => (ready ? await ready : null), messages: () => words });
     const configure = (options) => {
         if (ready) throw new Error('chassisData: configure() was already called on this page.');
         const config = normalize(options);
+        words = config.messages;
         ready = (async () => {
             const store = await storeFor(win, config.name, deps);
             const emit = (name, detail) => win.dispatchEvent(new win.CustomEvent(name, { detail }));
@@ -48,13 +54,10 @@ export function installData(win, doc, deps = {}, kp = null) {
                 clearTimer: (id) => win.clearTimeout(id),
                 now: () => Date.now(),
             });
-            if (kp) bindBand({ win, doc, kp, data, messages: config.messages });
-            hookLogout({
-                win, doc, purge: () => data.purge(), unsent: () => data.unsent(),
-                confirm: kp?.openConfirmation, messages: config.messages,
-            });
+            const view = kp?.openDialog ? createFailedView({ win, doc, kp, data, messages: config.messages }) : null;
+            if (kp) bindBand({ win, doc, kp, data, messages: config.messages, view });
             win.addEventListener('online', () => data.retry());
-            return data;
+            return { ...data, review: (trigger) => view?.open(trigger) };
         })();
         return ready;
     };

@@ -7,6 +7,36 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **A kit view for refused offline edits** (`[feat-offline-failed-view-1]`).
+  The conflict toast's "Review" action (and any element carrying
+  `data-chassis-review`, or `chassisData.review()`) opens a kit drawer built
+  from kp-themes parts: one card per refused or held edit with what it was,
+  when it was made, the service's own reason and its status, "Discard" and
+  "Save again" on each (the client's `drop()` / `resave()`), and "Discard all"
+  after one confirmation. Nothing refused shows a full-size empty state. The
+  `chassis-data-review` event is now cancelable: an app that builds its own
+  view calls `preventDefault()` and the kit's stays shut. Texts can be
+  replaced through `chassisData.configure({ messages })`.
+
+### Fixed
+
+- **Logging out warns about unsent offline edits on every page**
+  (`[fix-offline-logout-1]`). The guard used to exist only on pages that had
+  called `chassisData.configure()`, so the kit's own pages (Status, Clients,
+  Storage, the header's Log out) logged out without asking while the queue
+  held edits. It now reads the stored queue of every `chassis-data:*`
+  database of the origin, needs no configure, and is installed by the kit
+  pages and by the web-app runtime. With nothing unsent the logout stays
+  immediate; "Stay" now leaves the Log out button usable (the page's busy
+  state no longer runs for a held submit).
+
+- **The connection band follows a language change** (`[fix-offline-band-lang-1]`).
+  kp-themes writes the band's words only when its state is set, so they kept
+  the language of page load. The band is redrawn on `kp-strings-change`
+  (offline, reconnecting and refused; the pending count stays).
+
 ## [4.3.0] - 2026-11-02
 
 ### Fixed

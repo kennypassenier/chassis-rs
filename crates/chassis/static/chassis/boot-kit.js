@@ -5,7 +5,7 @@
 // Split out of chassis.js by responsibility; the page runs exactly as
 // before.
 
-import { enforceContracts, attachConfirmations, attachSkipLinks } from '../kp/dist/js/components.js';
+import { enforceContracts, attachConfirmations, attachSkipLinks, openConfirmation } from '../kp/dist/js/components.js';
 import { attachAgo, setAgo } from '../kp/dist/js/freshness.js';
 import { attachRefresh, refreshOf } from '../kp/dist/js/auto-refresh.js';
 import { configureRemember } from '../kp/dist/js/remember.js';
@@ -13,6 +13,7 @@ import { attachLazyRegisters } from '../kp/dist/js/lazy-register.js';
 import { localiseTimes } from './format-text.js';
 import { installRefresh } from './refresh-kit.js';
 import { guardStaleImports } from './stale-import.js';
+import { installLogoutGuard } from './logout-guard.js';
 
 // A lazy kp chunk gone after an app update reloads the page once.
 guardStaleImports(window);
@@ -45,3 +46,8 @@ attachSkipLinks();
 
 // Every <time datetime> on the page is written the kit's one way.
 localiseTimes();
+
+// The logout asks before unsent offline edits are lost, on every kit page
+// (fix-offline-logout-1): it reads the origin's stored queues, so no page
+// has to configure chassisData first.
+installLogoutGuard({ win: window, doc: document, confirm: openConfirmation });
