@@ -103,6 +103,8 @@
 //   td data-kp-filter-value  the word a choice filter lists and matches a cell by in place of the text it shows [kpadopt3]
 //                            (on a header the same attribute is the filter the page opens with)
 //   data-kp-grid             a roving focus grid: arrows, Home/End, Page Up/Down
+//   data-kp-keep-focused-row a refresh keeps the row that holds the focus (its field, value, caret and focus) in place of
+//                            its fresh copy, by row key, and fires kp-datatable-row-kept [medicine-1102]; read at every refresh
 //
 // And the add-filter mode of Kenny's form of 2026-09-14 ("Allebei, per
 // tabel"), the approved mock of research/datatable/demo.html#filter-add:
@@ -142,6 +144,7 @@ export {
     EDIT_EVENT,
     GROUP_EVENT,
     REORDER_EVENT,
+    ROW_KEPT_EVENT,
     PAGE_SIZE,
     PAGE_SIZES,
     SERVER_DEBOUNCE_MS,

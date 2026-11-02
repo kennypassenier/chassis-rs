@@ -1,8 +1,12 @@
-// Moving an item of the day timeline by its handle [parts-1102], in steps of the day's step: a pointer drags it (Escape during
-// the drag puts it back), ↑ and ↓ walk it (Shift: an hour) and the walk is one change once the keys rest, or at once on Enter;
-// Escape puts a walk back. The block follows on its rows; every step is said; the controller fires the event.
+// Moving an item of the day timeline [parts-1102; r2: the whole block], in steps of the day's step. A pointer drags a block by its
+// handle (at once) or by its body (a mouse or a pen once it travels a few pixels, so a plain press still opens it; a finger after
+// holding it still, so a swipe still scrolls: js/dayline/press.js); held near the box's edge the hours scroll under it; Escape
+// during the drag puts it back. ↑ and ↓ on the handle walk it (Shift: an hour) and the walk is one change once the keys rest, or
+// at once on Enter; Escape puts a walk back. The block follows on its rows; every step is said; the controller fires the event.
 
-import { DRAG_THRESHOLD_PX, SETTLE_MS } from './constants.js';
+import { SETTLE_MS } from './constants.js';
+import { edgeScroller } from './edge-scroll.js';
+import { followPress } from './press.js';
 
 /** @typedef {import('./constants.js').Placed} Placed */
 
@@ -10,6 +14,9 @@ import { DRAG_THRESHOLD_PX, SETTLE_MS } from './constants.js';
  * What a move needs from its day timeline.
  * @typedef {object} MoveHost
  * @property {HTMLElement} grid
+ * @property {HTMLElement} scroll the box the hours scroll in
+ * @property {() => number} holdMs how long a finger holds a block still before it lifts
+ * @property {(p: Placed) => void} lifted a finger lifted a block: said, so it is known the next move drags it
  * @property {() => number} rowsTotal
  * @property {() => number} perHour rows in an hour
  * @property {(id: string) => Placed | undefined} placed
@@ -21,12 +28,21 @@ import { DRAG_THRESHOLD_PX, SETTLE_MS } from './constants.js';
 /** A row inside the day for a block of `rows` rows. @param {number} row @param {number} rows @param {number} total */
 const clampRow = (row, rows, total) => Math.min(total - rows, Math.max(0, row));
 
-/** The item a handle moves. @param {EventTarget | null} target @param {MoveHost} host */
+/** The item a handle moves (the keyboard walk). @param {EventTarget | null} target @param {MoveHost} host */
 function placedOf(target, host) {
     const handle = target instanceof Element ? target.closest('.kp-dayline__handle') : null;
     const id = handle?.closest('[data-kp-dayline-id]')?.getAttribute('data-kp-dayline-id');
     const p = id == null ? undefined : host.placed(id);
     return p && handle ? { p, handle: /** @type {HTMLElement} */ (handle) } : null;
+}
+
+/** The movable block a press landed on, and whether it was its handle; a read-only block is never one. @param {EventTarget | null} target @param {MoveHost} host */
+function grabbed(target, host) {
+    const el = target instanceof Element ? target : null;
+    const block = /** @type {HTMLElement | null} */ (el?.closest('.kp-dayline__item:not([data-kp-readonly])') ?? null);
+    const id = block?.getAttribute('data-kp-dayline-id');
+    const p = id == null ? undefined : host.placed(id);
+    return p && block ? { p, block, onHandle: el?.closest('.kp-dayline__handle') != null } : null;
 }
 
 /** The keyboard walk on a handle, one per day timeline. */
@@ -80,47 +96,50 @@ export class KeyWalk {
 }
 
 /**
- * One drag from a press on a handle: the block follows the pointer in whole rows until it is let go (a change) or Escape is
- * pressed (put back). Returns nothing; its listeners go with the drag.
+ * One drag from a press on a block: it follows the pointer in whole rows (the box's own scroll counted) until it is let go (a
+ * change) or put back (Escape, a cancelled pointer). Returns nothing; its listeners go with the drag.
  * @param {PointerEvent} down @param {MoveHost} host
  */
 export function dragFrom(down, host) {
-    const hit = placedOf(down.target, host);
-    if (!hit || down.button !== 0) return;
-    down.preventDefault();
-    const { p, handle } = hit;
+    const hit = grabbed(down.target, host);
+    if (!hit || (down.pointerType === 'mouse' && down.button !== 0)) return;
+    if (hit.onHandle) down.preventDefault();
+    const { p, block } = hit;
     const rowPx = host.grid.getBoundingClientRect().height / host.rowsTotal();
-    const block = /** @type {HTMLElement} */ (handle.closest('.kp-dayline__item'));
+    const top = host.scroll.scrollTop;
     let row = p.row;
-    let moved = false;
-    handle.setPointerCapture?.(down.pointerId);
-    block.dataset.kpDragging = '';
-    const onMove = (/** @type {PointerEvent} */ e) => {
-        const dy = e.clientY - down.clientY;
-        if (!moved && Math.abs(dy) < DRAG_THRESHOLD_PX) return;
-        moved = true;
+    let lastY = down.clientY;
+    const place = () => {
+        const dy = lastY - down.clientY + (host.scroll.scrollTop - top);
         const next = clampRow(p.row + Math.round(dy / rowPx), p.rows, host.rowsTotal());
         if (next !== row) host.show(p, (row = next));
     };
-    const end = (/** @type {'commit' | 'back'} */ how) => {
-        handle.removeEventListener('pointermove', onMove);
-        handle.removeEventListener('pointerup', onUp);
-        handle.removeEventListener('pointercancel', onCancel);
-        handle.ownerDocument.removeEventListener('keydown', onKey, true);
+    const edge = edgeScroller(host.scroll, place);
+    const stop = () => {
+        edge.stop();
         delete block.dataset.kpDragging;
-        if (how === 'commit' && moved && row !== p.row) host.commit(p, row, 'pointer');
-        else if (moved) host.putBack(p);
     };
-    const onUp = () => end('commit');
-    const onCancel = () => end('back');
-    const onKey = (/** @type {KeyboardEvent} */ e) => {
-        if (e.key !== 'Escape') return;
-        e.preventDefault();
-        e.stopPropagation();
-        end('back');
-    };
-    handle.addEventListener('pointermove', onMove);
-    handle.addEventListener('pointerup', onUp);
-    handle.addEventListener('pointercancel', onCancel);
-    handle.ownerDocument.addEventListener('keydown', onKey, true);
+    followPress(down, {
+        mode: hit.onHandle ? 'now' : 'hold',
+        holdMs: host.holdMs(),
+        capture: block,
+        lift: () => {
+            block.dataset.kpDragging = '';
+            host.lifted(p);
+        },
+        start: () => {
+            block.dataset.kpDragging = '';
+            return true;
+        },
+        move: (e) => {
+            lastY = e.clientY;
+            edge.at(e.clientY);
+            place();
+        },
+        end: (how) => {
+            stop();
+            if (how === 'drop' && row !== p.row) host.commit(p, row, 'pointer');
+            else host.putBack(p);
+        },
+    });
 }

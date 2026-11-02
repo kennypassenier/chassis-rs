@@ -53,12 +53,18 @@
 // loading lays the busy card over the wheel; error says the message where the
 // outcome goes.
 //
-// Coupled wheels [parts-1102; Kitchen 15]: `data-kp-wheel-follows="<id of another wheel>"` makes a wheel turn when that one
-// turns, for the same time, so both settle together; each keeps its own outcome and events (js/wheel/follow.js).
+// Coupled wheels [parts-1102; Kitchen 15; parts-1102 r2l]: `data-kp-wheel-follows="<id of another wheel>"` makes a wheel wait
+// for that one: locked (Spin disabled, the reason on its line, `data-kp-wheel-follows-reason` or "Spins once the other wheel has
+// chosen.") until the leader has stopped and fired `kp-wheel-result`, so it never gives the leader's outcome away. Then it gets
+// the leader's choice in `data-kp-wheel-leader-won` and `kp-wheel-leader-result` (fill its choices from it), and
+// `data-kp-wheel-follows-start` decides: `press` (default) waits for its own Spin, `auto` starts by itself, `together` is not
+// locked and turns with the leader for the same time. Without the attribute the app drives both: listen for the leader's
+// `kp-wheel-result` and call `spinWheel(follower)` (js/wheel/follow.js).
 //
 // Events (bubbling, on the root):
 //   kp-wheel-spin    { item, index, turns, duration }  the outcome is drawn and the wheel starts (turns: whole turns it will make, duration: ms)
 //   kp-wheel-result  { item, index, source }       'spin' | 'only'
+//   kp-wheel-leader-result  { leader, item, index, source, waitUntil }  on a follower, when its leader has settled
 //
 // Kiosk, tags and the answer card [hover-wheel-1019; the AuDHD recipes app's page for Kenny's parents]:
 //   - `data-kp-wheel-kiosk`: no controls. The Spin button in the hub is gone and the wheel itself is the one control: a
@@ -82,7 +88,7 @@ import { WHEEL } from './wheel/state.js';
 
 export { WHEEL, WHEEL_SPIN_EVENT, WHEEL_RESULT_EVENT, pickWeighted, wheelAngles } from './wheel/state.js';
 export { setWheelItems, setWheelState, getWheelResult, spinWheel } from './wheel/spin.js';
-export { WHEEL_FOLLOWS } from './wheel/follow.js';
+export { WHEEL_FOLLOWS, WHEEL_FOLLOWS_START, WHEEL_FOLLOWS_REASON, WHEEL_FOLLOW_STARTS, WHEEL_LEADER_RESULT_EVENT, WHEEL_LEADER_WON, WHEEL_LOCKED } from './wheel/follow.js';
 
 /**
  * @typedef {object} WheelItem

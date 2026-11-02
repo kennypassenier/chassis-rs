@@ -85,3 +85,21 @@ export function themeMotion(scope = document.documentElement) {
         size: Math.min(open * SIZE_SHARE, msOf(root, '--kp-size-max', 480)) * scale,
     };
 }
+
+/** How long a drawer takes to leave when the page names no `--kp-drawer-close-time`, in ms. */
+export const DRAWER_CLOSE_MS = 180;
+/**
+ * How long `dialog` takes to leave, in ms. A drawer is dismissed all day, so it leaves in its own short time
+ * (`--kp-drawer-close-time`, default 180 ms, set on the drawer or the root) instead of its theme's reversed
+ * entrance, which runs up to `--kp-close-max`; every other dialog keeps that. Reduced motion leaves at once.
+ * @param {HTMLElement} dialog
+ * @returns {number}
+ */
+export function closeTime(dialog) {
+    const { close } = themeMotion(dialog);
+    if (close <= 0 || !dialog.classList.contains('kp-drawer')) return close;
+    const named = registerTime(dialog, '--kp-drawer-close-time');
+    if (named !== null) return named;
+    const scale = parseFloat(getComputedStyle(dialog.ownerDocument.documentElement).getPropertyValue('--kp-motion-scale')) || 1;
+    return DRAWER_CLOSE_MS * scale;
+}

@@ -23,7 +23,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 /// The kp-themes version the kit vendors (C3: one place).
-pub const KP_THEMES_VERSION: &str = "12.2.0-pre.00408fb91";
+pub const KP_THEMES_VERSION: &str = "12.2.0-pre.472fd3474";
 
 /// Where a theme's register is served from, `{theme}` standing for its name
 /// (the kp-themes split delivery, 12.2). One value for every page the kit

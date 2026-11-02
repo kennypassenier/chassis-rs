@@ -36,6 +36,11 @@
 // on a phone (`dialog[data-kp-tabbar-drawer]`, css/components.css), and a press
 // on one of its entries.
 //
+// A More tab drawn after the bar was wired (the bundle wires every bar when it
+// loads, so an app that draws its tabs later met an attachTabbars() that did
+// nothing) is wired when it arrives, and its drawer when it is pressed
+// [medicine-1102, Medicine Cabinet gap 29].
+//
 // The bar publishes its height as `--kp-tabbar-height` on the root while it is
 // on the screen (0px when it is not), so the page keeps its last line, a toast
 // and the back-to-top control clear of it, whatever the theme or the safe-area

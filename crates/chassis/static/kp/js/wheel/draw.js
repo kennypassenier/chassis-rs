@@ -2,7 +2,7 @@
 // answer card, the Spin button and the stage painted from the state.
 
 import { getStrings } from '../strings.js';
-import { LABEL_IN, LABEL_OUT, R, el, part, point, stateOf, svg, wheelAngles } from './state.js';
+import { LABEL_IN, LABEL_OUT, R, WHEEL_FOLLOWS_REASON, WHEEL_LOCKED, el, part, point, stateOf, svg, wheelAngles } from './state.js';
 
 /** @typedef {import('../wheel.js').WheelItem} WheelItem */
 /** @typedef {import('./state.js').WheelState} WheelState */
@@ -204,7 +204,10 @@ export function paint(root) {
     const won = root.getAttribute('data-kp-wheel-won');
     const chosen = won !== null ? state.items.find((item) => item.id === won) : undefined;
     result.toggleAttribute('data-kp-wheel-failed', error !== null && !busy);
-    const note = busy || error !== null || !state.items.length;
+    // A follower waiting for its leader [parts-1102 r2l]: its reason stands where the outcome goes, before an empty sentence
+    // (the app may give it its choices only once the leader has chosen).
+    const locked = root.hasAttribute(WHEEL_LOCKED) && !state.spinning;
+    const note = busy || error !== null || locked || !state.items.length;
     outcome.toggleAttribute('data-kp-wheel-note', note);
     if (busy) {
         caption.textContent = '';
@@ -212,6 +215,9 @@ export function paint(root) {
     } else if (error !== null) {
         caption.textContent = '';
         outcome.textContent = error;
+    } else if (locked) {
+        caption.textContent = '';
+        outcome.textContent = root.getAttribute(WHEEL_FOLLOWS_REASON)?.trim() || strings.wheelLocked;
     } else if (!state.items.length) {
         caption.textContent = '';
         outcome.textContent = root.getAttribute('data-kp-wheel-empty') ?? strings.wheelEmpty;
@@ -229,7 +235,7 @@ export function paint(root) {
     tag.title = tag.textContent;
     outcome.title = outcome.textContent ?? '';
     caption.title = caption.textContent ?? '';
-    const blocked = busy || error !== null || state.items.length < 2 || state.spinning;
+    const blocked = busy || error !== null || locked || state.items.length < 2 || state.spinning;
     spin.textContent = won !== null && state.items.length > 1 ? strings.wheelSpinAgain : strings.wheelSpin;
     if (blocked) spin.setAttribute('aria-disabled', 'true');
     else spin.removeAttribute('aria-disabled');
@@ -246,4 +252,3 @@ export function paint(root) {
         for (const name of ['role', 'tabindex', 'aria-label', 'aria-disabled']) stage.removeAttribute(name);
     }
 }
-

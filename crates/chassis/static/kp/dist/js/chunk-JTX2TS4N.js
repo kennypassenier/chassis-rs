@@ -1,0 +1,3 @@
+/* @kp-soft/themes v12.1.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{i as e}from"./chunk-DBVVCYVB.js";var p="[data-kp-combobox]",c='input[role="combobox"]',r='[role="listbox"]',x="[data-kp-combobox-status]",a="[data-kp-tag-list]",b="[data-kp-combobox-empty]",l=o=>{let t=e();return o===0?t.noResults:o===1?t.oneResult:t.manyResults(o)},m="kp-combobox-change",T="kp-combobox-open";var n=new WeakMap;function E(o){return n.get(o)??null}var k=new WeakMap;export{p as a,c as b,r as c,x as d,a as e,b as f,l as g,m as h,T as i,n as j,E as k,k as l};
+//# sourceMappingURL=chunk-JTX2TS4N.js.map

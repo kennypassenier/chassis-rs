@@ -16,7 +16,7 @@ export function hookValueSetter(c) {
         },
         set(v) {
             set.call(this, v);
-            c.measure();
+            c.measureTogether();
             c.drawCounter();
         },
     });

@@ -3,7 +3,7 @@
 import { getStrings } from '../strings.js';
 import { QUANTITY_EVENT } from './values.js';
 import { build } from './build.js';
-import { formatQuantity, rulesOf, settleQuantity } from './math.js';
+import { formatQuantity, parseQuantity, rulesOf, settleQuantity } from './math.js';
 import { getQuantity, isDisabled, unitFor } from './read.js';
 
 /** @typedef {import('../quantity.js').QuantityRules} QuantityRules */
@@ -41,13 +41,14 @@ function writeButtons(root, rules, value, disabled) {
 
 /**
  * Write a value everywhere it shows: the field, the unit, the spin button's numbers and words, the buttons at a bound, the field's width.
- * @param {HTMLElement} root @param {number} value
+ * `keepText` leaves the field's own text alone (a person is typing in it; it is normalised when they commit) [stepper1102].
+ * @param {HTMLElement} root @param {number} value @param {boolean} [keepText]
  */
-export function paint(root, value) {
+export function paint(root, value, keepText = false) {
     const rules = rulesOf(root);
     const input = build(root);
     const text = formatQuantity(value, rules);
-    if (document.activeElement !== input || input.value !== text) input.value = text;
+    if (!keepText && input.value !== text) input.value = text;
     root.setAttribute('data-kp-quantity-value', String(value));
     const unit = unitFor(root, value);
     writeSpinbutton(input, rules, value, text, unit);
@@ -56,7 +57,14 @@ export function paint(root, value) {
     writeWidth(root, rules, value);
     const disabled = isDisabled(root);
     input.disabled = disabled;
-    writeButtons(root, rules, value, disabled);
+    // While a person types, the buttons follow the number they typed, not the last committed one.
+    const typed = keepText ? parseQuantity(input.value) : NaN;
+    writeButtons(root, rules, Number.isFinite(typed) ? settleQuantity(typed, rules) : value, disabled);
+}
+
+/** Dim the buttons for a value that is only typed so far (not yet committed). @param {HTMLElement} root @param {number} value */
+export function markButtons(root, value) {
+    writeButtons(root, rulesOf(root), settleQuantity(value, rulesOf(root)), isDisabled(root));
 }
 
 /**

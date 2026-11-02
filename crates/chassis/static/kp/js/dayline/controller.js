@@ -6,11 +6,12 @@ import { Controller } from '../controller.js';
 import { watchOptions } from '../live-options.js';
 import { getStrings } from '../strings.js';
 import {
-    DAYLINE_CHANGE_EVENT, DAYLINE_OPEN_EVENT, HOURS_ATTRIBUTE, NOW_ATTRIBUTE, NOW_TICK_MS, NOW_VIEW_SHARE, START_ATTRIBUTE, STEP_ATTRIBUTE,
+    DAYLINE_CHANGE_EVENT, DAYLINE_OPEN_EVENT, HOLD_ATTRIBUTE, HOURS_ATTRIBUTE, NOW_ATTRIBUTE, NOW_TICK_MS, NOW_VIEW_SHARE, START_ATTRIBUTE, STEP_ATTRIBUTE,
 } from './constants.js';
 import { markSources, wireDrop } from './drop.js';
-import { clockAt, dayMinute, intIn, placeItems, stepOf, toMinutes } from './layout.js';
+import { clockAt, dayMinute, holdOf, intIn, placeItems, stepOf, toMinutes } from './layout.js';
 import { KeyWalk, dragFrom } from './move.js';
+import { holdScroll } from './press.js';
 import { allDayItems, buildBlock, buildFrame, hourParts, placeNow, spanOf } from './render.js';
 import { drawBusy, drawPlate } from './states.js';
 
@@ -45,9 +46,10 @@ export class DaylineControl extends Controller {
         p.scroll.setAttribute('aria-label', host.getAttribute('aria-label') ?? getStrings().daylineLabel);
         host.replaceChildren(p.allDay, p.frame, p.status);
         this.listen(p.grid, 'pointerdown', (e) => dragFrom(/** @type {PointerEvent} */ (e), this.mover()));
+        this.own(holdScroll(p.grid));
         this.listen(p.grid, 'keydown', (e) => this.walk.onKey(/** @type {KeyboardEvent} */ (e)));
         this.listen(p.grid, 'click', (e) => this.open(/** @type {MouseEvent} */ (e)));
-        this.own(watchOptions(host, [START_ATTRIBUTE, STEP_ATTRIBUTE, HOURS_ATTRIBUTE, NOW_ATTRIBUTE], () => this.draw()));
+        this.own(watchOptions(host, [START_ATTRIBUTE, STEP_ATTRIBUTE, HOURS_ATTRIBUTE, NOW_ATTRIBUTE, HOLD_ATTRIBUTE], () => this.draw()));
         const tick = setInterval(() => this.paintNow(), NOW_TICK_MS);
         this.own(() => clearInterval(tick));
         this.own(() => this.walk.stop());
@@ -56,7 +58,19 @@ export class DaylineControl extends Controller {
         this.observe(new ResizeObserver(() => this.reveal())).observe(p.scroll);
         this.observe(new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && this.reveal())).observe(p.scroll);
         for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown']) this.listen(p.scroll, type, () => (this.touched = true), { passive: true });
-        this.own(wireDrop({ host, grid: p.grid, marker: p.drop, rowsTotal: () => this.grid().rowsTotal, clockOfRow: (row) => this.clockOfRow(row), strings: getStrings }));
+        this.own(
+            wireDrop({
+                host,
+                grid: p.grid,
+                scroll: p.scroll,
+                marker: p.drop,
+                rowsTotal: () => this.grid().rowsTotal,
+                holdMs: () => this.holdMs(),
+                clockOfRow: (row) => this.clockOfRow(row),
+                strings: getStrings,
+                say: (text) => this.say(text),
+            }),
+        );
         this.draw();
     }
 
@@ -69,6 +83,11 @@ export class DaylineControl extends Controller {
         return { startHour, step, hours, perHour, rowsTotal: hours * perHour, total: hours * 60 };
     }
 
+    /** How long a finger holds a block or a source still before it lifts [ms]. */
+    holdMs() {
+        return holdOf(this.host.getAttribute(HOLD_ATTRIBUTE));
+    }
+
     /** @param {number} row */
     clockOfRow(row) {
         const g = this.grid();
@@ -79,6 +98,9 @@ export class DaylineControl extends Controller {
     mover() {
         return {
             grid: this.parts.grid,
+            scroll: this.parts.scroll,
+            holdMs: () => this.holdMs(),
+            lifted: (p) => this.say(getStrings().daylineLifted(p.item.label)),
             rowsTotal: () => this.grid().rowsTotal,
             perHour: () => this.grid().perHour,
             placed: (id) => this.placed.get(id),

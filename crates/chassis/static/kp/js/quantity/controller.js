@@ -3,7 +3,7 @@
 import { Controller } from '../controller.js';
 import { HOLD_DELAY, HOLD_FAST, HOLD_SLOW, HOLD_SLOW_REPEATS, PAGE_STEPS } from './values.js';
 import { parseQuantity, rulesOf } from './math.js';
-import { change, paint } from './paint.js';
+import { change, markButtons, paint } from './paint.js';
 import { getQuantity, inputOf, isDisabled } from './read.js';
 
 /** The events that end a held button, listened to in the capture phase. */
@@ -30,6 +30,9 @@ export class QuantityControl extends Controller {
         this.listen(root, 'keydown', (event) => this.key(/** @type {KeyboardEvent} */ (event)));
         this.listen(root, 'input', () => this.typing());
         this.listen(root, 'focusout', () => this.commit());
+        // The lock follows the attribute alone: adding or removing it repaints, so the field and the buttons unlock again [stepper1102].
+        this.observe(new MutationObserver(() => paint(root, getQuantity(root), document.activeElement === inputOf(root))))
+            .observe(root, { attributes: true, attributeFilter: ['data-kp-quantity-disabled'] });
         for (const type of RELEASE_EVENTS) this.listen(root, type, () => this.stop(), true);
         // Registered last, so it runs first on detach: a held button stops before the listeners go.
         this.own(() => this.stop());
@@ -138,7 +141,10 @@ export class QuantityControl extends Controller {
         if (!input) return;
         const read = parseQuantity(input.value);
         if (input.value.trim() === '' || !Number.isFinite(read)) input.setAttribute('aria-invalid', 'true');
-        else input.removeAttribute('aria-invalid');
+        else {
+            input.removeAttribute('aria-invalid');
+            markButtons(this.host, read);
+        }
     }
 
     /** Take what is typed: change to it, or put the last value back. */

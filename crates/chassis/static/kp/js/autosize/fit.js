@@ -89,25 +89,54 @@ export function dropTwin(area) {
 }
 
 /**
- * The height a box needs for its text, between the least and the most lines. Measured on a twin, so it is exact and the page
- * does not move.
- *
- * @param {HTMLTextAreaElement} area
- * @param {import('./constants.js').FitOptions} [options]
- * @returns {{ height: number, scrolls: boolean, capped: boolean, lines: number, lineHeight: number }}
+ * @typedef {object} FitJob
+ * @property {HTMLTextAreaElement} area
+ * @property {import('./constants.js').FitOptions} options
+ * @property {Record<string, string>} wrap the computed values that decide how the text wraps
+ * @property {number} lh
+ * @property {number} chrome
+ * @property {number} border
+ * @property {number} width
  */
-export function fitTextarea(area, { minRows = AUTOSIZE_MIN_LINES, maxRows = AUTOSIZE_MAX_LINES, maxPx, keepPx = 0, apply = true } = {}) {
-    const view = area.ownerDocument.defaultView;
-    const cs = /** @type {Window} */ (view).getComputedStyle(area);
-    const lh = lineHeightOf(cs);
-    const chrome = chromeOf(cs);
+
+/**
+ * Step 1 of a fit: read the box (its style and width). Reads only, so a form of many boxes reads them all before any write.
+ * @param {HTMLTextAreaElement} area @param {import('./constants.js').FitOptions} [options] @returns {FitJob}
+ */
+export function readFit(area, options = {}) {
+    const cs = /** @type {Window} */ (area.ownerDocument.defaultView).getComputedStyle(area);
+    /** @type {Record<string, string>} */
+    const wrap = {};
+    for (const name of WRAP_PROPS) wrap[name] = /** @type {any} */ (cs)[name];
+    return {
+        area,
+        options,
+        wrap,
+        lh: lineHeightOf(cs),
+        chrome: chromeOf(cs),
+        border: px(cs.borderTopWidth) + px(cs.borderBottomWidth),
+        width: area.getBoundingClientRect().width,
+    };
+}
+
+/** Step 2: give the hidden twin the box's text and width. Writes only the twin, which nothing on the page depends on. @param {FitJob} job */
+export function stageFit({ area, wrap, width }) {
     const twin = twinOf(area);
     const ts = twin.style;
-    for (const name of WRAP_PROPS) /** @type {any} */ (ts)[name] = /** @type {any} */ (cs)[name];
-    ts.inlineSize = `${area.getBoundingClientRect().width}px`;
+    for (const name of WRAP_PROPS) /** @type {any} */ (ts)[name] = wrap[name];
+    ts.inlineSize = `${width}px`;
     twin.value = area.value === '' ? ' ' : area.value;
-    const border = px(cs.borderTopWidth) + px(cs.borderBottomWidth);
-    const content = twin.scrollHeight + border;
+}
+
+/**
+ * Step 3: read the twin's height and work out the box's.
+ * @param {FitJob} job
+ * @returns {{ height: number, scrolls: boolean, capped: boolean, lines: number, lineHeight: number, width: number }}
+ */
+export function finishFit({ area, options, lh, chrome, border, width }) {
+    const { minRows = AUTOSIZE_MIN_LINES, maxRows = AUTOSIZE_MAX_LINES, maxPx, keepPx = 0, apply = true } = options;
+    const twinHeight = twinOf(area).scrollHeight;
+    const content = twinHeight + border;
     const least = Math.max(1, minRows) * lh + chrome;
     let most = maxRows === null ? Number.POSITIVE_INFINITY : Math.max(maxRows, minRows) * lh + chrome;
     if (maxPx !== undefined) most = Math.max(least, Math.min(most, maxPx));
@@ -118,7 +147,21 @@ export function fitTextarea(area, { minRows = AUTOSIZE_MIN_LINES, maxRows = AUTO
         area.style.blockSize = `${height}px`;
         area.style.overflowY = scrolls ? 'auto' : 'hidden';
     }
-    return { height, scrolls, capped: wanted > most, lines: Math.max(1, Math.round((twin.scrollHeight - (chrome - border)) / lh)), lineHeight: lh };
+    return { height, scrolls, capped: wanted > most, lines: Math.max(1, Math.round((twinHeight - (chrome - border)) / lh)), lineHeight: lh, width };
+}
+
+/**
+ * The height a box needs for its text, between the least and the most lines. Measured on a twin, so it is exact and the page
+ * does not move.
+ *
+ * @param {HTMLTextAreaElement} area
+ * @param {import('./constants.js').FitOptions} [options]
+ * @returns {{ height: number, scrolls: boolean, capped: boolean, lines: number, lineHeight: number, width: number }}
+ */
+export function fitTextarea(area, options = {}) {
+    const job = readFit(area, options);
+    stageFit(job);
+    return finishFit(job);
 }
 
 /** Whether this browser sizes a field to its content itself. */

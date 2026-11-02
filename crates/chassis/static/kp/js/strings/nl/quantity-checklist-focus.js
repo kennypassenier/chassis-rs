@@ -70,4 +70,5 @@ export const NL_QUANTITY_CHECKLIST_FOCUS = {
     wheelEmpty: 'Niets past bij deze filters.',
     wheelLoading: 'De keuzes laden…',
     wheelFailed: 'De keuzes konden niet gelezen worden.',
+    wheelLocked: 'Draait zodra het andere rad gekozen heeft.',
 };

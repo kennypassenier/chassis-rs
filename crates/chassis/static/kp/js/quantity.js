@@ -48,6 +48,7 @@ import { QUANTITY } from './quantity/values.js';
 import { QuantityControl } from './quantity/controller.js';
 import { rulesOf, settleQuantity } from './quantity/math.js';
 import { paint } from './quantity/paint.js';
+import { inputOf } from './quantity/read.js';
 
 export { QUANTITY, QUANTITY_EVENT, HOLD_DELAY, HOLD_SLOW, HOLD_FAST } from './quantity/values.js';
 export { decimalsOf, formatQuantity, parseQuantity, settleQuantity } from './quantity/math.js';
@@ -57,12 +58,13 @@ export { getQuantity } from './quantity/read.js';
 
 /**
  * Set the value without firing the event (a page that moves it because
- * something else moved), kept inside the bounds and on a step.
+ * something else moved), kept inside the bounds and on a step. A focused field keeps the text being typed.
  * @param {Element} root @param {number} value
  */
 export function setQuantity(root, value) {
     if (!(root instanceof HTMLElement)) return;
-    paint(root, settleQuantity(value, rulesOf(root)));
+    // A field the person is typing in keeps its text; it is normalised when they commit [stepper1102].
+    paint(root, settleQuantity(value, rulesOf(root)), document.activeElement === inputOf(root));
 }
 
 /**

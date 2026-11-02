@@ -23,6 +23,7 @@
 //
 //   data-kp-selection-for    ids of the table(s) or list(s) it serves, space separated; default the nearest
 //   data-kp-placement        `sticky-top` (default) | `inline` | `floating-bottom`
+//   data-kp-selection-room   `hold` (default: an empty bar keeps its height) | `fold` (an empty bar takes 0 px and opens on a tick) [kyugaps-1102]
 //   data-kp-selection-names  `names` (default) | `count`
 //   data-kp-selection-max    how many names before "+N more" (default 6)
 //   data-kp-select-matching  how many rows match in all (the page counts them): the bar offers "Select all 312 that match"
@@ -34,7 +35,8 @@
 //
 // The bar keeps its place whether or not anything is ticked: it slides over a
 // space it holds (inline and sticky-top) or floats up from the foot
-// (floating-bottom), so the list under it never jumps. A press on a button
+// (floating-bottom), so the list under it never jumps; `fold` gives that space
+// up while nothing is ticked and opens it with the panel. A press on a button
 // marked `data-kp-selection-action` fires `kp-selection-action` on the bar with
 // what is ticked. An action that is running calls setSelectionBusy(), one that
 // some rows refused calls setSelectionResult(), and setSelectionRules() turns
@@ -63,6 +65,7 @@ export { setSelection, getSelection, setSelectionBusy, setSelectionProgress, set
 /**
  * @typedef {object} SelectionOptions
  * @property {'sticky-top' | 'inline' | 'floating-bottom'} [placement]
+ * @property {'hold' | 'fold'} [room] the room an empty bar keeps: `hold` (default) its height, `fold` none
  * @property {'names' | 'count'} [names]
  * @property {number} [maxNames]
  * @property {number} [matching]

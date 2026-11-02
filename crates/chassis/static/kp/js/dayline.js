@@ -17,20 +17,27 @@
 // colour 1 to 12 (`--kp-cat-N`). Items with `allDay: true` or no start, and the `allDay` list, stand in a strip above the hours;
 // the strip takes no room while the page gives none.
 //
-// Moves: drag the handle up or down, or ↑ / ↓ on it (Shift: an hour), in steps of `data-kp-step`; Escape puts it back, Enter
+// Moves [r2: the whole block]: drag a block by its body or its handle, or press ↑ / ↓ on the handle (Shift: an hour), in steps of
+// `data-kp-step`. A mouse or a pen drags the body once it travels 4 px, so a press without moving still opens it; a finger holds
+// the body still for the hold time (`data-kp-dayline-hold`) and then drags it, so a swipe still scrolls the day and the page; the
+// handle drags at once for any pointer. Held near the box's top or bottom the hours scroll under it. Escape puts it back, Enter
 // ends a keyboard walk at once (else it ends when the keys rest). Every step is said in the status line. A finished move fires
 // `kp-dayline-change { id, start, from, source }` and the block keeps its new place; the page saves and may call
-// setDaylineItems again. A press on a block's body fires `kp-dayline-open { id, source }`.
+// setDaylineItems again. A press on a block's body fires `kp-dayline-open { id, source }`. A read-only block never moves.
 //
-// Drop from a list beside it: an element marked `data-kp-dayline-source="<id>"` (optionally `data-kp-dayline-for="<day id>"`) is
-// made draggable; held over the hours, a marker says "Starts 14:30"; dropped, `kp-dayline-drop { id, start }` fires. A drag is a
-// mouse's only: a keyboard or a finger needs the page's own "Set a time".
+// Drop from a list beside it [r2: by pointer, a finger included]: an element marked `data-kp-dayline-source="<id>"` (optionally
+// `data-kp-dayline-for="<day id>"`, and `data-kp-dayline-label` for the words said when it lands) is picked up the same way (a
+// mouse after 4 px, a finger after the hold; its own check box, menu and fields keep their presses); a copy of it follows the
+// pointer; held over the hours, a marker says "Starts 14:30"; let go there, `kp-dayline-drop { id, start }` fires. A keyboard
+// reaches the same through the page's own "Set a time".
 //
 // Options, as attributes (each read again when it changes):
 //   data-kp-start-hour      0 to 23 (default 0)
 //   data-kp-step            minutes per row and per move, a divisor of 60 from 5 (default 15)
 //   data-kp-dayline-hours   hours shown from the start (default 24)
 //   data-kp-dayline-now     a frozen clock, HH:MM
+//   data-kp-dayline-hold    how long a finger holds a block or a source still before it lifts, a time in any unit (`400ms`,
+//                           `0.5s`; 0 to 2 s; default 500 ms, the package's long press)
 // Knobs: --kp-dayline-hour (the height of an hour, 4.5rem; 6rem under a coarse pointer), --kp-dayline-height (the box),
 // --kp-dayline-gutter (the hours' column).
 //

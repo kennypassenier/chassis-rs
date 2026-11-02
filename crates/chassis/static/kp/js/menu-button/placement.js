@@ -74,15 +74,37 @@ function clipped(wrapper, view) {
 }
 
 /**
+ * Whether a container round the menu button holds it in a layer of its own
+ * (a positioned box with a z-index, or a sticky or fixed one), so that a
+ * later box on the same or a higher layer paints over the open menu
+ * whatever the menu's own z-index [parts-1102 r2l]. Two bars stacked: every
+ * `.kp-nav-wrap` is `z-index: 30`, and the second bar covered the first
+ * bar's More menu at 1280 px (2 of 6 entries out of reach, measured in
+ * Firefox with elementFromPoint).
+ * @param {Element} wrapper
+ * @param {Window} view
+ */
+function layered(wrapper, view) {
+    const top = view.document.body;
+    for (let el = wrapper.parentElement; el && el !== top; el = el.parentElement) {
+        const style = view.getComputedStyle(el);
+        if (style.position === 'sticky' || style.position === 'fixed') return true;
+        if (style.position !== 'static' && style.zIndex !== 'auto') return true;
+    }
+    return false;
+}
+
+/**
  * Lift the placed menu into the top layer at the spot it was placed on,
  * kept against its button as the page scrolls (js/top-layer.js), when a
- * container would clip it. It stays the button's child, so every register
- * selector still reaches it.
+ * container would clip it or hold it in a layer that a later box can paint
+ * over. It stays the button's child, so every register selector still
+ * reaches it.
  * @param {MenuState} s
  * @param {Window} view
  */
 export function raiseMenu(s, view) {
-    if (!clipped(s.wrapper, view)) return;
+    if (!clipped(s.wrapper, view) && !layered(s.wrapper, view)) return;
     const box = layoutRect(s.menu);
     const button = s.button.getBoundingClientRect();
     const dx = box.left - button.left;

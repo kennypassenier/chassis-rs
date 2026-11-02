@@ -2,6 +2,7 @@
 import { Controller, attachOne } from '../controller.js';
 import { playEntranceBackwards, stopReversing } from '../motion.js';
 import { TOOLTIP_EVENT, TOOLTIP_OWNED } from './constants.js';
+import { demote, hideLayer, layerOf, onTopLayer, promote, showLayer } from './tooltip-layer.js';
 
 /** How long (ms) the pointer rests before a tooltip opens, and leaves before it closes, when neither the call nor the anchor says. */
 const OPEN_DELAY_MS = 300;
@@ -23,17 +24,21 @@ const CLOSE_DELAY_MS = 100;
  * names itself for anchor positioning, as the React channel does. Detach
  * puts back the attributes, the styles and the hidden state it found.
  *
+ * The tooltip is drawn on the top layer (a manual popover, js/overlays/tooltip-layer.js), so a box round the anchor that
+ * clips or contains (a table's scroll box, a card, a dialog's body) never cuts it [tip-1102]; `layer: 'inline'` keeps it in
+ * the anchor's layer.
+ *
  * @param {ParentNode} root
- * @param {{ openDelayMs?: number, closeDelayMs?: number, closeOnEscape?: boolean, ownedBy?: string }} [options]
- *   Per anchor: `data-kp-open-delay`, `data-kp-close-delay`, `data-kp-close-on-escape="false"`.
+ * @param {{ openDelayMs?: number, closeDelayMs?: number, closeOnEscape?: boolean, ownedBy?: string, layer?: 'top' | 'inline' }} [options]
+ *   Per anchor: `data-kp-open-delay`, `data-kp-close-delay`, `data-kp-close-on-escape="false"`, `data-kp-tooltip-layer`.
  * @returns {() => void} detach
  */
-export function attachTooltips(root = document, { openDelayMs = OPEN_DELAY_MS, closeDelayMs = CLOSE_DELAY_MS, closeOnEscape = true, ownedBy = TOOLTIP_OWNED } = {}) {
+export function attachTooltips(root = document, { openDelayMs = OPEN_DELAY_MS, closeDelayMs = CLOSE_DELAY_MS, closeOnEscape = true, ownedBy = TOOLTIP_OWNED, layer = 'top' } = {}) {
     // An anchor another channel owns, one marked attached, or one without a tooltip and a trigger is left alone.
     const made = /** @type {HTMLElement[]} */ ([...root.querySelectorAll('.kp-tooltip-anchor')])
         .filter((anchor) => !(ownedBy !== '' && anchor.matches(ownedBy)) && !('kpTooltipAttached' in anchor.dataset))
         .filter((anchor) => partsOf(anchor) !== null)
-        .map((anchor, index) => attachOne(anchor, TooltipControl, { openDelayMs, closeDelayMs, closeOnEscape, count: index + 1 }));
+        .map((anchor, index) => attachOne(anchor, TooltipControl, { openDelayMs, closeDelayMs, closeOnEscape, layer, count: index + 1 }));
     return () => {
         for (const control of made.splice(0)) control?.destroy();
     };
@@ -55,7 +60,7 @@ const numberOr = (value, fallback) => (value === undefined || Number.isNaN(Numbe
  * closing); wanted back meanwhile, it turns round.
  */
 class TooltipControl extends Controller {
-    /** @param {HTMLElement} host @param {{ openDelayMs?: number, closeDelayMs?: number, closeOnEscape?: boolean, count?: number }} [options] */
+    /** @param {HTMLElement} host @param {{ openDelayMs?: number, closeDelayMs?: number, closeOnEscape?: boolean, layer?: string, count?: number }} [options] */
     constructor(host, options = {}) {
         super(host, options);
         const { tooltip, trigger } = /** @type {{ tooltip: HTMLElement, trigger: HTMLElement }} */ (partsOf(host));
@@ -75,6 +80,8 @@ class TooltipControl extends Controller {
         this.escapes = host.dataset.kpCloseOnEscape === undefined ? (options.closeOnEscape ?? true) : host.dataset.kpCloseOnEscape !== 'false';
         this.timer = 0;
         this.going = false;
+        /** Whether this control made the tooltip a top-layer popover (and takes that back on detach). */
+        this.promoted = layerOf(host, options.layer) === 'top' && promote(tooltip);
     }
 
     connect() {
@@ -90,7 +97,7 @@ class TooltipControl extends Controller {
         this.listen(anchor, 'focusin', () => this.schedule(true, 0));
         this.listen(anchor, 'focusout', () => this.schedule(false, 0));
         this.listen(document, 'keydown', (event) => {
-            if (this.escapes && /** @type {KeyboardEvent} */ (event).key === 'Escape' && !tooltip.hidden) this.set(false);
+            if (this.escapes && /** @type {KeyboardEvent} */ (event).key === 'Escape' && this.shown()) this.set(false);
         });
     }
 
@@ -113,6 +120,7 @@ class TooltipControl extends Controller {
         clearTimeout(this.timer);
         this.going = false;
         stopReversing(tooltip);
+        if (this.promoted) demote(tooltip);
         tooltip.hidden = before.hidden;
         if (before.id === null) tooltip.removeAttribute('id');
         if (before.describedby === null) trigger.removeAttribute('aria-describedby');
@@ -129,10 +137,18 @@ class TooltipControl extends Controller {
         if (open && this.going) {
             this.going = false;
             stopReversing(tooltip);
-        } else if (this.going || tooltip.hidden === !open) return;
-        else if (open) tooltip.hidden = false;
-        else this.leave();
+        } else if (this.going || this.shown() === open) return;
+        else if (open) {
+            tooltip.hidden = false;
+            showLayer(tooltip);
+        } else this.leave();
         this.host.dispatchEvent(new CustomEvent(TOOLTIP_EVENT, { bubbles: true, detail: { open, tooltip } }));
+    }
+
+    /** Is the tooltip on screen? A promoted one also needs the top layer: a popover taken out of the document (a table that
+     * re-rendered its rows) closes without its `hidden` changing, and must open again on the next hover. */
+    shown() {
+        return !this.tooltip.hidden && (!this.promoted || onTopLayer(this.tooltip));
     }
 
     /** Play the entrance backwards, then hide; a set(true) meanwhile takes it over. */
@@ -143,6 +159,7 @@ class TooltipControl extends Controller {
             if (!this.going) return;
             this.going = false;
             tooltip.hidden = true;
+            hideLayer(tooltip);
             stopReversing(tooltip);
         });
     }

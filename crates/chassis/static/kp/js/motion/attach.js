@@ -1,6 +1,7 @@
 // Attaches the motion layer to a root: its dialogs, eased boxes and folds, now and as they arrive.
 import { Controller } from '../controller.js';
 import { FOLD_SELECTOR, SIZE_SELECTOR } from './constants.js';
+import { ARRIVE_MAX } from './arrive-cap.js';
 import { attachClose } from './dialog-close.js';
 import { easeSize } from './box-size.js';
 import { attachFold } from './fold-control.js';
@@ -20,7 +21,7 @@ export class MotionRoot extends Controller {
         /** The boxes the page asks to ease beside the package's own. */
         this.sizeSelector = options.size?.trim() ? `${SIZE_SELECTOR}, ${options.size}` : SIZE_SELECTOR;
         /** What each box gets when it is eased. @type {SizeOptions} */
-        this.sizeOptions = { arrive: options.arrive ?? 'all', arriveKeys: options.arriveKeys ?? [] };
+        this.sizeOptions = { arrive: options.arrive ?? 'all', arriveKeys: options.arriveKeys ?? [], arriveMax: options.arriveMax ?? ARRIVE_MAX };
         /** The detach of each element wired here. @type {Map<Element, () => void>} */
         this.detaches = new Map();
         /** Whether a sweep of the elements that left is queued. */
@@ -90,12 +91,12 @@ export class MotionRoot extends Controller {
  * keep the old boxes' watchers alive; one moved within the page stays.
  *
  * @param {ParentNode} [root]
- * @param {SizeOptions & { size?: string }} [options] `size`: more boxes to ease, as a selector, beside the package's own and `[data-kp-size-motion]` (a consumer's cards and panels, without marking each one); `arrive` and `arriveKeys` as for easeSize()
+ * @param {SizeOptions & { size?: string }} [options] `size`: more boxes to ease, as a selector, beside the package's own and `[data-kp-size-motion]` (a consumer's cards and panels, without marking each one); `arrive`, `arriveKeys` and `arriveMax` as for easeSize()
  * @returns {() => void} detach
  */
-export function attachMotion(root = document, { size = '', arrive = 'all', arriveKeys = [] } = {}) {
+export function attachMotion(root = document, { size = '', arrive = 'all', arriveKeys = [], arriveMax = ARRIVE_MAX } = {}) {
     // Every call watches its root on its own, as before: the root is not keyed, so a second call is a second watcher.
-    const motion = new MotionRoot(/** @type {HTMLElement} */ (/** @type {unknown} */ (root)), { size, arrive, arriveKeys });
+    const motion = new MotionRoot(/** @type {HTMLElement} */ (/** @type {unknown} */ (root)), { size, arrive, arriveKeys, arriveMax });
     motion.connect();
     return () => motion.destroy();
 }

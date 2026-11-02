@@ -4,7 +4,7 @@ import { openBusyCard } from '../busy-card.js';
 import { motionAllowed } from '../calm.js';
 import { getStrings } from '../strings.js';
 import { build, drawDisc, paint } from './draw.js';
-import { DEFAULT_TURNS_MAX, DEFAULT_TURNS_MIN, WHEEL_RESULT_EVENT, WHEEL_SPIN_EVENT, part, pickWeighted, stateOf, weightOf, wheelAngles } from './state.js';
+import { DEFAULT_TURNS_MAX, DEFAULT_TURNS_MIN, WHEEL_LOCKED, WHEEL_RESULT_EVENT, WHEEL_SPIN_EVENT, part, pickWeighted, stateOf, weightOf, wheelAngles } from './state.js';
 
 /** @typedef {import('../wheel.js').WheelItem} WheelItem */
 /** @typedef {import('./state.js').WheelState} WheelState */
@@ -175,7 +175,7 @@ async function turnDisc(root, { from, to, duration, short }) {
 
 /**
  * Spin: draw the outcome by the weights, turn the wheel to it, say it.
- * Resolves with the outcome (null when it could not spin). `duration` (ms) fixes how long it turns, instead of the time its
+ * Resolves with the outcome (null when it could not spin, a locked follower included). `duration` (ms) fixes how long it turns, instead of the time its
  * travel takes: a wheel that follows another settles with it (`data-kp-wheel-follows`, js/wheel/follow.js).
  * @param {Element} root
  * @param {{ random?: () => number, duration?: number }} [options]
@@ -184,7 +184,8 @@ async function turnDisc(root, { from, to, duration, short }) {
 export async function spinWheel(root, { random = Math.random, duration } = {}) {
     if (!(root instanceof HTMLElement)) return null;
     const state = stateOf(root);
-    if (state.spinning || state.items.length < 2 || root.hasAttribute('aria-busy') || root.hasAttribute('data-kp-wheel-error')) return null;
+    // A follower that waits for its leader's outcome does not spin, whoever asks (js/wheel/follow.js) [parts-1102 r2l].
+    if (state.spinning || state.items.length < 2 || root.hasAttribute('aria-busy') || root.hasAttribute('data-kp-wheel-error') || root.hasAttribute(WHEEL_LOCKED)) return null;
     const avoid = root.getAttribute('data-kp-wheel-repeat') === 'true' ? null : state.last;
     const index = pickWeighted(state.items, { random, avoid });
     if (index < 0) return null;

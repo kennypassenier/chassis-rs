@@ -98,7 +98,7 @@ export function buildBlock(doc, p, startHour, s) {
     const label = make(doc, 'span', 'kp-dayline__label', item.label);
     const body = make(doc, item.readonly ? 'div' : 'button', 'kp-dayline__body');
     if (body instanceof HTMLButtonElement) body.type = 'button';
-    body.title = `${item.label}, ${spanOf(p, startHour)}`;
+    body.title = item.readonly ? `${item.label}, ${spanOf(p, startHour)}` : `${item.label}, ${spanOf(p, startHour)}\n${s.daylineBodyHint}`;
     body.append(time, label);
     block.append(item.readonly ? fixedMark(doc) : handleOf(doc, item, s), body);
     return block;

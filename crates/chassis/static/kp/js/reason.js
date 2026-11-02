@@ -16,6 +16,7 @@
 // enabled ones above and below it.
 
 import { attachTooltips } from './overlays.js';
+import { hideLayer } from './overlays/tooltip-layer.js';
 import { Controller, attachOne } from './controller.js';
 
 /** A control that carries a reason. */
@@ -100,7 +101,11 @@ class DisabledReasonController extends Controller {
         const shown = text !== '' && isOff(control);
         tip.textContent = shown ? text : '';
         this.line.textContent = shown ? text : '';
-        if (!shown) tip.hidden = true;
+        if (!shown) {
+            tip.hidden = true;
+            // On the top layer the tooltip is also a popover: a control that comes back to life takes it off there too [tip-1102].
+            hideLayer(tip);
+        }
         anchor.toggleAttribute('data-kp-reason-off', shown);
         const ids = (control.getAttribute('aria-describedby') ?? '').split(/\s+/).filter((id) => id !== '' && id !== tip.id);
         if (shown) ids.push(tip.id);

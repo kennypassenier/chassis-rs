@@ -1,3 +1,0 @@
-/* @kp-soft/themes v12.1.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
-import{a as p}from"./chunk-7KSWNT2F.js";import{a as u}from"./chunk-FRORM5FJ.js";import{a as m,e as N,j as M,k as _,l as U}from"./chunk-6EAKS75U.js";import{a as e,b as o,c as E,d as r,e as t,f as n,g as T}from"./chunk-PTKVLINS.js";import{a as f}from"./chunk-OG6L4GK2.js";var x={};f(x,{MENU_BUTTON:()=>e,MENU_CLOSE_EVENT:()=>E,MENU_COUNT_PROPERTY:()=>t,MENU_GUTTER:()=>n,MENU_OPEN_EVENT:()=>o,MENU_SELECT_EVENT:()=>r,attachMenuButtons:()=>p,closeMenu:()=>_,menuKeyTarget:()=>u,menuLineCount:()=>m,menuPlacement:()=>T,menuSignature:()=>N,openMenu:()=>M,setMenu:()=>U});export{x as a};
-//# sourceMappingURL=chunk-B3FCEJQV.js.map

@@ -47,6 +47,8 @@ export class SelectionBar extends Controller {
         const placement = options.placement ?? bar.getAttribute('data-kp-placement') ?? 'sticky-top';
         bar.setAttribute('data-kp-placement', ['inline', 'floating-bottom'].includes(placement) ? placement : 'sticky-top');
         if (options.names) bar.setAttribute('data-kp-selection-names', options.names);
+        // The room an empty bar holds is the stylesheet's alone; the option only writes the attribute it reads [kyugaps-1102].
+        if (options.room) bar.setAttribute('data-kp-selection-room', options.room === 'fold' ? 'fold' : 'hold');
         if (options.maxNames) bar.setAttribute('data-kp-selection-max', String(options.maxNames));
         this.memory.matchingTotal = Number(options.matching ?? bar.getAttribute('data-kp-select-matching')) || 0;
         this.memory.sources = sourcesOf(bar);

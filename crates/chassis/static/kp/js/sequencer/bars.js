@@ -99,6 +99,35 @@ export function syncTicks(c) {
         c.lines.append(rule);
     }
 }
+/** @typedef {{ high: number, scroll: number, client: number, need: number }} NameSize */
+/**
+ * How each name wraps in its bar and how wide it is on one line: one probe pair per item, all written, then all read, so the
+ * whole set costs one layout instead of two per item.
+ * @param {SequencerModel} c @param {SequencerItem[]} list @param {number} perUnit
+ * @returns {Map<string, NameSize>}
+ */
+function measureNames(c, list, perUnit) {
+    const probes = list.map((item) => {
+        const wrap = /** @type {HTMLElement} */ (c.measure.cloneNode(false));
+        const line = /** @type {HTMLElement} */ (c.ruler.cloneNode(false));
+        wrap.textContent = item.label;
+        wrap.style.inlineSize = `${Math.max(0, (item.start + item.duration) * perUnit - item.start * perUnit - 2)}px`;
+        line.textContent = item.label;
+        return { item, wrap, line };
+    });
+    c.layer.append(...probes.flatMap((p) => [p.wrap, p.line]));
+    const sizes = new Map(
+        probes.map(({ item, wrap, line }) => [
+            item.id,
+            { high: wrap.scrollHeight, scroll: wrap.scrollWidth, client: wrap.clientWidth, need: line.offsetWidth },
+        ]),
+    );
+    for (const p of probes) {
+        p.wrap.remove();
+        p.line.remove();
+    }
+    return sizes;
+}
 /**
  * A name that does not fit its bar (wrapped on at most the lines the bar is tall for) stands outside it: after it when the row has
  * room, else before it, else it is left to the bar's name (its label). Never cut with an ellipsis. @param {SequencerModel} c
@@ -110,6 +139,7 @@ export function placeLabels(c) {
     const doc = c.el.ownerDocument;
     const pad = Number.parseFloat(getComputedStyle(c.measure).paddingLeft) * 2 || 12;
     const barPx = c.rowPx * 0.8;
+    const sizes = measureNames(c, c.view, perUnit);
     /** @type {Map<string, SequencerItem[]>} */
     const byRow = new Map();
     for (const item of c.view) {
@@ -125,12 +155,9 @@ export function placeLabels(c) {
             if (!bar) return;
             const left = item.start * perUnit;
             const right = (item.start + item.duration) * perUnit;
-            c.measure.textContent = item.label;
-            c.measure.style.inlineSize = `${Math.max(0, right - left - 2)}px`;
-            const fits =
-                right - left - 2 > pad + 8 && c.measure.scrollHeight <= barPx - 2 + 0.5 && c.measure.scrollWidth <= c.measure.clientWidth + 0.5;
-            c.ruler.textContent = item.label;
-            const need = c.ruler.offsetWidth;
+            const size = /** @type {NameSize} */ (sizes.get(item.id));
+            const fits = right - left - 2 > pad + 8 && size.high <= barPx - 2 + 0.5 && size.scroll <= size.client + 0.5;
+            const need = size.need;
             const prev = row[i - 1];
             const next = row[i + 1];
             const after = (next ? next.start * perUnit : width) - right - 8;

@@ -6,7 +6,8 @@ import { parseQuantity, rulesOf, settleQuantity } from './math.js';
 export const inputOf = (root) => /** @type {HTMLInputElement | null} */ (root.querySelector('.kp-quantity__input'));
 
 /** @param {Element} root */
-export const isDisabled = (root) => root.hasAttribute('data-kp-quantity-disabled') || (inputOf(root)?.disabled ?? false);
+// The lock is the attribute alone: the paint writes `disabled` onto the field FROM it, so reading the field back would never unlock [stepper1102].
+export const isDisabled = (root) => root.hasAttribute('data-kp-quantity-disabled');
 
 /** The value a root stands at, as a number (its last accepted value). @param {Element} root */
 export function getQuantity(root) {

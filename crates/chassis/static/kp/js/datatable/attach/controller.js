@@ -27,6 +27,7 @@ import { TableServer } from './server.js';
 import { TableHandlers } from './handlers.js';
 import { TableExpand } from './expand.js';
 import { TableSelection } from './selection.js';
+import { TableKeepFocus } from './keep-focus.js';
 import { TableEdit } from './edit.js';
 import { TableWrapClick } from './wrap-click.js';
 import { TableWire } from './wire.js';
@@ -80,6 +81,7 @@ export class DataTableControl extends Controller {
         /** @type {TableHandlers} */ this.handlers = UNMADE;
         /** @type {TableExpand} */ this.expand = UNMADE;
         /** @type {TableSelection} */ this.selection = UNMADE;
+        /** @type {TableKeepFocus} */ this.keepFocus = UNMADE;
         /** @type {TableEdit} */ this.edit = UNMADE;
         /** @type {TableWrapClick} */ this.wrapClick = UNMADE;
         /** @type {TableWire} */ this.wire = UNMADE;
@@ -124,6 +126,7 @@ export class DataTableControl extends Controller {
         this.handlers = new TableHandlers(this);
         this.expand = new TableExpand(this);
         this.selection = new TableSelection(this);
+        this.keepFocus = new TableKeepFocus(this);
         this.edit = new TableEdit(this);
         this.wrapClick = new TableWrapClick(this);
         this.wire = new TableWire(this);

@@ -16,9 +16,12 @@ export class TabbarController extends Controller {
 
     connect() {
         if (!this.view) return;
+        /** The More tabs wired so far, so a redraw wires only a tab that is new. @type {WeakSet<HTMLElement>} */
+        this.wired = new WeakSet();
         this.publishHeight();
         this.fitLabels();
         this.wireDialogs();
+        this.watchDialogs();
     }
 
     /** The labels tighten before any is cut (js/tabbar/fit.js): measured on a resize, a redraw of the tabs and the fonts' arrival. */
@@ -47,12 +50,27 @@ export class TabbarController extends Controller {
         this.own(() => root.style.removeProperty(TABBAR_HEIGHT_PROPERTY));
     }
 
-    /** A tab that opens a dialog: say so, and follow the dialog. */
+    /** A tab that opens a dialog: say so, and follow the dialog. A tab already wired is left as it is. */
     wireDialogs() {
         for (const el of this.host.querySelectorAll('.kp-tabbar__tab[data-kp-dialog]')) {
             const tab = /** @type {HTMLElement} */ (el);
+            if (this.wired.has(tab)) continue;
             const dialog = this.doc.getElementById(tab.dataset.kpDialog ?? '');
-            if (dialog instanceof HTMLDialogElement) new TabbarDialog(this, tab, dialog).connect();
+            if (!(dialog instanceof HTMLDialogElement)) continue;
+            this.wired.add(tab);
+            new TabbarDialog(this, tab, dialog).connect();
         }
+    }
+
+    /**
+     * A More tab drawn after the bar was wired is wired too [medicine-1102, Medicine Cabinet gap 29]. The bundle wires every bar
+     * on the page when it loads, so an app that draws its tabs afterwards found its later attachTabbars() call a no-op: the
+     * drawer was the whole window on a phone and did not close on a link the app routes in place. A redraw of the bar wires the
+     * new tab; a press on a tab whose drawer arrived after the tab wires it before the drawer opens (capture, ahead of the
+     * page's own data-kp-dialog wiring).
+     */
+    watchDialogs() {
+        this.observe(new this.view.MutationObserver(() => this.wireDialogs())).observe(this.host, { childList: true, subtree: true });
+        this.listen(this.host, 'click', () => this.wireDialogs(), { capture: true });
     }
 }

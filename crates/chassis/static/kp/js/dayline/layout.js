@@ -1,6 +1,7 @@
 // The arithmetic of the day timeline [parts-1102]: clock words, the minute a time stands at in a day that starts at a given
 // hour, and the lanes of the items that overlap. Pure: nothing here touches the page.
 
+import { LONG_PRESS_MS } from '../row-select/rows.js';
 import { DAY_MINUTES, DEFAULT_STEP, MIN_DRAWN_MINUTES } from './constants.js';
 
 /** @typedef {import('./constants.js').DaylineItem} DaylineItem */
@@ -37,6 +38,22 @@ export function intIn(text, min, max, fallback) {
 export function stepOf(text) {
     const n = intIn(text, 5, 60, DEFAULT_STEP);
     return 60 % n === 0 ? n : DEFAULT_STEP;
+}
+
+/** The longest hold a page may ask for [ms]: past it a finger would wait so long it reads as broken. */
+const HOLD_MAX_MS = 2000;
+
+/**
+ * The hold time, read as a time in any unit (`350ms`, `0.4s`, `350` as milliseconds, `0.01m`), from 0 (a finger lifts at once:
+ * a page whose day does not scroll) to 2 s; anything else is the package's long press, 500 ms.
+ * @param {string | null} text
+ */
+export function holdOf(text) {
+    const m = /^\s*(\d+(?:\.\d+)?)\s*(ms|s|m)?\s*$/i.exec(text ?? '');
+    if (!m) return LONG_PRESS_MS;
+    const unit = (m[2] ?? 'ms').toLowerCase();
+    const ms = Number(m[1]) * (unit === 'm' ? 60_000 : unit === 's' ? 1000 : 1);
+    return ms <= HOLD_MAX_MS ? Math.round(ms) : LONG_PRESS_MS;
 }
 
 /**

@@ -1,0 +1,3 @@
+/* @kp-soft/themes v12.1.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d,e,f,g,h,i,j,k}from"./chunk-RFM2NCOF.js";import"./chunk-6A2KXBRN.js";import"./chunk-ROLCCDSR.js";import"./chunk-7BBS56E7.js";import"./chunk-UTJSNVNU.js";import"./chunk-3L53KNBA.js";import"./chunk-DBVVCYVB.js";import"./chunk-3Z4KKGO5.js";import"./chunk-OG6L4GK2.js";export{a as PASSKEYS,b as PASSKEYS_REGISTER_EVENT,d as PASSKEYS_REMOVE_EVENT,e as PASSKEYS_RENAME_EVENT,c as PASSKEYS_RETRY_EVENT,f as PASSKEY_KINDS,k as attachPasskeys,g as passkeyOptions,j as setPasskeys,h as sortPasskeys,i as unusedDays};
+//# sourceMappingURL=passkeys.js.map

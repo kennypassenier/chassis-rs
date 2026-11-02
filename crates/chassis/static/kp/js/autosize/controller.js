@@ -9,6 +9,7 @@ import { forgetDraft, keepDraft, restoreDraft } from './draft.js';
 import { cssAutosizeSupported, dropTwin, lineHeightOf } from './fit.js';
 import { attr, hookValueSetter, registerSubmitKey } from './hooks.js';
 import { measureArea } from './measure.js';
+import { measureOrHold, measureSoon, watchBox } from './schedule.js';
 import { applyState, unframe } from './status.js';
 
 /** The controller of one `textarea[data-kp-autosize]`. */
@@ -125,7 +126,7 @@ export class AutosizeController extends Controller {
             this.pasteAt = area.selectionStart;
         });
         this.listen(area, 'change', () => this.onChange());
-        this.measure();
+        measureOrHold(this);
         this.drawCounter();
         if (area.getAttribute('data-kp-state') === 'loading') applyState(this, 'loading');
     }
@@ -135,24 +136,15 @@ export class AutosizeController extends Controller {
         measureArea(this);
     }
 
-    /** A change of width changes the wrapping; the viewport and a font arriving change the cap and the lines. */
+    /** Size the box with the others that ask in the same task, so many boxes cost one layout. */
+    measureTogether() {
+        measureSoon(this);
+    }
+
+    /** A change of width changes the wrapping; the viewport and a font arriving change the cap and the lines. All measure together. */
     watchSize() {
-        const area = this.area;
-        if (typeof ResizeObserver === 'function') {
-            const resizes = this.observe(
-                new ResizeObserver(() => {
-                    const w = Math.round(area.getBoundingClientRect().width);
-                    if (w === this.width) return;
-                    this.width = w;
-                    this.measure();
-                }),
-            );
-            resizes.observe(area);
-        }
-        const onViewport = () => this.measure();
-        if (this.view.visualViewport) this.listen(this.view.visualViewport, 'resize', onViewport);
-        if (this.phoneQuery) this.listen(this.phoneQuery, 'change', onViewport);
-        void this.doc.fonts?.ready.then(() => this.measure());
+        this.own(watchBox(this));
+        void this.doc.fonts?.ready.then(() => this.measureTogether());
     }
 
     /** Undo what the box got: the card, frame, counter, twin, inline sizes, class and marks. */

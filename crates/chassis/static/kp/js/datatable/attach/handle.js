@@ -134,13 +134,16 @@ export class TableHandle {
      * @param {{ keepPage?: boolean }} [options]
      */
     refresh(options) {
-        const { selection, body } = this.t;
+        const { selection, body, keepFocus } = this.t;
+        // The focused row first (data-kp-keep-focused-row, js/datatable/attach/keep-focus.js): back in its fresh copy's place.
+        const kept = keepFocus.restore();
         const active = document.activeElement;
         const inBody = active instanceof HTMLElement && body.contains(active) ? active : null;
         const focusMemo = selection.focusMemo;
         const lost = inBody === null && focusMemo !== null && !focusMemo.element.isConnected && (active === null || active === document.body);
         const memo = inBody !== null ? selection.toggleMemo(inBody) : lost ? focusMemo : null;
-        const held = inBody ?? (lost && focusMemo !== null ? focusMemo.element : null);
+        const keptElement = kept !== null && 'element' in kept ? kept.element : null;
+        const held = inBody ?? keptElement ?? (lost && focusMemo !== null ? focusMemo.element : null);
         this.t.tracks.release();
         this.readRows();
         this.t.groups.collectGroups();
@@ -148,6 +151,7 @@ export class TableHandle {
         this.t.apply.refreshChoices();
         this.t.apply.applyFilter({ keepPage: options?.keepPage === true });
         if (held !== null && document.activeElement !== held) this.focusBack(held, memo);
+        else if (held === null && kept !== null && 'neighbour' in kept) keepFocus.focusNeighbour(kept.neighbour);
     }
 
     /** The rows as the body holds them now: held rows hidden, gone rows forgotten, new rows prepared, their built details dropped. */

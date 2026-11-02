@@ -1,0 +1,3 @@
+/* @kp-soft/themes v12.1.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d,e,f}from"./chunk-ON62ND2W.js";import"./chunk-JR6PBD5C.js";import"./chunk-2O4FD5N4.js";import"./chunk-MG74KM6Q.js";import"./chunk-GQYBL3B5.js";import"./chunk-25XAUJKB.js";import"./chunk-DGOQHVOV.js";import"./chunk-7BBS56E7.js";import"./chunk-3L53KNBA.js";import"./chunk-44ANMXPB.js";import"./chunk-DBVVCYVB.js";import"./chunk-3Z4KKGO5.js";import"./chunk-OG6L4GK2.js";export{a as DATE_NAV,b as DATE_NAV_EVENT,c as DATE_NAV_MODES,d as attachDateNavs,f as getDateNav,e as setDateNav};
+//# sourceMappingURL=date-nav.js.map

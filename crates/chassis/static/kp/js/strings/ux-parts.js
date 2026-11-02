@@ -43,6 +43,9 @@
  * @property {string} daylineFixed  Said after a read-only item's time: it cannot be moved [parts-1102]
  * @property {string} daylineDone  Said after a done item's time [parts-1102]
  * @property {(time: string) => string} daylineDropAt  The marker while an item from a list is held over the hours, "Starts 14:30" [parts-1102]
+ * @property {string} daylineBodyHint  The second line of a movable block's title: a press opens it, a drag moves it [parts-1102 r2]
+ * @property {(label: string) => string} daylineLifted  Said when a finger's hold lifted a block or a source, "Picked up Morning run" (label may be empty) [parts-1102 r2]
+ * @property {(label: string, time: string) => string} daylineDropped  Said when a source landed on an hour, "Pay the bill planned at 15:00" (label may be empty) [parts-1102 r2]
  * @property {string} daylineLoading  The words on a day timeline's loading card [parts-1102]
  * @property {string} daylineEmpty  The heading over a day with no item, when the page gives none [parts-1102]
  * @property {string} daylineEmptyText  The sentence under it [parts-1102]
@@ -103,6 +106,9 @@ export const UX_PARTS_STRINGS = {
     daylineFixed: 'fixed',
     daylineDone: 'done',
     daylineDropAt: (time) => `Starts ${time}`,
+    daylineBodyHint: 'Press to open; drag up or down to move (on a touch screen: hold, then drag)',
+    daylineLifted: (label) => (label ? `Picked up ${label}: drag it to an hour and let go` : 'Picked up: drag it to an hour and let go'),
+    daylineDropped: (label, time) => (label ? `${label} planned at ${time}` : `Planned at ${time}`),
     daylineLoading: 'Reading the day…',
     daylineEmpty: 'Nothing has a time yet',
     daylineEmptyText: 'Items with a start time stand here, as long as they take.',
