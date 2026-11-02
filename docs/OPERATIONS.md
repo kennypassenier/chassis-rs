@@ -106,7 +106,9 @@ error` plus the remedy). Proven by:
 | Status | When | Body / headers |
 |---|---|---|
 | 401 | API route without a valid token | `{"error":"missing or invalid credentials","remedy":"send Authorization: Bearer <client token>, or log in on /login"}` |
-| 303 → `/login` | Admin page without a session | (browsers never get a 401 popup) |
+| 303 → `/login` | Admin page without a session, asked by a browser page load (`Sec-Fetch-Mode: navigate`) or by a client that sends no `Sec-Fetch-*` and no `Accept` | (browsers never get a 401 popup) |
+| 401 | Admin route without a session, asked by a script (`fetch`: `Sec-Fetch-Mode` other than `navigate`, or `Sec-Fetch-Dest: empty`, or, without those headers, an `Accept` that lists types but neither `text/html` nor `*/*`) | `{"error":"not logged in","remedy":"log in on /login, then repeat the call"}`. A `fetch` that got the 303 followed it into the login page and saw a 200 of HTML; it now sees the 401. |
+| 403 | GET to a `ShareTarget::get` path with `Sec-Fetch-Site` other than `none` / `same-origin`, or (no such header) a `Referer` naming another host | `cross-site share refused (…)`; a request with neither header passes (WEBAPP.md) |
 | 403 | POST/PUT/… from a browser with `Sec-Fetch-Site: cross-site` or `same-site` | `{"error":"cross-site request (Sec-Fetch-Site: cross-site) refused","remedy":"call this endpoint from the dashboard itself, or from a script without browser fetch metadata"}` |
 | 403 | POST/PUT/… without `Sec-Fetch-Site` and with an `Origin` that is not this `Host` | `{"error":"cross-origin request from http://evil.example refused","remedy":"call this endpoint from the dashboard itself, or from a script without an Origin header"}` |
 | any 4xx/5xx to a browser navigation | `Sec-Fetch-Mode: navigate` or `Accept: text/html` on the request, and a dashboard is mounted | the same error and remedy rendered as a page in the dashboard layout (`text/html`), status unchanged — never a bare JSON tab (CF-7) |
@@ -114,7 +116,7 @@ error` plus the remedy). Proven by:
 | 413 | Body above `max_body_bytes` (1 MiB), declared or streamed | `{"error":"the request body is larger than this service accepts","remedy":"send a body within max_body_bytes (the knob <PREFIX>_MAX_BODY_BYTES sets it)"}` |
 | 429 | `/login`: more than `rate_limit_login_per_min` (10) per client IP, burst 5 | `too many attempts from this address`, `Retry-After: 5` |
 | 429 | API: more than `rate_limit_token_per_sec` (50) per client token, burst 100; the login token is exempt | `this client token is over its rate limit`, `Retry-After: 5` |
-| 503 | More than `max_in_flight` (64) concurrent requests | `the service is at its in-flight limit`, `Retry-After: 5` |
+| 503 | More than `max_in_flight` (64) concurrent requests. GET and HEAD for static files (under `/static/`, or a path ending in .js, .css, a font, an image, .map or .webmanifest, but never under `/api/`) do not count and are never refused | `the service is at its in-flight limit`, `Retry-After: 5` |
 | 503 | `/healthz` with a failing subsystem | the report itself |
 
 **A bigger body for an import or restore route.** `max_body_bytes` (1 MiB)
@@ -129,6 +131,20 @@ app.body_limit("/data/import", 64 * 1024 * 1024); // /data/import/habits, ...
 ```
 
 Above the raised cap the answer is the same 413 as above.
+
+**Browser-policy headers.** Every answer carries
+`Cross-Origin-Opener-Policy: same-origin` (a page this service opens or is
+opened by loses its `window.opener` link to other sites) and a
+`Permissions-Policy` that switches off `accelerometer`, `camera`,
+`display-capture`, `geolocation`, `gyroscope`, `magnetometer`, `microphone`,
+`midi`, `payment` and `usb`. A page that needs one of them calls
+`app.allow_browser_feature("camera")` at start, which sends `camera=(self)`
+instead (a name that is not lowercase letters and `-` is refused). Web Push,
+the share target, the service worker, clipboard and passkeys are not
+affected. `Strict-Transport-Security: max-age=31536000` (no
+`includeSubDomains`, no `preload`) is added only when a trusted proxy reports
+HTTPS, the same rule that decides the `Secure` flag of the session cookie
+(§6); a header a handler sets itself is never overwritten.
 
 Proven by: `app::tests::body_limit::*`,
 `shell::http::tests::body_limit_counts_streamed_bytes_and_picks_the_longest_prefix`,
@@ -361,7 +377,10 @@ fallback = "http://10.10.10.5:8123/api/webhook/${INBOX_HA_HOOK}"
   not set. What now: export X=<value> in the environment file; secrets
   never go in the config file`.
 - `body` is a minijinja template over `service`, `kind`, `at`, `version`,
-  `detail`; without it the event is sent as JSON with those five fields.
+  `detail` and, for a notification sent with a link (`Notifier::emit_linked`,
+  NOTIFY_DESIGN.md), `title` and `url` (absent otherwise: test with
+  `{% if url %}`); without it the event is sent as JSON with the five fields,
+  followed by `title` and `url` when the notification has them.
   `Content-Type: application/json` is added unless a header sets one.
 - Kit events: `service.started` (after bind), `update.installed`,
   `update.ok`, `update.failed`, `update.rolled_back`, `update.held`,

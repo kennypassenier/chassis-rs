@@ -44,7 +44,10 @@ navigation is `Status` (`/`), the clients label (`/clients`, default
 | `GET /passkeys`, `/passkeys/*`, `/api/passkeys*` | admin (login/start+finish: anyone) | Only over HTTPS via a trusted proxy; else 404 with a remedy. |
 | `GET /static/{*name}` | anyone | Embedded assets: `Cache-Control: public, max-age=31536000, immutable` when the URL carries the `?v=<hash>` the layout adds, `no-cache` with a strong `ETag` (304 when unchanged) for a URL without it, such as a font reached from `fonts.css` or a module a project's app imports (fix-13). |
 
-An anonymous browser on an admin route is redirected to `/login` (303);
+An anonymous browser page load on an admin route is redirected to `/login`
+(303); an anonymous script call (`fetch`) gets a JSON 401 `not logged in`
+instead, so it does not follow the redirect into the login page (see
+OPERATIONS.md §5);
 a **client token** on an admin route gets a JSON 401 `a client token
 cannot open the dashboard`. `/` belongs to the kit (README,
 "Conventions worth knowing"): put the API under `/v1/…` and own pages
@@ -599,7 +602,8 @@ never from a list in the layout:
 ## What the kit guarantees around a project page
 
 - **Admin login.** The whole `dashboard_routes` router sits behind
-  `require_admin`: 303 to `/login` for a browser without a session.
+  `require_admin`: 303 to `/login` for a browser page load without a session,
+  a JSON 401 `not logged in` for a script call (`fetch`) without one.
 - **CSRF.** A state-changing request from a browser must come from this
   dashboard. `Sec-Fetch-Site` decides first (every modern browser sends it
   and no referrer policy blanks it): `same-origin` and `none` pass,
@@ -627,7 +631,11 @@ never from a list in the layout:
   style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src
   'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none';
   form-action 'self'`, plus `x-content-type-options: nosniff`,
-  `x-frame-options: DENY`, `referrer-policy: same-origin` (the referrer
+  `x-frame-options: DENY`, `cross-origin-opener-policy: same-origin`, a
+  `permissions-policy` that switches off camera, microphone, geolocation and
+  the other powerful features (`App::allow_browser_feature` opts one back
+  in), `strict-transport-security` over HTTPS only (OPERATIONS.md §5),
+  `referrer-policy: same-origin` (the referrer
   stays inside this host and is blanked towards any other; `no-referrer`
   would blank the browser's `Origin` on our own forms too). The fonts are
   kp-themes' own, vendored under `/static/kp/fonts/…`; nothing loads

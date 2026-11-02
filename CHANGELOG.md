@@ -9,7 +9,45 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Migration
 
-No breaking change; these are the steps that pick up the unreleased fixes.
+No source-breaking change (check-api: a minor), but several answers change
+behaviour, and an app should check each of these once:
+
+- **A script call without a login gets a 401, not a redirect.** A `fetch`
+  to a dashboard route (or any admin route) without a session used to get a
+  303 to `/login`, which `fetch` followed into a 200 HTML page. It now gets
+  401 `{"error":"not logged in","remedy":"..."}`. Client code that looked for
+  the login page in the answer, or for `response.redirected`, must test for
+  status 401 instead. A page load keeps the 303.
+- **Browser features are off by default.** Every answer carries a
+  `Permissions-Policy` that turns off `camera`, `microphone`, `geolocation`,
+  `accelerometer`, `gyroscope`, `magnetometer`, `display-capture`, `midi`,
+  `payment` and `usb`. An app that uses one (a barcode scanner, a map that
+  asks for the position) must call `app.allow_browser_feature("camera")` at
+  start, or the browser refuses the feature.
+- **`Cross-Origin-Opener-Policy: same-origin` on every answer.** A page that
+  relies on `window.opener` with another site (for example a sign-in popup
+  that talks back to the page) stops working; the kit's own pages never do.
+  There is no knob to turn it off. (The kit sends no
+  `Cross-Origin-Resource-Policy`.)
+- **`Strict-Transport-Security` behind HTTPS.** When a trusted proxy reports
+  HTTPS the answers carry `max-age=31536000`, so a browser refuses plain
+  http for that host for a year. An app that is also served on http under the
+  same name must be moved to https first.
+- **A GET share target refuses cross-site requests.** With
+  `ShareTarget::get(path)` a request to that path from a link on another site
+  gets 403; the share sheet of an installed app still works. An app that used
+  the same path as an ordinary link from elsewhere must use another path.
+- **The service worker caches pages and static files only.** Data routes
+  outside `/api` (for example `/data/*.json`) are no longer cached, so an app
+  that counted on offline JSON from the worker must keep that data itself.
+- **`/clients/{id}` belongs to the kit** (the client's own page). An app route
+  at that path is a conflict; rename it. An app that drew its own refresh bar
+  or its own "More" menu follows the steps in the two Added entries below
+  (one refresh control, one overflow menu).
+- **`/favicon.ico`** of an installable app answers a 308 to the app icon
+  unless the web app ships its own file.
+
+These are the steps that pick up the unreleased fixes:
 
 - **Almanac**: set `Pwa::new().start_url("/")` on the web app at `/ui` so
   the installed app opens on its own pages. Pages rendered through the kit
@@ -21,8 +59,9 @@ No breaking change; these are the steps that pick up the unreleased fixes.
   installable from this release, with the icons in `web/pwa/` (including
   `icon.svg`).
 - **Habits**: drop the `no-store` stand-in on the app's JSON data; the worker
-  no longer caches it. Users need no step: the next release of the worker
-  replaces the old cache and the cached `/data/*.json` copies go with it.
+  no longer caches it. Users need no step: the new worker has a new cache name
+  and deletes the old cache, copies of `/data/*.json` included, when it
+  activates.
 - **Habits**: drop `HABITS_MAX_BODY_BYTES` from the env file and call
   `app.body_limit("/data/import", 64 * 1024 * 1024)` instead; every other route
   keeps the 1 MiB cap.
@@ -115,9 +154,6 @@ No breaking change; these are the steps that pick up the unreleased fixes.
   Knobs: `push_subject` (required before sending), `push_ttl_secs` (86400),
   `push_timeout_secs` (10), `push_max_subscriptions` (50), `push_concurrency`
   (8). The notify channel is untouched.
-- **`/favicon.ico` no longer hides an app's own file**: the public redirect to
-  `/pwa/icon-192.png` is only answered when the web app ships no
-  `favicon.ico`; with one, that file is served.
 - **Manifest screenshots and a favicon** (`webapp` PWA, Habits, 2026-11-01):
   `Pwa::screenshot(Screenshot::new(path, "WxH", FormFactor::Narrow | Wide)
   .label(text))`, callable more than once, writes `screenshots` into the
@@ -262,6 +298,9 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Fixed
 
+- **`/favicon.ico` no longer hides an app's own file**: the public redirect to
+  `/pwa/icon-192.png` is only answered when the web app ships no
+  `favicon.ico`; with one, that file is served.
 - **A notification link cannot name another host with a backslash**
   (`[fix-hunt-core-1]`): `Link::new` refused `//host` but accepted `/\host`,
   which a browser reads as `//host`. A backslash in an app-path link is now
@@ -352,7 +391,8 @@ No breaking change; these are the steps that pick up the unreleased fixes.
   503 on about 60 of them, and a browser never fetches an ES module again
   after a 503, so the page stayed on its loading screen. GET and HEAD under
   `/static/` and for page assets (`.js`, `.css`, fonts, images, maps, the
-  manifest) skip the cap; handlers still meet it.
+  manifest) skip the cap; handlers still meet it, and nothing under `/api/` counts as
+  a static file (see `[fix-hunt-core-2]`).
 
 - **The Issue dialog opens as a form again after an issue** (`dashboard`;
   merge of ux-chassis-5): with no reload after an issue, a second "Issue"
