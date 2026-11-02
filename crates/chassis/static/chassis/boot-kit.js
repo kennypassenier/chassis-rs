@@ -12,6 +12,10 @@ import { configureRemember } from '../kp/dist/js/remember.js';
 import { attachLazyRegisters } from '../kp/dist/js/lazy-register.js';
 import { localiseTimes } from './format-text.js';
 import { installRefresh } from './refresh-kit.js';
+import { guardStaleImports } from './stale-import.js';
+
+// A lazy kp chunk gone after an app update reloads the page once.
+guardStaleImports(window);
 
 // 3.12.0: with preferences in the database (prefs-boot.js, put in the page
 // by the server), kp-themes' data-kp-remember reads and writes through the

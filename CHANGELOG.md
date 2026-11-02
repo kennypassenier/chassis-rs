@@ -390,6 +390,13 @@ These are the steps that pick up the unreleased fixes:
 
 ### Fixed
 
+- **A page left open across an app update reloads itself when a lazy kp-themes
+  chunk is gone [fix-stale-chunk-1].** Chunk names carry a content hash, so a
+  changed module gets a new name and the old file 404s after an update.
+  `stale-import.js` (kit pages and installable apps) reloads the tab once
+  (at most once a minute) when a dynamic `import()` fails, instead of the
+  component silently never appearing.
+
 - **Kit pages, three choices of Kenny's (round `[kp11]`)**:
   the login page shows an anonymous visitor only whether the service answers,
   no version and no start time (they stay on Status; `/healthz` is unchanged)
