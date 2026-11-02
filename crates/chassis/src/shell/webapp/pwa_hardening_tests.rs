@@ -95,7 +95,7 @@ fn a_shortcut_icon_link_the_page_already_has_is_not_doubled() {
     use super::inject::with_head_tags;
     let tags = Pwa::new().head_tags(false);
     let page = b"<html><head><link rel=\"shortcut icon\" href=\"/f.ico\"></head></html>";
-    let out = with_head_tags(std::borrow::Cow::Borrowed(&page[..]), false, Some(&tags));
+    let out = with_head_tags(std::borrow::Cow::Borrowed(&page[..]), None, Some(&tags));
     let out = String::from_utf8(out.into_owned()).unwrap();
     assert_eq!(out.matches("rel=\"icon\"").count(), 0, "{out}");
 }

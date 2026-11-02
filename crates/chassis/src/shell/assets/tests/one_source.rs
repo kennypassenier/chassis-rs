@@ -128,3 +128,39 @@ fn the_public_consts_equal_the_statics() {
         CORE_TABLE.first().unwrap()
     ));
 }
+
+/// The modules variant of the web-app runtime (`WebApp::kp_modules`) must hold
+/// the app's one copy of kp-themes' state: it imports per-module entries only,
+/// never the bundle, and the bundle variant never imports an entry.
+#[test]
+fn the_runtime_variants_do_not_mix_deliveries() {
+    let code = |file: &str| -> String {
+        let (_, body) = chassis_owned_js()
+            .find(|(n, _)| *n == file)
+            .unwrap_or_else(|| panic!("{file} is served"));
+        body.lines()
+            .filter(|l| !l.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let modules = code("chassis/webapp-runtime-modules.js");
+    assert!(
+        !modules.contains("kp-themes.min.js"),
+        "modules runtime imports the bundle"
+    );
+    assert!(
+        modules.contains("kp/dist/js/"),
+        "modules runtime imports entries"
+    );
+    let core = code("chassis/webapp-runtime-core.js");
+    assert!(
+        !core.contains("kp/dist/"),
+        "the shared core imports no kp-themes at all"
+    );
+    let bundle = code("chassis/webapp-runtime.js");
+    assert!(bundle.contains("kp-themes.min.js"));
+    assert!(
+        !bundle.contains("kp/dist/js/"),
+        "bundle runtime imports an entry"
+    );
+}

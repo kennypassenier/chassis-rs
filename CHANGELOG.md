@@ -7,6 +7,26 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **`WebApp::kp_modules()`: the injected runtime on kp-themes' per-module
+  entries.** A web app that imports `/static/kp/dist/js/<entry>.js` instead of
+  the one-file bundle held two copies of kp-themes' state next to the runtime
+  (which imported the bundle): the kit's refresh control lost the app's
+  `setStrings` words. With the switch the server injects
+  `webapp-runtime-modules.js`, which imports only entries (`remember.js`,
+  `freshness.js`, `auto-refresh.js`) and leaves effects, dialogs and pickers to
+  the app's `auto.js`. Without the switch nothing changes: the runtime stays on
+  the bundle as in 4.2.0. Both variants share one core
+  (`webapp-runtime-core.js`).
+
+### Migration
+
+- **Kitchen (and any app on the per-module entries):** call
+  `.kp_modules()` on the `WebApp` when the app imports `dist/js/` entries.
+  Apps still on the bundle (Almanac, Habits, Medicine Cabinet,
+  HTTPSwitchboard) change nothing.
+
 ## [4.2.0] - 2026-11-02
 
 ### Migration
