@@ -30,6 +30,12 @@ helper for the app's own axum routes.
    not touch the copy again until the server answers. There is no `overwrite`
    policy.
 
+**Early answers** (fix-habits-data-4). `get(path, { from })`: `from` is a Response (or a
+promise of one) the app started in the page head. The kit does not read the browser's
+preload cache (its own requests are `no-store`, so the browser's cache never poses as a
+live answer); the app passes the response it already awaited. Same URL and a 2xx only;
+anything else is warned about and ignored. The answer then follows the normal read path.
+
 **`chassisData` is there before the app's modules** (fix-habits-data-5). The runtime
 tag is injected right after `<head>` (both variants), so it executes before the
 app's own module scripts; `window.chassisDataReady` and the `chassis-data-ready`

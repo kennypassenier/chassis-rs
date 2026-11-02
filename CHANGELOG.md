@@ -9,6 +9,11 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Fixed
 
+- **`get(path, { from })` takes over an answer the app already has** [fix-habits-data-4] (Habits). A
+  `<link rel="preload" as="fetch">` cannot be reached by `get()` (it sends `no-store`), so the app hands over the
+  response of its own early `fetch(path, { credentials: 'same-origin' })`, or a promise of it. A good answer for the
+  same URL is used as the first read (stored like any online answer, no second download); an answer for another URL,
+  a refusal or a failed fetch is reported and the service is asked as usual.
 - **`window.chassisData` exists before the app's modules run** [fix-habits-data-5] (Habits). The server now puts the
   runtime tag (either variant) right after the `<head>` opening instead of before `</head>`, so module scripts of the
   app, which run in document order, find `window.chassisData`. `window.chassisDataReady` (a promise of the facade) and
