@@ -11,7 +11,8 @@ use crate::core::error::Error;
 use crate::shell::config_load::Loaded;
 use crate::shell::guards::Guards;
 use crate::shell::health::{self, Health};
-use crate::shell::http::{AccessState, HtmlErrorRenderer, with_kit_layers};
+use crate::shell::http::body_limit::BodyLimits;
+use crate::shell::http::{AccessState, HtmlErrorRenderer, with_kit_layers_limited};
 use crate::shell::metrics::{Metrics, metrics_handler};
 
 /// A flush hook, run once the server drained.
@@ -96,11 +97,11 @@ impl App {
             &self.browser_features,
             guards.trusted_proxies.clone(),
         )?;
-        let router = with_kit_layers(
+        let router = with_kit_layers_limited(
             router,
             guards,
             access,
-            self.limits.max_body_bytes,
+            BodyLimits::new(self.limits.max_body_bytes, self.body_limits.clone())?,
             html_errors,
         )
         // Outside the kit's layers: every answer, errors included.

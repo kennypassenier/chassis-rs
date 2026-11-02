@@ -292,6 +292,8 @@ pub struct App {
     subsystems: Vec<Arc<dyn Subsystem>>,
     scrape_sources: Vec<Arc<dyn ScrapeSource>>,
     timeout_exempt: HashSet<String>,
+    /// Raised request-body caps per path prefix ([`App::body_limit`]).
+    body_limits: Vec<(String, usize)>,
     /// Browser features opted back in on the `Permissions-Policy`.
     browser_features: Vec<String>,
     /// feat-guard-1: the project's checks in front of every route.

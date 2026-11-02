@@ -117,7 +117,22 @@ error` plus the remedy). Proven by:
 | 503 | More than `max_in_flight` (64) concurrent requests | `the service is at its in-flight limit`, `Retry-After: 5` |
 | 503 | `/healthz` with a failing subsystem | the report itself |
 
-Proven by: `login_and_token_rate_limits_answer_429_with_retry_after`,
+**A bigger body for an import or restore route.** `max_body_bytes` (1 MiB)
+stays the cap for every route. An app raises it for the paths that take a
+backup file with `App::body_limit(path_prefix, max_bytes)`: a whole-segment
+prefix, the longest match wins, a prefix not starting with `/` or a cap of 0
+is refused at start. axum's `DefaultBodyLimit` cannot do this: the kit's cap
+wraps the body before any route sees it, so a per-route layer only lowers it.
+
+```rust
+app.body_limit("/data/import", 64 * 1024 * 1024); // /data/import/habits, ...
+```
+
+Above the raised cap the answer is the same 413 as above.
+
+Proven by: `app::tests::body_limit::*`,
+`shell::http::tests::body_limit_counts_streamed_bytes_and_picks_the_longest_prefix`,
+`login_and_token_rate_limits_answer_429_with_retry_after`,
 `oversized_body_on_an_api_route_is_413_not_empty`,
 `shell::guards::tests::in_flight_cap_answers_503_with_retry_after`,
 `shell::guards::tests::timeout_applies_except_to_exempt_prefixes`,
