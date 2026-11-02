@@ -40,9 +40,12 @@ async fn entries_maps_and_the_loose_modules_still_revalidate() {
         assert_eq!(res.headers()["cache-control"], "no-cache", "{name}");
         assert!(res.headers().contains_key("etag"), "{name}");
     }
-    let map = format!("{}.map", a_chunk());
-    let res = serve(Path(map.clone()), RawQuery(None)).await;
-    assert_eq!(res.headers()["cache-control"], "no-cache", "{map}");
+    #[cfg(feature = "source-maps")]
+    {
+        let map = format!("{}.map", a_chunk());
+        let res = serve(Path(map.clone()), RawQuery(None)).await;
+        assert_eq!(res.headers()["cache-control"], "no-cache", "{map}");
+    }
 }
 
 #[test]

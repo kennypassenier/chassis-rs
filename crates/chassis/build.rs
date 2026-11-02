@@ -66,6 +66,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=static");
     println!("cargo:rerun-if-changed=build");
+    println!("cargo:rerun-if-env-changed=CARGO_FEATURE_SOURCE_MAPS");
     let mut files = Vec::new();
     collect(&root, &root, &mut files);
     files.sort();
@@ -73,6 +74,9 @@ fn main() {
     let (mut core_rows, mut webapp) = (String::new(), String::new());
     for rel in &files {
         let Some(mime) = classify(rel) else { continue };
+        if is_source_map(rel) && !source_maps_enabled() {
+            continue;
+        }
         let entry = entry(rel, mime);
         let is_webapp = rel.starts_with(KP_JS_PREFIX) && !core.contains(rel);
         if is_webapp {
@@ -91,6 +95,20 @@ fn main() {
     let manifest = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
     fs::write(out.join("generated_for.rs"), format!("{manifest:?}\n"))
         .unwrap_or_else(|e| fail(&format!("write generated_for.rs: {e}")));
+}
+
+/// Whether the `source-maps` cargo feature is on (cargo hands a feature to
+/// the build script as `CARGO_FEATURE_<NAME>`).
+fn source_maps_enabled() -> bool {
+    env::var_os("CARGO_FEATURE_SOURCE_MAPS").is_some()
+}
+
+/// A source map: embedded only with the `source-maps` feature. The `.js` and
+/// `.css` files keep their `sourceMappingURL` comment (they are embedded
+/// byte for byte, which the manifest gate proves); without the maps the
+/// browser's request for one is a plain 404 from the asset route.
+fn is_source_map(rel: &str) -> bool {
+    rel.ends_with(".map")
 }
 
 /// The kp-themes files the kit pages need must all be vendored: the core

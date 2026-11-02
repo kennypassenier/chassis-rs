@@ -23,6 +23,10 @@ storage = ["core", "dep:rusqlite"]
 # The vendored kp-themes files and fonts, for a project that keeps its own
 # dashboard under the kit's CSP (kyu, Almanac); `dashboard` implies it.
 assets = ["core"]
+# kpsplit-8: embed the source maps (`*.map`, ~12.6 MB) of kp-themes and the
+# kit's JS/CSS. Off by default: only browser devtools ever fetch them. An
+# app that wants them in the browser enables `chassis/source-maps`.
+source-maps = []
 dashboard = ["core", "assets", "storage"]
 passkeys = ["dashboard", "dep:webauthn-rs"]
 self-update = ["core", "dep:minisign-verify", "dep:backon"]

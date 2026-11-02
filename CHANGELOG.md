@@ -43,6 +43,11 @@ No breaking change; these are the steps that pick up the unreleased fixes.
   `/static/kp/dist/js/index.js` (or `core.js` for `applyTheme`) in the same
   release. Never mix the bundle, `dist/js/` and the loose `js/*.js` modules on
   one page: each holds its own theme state.
+- **An app that wants source maps in the browser** (devtools showing the
+  original kp-themes and kit sources): enable `chassis/source-maps` on the
+  dependency. Without it the binary no longer embeds the `.map` files, so
+  a map request answers 404; the scripts and styles still end in their
+  `sourceMappingURL` comment, which devtools then ignores. Nothing else to do.
 
 ### Added
 
@@ -209,6 +214,11 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Changed
 
+- **Source maps are opt-in** (`[kpsplit-8]`): the 327 `.map` files of
+  kp-themes and the kit's JavaScript and CSS (about 12.6 MB) are no longer
+  embedded by default; the new cargo feature `source-maps` (off by default)
+  puts them back. The `.js`/`.css` files are untouched (the manifest gate
+  still proves them), so a map request without the feature is a quiet 404.
 - **kp-themes split delivery for the kit's pages** (kp-themes 12.2.0, vendored
   from main as `12.2.0-pre.00408fb91` until it is released). A kit page now The titanium register is now vendored as well.
   links `dist/kp-themes-base.min.css` instead of the unminified 4.4 MB
