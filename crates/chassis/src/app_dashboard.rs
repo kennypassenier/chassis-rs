@@ -113,6 +113,13 @@ fn passkeys_wanted(open: bool, disabled: &[String]) -> bool {
     cfg!(feature = "passkeys") && !open && !disabled.iter().any(|d| d == "passkeys")
 }
 
+/// The preferences layer for a web app's routes (see
+/// `WebApp::router_with`: it must sit inside the app's gzip layer).
+#[cfg(feature = "webapp")]
+pub(crate) fn inject_prefs(prefs: Option<&crate::storage::Prefs>, r: Router) -> Router {
+    kit_routes::inject(prefs, r)
+}
+
 /// Whether the dashboard will run open (no login), decided as `mount_with`
 /// does; for the parts that must know before the mount.
 #[cfg(feature = "push")]

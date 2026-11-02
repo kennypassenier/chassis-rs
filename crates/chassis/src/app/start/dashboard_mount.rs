@@ -40,7 +40,8 @@ impl App {
             let on = crate::push::mount::will_mount(open, has_db);
             self.webapp.iter_mut().for_each(|w| w.set_push_marker(on));
         }
-        let (dashboard_router, pwa_routes, pwa_head) = self.dashboard_with_webapp()?;
+        let (dashboard_router, pwa_routes, pwa_head) =
+            self.dashboard_with_webapp(stores.prefs.clone())?;
         crate::app_dashboard::mount_with(
             crate::app_dashboard::MountInput {
                 spec: &self.spec,
@@ -107,7 +108,10 @@ impl App {
     /// own pages (feat-webapp-4; the routes must sit outside the login).
     #[cfg(feature = "webapp")]
     #[allow(clippy::type_complexity)]
-    fn dashboard_with_webapp(&mut self) -> Result<(Router, Option<Router>, Option<String>), Error> {
+    fn dashboard_with_webapp(
+        &mut self,
+        prefs: Option<crate::storage::Prefs>,
+    ) -> Result<(Router, Option<Router>, Option<String>), Error> {
         let apps = std::mem::take(&mut self.webapp);
         crate::shell::webapp::single_installable(&apps)?;
         let brand = self
@@ -123,7 +127,13 @@ impl App {
             .find_map(|w| w.get_share_path().map(String::from));
         let mut merged = std::mem::take(&mut self.dashboard_router);
         for w in apps {
-            merged = merged.merge(w.router()?);
+            // The preferences go in before the app's gzip layer (see
+            // `WebApp::router_with`); the pages layer outside skips what
+            // already carries the block.
+            let prefs = prefs.clone();
+            merged = merged.merge(
+                w.router_with(move |r| crate::app_dashboard::inject_prefs(prefs.as_ref(), r))?,
+            );
         }
         if let Some(path) = share_path {
             merged = crate::shell::webapp::share_guard::apply(merged, path);
@@ -134,7 +144,10 @@ impl App {
     /// Without the `webapp` feature there is nothing to merge.
     #[cfg(not(feature = "webapp"))]
     #[allow(clippy::type_complexity)]
-    fn dashboard_with_webapp(&mut self) -> Result<(Router, Option<Router>, Option<String>), Error> {
+    fn dashboard_with_webapp(
+        &mut self,
+        _prefs: Option<crate::storage::Prefs>,
+    ) -> Result<(Router, Option<Router>, Option<String>), Error> {
         Ok((std::mem::take(&mut self.dashboard_router), None, None))
     }
 }

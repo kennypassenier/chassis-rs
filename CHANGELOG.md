@@ -9,6 +9,16 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Fixed
 
+- **A browser that asks for gzip now gets `window.chassisPrefs` on the web
+  app's pages.** The preferences block is injected into the web app's HTML by
+  a layer that skips answers already carrying `Content-Encoding`, and that
+  layer sat outside the web app's own gzip layer, so every real browser
+  (`Accept-Encoding: gzip`) got the page without the block and without
+  per-login preferences. The layer now sits inside the compression
+  (`WebApp::router_with`). The runtime script, PWA head tags, push marker and
+  icons were never affected: they are injected while the file is read, before
+  any compression.
+
 - **The login lands on the page the visitor came from.** A logged-out page
   load is redirected to `/login?next=<path and query>`, the login form keeps
   it in a hidden field, and a successful login (token or passkey) goes there
