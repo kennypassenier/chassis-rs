@@ -69,6 +69,7 @@ mod stop;
 #[cfg(feature = "storage")]
 mod storage_open;
 mod storage_setup;
+mod sync_setup;
 #[cfg(test)]
 mod tests;
 mod validate;
@@ -268,6 +269,14 @@ pub struct App {
     storage_budget: Option<(u64, Option<u64>)>,
     #[cfg(feature = "storage")]
     storage_warn_hook: Option<crate::storage::WarnHook>,
+    /// feat-localdb-1: the collections of the local database, the app's
+    /// loader of current bodies and an optional source of its own.
+    #[cfg(feature = "storage")]
+    sync_collections: Vec<crate::storage::sync::SyncCollection>,
+    #[cfg(feature = "storage")]
+    sync_load: Option<Arc<dyn crate::storage::sync::SyncLoad>>,
+    #[cfg(feature = "storage")]
+    sync_source: Option<Arc<dyn crate::storage::sync::SyncSource>>,
     /// 3.12.0: the localStorage keys that sync to the database, and an
     /// optional store other than the app database.
     #[cfg(feature = "dashboard")]

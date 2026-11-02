@@ -160,6 +160,9 @@ struct Inner {
     kit_problems: Mutex<Vec<StorageProblem>>,
     /// Removes expired sessions from the kit file; set by the dashboard.
     kit_prune: Mutex<Option<KitPrune>>,
+    /// Removes old tombstones of the local database's change log; set at
+    /// start when the app declares sync collections (feat-localdb-1).
+    sync_prune: Mutex<Option<KitPrune>>,
     report: Mutex<Option<StorageReport>>,
     hook: Option<WarnHook>,
 }

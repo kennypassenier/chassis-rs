@@ -54,8 +54,9 @@ impl Storage {
     }
 
     /// Remove, on the app's side, the rows of declared kinds that are
-    /// finished by their own definition, and, on the kit's side, the
-    /// sessions that expired. Nothing else is ever removed on its own.
+    /// finished by their own definition and the sync tombstones past their
+    /// retention window, and, on the kit's side, the sessions that expired.
+    /// Nothing else is ever removed on its own.
     pub fn prune_finished(&self) -> Result<(), Error> {
         if let Some(app) = &self.inner.app {
             app.prune_finished()?;
@@ -66,6 +67,14 @@ impl Storage {
             tracing::info!(
                 removed,
                 "storage: removed expired sessions from the kit database"
+            );
+        }
+        let sync_prune = self.inner.sync_prune.lock().expect("prune lock").clone();
+        if let Some(f) = sync_prune {
+            let removed = f()?;
+            tracing::info!(
+                removed,
+                "storage: removed old tombstones of the sync change log"
             );
         }
         Ok(())

@@ -18,6 +18,9 @@ pub(super) struct Stores {
     pub(super) storage: crate::storage::Storage,
     #[cfg(feature = "dashboard")]
     pub(super) prefs: Option<crate::storage::Prefs>,
+    #[cfg(feature = "storage")]
+    #[cfg_attr(not(feature = "dashboard"), allow(dead_code))]
+    pub(super) sync: Option<crate::storage::sync::SyncService>,
     #[cfg(all(feature = "notify", feature = "dashboard"))]
     pub(super) notify_state: Option<crate::shell::notify_api::NotifyState>,
 }
@@ -71,6 +74,9 @@ impl App {
                 storage.app(),
             )?),
         };
+        // feat-localdb-1: the local database's feeds.
+        #[cfg(feature = "storage")]
+        let sync = self.build_sync(loaded, &storage)?;
         // 3.15.0: the shared sender, on the kit file.
         #[cfg(all(feature = "notify", feature = "dashboard"))]
         let notify_code = self.notify_code_targets.take();
@@ -93,6 +99,8 @@ impl App {
             storage,
             #[cfg(feature = "dashboard")]
             prefs,
+            #[cfg(feature = "storage")]
+            sync,
             #[cfg(all(feature = "notify", feature = "dashboard"))]
             notify_state,
         })

@@ -96,6 +96,12 @@ impl App {
             storage_budget: None,
             #[cfg(feature = "storage")]
             storage_warn_hook: None,
+            #[cfg(feature = "storage")]
+            sync_collections: Vec::new(),
+            #[cfg(feature = "storage")]
+            sync_load: None,
+            #[cfg(feature = "storage")]
+            sync_source: None,
             #[cfg(feature = "dashboard")]
             browser_keys: None,
             #[cfg(feature = "dashboard")]

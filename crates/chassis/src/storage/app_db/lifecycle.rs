@@ -53,6 +53,9 @@ impl AppDb {
     ) -> Result<(), Error> {
         // The kit's preferences table sits beside the app's own schema.
         db.write_blocking(|tx| Ok(tx.execute_batch(crate::storage::prefs::PREFS_DDL)?))?;
+        // The change log of the local database (feat-localdb-1), beside it: an
+        // import that runs below may already record its rows as changes.
+        db.write_blocking(|tx| Ok(tx.execute_batch(crate::storage::sync::SYNC_DDL)?))?;
         validate_kinds(&db, &kinds)?;
         dry_run_finished_rules(&db, &kinds)?;
         if let Some(hook) = import {

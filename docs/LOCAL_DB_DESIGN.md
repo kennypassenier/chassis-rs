@@ -204,6 +204,54 @@ wraps IndexedDB in one file and keeps doing so.
   reload without the person typing one); logout purges it. Apps must not
   declare a collection for secrets.
 
+## Server contract, as built (feat-localdb-2)
+
+The server half lives in `chassis::storage::sync` (the `storage` feature;
+the routes need `dashboard`). The wire shapes the page is built against:
+
+- `GET /api/sync` answers
+  `{"collections": [{"name", "key", "rev", "indexes": [..], "shared": bool,
+  "routes": {"list", "item"} | null, "schema": "<16 hex>"}], "schema": "<16 hex>"}`.
+  `key` and `rev` are the item's field names; `routes` is what
+  `SyncCollection::routes` declared (`:id` stands for the key). `schema` of a
+  collection changes when its name, key, rev field, indexes or `shared` change
+  (not when retention does); the top-level `schema` hashes all of them.
+- Collection names are `[a-z][a-z0-9_]{0,39}`; the item route has exactly one `:param`. The first feed page is requested without `since`; `limit` is optional. The `sync` hint data may be `{"collections": [..]}` (what the server sends).
+- `GET /api/sync/<collection>?since=&limit=` answers exactly the shape of
+  decision 2. Unknown collection: 404 in the kit's shape. A `since` the server
+  did not make: 400 in the kit's shape.
+- **Cursors are opaque and come in two kinds.** Between the pages of a read
+  from the beginning (no `since`) the cursor is a *sweep* cursor: the feed keeps
+  listing live items only and the retention floor does not apply to it, because
+  a sweep sends no tombstones and the page drops what the sweep did not
+  mention anyway. The cursor of the last page of a sweep (`more: false`) is a
+  normal cursor, never below the floor. The page treats both alike: keep the
+  string, send it back as `since`. (Without this, a read from the beginning
+  could hand out a cursor the next pull refuses with a 410.)
+- The 410 body is `{"error", "remedy", "code": "resync"}`; `Cache-Control:
+  no-store` on every sync answer.
+- `limit` defaults to 500 (per collection: `SyncCollection::page_limit`) and is
+  clamped to 1..=2000. A page holds at most `limit` changes (upserts plus
+  deletes). An upsert whose item is gone by the time the body is read is left
+  out; its delete arrives in a later page.
+- Scope: a row is served to the login that owns it and to everyone when it was
+  recorded with `tx.sync_upsert` / `tx.sync_delete` (scope `shared`). A
+  per-login collection records with `tx.sync_upsert_for(collection, scope, key,
+  rev)` where `scope` is `login_scope(&caller)`.
+- The `sync` hint is `sync` on the live channel with data
+  `{"collections": ["dishes"]}` (`storage::sync::publish_hint(&live, &[..])`,
+  with the `live` feature). The existing `resync` event of the channel is
+  unchanged.
+- Retention: `<P>_SYNC_RETAIN_DAYS` (a knob; when set by flag, environment or
+  file it wins over `SyncCollection::retain`), else the collection's `retain`,
+  else 30 days.
+- `chassis_sync` is created with `CREATE TABLE IF NOT EXISTS` every time the app
+  file opens (beside the preferences table), not as a numbered migration: an
+  app's one-time import runs inside that open and may already record changes.
+- Create rules (decision 8) are helpers: `client_key(&str)` (400 unless a
+  36-character UUID), `check_create(held, sent_idempotency, recorded_idempotency)`
+  returning `Create`, `Replay` or `KeyExists` (409 `code: "exists"`).
+
 ## Migration from today's chassisData
 
 Additions only, so a kit minor. Both run side by side: `chassisData` keeps its

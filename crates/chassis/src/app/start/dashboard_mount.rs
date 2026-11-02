@@ -70,6 +70,7 @@ impl App {
                 #[cfg(feature = "storage")]
                 storage: Some(stores.storage.clone()),
                 prefs: stores.prefs.clone(),
+                sync: stores.sync.clone(),
                 #[cfg(feature = "notify")]
                 notify: stores.notify_state.take(),
                 #[cfg(feature = "push")]

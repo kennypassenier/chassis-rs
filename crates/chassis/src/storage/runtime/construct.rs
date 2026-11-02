@@ -3,7 +3,6 @@
 
 use std::sync::{Arc, Mutex};
 
-#[cfg(feature = "dashboard")]
 use super::KitPrune;
 use super::{BudgetSetup, Inner, Storage, StorageConfig, Stored, WarnHook};
 use crate::storage::app_db::AppDb;
@@ -31,6 +30,7 @@ impl Storage {
                 kit,
                 kit_problems: Mutex::new(Vec::new()),
                 kit_prune: Mutex::new(None),
+                sync_prune: Mutex::new(None),
                 report: Mutex::new(None),
                 hook,
             }),
@@ -54,6 +54,11 @@ impl Storage {
     #[cfg(feature = "dashboard")]
     pub(crate) fn kit_db(&self) -> Option<&Db> {
         self.inner.kit.as_ref()
+    }
+
+    /// What removes old tombstones of the local database's change log.
+    pub(crate) fn set_sync_prune(&self, f: KitPrune) {
+        *self.inner.sync_prune.lock().expect("prune lock") = Some(f);
     }
 
     /// What removes expired sessions from the kit file.

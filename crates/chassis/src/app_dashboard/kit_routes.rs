@@ -22,6 +22,7 @@ pub(super) struct KitRouters {
     pub(super) admin: Router,
     pub(super) storage_api: Router,
     pub(super) prefs_api: Router,
+    pub(super) sync_api: Router,
     #[cfg(feature = "notify")]
     pub(super) notify_api: Router,
 }
@@ -133,6 +134,11 @@ pub(super) fn build(
             .layer(from_fn_with_state(auth.clone(), require_admin)),
         None => Router::new(),
     };
+    let sync_api = match extra.sync.as_ref() {
+        Some(s) => crate::storage::sync::routes(s.clone())
+            .layer(from_fn_with_state(auth.clone(), require_admin)),
+        None => Router::new(),
+    };
     let set_for_json = page_set.clone();
     let pages_admin = inject(extra.prefs.as_ref(), pages_admin.with_state(dash.clone()))
         .route(
@@ -155,6 +161,7 @@ pub(super) fn build(
         admin: pages_admin,
         storage_api,
         prefs_api,
+        sync_api,
         #[cfg(feature = "notify")]
         notify_api,
     }
