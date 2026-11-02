@@ -20,7 +20,7 @@ export function entryPath(config, item, entry) {
 }
 
 /** The array of a list answer: the answer itself or its `items` field; null for any other shape. */
-function entriesOf(data) {
+export function entriesOf(data) {
     if (Array.isArray(data)) return data;
     return Array.isArray(data?.items) ? data.items : null;
 }

@@ -12,6 +12,7 @@ import { conflictRev, rebase, revOf } from './data-rev.js';
 
 /**
  * hooks: onChange(entries) after any change; onSent(entry, rev, outcome);
+ * onRefused(entry, outcome) (awaited, before the policy answers: the copy goes back to the server's version);
  * onHeld(entry); onDropped(entry); onSyncing(bool) around a replay; onSynced(summary) after it.
  */
 export function createQueue({ store, send, field, policy, hooks = {} }) {
@@ -37,15 +38,16 @@ export function createQueue({ store, send, field, policy, hooks = {} }) {
     }
 
     async function hold(entry, outcome) {
+        // The server wins: whatever the refused edit did to the copy is undone first.
+        try {
+            await hooks.onRefused?.(entry, outcome);
+        } catch (err) {
+            console.warn(`chassisData: the copy of ${entry.path} could not be reset to the server's version.`, err);
+        }
         const answer = decide(policy, entry, outcome);
         if (answer === 'drop') {
             await remove(entry);
             call('onDropped', entry);
-            return 'continue';
-        }
-        // One overwrite per edit: a second refusal must reach a person.
-        if (answer === 'overwrite' && !entry.overwritten) {
-            await persist({ ...entry, overwritten: true, ifMatch: conflictRev(outcome.body, field) });
             return 'continue';
         }
         const skipped = answer === 'skip';
@@ -54,7 +56,7 @@ export function createQueue({ store, send, field, policy, hooks = {} }) {
         return skipped ? 'continue' : 'stop:held';
     }
 
-    /** One entry's turn: 'sent' or 'continue' (dropped / overwritten) with the next, or 'stop:<why>'. */
+    /** One entry's turn: 'sent' or 'continue' (dropped / skipped) with the next, or 'stop:<why>'. */
     async function step(entry) {
         const outcome = await send(entry);
         const kind = classify(outcome.status);
@@ -62,7 +64,12 @@ export function createQueue({ store, send, field, policy, hooks = {} }) {
             const rev = revOf(outcome.body, outcome.etag, field);
             await remove(entry);
             await rebaseBehind(entry, rev);
-            call('onSent', entry, rev, outcome);
+            // Awaited: the copy must be the server's answer before the replay moves on or ends.
+            try {
+                await hooks.onSent?.(entry, rev, outcome);
+            } catch (err) {
+                console.warn(`chassisData: the copy of ${entry.path} could not be updated from the server's answer.`, err);
+            }
             return 'sent';
         }
         if (kind === 'conflict' || kind === 'rejected') return hold(entry, outcome);

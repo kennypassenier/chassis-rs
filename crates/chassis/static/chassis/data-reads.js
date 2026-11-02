@@ -18,6 +18,7 @@ export function createReads(ctx) {
         const route = matchRoute(config, path);
         const kind = classify(outcome.status);
         if (kind === 'ok') return answered(path, route, outcome);
+        if (kind === 'rejected' && (outcome.status === 404 || outcome.status === 410)) await ctx.reconcile.gone(path); // deleted on the server: so is the copy
         if (kind !== 'unreachable') throw refusal(outcome);
         const copy = route ? await cache.read(path) : null;
         if (!copy) throw fail('the service cannot be reached and there is no offline copy of this page.', { status: 0, offline: true });
@@ -27,7 +28,9 @@ export function createReads(ctx) {
     async function answered(path, route, outcome) {
         const rev = revOf(outcome.body, outcome.etag, config.rev);
         const keep = storable(config, ctx.settings(), route, path, outcome.body);
+        // Replaced whole, never merged: the server's answer is the copy.
         if (keep) await cache.remember(path, keep.data, rev, keep.partial);
+        if (route?.kind === 'list') await ctx.reconcile.listAnswered(route, path, outcome.body);
         return { data: outcome.body, rev, offline: false, partial: false, savedAt: null };
     }
 

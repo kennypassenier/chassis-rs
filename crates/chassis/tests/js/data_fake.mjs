@@ -53,7 +53,7 @@ export async function makeClient(svc, options = {}) {
     const storage = options.storage ?? fakeStorage();
     const config = normalize({ name: 'kitchen', routes: ROUTES, ...options.config });
     const data = await createData({
-        config, store, storage, fetch: svc.fetch,
+        config, store, storage, fetch: (...a) => svc.fetch(...a), // late-bound: a test may wrap svc.fetch
         emit: (name, detail) => events.push({ name, detail }),
         setTimer: (fn, ms) => (timers.push({ fn, ms }), timers.length),
         clearTimer: () => {},

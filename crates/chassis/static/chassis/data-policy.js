@@ -21,8 +21,9 @@ export function classify(status) {
  * What to do with a refused edit at replay: `'skip'` (keep it in the failed
  * list for the person to drop or re-save, and carry on with the rest of the
  * queue), `'hold'` (stop the queue behind it until the person decides),
- * `'drop'` (discard it, continue) or `'overwrite'` (send it again against the
- * server's current revision, continue). Kenny's answer to the form
+ * or `'drop'` (discard it, continue). There is no way to force the client's
+ * version over the server's: the server is the master (an old `'overwrite'`
+ * answer is treated as `'skip'`). Kenny's answer to the form
  * offline-conflict ("Overslaan", 2026-11-02) is the one line here; an app may
  * also pass `onConflict` to `configure`.
  */
@@ -30,12 +31,16 @@ export function defaultConflictPolicy(_entry, _outcome) {
     return 'skip';
 }
 
-const ANSWERS = ['skip', 'hold', 'drop', 'overwrite'];
+const ANSWERS = ['skip', 'hold', 'drop'];
 
 /** The policy's answer, checked: an unknown word holds (never loses an edit). */
 export function decide(policy, entry, outcome) {
     const answer = (policy ?? defaultConflictPolicy)(entry, outcome);
     if (ANSWERS.includes(answer)) return answer;
+    if (answer === 'overwrite') {
+        console.warn('chassisData: onConflict answered "overwrite", which no longer exists (the server is the master); skipping the edit instead.');
+        return 'skip';
+    }
     console.warn(`chassisData: onConflict answered ${JSON.stringify(answer)}; holding the edit instead.`);
     return 'hold';
 }
