@@ -54,6 +54,11 @@ export const EDIT_EVENT = 'kp-datatable-edit';
 export const GROUP_EVENT = 'kp-datatable-group';
 /** Fired on the table when a row was moved by its handle: `{ order, key, from, to }` (the row keys in the new order, the moved row's key, its old and new place, counted from 0) [wish-1120, homelab 93]. */
 export const REORDER_EVENT = 'kp-datatable-reorder';
+/**
+ * Fired on the wrapper of a `data-kp-keep-focused-row` table when the row that holds the focus was kept in place of its fresh copy
+ * [medicine-1102]: `{ key, row, fresh }`, the row's key, the kept row and the fresh row set aside.
+ */
+export const ROW_KEPT_EVENT = 'kp-datatable-row-kept';
 /** Rows per page when the consumer does not say [Kenny, 2026-09-13]. Per table as `data-kp-page-size`. */
 export const PAGE_SIZE = 25;
 /** The page sizes on offer when the consumer does not say. Per table as `data-kp-page-sizes="10,25"`, or `none`. */

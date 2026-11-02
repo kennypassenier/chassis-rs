@@ -3,6 +3,7 @@
 import { controllerOf, attachOne, hostsOf } from '../controller.js';
 import { AUTOSIZE } from './constants.js';
 import { AutosizeController } from './controller.js';
+import { holdMeasures } from './schedule.js';
 import { applyState } from './status.js';
 
 /** The controller of an attached box. @param {Element} element */
@@ -37,10 +38,12 @@ export function setAutosizeState(element, state, message) {
  * @returns {() => void} detach
  */
 export function attachAutosize(root = document, options = {}) {
-    const made = hostsOf(root, AUTOSIZE)
-        .filter((area) => !controllerFor(area) && area.getAttribute('data-kp-autosize') !== 'off')
-        .map((area) => attachOne(area, AutosizeController, options))
-        .filter((box) => box !== undefined);
+    const made = holdMeasures(() =>
+        hostsOf(root, AUTOSIZE)
+            .filter((area) => !controllerFor(area) && area.getAttribute('data-kp-autosize') !== 'off')
+            .map((area) => attachOne(area, AutosizeController, options))
+            .filter((box) => box !== undefined),
+    );
     return () => {
         for (const box of made) box.destroy();
     };

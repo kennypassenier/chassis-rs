@@ -15,6 +15,13 @@
 //
 //   setKeys(el, [['/', 'search containers'], [['↑', '↓'], 'move'], [['Mod', 'K'], 'palette']]);
 //
+// A chord, keys pressed one after the other (O, then T), takes a third member [parts-1102]:
+//
+//   setKeys(el, [[['O', 'T'], 'open the overdue tasks', { chord: true }]]);
+//
+// and is drawn as its caps with the dictionary's "then" between them (`.kp-keys__then`, `keysThen`), the way the shortcut sheet
+// shows `g t`; the caps of a chord are a `.kp-keys__caps--chord` group.
+//
 // `Mod` is the platform's modifier: ⌘ on a Mac, Ctrl elsewhere, in the set
 // form and in markup (`data-kp-key="mod"` on a cap is filled by attachKeys).
 // A key is a cap's text, so a page may give "Esc", "Enter" or "⇧". Nothing runs
@@ -29,8 +36,8 @@ export const MOD_CAP = '.kp-kbd[data-kp-key="mod"]';
 export const KEYS = '.kp-keys';
 
 /**
- * One shortcut: the key (or keys pressed together) and what it does.
- * @typedef {[string | readonly string[], string]} KeyPair
+ * One shortcut: the key (or keys pressed together, or one after the other with `{ chord: true }`) and what it does.
+ * @typedef {[string | readonly string[], string] | [string | readonly string[], string, { chord?: boolean }]} KeyPair
  */
 
 /** Whether this is a Mac, where the modifier is ⌘ rather than Ctrl (the palette decides the same way, js/palette.js). */
@@ -39,6 +46,9 @@ function isMac() {
     const platform = /** @type {any} */ (navigator).userAgentData?.platform ?? navigator.platform ?? '';
     return /mac|iphone|ipad/i.test(platform);
 }
+
+/** Whether the modifier key is ⌘ here rather than Ctrl, for a part that names its own shortcuts (the Markdown editor) [habits-1101]. */
+export const isMacPlatform = () => isMac();
 
 /** @param {string} key */
 const capText = (key) => (key.toLowerCase() === 'mod' ? (isMac() ? '⌘' : 'Ctrl') : key);
@@ -54,28 +64,39 @@ export function setKeys(el, pairs) {
     el.classList.add('kp-keys');
     if (!el.hasAttribute('role')) el.setAttribute('role', 'group');
     if (!el.hasAttribute('aria-label') && !el.hasAttribute('aria-labelledby')) el.setAttribute('aria-label', getStrings().keysLabel);
-    el.replaceChildren(
-        ...pairs.map(([keys, what]) => {
-            const item = document.createElement('span');
-            item.className = 'kp-keys__item';
-            const list = typeof keys === 'string' ? [keys] : [...keys];
-            const caps = list.map((key) => {
-                const cap = document.createElement('kbd');
-                cap.className = 'kp-kbd';
-                cap.textContent = capText(key);
-                if (key.toLowerCase() === 'mod') cap.setAttribute('data-kp-key', 'mod');
-                return cap;
-            });
-            if (caps.length > 1) {
-                const group = document.createElement('span');
-                group.className = 'kp-keys__caps';
-                group.append(...caps);
-                item.append(group);
-            } else item.append(...caps);
-            item.append(` ${what}`);
-            return item;
-        }),
-    );
+    el.replaceChildren(...pairs.map(([keys, what, how]) => keyItem(keys, what, how?.chord === true)));
+}
+
+/** One cap. @param {string} key */
+function capOf(key) {
+    const cap = document.createElement('kbd');
+    cap.className = 'kp-kbd';
+    cap.textContent = capText(key);
+    if (key.toLowerCase() === 'mod') cap.setAttribute('data-kp-key', 'mod');
+    return cap;
+}
+
+/** One shortcut's item: its caps (together, or a chord with "then" between them) and its words. @param {string | readonly string[]} keys @param {string} what @param {boolean} chord */
+function keyItem(keys, what, chord) {
+    const item = document.createElement('span');
+    item.className = 'kp-keys__item';
+    const caps = (typeof keys === 'string' ? [keys] : [...keys]).map(capOf);
+    if (caps.length > 1) {
+        const group = document.createElement('span');
+        group.className = chord ? 'kp-keys__caps kp-keys__caps--chord' : 'kp-keys__caps';
+        caps.forEach((cap, i) => {
+            if (chord && i > 0) {
+                const then = document.createElement('span');
+                then.className = 'kp-keys__then';
+                then.textContent = getStrings().keysThen;
+                group.append(then);
+            }
+            group.append(cap);
+        });
+        item.append(group);
+    } else item.append(...caps);
+    item.append(` ${what}`);
+    return item;
 }
 
 /**

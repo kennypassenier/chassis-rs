@@ -5,6 +5,7 @@ import { Controller } from '../controller.js';
 import { rowSelect } from '../row-select.js';
 import { getStrings } from '../strings.js';
 import { draw, parts, say, sync, untick } from './draw.js';
+import { publishLift } from './lift.js';
 import { BOX, SELECTION_ACTION_EVENT, SELECTION_CLEAR_EVENT, SELECTION_EVENT, SELECTION_MATCHING_EVENT, sourcesOf } from './model.js';
 
 /** @typedef {import('./model.js').Memory} Memory */
@@ -46,6 +47,8 @@ export class SelectionBar extends Controller {
         const placement = options.placement ?? bar.getAttribute('data-kp-placement') ?? 'sticky-top';
         bar.setAttribute('data-kp-placement', ['inline', 'floating-bottom'].includes(placement) ? placement : 'sticky-top');
         if (options.names) bar.setAttribute('data-kp-selection-names', options.names);
+        // The room an empty bar holds is the stylesheet's alone; the option only writes the attribute it reads [kyugaps-1102].
+        if (options.room) bar.setAttribute('data-kp-selection-room', options.room === 'fold' ? 'fold' : 'hold');
         if (options.maxNames) bar.setAttribute('data-kp-selection-max', String(options.maxNames));
         this.memory.matchingTotal = Number(options.matching ?? bar.getAttribute('data-kp-select-matching')) || 0;
         this.memory.sources = sourcesOf(bar);
@@ -61,6 +64,7 @@ export class SelectionBar extends Controller {
         this.listen(bar, 'click', (event) => this.onClick(/** @type {MouseEvent} */ (event)));
         this.listen(this.doc, 'keydown', (event) => this.onKey(/** @type {KeyboardEvent} */ (event)));
         sync(bar, this.memory);
+        publishLift(this);
     }
 
     onOptions() {

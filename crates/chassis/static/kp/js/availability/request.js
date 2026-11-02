@@ -4,7 +4,8 @@ import { undoToast } from '../undo-toast.js';
 import { paintKeys } from './api.js';
 import { AVAILABILITY_EVENT, AVAILABILITY_REFUSED_MS, AVAILABILITY_UNDO_MS } from './constants.js';
 import { attr, cellKey, columnFacts, editable, stateOf, wordOf } from './facts.js';
-import { render, say } from './paint.js';
+import { say } from './cell.js';
+import { render } from './paint.js';
 /** @typedef {import('./types.js').AvState} AvState */
 /** @typedef {import('./types.js').AvailabilityAnswer} AvailabilityAnswer */
 

@@ -179,7 +179,8 @@ export class SecretInputControl extends SecretBase {
     onCopy(copy) {
         if (this.parts.input.value === '') return;
         const text = this.parts.input.value;
-        void this.copyOut(copy, () => text, this.name, () => {
+        void this.copyOut(copy, () => text, this.name, (idle) => {
+            copy.textContent = idle;
             delete copy.dataset.kpCopied;
             this.paint();
         });

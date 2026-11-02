@@ -70,6 +70,15 @@ export class TableColumns {
         return row.cells[at]?.getAttribute('data-kp-filter-value')?.trim() ?? this.cellText(row, at);
     }
 
+    /**
+     * The name a row goes by in what the table says (an edit, a move) [forms-1102]: its `data-kp-row-label`, separate from the
+     * key, so a table keyed by an id never reads the id out; `fallback` (what the table said before) when it has none.
+     * @param {HTMLTableRowElement} row @param {string} fallback
+     */
+    nameOf(row, fallback) {
+        return row.dataset.kpRowLabel?.trim() || fallback;
+    }
+
     /** @param {HTMLTableRowElement} row */
     keyOf(row) {
         return row.dataset.kpRowKey ?? row.id ?? '';

@@ -68,6 +68,28 @@ These are the steps that pick up the unreleased fixes:
 - A service that called `app.webapp(..)` twice used to keep only the second
   app; both are now mounted, and two installable ones are refused at start
   (add `.without_pwa()` to all but one).
+- **An app that imports `/static/kp/dist/kp-themes.min.js` itself** (every
+  web app today): nothing to do. The one-file bundle, `dist/kp-themes.css`
+  and `css/fonts.css` are still vendored and served, and the web app's kit
+  runtime (`webapp-runtime.js`) stays on the bundle, so such a page keeps one
+  copy of kp-themes' state. To move a page to the split delivery (about a
+  sixth of the CSS and, once its own code imports names lazily, a fraction
+  of the JavaScript): replace its stylesheet links with
+  `/static/kp/dist/kp-themes-base.min.css`; put the kit's `theme-boot.js` tag
+  below it with the three data attributes the layout writes
+  (`data-register-pattern="/static/kp/dist/css/{theme}-register.min.css"`,
+  `data-themes`, `data-fallback`), keeping the script external; call
+  `attachLazyRegisters({ pattern })` from `dist/js/lazy-register.js` before
+  the theme picker; load `dist/js/auto.js` as a module; and change every
+  `import ... from '/static/kp/dist/kp-themes.min.js'` to
+  `/static/kp/dist/js/index.js` (or `core.js` for `applyTheme`) in the same
+  release. Never mix the bundle, `dist/js/` and the loose `js/*.js` modules on
+  one page: each holds its own theme state.
+- **An app that wants source maps in the browser** (devtools showing the
+  original kp-themes and kit sources): enable `chassis/source-maps` on the
+  dependency. Without it the binary no longer embeds the `.map` files, so
+  a map request answers 404; the scripts and styles still end in their
+  `sourceMappingURL` comment, which devtools then ignores. Nothing else to do.
 
 ### Added
 
@@ -287,6 +309,41 @@ These are the steps that pick up the unreleased fixes:
 
 ### Changed
 
+- **Source maps are opt-in** (`[kpsplit-8]`): the 327 `.map` files of
+  kp-themes and the kit's JavaScript and CSS (about 12.6 MB) are no longer
+  embedded by default; the new cargo feature `source-maps` (off by default)
+  puts them back. The `.js`/`.css` files are untouched (the manifest gate
+  still proves them), so a map request without the feature is a quiet 404.
+- **kp-themes split delivery for the kit's pages** (kp-themes 12.2.0, vendored
+  from main as `12.2.0-pre.00408fb91` until it is released). A kit page now The titanium register is now vendored as well.
+  links `dist/kp-themes-base.min.css` instead of the unminified 4.4 MB
+  `dist/kp-themes.css` plus `fonts.css`, and the worn theme's
+  `dist/css/<theme>-register.min.css` is written before first paint by
+  `theme-boot.js` (still an external file; the server puts the pattern, the
+  theme names and the fallback on its tag) and fetched on demand when a theme
+  is picked (`attachLazyRegisters`, the change is held until the register has
+  loaded). The module entry is `dist/js/auto.js`; the kit's JavaScript
+  imports `dist/js/index.js` / `lazy-register.js` instead of the bundle.
+  `chunk-*.js` files of `dist/js/` are served `immutable` for a year; the
+  entries keep `?v=` / revalidation. `scripts/vendor-kp-themes.sh` takes
+  `--from-dir` to vendor an unreleased tree and now also selects the base
+  stylesheet, the registers and `dist/js/`. The web app's offline page links
+  the base and the formal register only. The embedded assets grow by 20 MB
+  (maps included). Brotli is not added yet. Measured: a kit page's CSS drops from
+  850 KiB to 148 KiB gzip; its JavaScript does not drop yet, because the kit's
+  code imports `dist/js/index.js` (every module, 235 files, 754 KiB gzip
+  against 633 KiB for the bundle) until it imports only the names it uses.
+  [kpsplit-9] It now does: every kit script imports the per-module entries
+  of kp-themes 12.2.0-pre.472fd3474 (`dist/js/overlays.js`, `flash.js`,
+  `forms.js`, ...), and a page that builds a part's name at run time imports
+  `dist/js/<part>.js`. `auto.js` already attaches the dialogs, the effects
+  and the theme pickers on every page, so the kit no longer calls those;
+  its calls for markup that may arrive after the boot stay. Measured in
+  Firefox (cold cache): a kit page's JavaScript drops from about 805 KiB to
+  258 KiB gzip on `/login` and from about 810 KiB to 320-345 KiB on `/`,
+  `/clients` and `/storage`. `index.js` stays served for apps that import it;
+  the build guard checks the folder from every entry, not from `index.js`.
+
 - **Status, Storage and Clients no longer keep an interval each**: the
   three remembered keys (`chassis-status-refresh`, `chassis-storage-refresh`,
   `clients-refresh`) are replaced by the one shared key. A reader's earlier
@@ -332,6 +389,13 @@ These are the steps that pick up the unreleased fixes:
   other destructive action, where it is true.
 
 ### Fixed
+
+- **A page left open across an app update reloads itself when a lazy kp-themes
+  chunk is gone [fix-stale-chunk-1].** Chunk names carry a content hash, so a
+  changed module gets a new name and the old file 404s after an update.
+  `stale-import.js` (kit pages and installable apps) reloads the tab once
+  (at most once a minute) when a dynamic `import()` fails, instead of the
+  component silently never appearing.
 
 - **Kit pages, three choices of Kenny's (round `[kp11]`)**:
   the login page shows an anonymous visitor only whether the service answers,

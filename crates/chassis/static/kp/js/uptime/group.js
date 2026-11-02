@@ -66,5 +66,15 @@ export function leaveGroupCard(el) {
     return { last: group.loading.size === 0, card: group.card, host };
 }
 
-/** Whether a press on a cell opens its quick info. @param {HTMLElement} el */
-export const infoMode = (el) => (SPECS.get(el)?.open ?? el.dataset.kpUptimeOpen) === 'info';
+/** Whether the primary pointer is a finger: nothing hovers, so a hover card is out of reach [ux-1101, uptime-touch]. */
+export const coarsePointer = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
+/**
+ * Whether a press on a cell opens its quick info (the per-period list). "Hover card only" (no `open`) does not apply on a coarse
+ * pointer: a tap opens the quick info there, as `open: 'info'` does everywhere. A strip that says `open: 'none'` stays as it is.
+ * @param {HTMLElement} el
+ */
+export function infoMode(el) {
+    const open = SPECS.get(el)?.open ?? el.dataset.kpUptimeOpen;
+    return open === 'info' || (open === undefined && coarsePointer());
+}

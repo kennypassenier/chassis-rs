@@ -18,4 +18,5 @@ export const GRAPH_OPTION_ATTRIBUTES = [
     'data-kp-detail',
     'data-kp-ring-radius',
     'data-kp-node-radius',
+    'data-kp-graph-height',
 ];

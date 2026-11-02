@@ -4,6 +4,8 @@ import { isAll, isMulti, isTri, itemsOf, triOf, valueOf } from './read.js';
 import { layout } from './plate.js';
 import { roving } from './roving.js';
 import { paintTri, writeTri } from './tri.js';
+import { repaintFold } from './fold.js';
+import { writeGroupTrack } from './track.js';
 
 /** Write a three-way group from a list of the values that must be in; what is left out stays left out. @param {Element} group @param {readonly string[]} values */
 function paintTriValues(group, values) {
@@ -42,4 +44,6 @@ export function paint(group, values) {
     }
     roving(group);
     layout(group);
+    repaintFold(group);
+    writeGroupTrack(group);
 }

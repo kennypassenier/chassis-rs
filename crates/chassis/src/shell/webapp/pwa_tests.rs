@@ -104,7 +104,11 @@ async fn the_worker_is_served_from_the_root_and_never_kept_by_the_http_cache() {
 async fn the_offline_page_and_its_script_are_public_and_kit_styled() {
     let r = routes(WebApp::embedded(FILES));
     let html = body(get_path(&r, "/pwa/offline", &[]).await).await;
-    assert!(html.contains("You are offline") && html.contains("kp-themes.css?v="));
+    assert!(
+        html.contains("You are offline")
+            && html.contains("kp-themes-base.min.css?v=")
+            && html.contains("formal-register.min.css?v=")
+    );
     assert!(
         !html.contains("<script>"),
         "no inline script: the CSP is script-src 'self'"

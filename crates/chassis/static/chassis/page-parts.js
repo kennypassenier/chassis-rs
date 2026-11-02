@@ -10,18 +10,19 @@
 // other kit pages pay nothing; every attach below is idempotent, so a part
 // the shell attaches too is not attached twice.
 // ==========================================================================
-// One source per page: every part comes from kp-themes' single bundle, the
-// same module the shell and the web apps import, so no singleton exists twice.
-const KP_BUNDLE = '../kp/dist/kp-themes.min.js';
+// One source per page: every part comes from kp-themes' dist/js/ folder, the
+// same modules the shell imports and auto.js shares chunks with, so no
+// singleton exists twice.
+const entry = (name) => `../kp/dist/js/${name}.js`;
 const PAGE_PARTS = [
-  ['[data-kp-dialog], [data-kp-dialog-close]', KP_BUNDLE, (m, root) => m.attachDialogs(root)],
-  ['.kp-switch', KP_BUNDLE, (m, root) => m.attachSwitches(root)],
-  ['[data-kp-flash-button]', KP_BUNDLE, (m, root) => m.attachFlashButtons(root)],
-  ['[data-kp-ago]', KP_BUNDLE, (m, root) => m.attachAgo(root)],
-  ['.kp-lede', KP_BUNDLE, (m, root) => m.attachLedes(root)],
-  ['[data-kp-qr]', KP_BUNDLE, (m, root) => m.attachQr(root)],
-  ['.kp-steplist', KP_BUNDLE, (m, root) => m.attachSteplists(root)],
-  ['[data-kp-menu-button]', KP_BUNDLE, (m, root) => m.attachMenuButtons(root)],
+  ['[data-kp-dialog], [data-kp-dialog-close]', entry('overlays'), (m, root) => m.attachDialogs(root)],
+  ['.kp-switch', entry('forms'), (m, root) => m.attachSwitches(root)],
+  ['[data-kp-flash-button]', entry('flash'), (m, root) => m.attachFlashButtons(root)],
+  ['[data-kp-ago]', entry('freshness'), (m, root) => m.attachAgo(root)],
+  ['.kp-lede', entry('lede'), (m, root) => m.attachLedes(root)],
+  ['[data-kp-qr]', entry('qr'), (m, root) => m.attachQr(root)],
+  ['.kp-steplist', entry('steplist'), (m, root) => m.attachSteplists(root)],
+  ['[data-kp-menu-button]', entry('menu-button'), (m, root) => m.attachMenuButtons(root)],
 ];
 
 export async function attachPageParts(root) {

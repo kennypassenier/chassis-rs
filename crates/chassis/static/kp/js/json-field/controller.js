@@ -34,6 +34,8 @@ export class JsonFieldController extends Controller {
         this.state = 'empty';
         /** The parsed value of a valid text. @type {unknown} */
         this.parsed = undefined;
+        /** Whether the reader has left the field or tried to submit: only then does an invalid state show its marks [ux-1101]. */
+        this.touched = false;
         /** The line the error is on, 0 for none. */
         this.errorLine = 0;
         /** @type {number | undefined} */
@@ -126,6 +128,7 @@ export class JsonFieldController extends Controller {
         if (area.form) {
             this.listen(area.form, 'reset', () =>
                 this.view?.setTimeout(() => {
+                    this.touched = false;
                     this.check();
                     grow(this);
                 }, 0),
@@ -133,6 +136,8 @@ export class JsonFieldController extends Controller {
         }
         this.listen(area, 'input', () => this.onInput());
         this.listen(area, 'blur', () => this.onBlur());
+        // A submit that the field holds back fires `invalid` on it: that is the other way to be touched.
+        this.listen(area, 'invalid', () => this.touch());
         this.listen(area, 'scroll', () => this.onScroll(), { passive: true });
         this.listen(gutter, 'wheel', (event) => this.onGutterWheel(/** @type {WheelEvent} */ (event)), { passive: false });
         this.listen(area, 'keydown', (event) => handleKey(this, /** @type {KeyboardEvent} */ (event)));
@@ -198,8 +203,16 @@ export class JsonFieldController extends Controller {
         this.debounce = this.view?.setTimeout(() => this.check(), JSON_CHECK_MS);
     }
 
+    /** The reader has left the field or tried to submit: show what is wrong, and go on showing it as they type. */
+    touch() {
+        if (this.touched) return;
+        this.touched = true;
+        this.check();
+    }
+
     onBlur() {
         this.view?.clearTimeout(this.debounce);
+        this.touched = true;
         this.check();
         if (this.formatOption() === 'on-blur' && this.state === 'valid') this.format();
     }

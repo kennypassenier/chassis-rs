@@ -60,7 +60,7 @@ export class NavFold extends NavFoldCore {
             childList: true,
             characterData: true,
             attributes: true,
-            attributeFilter: ['aria-current', 'hidden', 'disabled', 'aria-disabled', 'data-kp-nav-keep'],
+            attributeFilter: ['aria-current', 'hidden', 'disabled', 'aria-disabled', 'data-kp-nav-keep', 'data-kp-nav-more', 'data-kp-nav-hint'],
         });
     }
 

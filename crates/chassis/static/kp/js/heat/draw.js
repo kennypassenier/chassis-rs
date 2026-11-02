@@ -1,9 +1,9 @@
 // Draws the heat grid from its spec.
 import { getStrings } from '../strings.js';
-import { hostStatePlate } from '../state-plate.js';
 import { calmTone, calmWord, isCalmTones } from '../calm-tones.js';
-import { PLATES, markDrawn, replaceKeepingCard, syncCard, waitForCard } from './card.js';
-import { HEAT_CELL, HEAT_RETRY_EVENT } from './constants.js';
+import { replaceKeepingCard, syncCard, waitForCard } from './card.js';
+import { drawAxis, drawStatePlate, heatArea } from './draw-parts.js';
+import { HEAT_CELL } from './constants.js';
 import { make, toneOf, unit } from './dom.js';
 import { DECORATE, LIT, STOPS } from './grid-state.js';
 import { removeLegend, setHeatLegend, syncCalmLegend } from './legend.js';
@@ -99,6 +99,7 @@ export function setHeat(el, spec, options) {
     el.setAttribute('data-kp-heat', '');
     el.setAttribute('role', 'grid');
     if (spec.label && !el.hasAttribute('aria-label')) el.setAttribute('aria-label', spec.label);
+    if (spec.days) el.setAttribute('data-kp-heat-days', spec.days);
     el.setAttribute('data-kp-state', state);
     el.toggleAttribute('aria-busy', loading);
     if (loading) el.setAttribute('aria-busy', 'true');
@@ -107,53 +108,11 @@ export function setHeat(el, spec, options) {
     else el.setAttribute('data-kp-heat-picked', picked);
 
     if (state === 'empty' || state === 'error') {
-        // The package's state plate over the grid's whole footprint, with a Retry on a failure [state-plates-1019].
-        // A grid told the same state again (a page repainting from its live stream) keeps its plate: a new node would play the
-        // plate's entrance again and drop the focus on its Retry, which reads as a flicker [hlcomp-1019 heat-failed].
-        const title = spec.message ?? (state === 'error' ? s.heatFailed : s.heatEmpty);
-        const kept = PLATES.get(el);
-        if (kept && kept.note.isConnected && el.firstElementChild === kept.note && el.childElementCount === 1) {
-            if (kept.state === state && kept.title === title && kept.text === spec.text && kept.art === spec.art) return;
-        }
-        const note = make(doc, 'div', 'kp-heat__state', { 'data-kp-state': state });
-        note.append(
-            hostStatePlate(el, {
-                kind: state,
-                title,
-                ...(spec.text ? { text: spec.text } : {}),
-                art: spec.art,
-                retryEvent: HEAT_RETRY_EVENT,
-            }),
-        );
-        PLATES.set(el, { note, state, title, text: spec.text, art: spec.art });
-        markDrawn(el);
-        el.replaceChildren(note);
+        drawStatePlate(el, spec, state);
         return;
     }
 
-    /** @param {string} key @param {string} text @param {boolean} minor */
-    const column = (key, text, minor) => {
-        const head = make(doc, 'span', 'kp-heat__col', { role: 'columnheader', 'data-col-key': key });
-        const isPicked = picked != null && key === picked;
-        if (minor) head.setAttribute('data-kp-minor', '');
-        if (isPicked) head.setAttribute('data-kp-picked', '');
-        // A minor name is not drawn: its header keeps the name for a screen reader, with no text to find under a neighbour [heat-deplist-1019].
-        if (minor && !isPicked && text) head.setAttribute('aria-label', text);
-        else head.textContent = text;
-        return head;
-    };
-    const axis = make(doc, 'div', 'kp-heat__row kp-heat__axis', { role: 'row' });
-    axis.append(make(doc, 'span', 'kp-heat__label', { role: 'columnheader', 'aria-hidden': 'true' }));
-    const heads = make(doc, 'div', 'kp-heat__cells', { role: 'none' });
-    // `every` counts the columns that are not marked: `minor: true` is never named and does not count, `minor: false` is always
-    // named, and the rest are named every `every`th, the last of them always (the name before it gives way when the two would
-    // stand side by side) [heat-deplist-1019].
-    const open = columns.map((c, i) => (c.minor === undefined ? i : -1)).filter((i) => i >= 0);
-    const named = new Set(open.filter((_, at) => at % every === 0 || at === open.length - 1));
-    const before = open[open.length - 2];
-    if (every > 1 && before !== undefined && before === open[open.length - 1] - 1) named.delete(before);
-    columns.forEach((c, i) => heads.append(column(c.key, loading && !c.label ? '' : c.label, c.minor ?? !named.has(i))));
-    axis.append(heads);
+    const axis = drawAxis(doc, columns, { every, picked, loading });
 
     let r = -1;
     /** @param {HeatRow} row @param {boolean} summary */
@@ -216,6 +175,8 @@ export function setHeat(el, spec, options) {
                 'data-col-key': col.key,
                 'aria-label': cell?.aria && !(calm && tone === 'quiet') ? cell.aria : `${row.label}, ${col.label}${said ? `: ${said}` : ''}`,
             });
+            // What the cell says, for its row's list of days [heatstates-1102].
+            if (said) button.setAttribute('data-kp-said', said);
             if (tone === 'level') button.style.setProperty('--kp-heat-level', unit(cell?.level));
             if (summary && cell?.share != null) button.style.setProperty('--kp-heat-share', unit(cell.share));
             if (summary) button.setAttribute('data-kp-share', '');
@@ -261,27 +222,4 @@ export function setHeat(el, spec, options) {
         const again = /** @type {HTMLElement | null} */ (el.querySelector(`${HEAT_CELL}[tabindex="0"]`));
         again?.focus({ preventScroll: true });
     }
-}
-
-/**
- * What a loading heat grid's busy card covers: the rows' cells and, below them, whatever the held footprint (js/footprint.js) adds,
- * down to the host's content edge, so the card fills the footprint the grid held and not only the few skeleton rows
- * [hlcomp-1019 heat-busy]. The axis and the names stay beside it.
- * @param {HTMLElement} el
- */
-function heatArea(el) {
-    const cells = [...el.querySelectorAll(':scope > .kp-heat__row:not(.kp-heat__axis) > .kp-heat__cells')].map((c) => c.getBoundingClientRect());
-    if (!cells.length) return [];
-    const box = el.getBoundingClientRect();
-    const style = getComputedStyle(el);
-    const floor = box.bottom - el.clientTop - (Number.parseFloat(style.paddingBottom) || 0);
-    const top = Math.min(...cells.map((r) => r.top));
-    return [
-        {
-            top,
-            left: Math.min(...cells.map((r) => r.left)),
-            bottom: Math.max(floor, ...cells.map((r) => r.bottom)),
-            right: Math.max(...cells.map((r) => r.right)),
-        },
-    ];
 }

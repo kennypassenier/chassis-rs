@@ -3,7 +3,7 @@ import { stopClose, playClose } from '../motion.js';
 import { MENU_CLOSE_EVENT, MENU_OPEN_EVENT } from './constants.js';
 import { countMenu } from './count.js';
 import { decorateItem, drawMenu, menuItems } from './items.js';
-import { keyOf, menuSignature, menus, nextId } from './model.js';
+import { filled, keyOf, menuSignature, menus, nextId } from './model.js';
 import { coveredEdges } from './covered.js';
 import { lowerMenu, placeMenu, raiseMenu, unplaceMenu } from './placement.js';
 /** @typedef {import('./types.js').MenuButtonOptions} MenuButtonOptions */
@@ -136,6 +136,7 @@ export function closeMenu(wrapper, { focus = false } = {}) {
 export function setMenu(wrapper, groups) {
     const s = menus.get(wrapper) ?? wireMenu(/** @type {HTMLElement} */ (wrapper), {});
     if (!s) return;
+    if (groups !== 'loading') filled.set(wrapper, groups);
     if (menuSignature(groups) === s.drawn) {
         s.pending = null;
         return;

@@ -1,6 +1,9 @@
 // Drawing a selection bar from its memory: its parts made once, the count, the names, the offer for all matching rows,
 // the actions and their rules; saying the count; unticking; and syncing the memory with the rows.
 
+import { hostsOf } from '../controller.js';
+import { rowPick } from '../row-pick.js';
+import { ROW_PICK } from '../row-pick/rows.js';
 import { rowSelect } from '../row-select.js';
 import { getStrings } from '../strings.js';
 import { BOX, SELECTION_EVENT, SELECTION_MATCHING_EVENT, SELECTION_NAMES, SELECTION_SAY_MS, make, readSources } from './model.js';
@@ -171,6 +174,7 @@ export function say(bar, memory, text) {
  */
 export function untick(memory) {
     for (const source of memory.sources) {
+        for (const host of hostsOf(source, ROW_PICK)) rowPick(host)?.clear();
         const keys = rowSelect(source);
         if (keys) {
             keys.clear();

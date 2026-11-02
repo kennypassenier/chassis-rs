@@ -21,6 +21,13 @@
  * @property {(count: number) => string} confirmDependents  The heading over what still uses the thing a confirmation would remove, "Still in use by 2" (`data-kp-confirm-dependents`) [kpadopt4]
  * @property {string} confirmBlocked  What a confirmation that may not go ahead says when the page gives no sentence (`data-kp-confirm-blocked`) [kpadopt4]
  * @property {string} confirmClose  The one button of a confirmation that may not go ahead [kpadopt4]
+ * @property {(text: string) => boolean} confirmSaysIrreversible  Whether a confirmation's phrase already says the action cannot be undone; the dictionary's sentence that says so is then left out [uxdialogs1101]
+ * @property {(phrase: string) => string} confirmLabelFrom  Confirm's words built from the phrase's verb and object, "Delete 8 dead letters?" to "Delete 8 dead letters"; '' keeps `confirmAccept` [uxdialogs1101]
+ * @property {string} confirmBack  The way back of a confirmation that took over its dialog's body (`data-kp-dialog-stack="replace"`) [uxdialogs1101]
+ * @property {string} dialogGuardTitle  The question a guarded dialog asks when a changed form would close (`data-kp-dialog-guard`) [uxdialogs1101]
+ * @property {string} dialogGuardText  The sentence under it [uxdialogs1101]
+ * @property {string} dialogGuardKeep  Its way back to the form [uxdialogs1101]
+ * @property {string} dialogGuardDiscard  Its button that closes and drops the changes [uxdialogs1101]
  * @property {string} alarmAction  The button that closes an alarm that must be acknowledged, when the caller names none [scope-94]
  * @property {string} alarmKeepOpen  The button that stops an alarm's countdown and keeps it open [scope-94]
  * @property {string} alarmHint  The key hint beside the acknowledge button; hidden from a screen reader [scope-94]
@@ -116,6 +123,25 @@ export const SPLIT_CONFIRM_CHART_STRINGS = {
     confirmDependents: (count) => `Still in use by ${count}`,
     confirmBlocked: 'Remove what uses it first, then try again.',
     confirmClose: 'Close',
+    // A phrase that says it already drops the dictionary's "This cannot be undone." [uxdialogs1101].
+    confirmSaysIrreversible: (text) => /\b(?:cannot|can['’]t|can not) be undone\b|\birreversibl|\bfor good\b|\bpermanently\b/i.test(text),
+    // "Delete 8 dead letters?" → "Delete 8 dead letters": the first sentence, a question, without "Are you sure you want to"; a long one keeps its verb.
+    confirmLabelFrom: (phrase) => {
+        const first = phrase.trim().split(/(?<=[?.!])\s+/)[0] ?? '';
+        if (!first.endsWith('?')) return '';
+        const bare = first
+            .slice(0, -1)
+            .trim()
+            .replace(/^(?:are you sure(?: you want)?|do you (?:really )?want|really)\s+(?:to\s+)?/i, '');
+        if (!/^\p{L}/u.test(bare) || /^(?:is|are|was|were|do|does|did|should|shall|will|would|can|could|may|might|has|have)\b/i.test(bare)) return '';
+        const label = bare.charAt(0).toLocaleUpperCase() + bare.slice(1);
+        return label.length <= 32 ? label : (label.split(/\s+/)[0] ?? '');
+    },
+    confirmBack: 'Back',
+    dialogGuardTitle: 'Discard your changes?',
+    dialogGuardText: 'What you changed here is not saved yet.',
+    dialogGuardKeep: 'Keep editing',
+    dialogGuardDiscard: 'Discard',
     // The alarm [scope-94]. The headline, the detail and the code line are
     // the caller's words; these are the ones the component adds itself. The
     // countdown and the key hint are hidden from a screen reader, which hears

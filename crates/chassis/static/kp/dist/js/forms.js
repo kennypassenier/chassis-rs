@@ -1,0 +1,3 @@
+/* @kp-soft/themes v12.2.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a as l}from"./chunk-KHHUAIGF.js";import{a,b,c,d,g as e,h as f,i as g,j as h,k as i,l as j,m as k}from"./chunk-WTOXZYIP.js";import"./chunk-K4TM2OLZ.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{d as DONE_EVENT,c as FIELD_EVENT,b as INVALID_EVENT,a as VALID_EVENT,k as attachFormgridColumns,j as attachFormgridStages,i as attachForms,l as attachSwitches,g as clearError,h as form,e as nameOf,f as showError};
+//# sourceMappingURL=forms.js.map

@@ -2,7 +2,7 @@
 import { CELL, UPTIME_PICK_EVENT } from './constants.js';
 import { setUptime } from './draw.js';
 import { edges, fit } from './fit.js';
-import { infoMode, leaveGroupCard } from './group.js';
+import { coarsePointer, infoMode, leaveGroupCard } from './group.js';
 import { UptimeInfo } from './info.js';
 import { CARDS, GROUPS, INFO, SPECS, UNPINNED } from './state.js';
 /** @typedef {import('./types.js').UptimeSpec} UptimeSpec */
@@ -90,6 +90,22 @@ export class UptimeControl extends UptimeInfo {
         return cell && this.host.contains(cell) && !this.panel?.contains(cell) ? cell : null;
     }
 
+    /**
+     * On a coarse pointer a cell is 11 px wide and a finger is not: a tap on the strip's row, between cells or beside one, goes to the
+     * cell nearest to it along the row [ux-1101, uptime-touch]. `data-kp-uptime-row-tap` on the strip asks for the same on any pointer.
+     * @param {MouseEvent} event @returns {HTMLElement | null}
+     */
+    nearestCell(event) {
+        const target = event.target instanceof Element ? event.target : null;
+        if (!(coarsePointer() || this.host.hasAttribute('data-kp-uptime-row-tap')) || target === null || this.panel?.contains(target) || target.closest(TRACK) === null) return null;
+        const cells = /** @type {HTMLElement[]} */ ([...this.host.querySelectorAll(`${TRACK} > ${CELL}:not([hidden])`)]);
+        const distance = (/** @type {HTMLElement} */ cell) => {
+            const box = cell.getBoundingClientRect();
+            return Math.abs(box.left + box.width / 2 - event.clientX);
+        };
+        return cells.reduce((best, cell) => (best === null || distance(cell) < distance(best) ? cell : best), /** @type {HTMLElement | null} */ (null));
+    }
+
     /** The index a key or arrow leads to, or -1 for a key that moves nothing. @param {string} key @param {number} at @param {number} count */
     static target(key, at, count) {
         if (key === 'ArrowRight' || key === 'ArrowDown') return Math.min(count - 1, at + 1);
@@ -130,7 +146,7 @@ export class UptimeControl extends UptimeInfo {
     /** @param {MouseEvent} event */
     onClick(event) {
         const el = this.host;
-        const cell = this.cellOf(event);
+        const cell = this.cellOf(event) ?? this.nearestCell(event);
         if (!cell) return;
         const periods = SPECS.get(el)?.periods ?? [];
         const index = periods.findIndex((p) => p.key === cell.dataset.kpKey);

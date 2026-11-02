@@ -19,6 +19,8 @@ export const WIDGET_NEEDS = [
     { name: 'art', when: '[data-kp-art]', load: () => import('../art.js'), attach: (m, root) => [m.attachArt(root)] },
     // The pipeline [kpadopt4]: a read-only board, a lane per stage with its cards.
     { name: 'pipeline', when: '[data-kp-pipeline]', load: () => import('../pipeline.js'), attach: (m, root) => [m.attachPipelines(root)] },
+    // The board [habits-1101]: lanes of the page's cards that move between lanes, a count and a limit per lane.
+    { name: 'board', when: '[data-kp-board]', load: () => import('../board.js'), attach: (m, root) => [m.attachBoards(root)] },
     // The uptime strip [kpadopt4-ideas]: one cell per period, toned up, degraded, down or without data, in exact figures.
     { name: 'uptime', when: '[data-kp-uptime]', load: () => import('../uptime.js'), attach: (m, root) => [m.attachUptimes(root)] },
     // The command block [kpadopt4-ideas]: one command with its terminal, its admin or sudo badge and a copy that confirms.

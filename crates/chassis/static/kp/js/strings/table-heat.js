@@ -21,6 +21,11 @@
  * @property {string} tableFilterOpenEnd    The open end of a range in its pill
  * @property {(column: string) => string} tableFilterFrom  The lower bound's accessible name
  * @property {(column: string) => string} tableFilterTo    The upper bound's accessible name
+ * @property {string} tableFilterMin    The visible label over a number filter's lower bound, "Min" [ux-1101]
+ * @property {string} tableFilterMax    The visible label over a number filter's upper bound, "Max" [ux-1101]
+ * @property {string} tableFilterFromLabel  The visible label over a date filter's first day, "From" [ux-1101]
+ * @property {string} tableFilterToLabel    The visible label over a date filter's last day, "To" [ux-1101]
+ * @property {string} tableRowMenu  The accessible name of a row's menu button, "More actions" (data-kp-row-actions="menu") [ux-1101]
  * @property {(label: string) => string} tableRemoveFilter  A pill's remove button
  * @property {string} tableClearFilters
  * @property {string} toolbarShowingOnly  The word before the filters that are on, in a list toolbar's active row (js/toolbar.js) [kpadopt-controls]
@@ -36,6 +41,8 @@
  * @property {string} heatKeysPick          Enter or Space on a cell: pick the column [gap-tab-count]
  * @property {string} heatKeysDrop          Escape: drop the picked column [gap-tab-count]
  * @property {string} heatKeysPage          Page Up and Page Down: show earlier or later columns [gap-tab-count]
+ * @property {(row: string, days: number) => string} heatDaysLabel  The name of a heat grid row's list of days, opened by a tap on the row (js/heat/days.js) [heatstates-1102]
+ * @property {string} heatDaysHint  The line under that list's title: what choosing a day does [heatstates-1102]
  * @property {string} heatPagerLabel  The name of a heat grid's Earlier / Today / Later bar for a screen reader (js/heat.js) [wish-1120]
  * @property {string} heatEarlier  The paging bar's button to the page before [wish-1120]
  * @property {string} heatToday  The paging bar's button back to the present [wish-1120]
@@ -131,6 +138,11 @@ export const TABLE_HEAT_STRINGS = {
     tableFilterOpenEnd: 'any',
     tableFilterFrom: (column) => `${column}, from`,
     tableFilterTo: (column) => `${column}, to`,
+    tableFilterMin: 'Min',
+    tableFilterMax: 'Max',
+    tableFilterFromLabel: 'From',
+    tableFilterToLabel: 'To',
+    tableRowMenu: 'More actions',
     tableRemoveFilter: (label) => `Remove filter ${label}`,
     tableClearFilters: 'Clear all filters',
     toolbarShowingOnly: 'Showing only',
@@ -146,6 +158,8 @@ export const TABLE_HEAT_STRINGS = {
     heatKeysPick: 'pick a column',
     heatKeysDrop: 'drop the pick',
     heatKeysPage: 'earlier or later',
+    heatDaysLabel: (row, days) => `${row}: ${days} ${days === 1 ? 'day' : 'days'}`,
+    heatDaysHint: 'Choose a day to mark it in the grid.',
     heatPagerLabel: 'Show another period',
     heatEarlier: 'Earlier',
     heatToday: 'Today',

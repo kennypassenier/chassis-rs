@@ -6,7 +6,7 @@ import { part, stateOf } from './dom.js';
 import { answerReady, answering, lastIndex } from './resume.js';
 import { goNext, takeAnswer } from './flow.js';
 import { activeTrack, tracksOn } from './tracks.js';
-import { trackPrev } from './track-nav.js';
+import { trackPrev } from './track-steps.js';
 import { goToStep, typing } from './api.js';
 
 /** A swipe must run this many times further across than up or down to count as one. */

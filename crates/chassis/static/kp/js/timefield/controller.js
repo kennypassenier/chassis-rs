@@ -50,6 +50,26 @@ export class TimeController extends Controller {
         this.listen(field.input, 'paste', (event) => this.onPaste(/** @type {ClipboardEvent} */ (event)));
         this.listen(field.input, 'keydown', (event) => onKey(field, /** @type {KeyboardEvent} */ (event)));
         this.listen(field.input, 'input', () => this.onInput());
+        this.followFormReset();
+    }
+
+    /**
+     * A form reset brings back the time the field started with, as a native field's does [parts-1102]: the popover form resets
+     * on every open. The browser puts the two inputs back to their default values itself; the field's own value follows after.
+     */
+    followFormReset() {
+        const { field } = this;
+        field.input.defaultValue = field.input.value;
+        field.hidden.defaultValue = field.hidden.value;
+        const form = field.input.form;
+        if (!form) return;
+        this.listen(form, 'reset', () =>
+            queueMicrotask(() => {
+                if (this.destroyed) return;
+                field.write(field.hidden.value, { text: field.input.value, silent: true });
+                field.setInvalid('');
+            }),
+        );
     }
 
     /** Every option is live: presets and the list's entries follow their attributes. */

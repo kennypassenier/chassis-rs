@@ -4,6 +4,7 @@ import { getStrings } from '../strings.js';
 import { SAY_DELAY_MS, SEGMENTED, TRI_ATTRIBUTE, TRI_STATES } from './constants.js';
 import { getSegmentedTri, isAll, itemsOf, labelOf, triOf, valueOf } from './read.js';
 import { roving } from './roving.js';
+import { writeGroupTrack } from './track.js';
 
 /**
  * The words of a three-way group's states: its own `data-kp-segmented-words`, else the dictionary's.
@@ -48,6 +49,50 @@ export function writeTri(item, state) {
         item.append(word);
     }
     word.textContent = `, ${triWords(item)[state]}`;
+    writeTag(item);
+}
+
+/** The visible words of a three-way group (the word look, the default; `data-kp-segmented-tri-look="mark"` hides them) [ux-1101]: its own `data-kp-segmented-tags`, else the dictionary's. @param {Element} item */
+function tagWords(item) {
+    const strings = getStrings();
+    const words = { any: strings.triTagAny, include: strings.triTagInclude, exclude: strings.triTagExclude };
+    const raw = item.parentElement?.closest(SEGMENTED)?.getAttribute('data-kp-segmented-tags');
+    if (!raw) return words;
+    try {
+        const own = JSON.parse(raw);
+        for (const state of TRI_STATES) if (typeof own?.[state] === 'string') words[state] = own[state];
+    } catch (error) {
+        console.warn('kp-segmented: data-kp-segmented-tags is not JSON; the dictionary words stay', error);
+    }
+    return words;
+}
+
+/**
+ * The state as a visible word inside the chip [ux-1101]. All three words stand stacked in one cell and only the chip's own
+ * is drawn, so the chip is as wide as its longest word in every state and nothing moves on a press. Hidden from a screen
+ * reader, which hears the state word after the name. Drawn only in the word look; the mark look keeps it out of sight.
+ * @param {HTMLElement} item
+ */
+function writeTag(item) {
+    let tag = item.querySelector(':scope > .kp-segmented__tag');
+    if (!tag) {
+        tag = document.createElement('span');
+        tag.className = 'kp-segmented__tag';
+        tag.setAttribute('aria-hidden', 'true');
+        const label = item.querySelector(':scope > .kp-segmented__label');
+        if (label) label.after(tag);
+        else item.append(tag);
+    }
+    const words = tagWords(item);
+    tag.replaceChildren(
+        ...TRI_STATES.map((one) => {
+            const part = document.createElement('span');
+            part.dataset.state = one;
+            part.textContent = words[one];
+            return part;
+        }),
+    );
+    item.setAttribute('aria-keyshortcuts', '+ - Delete');
 }
 
 /**
@@ -64,6 +109,7 @@ export function paintTri(group) {
     }
     summaryOf(group, chosen);
     roving(group);
+    writeGroupTrack(group);
 }
 
 /**

@@ -12,8 +12,8 @@ export const make = (doc, tag, className) => {
 const randomId = () => Math.random().toString(36).slice(2, 9);
 
 /**
- * The line under the buttons (the countdown, the reason a field is off, or why it could not be read) with its words and drain,
- * and the polite region a screen reader hears. The line always has its height, so nothing moves when it fills.
+ * The line under the buttons (the reason a field is off, why it could not be read; in the input mode also the countdown) with its
+ * words, the drain (a display field moves it into its value's box) and the polite region a screen reader hears. The line always has its height, so nothing moves when it fills.
  * @param {HTMLElement} field
  * @param {Element[]} built collects the parts made here, for detach
  */
@@ -52,18 +52,45 @@ function actionsOf(field, before, built) {
 }
 
 /**
+ * The box the value stands in [uxtouch1101]: the value, the clock at its end edge (the countdown while the value shows) and the
+ * drain along its foot, so showing the value writes inside the field and nothing under it moves. Returns how to put the value
+ * back where it was on detach when the box was made here.
+ * @param {HTMLElement} field @param {HTMLElement} value
+ */
+function boxOf(field, value) {
+    const doc = field.ownerDocument;
+    let box = /** @type {HTMLElement | null} */ (value.closest('.kp-secret__box'));
+    const made = box === null;
+    if (!box) {
+        box = make(doc, 'span', 'kp-secret__box');
+        value.before(box);
+        box.append(value);
+    }
+    const clock = make(doc, 'span', 'kp-secret__clock');
+    // Heard through the polite region instead, at the moments that matter, not once a second.
+    clock.setAttribute('aria-hidden', 'true');
+    box.append(clock);
+    const unbox = () => {
+        clock.remove();
+        if (made && box?.isConnected) box.replaceWith(value);
+    };
+    return { box, clock, unbox };
+}
+
+/**
  * A display field's parts: the value box with the mask, Reveal, Copy (unless `data-kp-secret-copy="false"`) and the line.
  * @param {HTMLElement} field @param {Strings} s @param {Element[]} built
  */
 export function buildDisplay(field, s, built) {
     const doc = field.ownerDocument;
-    let value = /** @type {HTMLElement | null} */ (field.querySelector(':scope > .kp-secret__value'));
+    let value = /** @type {HTMLElement | null} */ (field.querySelector(':scope > .kp-secret__value, :scope > .kp-secret__box > .kp-secret__value'));
     if (!value) {
         value = make(doc, 'code', 'kp-secret__value');
         field.prepend(value);
         built.push(value);
     }
-    const actions = actionsOf(field, value, built);
+    const { box, clock, unbox } = boxOf(field, value);
+    const actions = actionsOf(field, box, built);
     let reveal = /** @type {HTMLButtonElement | null} */ (actions.querySelector('[data-kp-secret-reveal]'));
     if (!reveal) {
         reveal = /** @type {HTMLButtonElement} */ (make(doc, 'button', 'kp-button kp-secret__reveal'));
@@ -81,7 +108,8 @@ export function buildDisplay(field, s, built) {
         actions.append(copy);
         built.push(copy);
     }
-    const parts = { value, reveal, copy, ...buildLine(field, built) };
+    const parts = { value, reveal, copy, clock, unbox, ...buildLine(field, built) };
+    box.append(parts.drain);
     value.id ||= `kp-secret-${randomId()}`;
     reveal.setAttribute('aria-controls', value.id);
     return parts;

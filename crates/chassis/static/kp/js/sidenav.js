@@ -80,6 +80,12 @@
 //   · `data-kp-sidenav-close-on-backdrop="false"`: a click on the backdrop
 //     does nothing, silently, as `close-on-esc="false"` does for Escape.
 //
+// A category that folds or unfolds on a press fires `kp-sidenav-group` on itself, bubbling [habits-1101]: `{ id, expanded, source }`, the
+// id being the one the remembered state uses (`data-kp-remember`, else the heading's words), `source` `pointer` or `keyboard` for the press
+// and `accordion` for a group that closed because another opened. A heading may hold one action beside its toggle, in a
+// `.kp-sidenav__category-action` after the toggle (a "+ New project" button): it stands in the toggle's row and stays when the group is
+// folded; mark it `data-kp-sidenav-slim-hide` to leave it out of the collapsed rail.
+//
 // The last two only matter where a backdrop exists (an `over` panel that did
 // not turn it off); the package's default stays no scrim where the page
 // says so.
@@ -88,6 +94,7 @@ export {
     SIDENAV_TOGGLE_EVENT,
     SIDENAV_SLIM_EVENT,
     SIDENAV_MODE_EVENT,
+    SIDENAV_GROUP_EVENT,
     SIDENAV_PREVENTED_EVENT,
     SIDENAV_OWNED,
     SIDENAV_RESIZER,

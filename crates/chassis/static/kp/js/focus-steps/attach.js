@@ -1,5 +1,5 @@
 // Attaches the focus-steps views of a page.
-import { attachOne } from '../controller.js';
+import { attachOne, controllerOf } from '../controller.js';
 import { FOCUS_STEPS, WIRED } from './constants.js';
 import { FocusStepsControl } from './controller.js';
 
@@ -19,4 +19,20 @@ export function attachFocusSteps(scope = document) {
     return () => {
         for (const control of made) control?.destroy();
     };
+}
+
+/**
+ * Go on, exactly as the Next button does: a question is answered first, the last step ends the flow with Done.
+ * @param {Element} root a focus-steps view that is attached
+ */
+export function nextStep(root) {
+    controllerOf(root, FocusStepsControl)?.next();
+}
+
+/**
+ * Go back, exactly as the Back button does (within the active track when there are tracks).
+ * @param {Element} root a focus-steps view that is attached
+ */
+export function prevStep(root) {
+    controllerOf(root, FocusStepsControl)?.prev();
 }

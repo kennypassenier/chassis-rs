@@ -44,6 +44,15 @@
 // the nav when the folded set changes: `{ folded, items }`. Every word is in
 // the dictionary (`navMore`, `navMoreMenu`, `navMoreAlert`, `navMoreUnavailable`).
 //
+// Links that always sit behind More [parts-1102; Kitchen's bar, chassis-rs Page::group]: `data-kp-nav-more` on a list item
+// pins it in the menu whatever the width, so a page no longer builds the More item itself. The pinned item is folded like any
+// other (its current-page mark and its counter move to the More button), and while one is pinned the More button stays in
+// the bar. A value names the item's group in the menu (`data-kp-nav-more="Settings"`: a heading over the pinned items that
+// share it); empty, the item joins the plain links. `data-kp-nav-hint` on a link or its item is the one-line hint under its
+// entry, in the More menu's rich shape. Below the phone breakpoint, with the bar's toggle, a pinned item is a link in the
+// open list like every other. The mark the script puts on its own More item is `.kp-nav__more[data-kp-nav-more]` (NAV_MORE);
+// a page's pinned item is NAV_PINNED.
+//
 // A separator between two groups of links [kpadopt3] is a list item of its own,
 // `<li class="kp-nav__sep" aria-hidden="true"></li>`: a rule in the bar, never a
 // target. The fold reads it as part of the bar: a separator stands only between
@@ -60,7 +69,7 @@ import { attachOne, controllerOf, hostsOf } from './controller.js';
 import { NavFold } from './nav-fold/controller.js';
 import { NAV_FOLD, NAV_FOLD_OWNED } from './nav-fold/read.js';
 
-export { NAV_FOLD, NAV_FOLD_EVENT, NAV_MORE, NAV_SEP, NAV_FOLD_OWNED } from './nav-fold/read.js';
+export { NAV_FOLD, NAV_FOLD_EVENT, NAV_MORE, NAV_PINNED, NAV_SEP, NAV_FOLD_OWNED } from './nav-fold/read.js';
 export { planFold, planSeparators } from './nav-fold/plan.js';
 
 /**

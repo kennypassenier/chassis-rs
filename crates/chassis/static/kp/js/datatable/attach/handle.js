@@ -2,6 +2,7 @@
 // option attribute changes.
 import { handles } from '../instance.js';
 import { watchOptions } from '../../live-options.js';
+import { watchRows, wireAgain } from './handle-watch.js';
 /** @typedef {import('../instance.js').DataTableHandle} DataTableHandle */
 /** @typedef {import('../events.js').FilterValue} FilterValue */
 /** @typedef {import('../events.js').State} State */
@@ -20,11 +21,11 @@ export class TableHandle {
         this.handle = this.makeHandle();
         handles.set(t.wrap, this.handle);
         t.call.created.push(this.handle);
-        if (!t.controls.serverMode) this.watchRows();
+        if (!t.controls.serverMode) watchRows(t);
         // The options that shape the chrome are read again when their attribute changes: the filter bar and the sort summary are
         // built from them, and the one-row-open rule is read when the table is wired. The table is wired again with the view it
         // had [live-options-1019].
-        t.identity.undo.push(watchOptions(t.wrap, LIVE_OPTIONS, () => this.wireAgain()));
+        t.identity.undo.push(watchOptions(t.wrap, LIVE_OPTIONS, () => wireAgain(t)));
     }
 
     /** @returns {DataTableHandle} */
@@ -98,8 +99,7 @@ export class TableHandle {
             if (column === null) filterEditing.closeFilterEditor(false);
             else filterEditing.openFilterEditor(column, this.t.model.filters.has(column) ? column : null);
         } else if (filterUi.panel !== null && filterUi.toggle !== null) {
-            filterUi.panel.hidden = column === null;
-            filterUi.toggle.setAttribute('aria-expanded', String(!filterUi.panel.hidden));
+            filterUi.setPanelOpen(column !== null);
         }
     }
 
@@ -134,19 +134,24 @@ export class TableHandle {
      * @param {{ keepPage?: boolean }} [options]
      */
     refresh(options) {
-        const { selection, body } = this.t;
+        const { selection, body, keepFocus } = this.t;
+        // The focused row first (data-kp-keep-focused-row, js/datatable/attach/keep-focus.js): back in its fresh copy's place.
+        const kept = keepFocus.restore();
         const active = document.activeElement;
         const inBody = active instanceof HTMLElement && body.contains(active) ? active : null;
         const focusMemo = selection.focusMemo;
         const lost = inBody === null && focusMemo !== null && !focusMemo.element.isConnected && (active === null || active === document.body);
         const memo = inBody !== null ? selection.toggleMemo(inBody) : lost ? focusMemo : null;
-        const held = inBody ?? (lost && focusMemo !== null ? focusMemo.element : null);
+        const keptElement = kept !== null && 'element' in kept ? kept.element : null;
+        const held = inBody ?? keptElement ?? (lost && focusMemo !== null ? focusMemo.element : null);
+        this.t.tracks.release();
         this.readRows();
         this.t.groups.collectGroups();
         this.t.sync.syncColumns();
         this.t.apply.refreshChoices();
         this.t.apply.applyFilter({ keepPage: options?.keepPage === true });
         if (held !== null && document.activeElement !== held) this.focusBack(held, memo);
+        else if (held === null && kept !== null && 'neighbour' in kept) keepFocus.focusNeighbour(kept.neighbour);
     }
 
     /** The rows as the body holds them now: held rows hidden, gone rows forgotten, new rows prepared, their built details dropped. */
@@ -191,73 +196,4 @@ export class TableHandle {
         }
         if (back !== null && !back.hidden && back.closest('tr')?.hidden !== true) back.focus({ preventScroll: true });
     }
-
-    /**
-     * Rows the page added, removed or held are the table's rows at once, without a call to refresh(): the count, the pager and the
-     * pages follow the body [b3b4-1019; homelab gap 34, kyu gap 28]. The table's own sort and page moves put the same rows back in
-     * another order, which changes nothing here.
-     */
-    watchRows() {
-        const { body, model, wrap } = this.t;
-        let queued = false;
-        const resync = () => {
-            queued = false;
-            model.holdRows();
-            const now = [...body.rows].filter((row) => model.isRow(row));
-            if (now.length === model.all.length && now.every((row) => model.all.includes(row))) return;
-            handles.get(wrap)?.refresh({ keepPage: true });
-        };
-        const onBody = () => {
-            if (queued) return;
-            queued = true;
-            queueMicrotask(resync);
-        };
-        const rowsWatch = new MutationObserver(onBody);
-        rowsWatch.observe(body, { childList: true });
-        const holdWatch = new MutationObserver(onBody);
-        holdWatch.observe(body, { attributes: true, attributeFilter: ['data-kp-row-hidden'], subtree: true });
-        this.t.identity.undo.push(() => {
-            rowsWatch.disconnect();
-            holdWatch.disconnect();
-        });
-    }
-
-    /** Wire the table again after an option attribute changed, and give the page's handle the view it had. */
-    wireAgain() {
-        const { wrap, call } = this.t;
-        const old = handles.get(wrap);
-        if (old === undefined) return;
-        const was = old.view();
-        const selected = old.selected();
-        const fresh = this.t.rewire(old);
-        if (fresh === undefined) return;
-        // The page keeps the handle it has: the new table's methods move onto it.
-        Object.assign(old, fresh);
-        handles.set(wrap, old);
-        call.created.splice(call.created.indexOf(fresh), 1, old);
-        restoreView(old, was, selected, call.sortsSeveral(wrap));
-    }
-}
-
-/**
- * Put a view back on a freshly wired table through its handle.
- * @param {DataTableHandle} handle
- * @param {View} was
- * @param {string[]} selected
- * @param {boolean} several whether the table sorts on several columns now
- */
-function restoreView(handle, was, selected, several) {
-    if (was.query !== '') handle.query(was.query);
-    if (was.scope !== null) handle.scope(was.scope);
-    for (const [column, value] of Object.entries(was.filters)) handle.filter(Number(column), /** @type {FilterValue} */ (value));
-    // Going to one sort key keeps the first.
-    if (was.sorts.length > 0) handle.sortBy(several ? was.sorts : was.sorts.slice(0, 1));
-    if (was.pageSize !== handle.view().pageSize) handle.pageSize(was.pageSize);
-    if (was.hidden.length > 0) handle.hideColumns(was.hidden);
-    if (was.density !== handle.view().density) handle.density(was.density);
-    if (was.folded.length > 0) handle.fold(was.folded);
-    if (was.expanded.length > 0) handle.expand(was.expanded);
-    if (selected.length > 0) handle.select(selected);
-    if (was.page > 0) handle.page(was.page);
-    if (was.state !== 'ready') handle.state(was.state);
 }

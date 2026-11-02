@@ -3,10 +3,11 @@ import { Controller, attachOne, controllerOf } from '../controller.js';
 import { motionState } from './state.js';
 import { arrival, arrive, glide } from './arrive.js';
 import { ARRIVE_KEYS } from './constants.js';
+import { ARRIVE_MAX, arriveBudget } from './arrive-cap.js';
 import { switching } from './switching.js';
 import { themeMotion } from './timing.js';
 import { sizeEase, steppedDuration } from './size.js';
-import { repaintedIn } from './leave.js';
+import { batchOf, repaintedIn } from './repaint.js';
 import { arriveMode, firstRender, foldingOutFor, followsAFold, settledHeight } from './fold-size.js';
 /** @typedef {import('./fold-size.js').SizeOptions} SizeOptions */
 
@@ -22,6 +23,8 @@ export class BoxSize extends Controller {
         super(box, options);
         /** Which arrivals play when no `data-kp-arrive` says otherwise. */
         this.fallback = options.arrive ?? 'all';
+        /** How many elements of one batch arrive, unless a region's `data-kp-arrive-max` says otherwise. */
+        this.arriveMax = options.arriveMax ?? ARRIVE_MAX;
         /** The attributes that carry a row's stable id, the page's own first. */
         this.keys = [...(options.arriveKeys ?? []), ...ARRIVE_KEYS];
         /** The height the box was last seen to settle at. */
@@ -203,39 +206,24 @@ export class BoxSize extends Controller {
         /** @type {Set<any> | null} */
         let repainted = null;
         const { hiddenBefore, moved } = batchOf(records);
+        const mayArrive = arriveBudget(this.arriveMax);
         for (const record of records) {
             const mode = this.modeOf(record.target);
             if (mode === 'none') continue;
             const target = record.target;
             if (record.type === 'attributes' && target instanceof HTMLElement && !target.hidden && hiddenBefore.get(target)) {
                 hiddenBefore.delete(target);
-                arrive(target, motion);
+                if (mayArrive(target)) arrive(target, motion);
             }
             // Added to the box, or to a list inside it (rows in a <ul>).
             if (record.type !== 'childList') continue;
             for (const node of record.addedNodes) {
                 if (!(node instanceof HTMLElement) || moved.has(node) || node.hasAttribute('data-kp-ghost')) continue;
                 if (mode === 'new' && (repainted ??= repaintedIn(records, { keys: this.keys })).has(node)) continue;
-                arrive(node, motion);
+                if (mayArrive(node)) arrive(node, motion);
             }
         }
     }
-}
-
-/**
- * What one batch of records says before any arrives: which targets were hidden before it, and which nodes it took out.
- * @param {MutationRecord[]} records
- */
-function batchOf(records) {
-    /** @type {Map<Node, boolean>} */
-    const hiddenBefore = new Map();
-    /** @type {Set<Node>} */
-    const moved = new Set();
-    for (const record of records) {
-        if (record.type === 'attributes' && !hiddenBefore.has(record.target)) hiddenBefore.set(record.target, record.oldValue !== null);
-        if (record.type === 'childList') for (const node of record.removedNodes) moved.add(node);
-    }
-    return { hiddenBefore, moved };
 }
 
 /**
@@ -245,9 +233,9 @@ function batchOf(records) {
  * @param {SizeOptions} [options]
  * @returns {() => void}
  */
-export function easeSize(box, { arrive: fallback = 'all', arriveKeys = [] } = {}) {
+export function easeSize(box, { arrive: fallback = 'all', arriveKeys = [], arriveMax = ARRIVE_MAX } = {}) {
     // A box already eased belongs to the call that eased it: this one gets a detach that does nothing.
     if (controllerOf(box, BoxSize)) return () => {};
-    const control = attachOne(box, BoxSize, { arrive: fallback, arriveKeys });
+    const control = attachOne(box, BoxSize, { arrive: fallback, arriveKeys, arriveMax });
     return () => control?.destroy();
 }

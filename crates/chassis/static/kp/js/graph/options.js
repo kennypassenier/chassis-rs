@@ -20,7 +20,7 @@
  * (an element inside the details panel) and the graph.
  * @typedef {{ id: string, node: GraphNode, slot: HTMLElement, host: HTMLElement, key?: string }} GraphDetailInfo
  * @typedef {{ labels: 'beside' | 'below', chrome: 'outside' | 'inside', colour: 'theme' | 'fixed', direction: 'none' | 'arrows',
- *   zoom: boolean, detail: boolean, ring: number | null, node: number | null }} GraphOptions
+ *   zoom: boolean, detail: boolean, ring: number | null, node: number | null, height: number | null }} GraphOptions
  */
 
 /**
@@ -44,6 +44,7 @@ export function graphOptionsOf(host) {
         detail: flag('data-kp-detail'),
         ring: num('data-kp-ring-radius', 0.15, 0.48),
         node: num('data-kp-node-radius', 6, 40),
+        height: num('data-kp-graph-height', 200, 1200),
     };
 }
 /**
@@ -62,6 +63,7 @@ export function setGraphOptions(el, options) {
         detail: 'data-kp-detail',
         ring: 'data-kp-ring-radius',
         node: 'data-kp-node-radius',
+        height: 'data-kp-graph-height',
     };
     for (const [key, value] of Object.entries(options)) {
         const name = names[key];

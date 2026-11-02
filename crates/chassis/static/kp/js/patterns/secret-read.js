@@ -1,5 +1,5 @@
 // Reads a secret field's value from the page, only when it is shown or copied.
-import { SECRET_REQUEST_EVENT } from './constants.js';
+import { SECRET_MASK, SECRET_REQUEST_EVENT, SECRET_TTL } from './constants.js';
 /** @typedef {import('./types.js').SecretLoad} SecretLoad */
 /** @typedef {import('../strings.js').Strings} Strings */
 
@@ -42,3 +42,18 @@ export function readSecret(field, purpose, load, s) {
 
 /** The words for why a read failed. @param {unknown} error @param {Strings} s */
 export const reasonOf = (error, s) => (error instanceof Error ? error.message : typeof error === 'string' ? error : s.secretNoSource);
+
+/**
+ * The three options of a display field: reveal on press or hold, the seconds it stays shown, and the mask.
+ * @param {HTMLElement} field
+ * @returns {{ hold: boolean, seconds: number, mask: string }}
+ */
+export function displayOptions(field) {
+    const ttl = Math.max(0, Number.parseInt(field.dataset.kpSecretTtl ?? '', 10));
+    const maskLength = Math.max(1, Number.parseInt(field.dataset.kpSecretMask ?? '', 10) || SECRET_MASK);
+    return {
+        hold: field.dataset.kpSecretRevealOn === 'hold',
+        seconds: Number.isFinite(ttl) ? ttl : SECRET_TTL,
+        mask: (field.dataset.kpSecretMaskChar ?? '•').repeat(maskLength),
+    };
+}

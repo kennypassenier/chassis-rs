@@ -24,9 +24,12 @@ export class PanelOpening {
      * @param {HTMLElement} el
      */
     refocusAfterClose(el) {
-        void this.closing.then(() => {
+        // Settled either way: a close whose animation is cancelled (a drawer that holds the panel) still hands the focus back,
+        // or it stayed on <body> [habits-1101 focus-after-esc].
+        const back = () => {
             if (!this.wanted && el.isConnected) el.focus();
-        });
+        };
+        void this.closing.then(back, back);
     }
 
     /** @param {boolean} next */

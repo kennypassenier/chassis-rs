@@ -4,7 +4,7 @@ import { openBusyCard } from '../busy-card.js';
 import { motionAllowed } from '../calm.js';
 import { getStrings } from '../strings.js';
 import { build, drawDisc, paint } from './draw.js';
-import { DEFAULT_TURNS_MAX, DEFAULT_TURNS_MIN, WHEEL_RESULT_EVENT, WHEEL_SPIN_EVENT, part, pickWeighted, stateOf, weightOf, wheelAngles } from './state.js';
+import { DEFAULT_TURNS_MAX, DEFAULT_TURNS_MIN, WHEEL_LOCKED, WHEEL_RESULT_EVENT, WHEEL_SPIN_EVENT, part, pickWeighted, stateOf, weightOf, wheelAngles } from './state.js';
 
 /** @typedef {import('../wheel.js').WheelItem} WheelItem */
 /** @typedef {import('./state.js').WheelState} WheelState */
@@ -128,16 +128,64 @@ export function getWheelResult(root) {
 }
 
 /**
+ * How far and how long a spin travels: whole turns drawn between the wheel's least and most, then the way to the landing; the
+ * time follows the travel unless `settle` fixes it (a follower wheel settles with its leader) [parts-1102].
+ * @param {HTMLElement} root @param {number} land the landing angle @param {() => number} random @param {number | undefined} settle
+ * @returns {{ from: number, to: number, duration: number, short: boolean }}
+ */
+function planSpin(root, land, random, settle) {
+    const state = stateOf(root);
+    const short = reduced();
+    const attr = (/** @type {string} */ name) => {
+        const raw = root.getAttribute(name);
+        const value = raw === null || raw.trim() === '' ? NaN : Number(raw);
+        return Number.isFinite(value) ? Math.max(0, Math.round(value)) : null;
+    };
+    const fixed = attr('data-kp-wheel-turns');
+    const least = attr('data-kp-wheel-turns-min') ?? fixed ?? DEFAULT_TURNS_MIN;
+    const most = Math.max(least, attr('data-kp-wheel-turns-max') ?? fixed ?? DEFAULT_TURNS_MAX);
+    // Drawn last, from the same source: the weights decided the outcome, the turns only lengthen the way to it.
+    const turns = short ? 0 : least + Math.min(most - least, Math.floor(random() * (most - least + 1)));
+    const base = short
+        ? Math.max(0, Number(root.getAttribute('data-kp-wheel-reduced-ms') ?? 600))
+        : Math.max(0, Number(root.getAttribute('data-kp-wheel-duration') ?? 3600));
+    const from = state.angle;
+    const rest = (((-land - from) % 360) + 360) % 360;
+    const to = from + turns * 360 + rest;
+    // The time follows the travel, around the mean travel (the middle turns and half a turn of rest).
+    const mean = ((least + most) / 2 + 0.5) * 360;
+    const own = short ? base : base * Math.min(1.4, Math.max(0.6, (to - from) / mean));
+    return { from, to, duration: settle !== undefined && Number.isFinite(settle) ? Math.max(0, settle) : own, short };
+}
+
+/**
+ * Turn the disc from `from` to `to` in `duration` on the theme's settle, and leave it standing there.
+ * @param {HTMLElement} root @param {{ from: number, to: number, duration: number, short: boolean }} plan
+ */
+async function turnDisc(root, { from, to, duration, short }) {
+    const disc = part(root, 'disc');
+    if (duration > 0 && to !== from) {
+        const ease = getComputedStyle(root).getPropertyValue('--kp-wheel-ease').trim() || 'cubic-bezier(0.12, 0.6, 0.1, 1)';
+        const motion = disc.animate([{ rotate: `${from}deg` }, { rotate: `${to}deg` }], { duration, easing: short ? 'ease-out' : ease, fill: 'forwards' });
+        await motion.finished.catch(() => undefined);
+        disc.style.rotate = `${to}deg`;
+        motion.cancel();
+    } else disc.style.rotate = `${to}deg`;
+}
+
+/**
  * Spin: draw the outcome by the weights, turn the wheel to it, say it.
- * Resolves with the outcome (null when it could not spin).
+ * Resolves with the outcome (null when it could not spin, a locked follower included). `duration` (ms) fixes how long it turns, instead of the time its
+ * travel takes: a wheel that follows another settles with it (`data-kp-wheel-follows`, js/wheel/follow.js).
  * @param {Element} root
- * @param {{ random?: () => number }} [options]
+ * @param {{ random?: () => number, duration?: number }} [options]
  * @returns {Promise<WheelItem | null>}
  */
-export async function spinWheel(root, { random = Math.random } = {}) {
+export async function spinWheel(root, { random = Math.random, duration } = {}) {
     if (!(root instanceof HTMLElement)) return null;
     const state = stateOf(root);
-    if (state.spinning || state.items.length < 2 || root.hasAttribute('aria-busy') || root.hasAttribute('data-kp-wheel-error')) return null;
+    // A follower that waits for its leader's outcome does not spin, whoever asks (js/wheel/follow.js) [parts-1102 r2l].
+    if (state.spinning || state.items.length < 2 || root.hasAttribute('aria-busy') || root.hasAttribute('data-kp-wheel-error') || root.hasAttribute(WHEEL_LOCKED)) return null;
     const avoid = root.getAttribute('data-kp-wheel-repeat') === 'true' ? null : state.last;
     const index = pickWeighted(state.items, { random, avoid });
     if (index < 0) return null;
@@ -150,57 +198,35 @@ export async function spinWheel(root, { random = Math.random } = {}) {
     drawDisc(root, true);
     const [a0, a1] = wheelAngles(state.items.map(weightOf))[index];
     // Somewhere inside the segment, never on its edge.
-    const land = a0 + (a1 - a0) * (0.5 + (random() - 0.5) * 0.6);
-    const short = reduced();
-    const attr = (/** @type {string} */ name) => {
-        const raw = root.getAttribute(name);
-        const value = raw === null || raw.trim() === '' ? NaN : Number(raw);
-        return Number.isFinite(value) ? Math.max(0, Math.round(value)) : null;
-    };
-    const fixed = attr('data-kp-wheel-turns');
-    const least = attr('data-kp-wheel-turns-min') ?? fixed ?? DEFAULT_TURNS_MIN;
-    const most = Math.max(least, attr('data-kp-wheel-turns-max') ?? fixed ?? DEFAULT_TURNS_MAX);
-    // Drawn last, from the same source: the weights decided the outcome above, the turns only lengthen the way to it.
-    const turns = short ? 0 : least + Math.min(most - least, Math.floor(random() * (most - least + 1)));
-    const base = short
-        ? Math.max(0, Number(root.getAttribute('data-kp-wheel-reduced-ms') ?? 600))
-        : Math.max(0, Number(root.getAttribute('data-kp-wheel-duration') ?? 3600));
-    const from = state.angle;
-    const rest = (((-land - from) % 360) + 360) % 360;
-    const to = from + turns * 360 + rest;
-    // The time follows the travel, around the mean travel (the middle turns and half a turn of rest).
-    const mean = ((least + most) / 2 + 0.5) * 360;
-    const duration = short ? base : base * Math.min(1.4, Math.max(0.6, (to - from) / mean));
+    const plan = planSpin(root, a0 + (a1 - a0) * (0.5 + (random() - 0.5) * 0.6), random, duration);
     state.spinning = true;
     root.setAttribute('data-kp-wheel-spinning', '');
     part(root, 'result').setAttribute('aria-busy', 'true');
     paint(root);
-    root.dispatchEvent(new CustomEvent(WHEEL_SPIN_EVENT, { bubbles: true, detail: { item: { ...item }, index, turns: (to - from) / 360 } }));
-    const disc = part(root, 'disc');
-    if (duration > 0 && to !== from) {
-        const ease = getComputedStyle(root).getPropertyValue('--kp-wheel-ease').trim() || 'cubic-bezier(0.12, 0.6, 0.1, 1)';
-        const motion = disc.animate([{ rotate: `${from}deg` }, { rotate: `${to}deg` }], {
-            duration,
-            easing: short ? 'ease-out' : ease,
-            fill: 'forwards',
-        });
-        await motion.finished.catch(() => undefined);
-        disc.style.rotate = `${to}deg`;
-        motion.cancel();
-    } else disc.style.rotate = `${to}deg`;
+    const detail = { item: { ...item }, index, turns: (plan.to - plan.from) / 360, duration: plan.duration };
+    root.dispatchEvent(new CustomEvent(WHEEL_SPIN_EVENT, { bubbles: true, detail }));
+    await turnDisc(root, plan);
+    return settle(root, item, index, plan.to);
+}
+
+/**
+ * The wheel stands on its outcome: drawn, marked, said once, and the result event fired.
+ * @param {HTMLElement} root @param {WheelItem} item @param {number} index @param {number} to
+ * @returns {WheelItem}
+ */
+function settle(root, item, index, to) {
+    const state = stateOf(root);
     state.angle = to % 360;
-    disc.style.rotate = `${state.angle}deg`;
+    part(root, 'disc').style.rotate = `${state.angle}deg`;
     state.spinning = false;
     state.last = item.id;
     root.removeAttribute('data-kp-wheel-spinning');
     root.setAttribute('data-kp-wheel-won', item.id);
     drawDisc(root, true);
     paint(root);
-    const result = part(root, 'result');
-    result.removeAttribute('aria-busy');
     // The status region speaks what changed in it once it is no longer busy: the caption and the name, once. The name
     // simply stands there: the box keeps its two lines, so nothing under the wheel moves.
+    part(root, 'result').removeAttribute('aria-busy');
     root.dispatchEvent(new CustomEvent(WHEEL_RESULT_EVENT, { bubbles: true, detail: { item: { ...item }, index, source: 'spin' } }));
     return { ...item };
 }
-

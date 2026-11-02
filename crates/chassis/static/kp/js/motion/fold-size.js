@@ -94,5 +94,6 @@ export function firstRender(el) {
 /**
  * @typedef {object} SizeOptions
  * @property {'all' | 'new' | 'none'} [arrive] which added elements arrive the theme's way when no `data-kp-arrive` says otherwise: every one (`all`, the default), only those that are not a repaint of a row that just left under the same key (`new`), or none
+ * @property {number} [arriveMax] how many elements of one batch arrive, 12 unless a region's `data-kp-arrive-max` says otherwise
  * @property {readonly string[]} [arriveKeys] more attributes that carry a row's stable id, read before `data-kp-key`, `data-kp-row-key` and `id`
  */

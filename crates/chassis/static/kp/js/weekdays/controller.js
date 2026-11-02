@@ -4,6 +4,7 @@ import { attachSegmented, SEGMENTED_EVENT, setSegmentedItems, setSegmentedValues
 import { WeekdaysCore } from './core.js';
 import { dayNumber } from './names.js';
 import { MONTH_DAYS, SETS, WEEKDAYS_EVENT } from './values.js';
+import { TRACK_VALUE, onTrackWrite, setTrackValue } from '../track-value.js';
 
 export class WeekdayPicker extends WeekdaysCore {
     /**
@@ -39,6 +40,13 @@ export class WeekdayPicker extends WeekdaysCore {
         });
         this.own(attachSegmented(el));
         this.listen(this.group, SEGMENTED_EVENT, (event) => this.onChips(event));
+        // Left the group, or a submit that would send it: the moments a native field's `:user-invalid` starts to show [ux-1101].
+        this.listen(el, 'focusout', (event) => {
+            const next = /** @type {FocusEvent} */ (event).relatedTarget;
+            if (!(next instanceof Node && el.contains(next))) this.touch();
+        });
+        const form = el.closest('form');
+        if (form !== null) this.listen(form, 'submit', () => this.touch());
         this.listen(this.quick.quick, 'click', (event) => this.onPreset(/** @type {MouseEvent} */ (event)));
         this.set(
             (el.dataset.kpValue ?? '')
@@ -47,6 +55,17 @@ export class WeekdayPicker extends WeekdaysCore {
                 .filter(Boolean),
         );
         this.paint();
+        // A tracked picker [forms-1102]: the days as "1,4" with the line in words; Discard and Undo write days back.
+        if (el.hasAttribute(TRACK_VALUE)) {
+            this.track(false);
+            this.own(onTrackWrite(el, (value) => this.set(value.split(',').filter(Boolean))));
+        }
+    }
+
+    /** Keep `data-kp-track-value` in step with the days, when the page asked for it; `announce` for a person's change. @param {boolean} announce */
+    track(announce) {
+        if (!this.host.hasAttribute(TRACK_VALUE)) return;
+        setTrackValue(this.host, this.values().join(','), { text: this.words(), announce, initial: true });
     }
 
     /** Replace the picked days, without the event. @param {readonly (number | string)[]} next */
@@ -59,17 +78,20 @@ export class WeekdayPicker extends WeekdaysCore {
         );
         setSegmentedValues(this.group, wanted);
         this.paint();
+        this.track(false);
     }
 
     /** @param {boolean} fire */
     change(fire) {
         this.paint();
         if (fire) this.host.dispatchEvent(new CustomEvent(WEEKDAYS_EVENT, { bubbles: true, detail: { values: this.values(), summary: this.words(), valid: this.valid() } }));
+        this.track(fire);
     }
 
     /** @param {Event} event */
     onChips(event) {
         if (event.target !== this.group) return;
+        this.touched = true;
         this.change(true);
     }
 
@@ -81,6 +103,7 @@ export class WeekdayPicker extends WeekdaysCore {
         const name = /** @type {keyof typeof SETS} */ (button.dataset.kpWeekdaysPreset);
         const same = button.getAttribute('aria-pressed') === 'true';
         // Pressing the set that is already picked lets it go again: a preset is a toggle, as a chip is.
+        this.touched = true;
         this.set(same ? [] : SETS[name]);
         this.change(true);
     }

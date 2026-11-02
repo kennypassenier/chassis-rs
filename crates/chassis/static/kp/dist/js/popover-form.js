@@ -1,0 +1,3 @@
+/* @kp-soft/themes v12.2.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d,e,f,g,h,i}from"./chunk-BLDODFE7.js";import"./chunk-PXSUTE7V.js";import"./chunk-XTEUHQDW.js";import"./chunk-LJVG4ITM.js";import"./chunk-RMUSFKWU.js";import"./chunk-XAUG53M6.js";import"./chunk-K4TM2OLZ.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{a as POPOVER_FORM,c as POPOVER_FORM_ACCEPT_EVENT,e as POPOVER_FORM_CLOSE_EVENT,d as POPOVER_FORM_OPEN_EVENT,b as POPOVER_FORM_PANEL,f as attachPopoverForms,h as closePopoverForm,g as openPopoverForm,i as setPopoverFormProblem};
+//# sourceMappingURL=popover-form.js.map

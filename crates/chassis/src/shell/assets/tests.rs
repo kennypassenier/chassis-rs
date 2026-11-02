@@ -4,8 +4,10 @@ use super::*;
 use sha2::{Digest, Sha256};
 
 #[cfg(feature = "dashboard")]
+mod chunks;
 mod gzip;
 mod one_source;
+mod source_maps;
 mod static_tree;
 
 /// K15 gate: every vendored copy matches the recorded release hash —

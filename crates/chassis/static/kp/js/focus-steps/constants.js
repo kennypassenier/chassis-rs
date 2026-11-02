@@ -49,6 +49,7 @@ export const SWIPE_DISTANCE = 56;
 /**
  * @typedef {object} FocusStep
  * @property {string} text
+ * @property {Node | string} [body] the longer detail under the text: a Node (copied on every draw) or Markdown drawn with `markdownFragment`
  * @property {FocusAnswer} [answer] makes the step a question
  * @property {(FocusIngredient | string)[]} [ingredients]
  * @property {{ seconds: number, name?: string, id?: string }} [timer] `id` names the timer in the timer list (default: the step's `id`)

@@ -34,6 +34,8 @@ export const WATCHED_ATTRIBUTES = [
     'data-kp-announce',
     'data-kp-refresh-label',
     'data-kp-refresh-title',
+    'data-kp-refresh-line',
+    'data-kp-refresh-stack',
 ];
 
 /** What keeps a refresh from running now: typing in a field outside the control. */

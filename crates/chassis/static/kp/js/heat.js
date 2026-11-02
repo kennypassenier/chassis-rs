@@ -82,6 +82,13 @@
 //   kp-matrix-pick   { rowKey, colKey, cell, source }     a cell was pinned
 //   kp-matrix-light  { keys }                             the headers that are lit changed
 //
+// A row's days [heatstates-1102]: thirty days on a phone are 5 px cells no finger hits, so a tap on a row whose cells are smaller than a
+// fingertip opens the list of that row's days (js/heat/days.js), each a full-height button whose choice presses its cell. The grid's
+// option `data-kp-heat-days` (or `setHeat`'s `days`): `auto` (default: a touch on cells too small), `always` (every pointer press),
+// `off`. Each column's `full` names the day in the list ("Fri 14/10"). openHeatDays(el, rowKey, colKey?) and closeHeatDays(el) drive
+// it from the page; `kp-heat-days` { rowKey, open } is fired as it opens and closes, and a day chosen fires `kp-heat-pick` with
+// `source: 'days'`.
+//
 // Nothing runs on import. attachHeats(root) and attachMatrices(root) return a
 // detach; the hover card (js/hovercard.js) is attached for the cells that
 // carry `data-kp-hovercard`, and a page that wants rich content attaches it
@@ -95,6 +102,8 @@ export {
     HEAT_PAGE_EVENT,
     MATRIX_PICK_EVENT,
     HEAT_RETRY_EVENT,
+    HEAT_DAYS_EVENT,
+    HEAT_DAYS_ATTRIBUTE,
     MATRIX_RETRY_EVENT,
     MATRIX_LIGHT_EVENT,
 } from './heat/constants.js';
@@ -102,7 +111,7 @@ export { setHeat } from './heat/draw.js';
 export { setHeatPick, setHeatRows } from './heat/pick.js';
 export { heatOffset, setHeatPaging, removeHeatPaging } from './heat/paging.js';
 export { setHeatLegend } from './heat/legend.js';
-export { attachHeats } from './heat/wire.js';
+export { attachHeats, openHeatDays, closeHeatDays } from './heat/wire.js';
 export { setMatrix, setMatrixLit, setMatrixPick } from './heat/matrix.js';
 export { attachMatrices } from './heat/matrix-wire.js';
 

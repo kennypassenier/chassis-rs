@@ -57,6 +57,8 @@ export const PAGE_NEEDS = [
         load: () => import('../forms.js'),
         attach: (m, root) => [m.attachForms(root), m.attachSwitches(root), m.attachFormgridStages(root), m.attachFormgridColumns(root)],
     },
+    // The add row of a data table or a form grid [forms-1102].
+    { name: 'add-row', when: '[data-kp-addrow]', load: () => import('../add-row.js'), attach: (m, root) => [m.attachAddRows(root)] },
     {
         name: 'patterns',
         when: '[data-kp-copy], [data-kp-undo-action], [data-kp-secret]',

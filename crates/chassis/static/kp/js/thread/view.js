@@ -4,8 +4,8 @@
 import { openBusyCard } from '../busy-card.js';
 import { Controller } from '../controller.js';
 import { getStrings } from '../strings.js';
-import { messageItem } from './message.js';
-import { atNewest, dayKey, dayLabel, groupMessages, make, threadOptions } from './options.js';
+import { threadList } from './list.js';
+import { atNewest, make, threadOptions } from './options.js';
 
 /** @typedef {import('../thread.js').ThreadSpec} ThreadSpec */
 /** @typedef {ReturnType<typeof getStrings>} Strings */
@@ -167,7 +167,7 @@ export class ThreadView extends Controller {
         scroll.setAttribute('tabindex', '0');
         scroll.setAttribute('role', 'region');
         scroll.setAttribute('aria-label', spec.label ?? el.getAttribute('aria-label') ?? strings.threadLabel);
-        scroll.append(this.listOf(options, locale));
+        scroll.append(threadList(this.host, { spec: this.spec, expanded: this.expanded }, options, locale));
         const jump = make(doc, 'kp-button kp-button--sm kp-thread__jump', 'button');
         jump.setAttribute('type', 'button');
         jump.hidden = true;
@@ -186,33 +186,6 @@ export class ThreadView extends Controller {
             this.scrollToNewest(false);
             jump.hidden = atNewest(scroll, options.order);
         }
-    }
-
-    /** The list: a divider per day (when asked), then each run of messages. @param {ReturnType<typeof threadOptions>} options @param {string} locale */
-    listOf(options, locale) {
-        const doc = this.host.ownerDocument;
-        const sorted = [...(this.spec.messages ?? [])].sort((a, b) => a.at - b.at);
-        const newestKey = [...sorted].reverse().find((m) => m.dir !== 'system')?.key;
-        const groups = groupMessages(sorted, options.group);
-        if (options.order === 'newest') groups.reverse();
-        const list = make(doc, 'kp-thread__list', 'ol');
-        let previousDay = '';
-        for (const group of groups) {
-            const day = dayKey(group[0].at);
-            if (options.days && day !== previousDay) {
-                const divider = make(doc, 'kp-thread__day', 'li');
-                divider.setAttribute('role', 'separator');
-                const text = make(doc, 'kp-thread__day-text', 'time');
-                text.setAttribute('datetime', new Date(group[0].at).toISOString());
-                text.textContent = dayLabel(group[0].at, locale);
-                divider.append(text);
-                list.append(divider);
-            }
-            previousDay = day;
-            const members = options.order === 'newest' ? [...group].reverse() : group;
-            members.forEach((message, index) => list.append(messageItem(doc, message, { options, first: index === 0, newestKey, expanded: this.expanded, locale, spec: this.spec })));
-        }
-        return list;
     }
 
     /** Wrapping changes with the width: the lines a message has, and so its fold, are measured again. */

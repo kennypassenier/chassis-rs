@@ -1,0 +1,3 @@
+/* @kp-soft/themes v12.2.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d,e,f,g}from"./chunk-5JQ2C5HC.js";import"./chunk-5AWNC3VM.js";import"./chunk-MYS6ELVL.js";import"./chunk-YVI4GE7H.js";import"./chunk-K4TM2OLZ.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{f as AcceptFollows,c as FOLLOWS,e as MINIMUM,d as VERB,b as acceptState,a as amountMakesSense,g as attachAcceptFollows};
+//# sourceMappingURL=accept-follows.js.map

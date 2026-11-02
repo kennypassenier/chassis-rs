@@ -8,7 +8,6 @@
 // caller installs it after the remembered-choice store is configured, so the
 // control reads the reader's interval from the right place.
 
-import { attachAgo, attachRefresh, refreshOf, setAgo } from '../kp/dist/kp-themes.min.js';
 import { createRefreshBus } from './refresh-bus.js';
 import { mountRefresh } from './refresh-control.js';
 import { fetchFragment, rereadSections } from './refresh-sections.js';
@@ -17,11 +16,14 @@ const SLOT = '[data-chassis-refresh]';
 
 /**
  * Install the API and mount the slot on `win`/`doc` unless already done.
- * `deps.kp` and `deps.warn` are injectable for a test.
+ * `deps.kp` ({ attachAgo, attachRefresh, refreshOf, setAgo } from the
+ * caller's own copy of kp-themes: dist/js/ on the kit's pages, the bundle in a
+ * web app) is required; `deps.warn` is injectable for a test.
  */
 export function installRefresh(win, doc, deps = {}) {
   if (win.chassisRefresh) return win.chassisRefresh;
-  const kp = deps.kp ?? { attachAgo, attachRefresh, refreshOf, setAgo };
+  const kp = deps.kp;
+  if (!kp) throw new TypeError('installRefresh: deps.kp is required');
   const warn = deps.warn ?? ((text) => console.warn(text));
   const { api, internals } = createRefreshBus({ target: doc });
   // Sections that opt in with data-chassis-refresh-section follow the same tick.

@@ -2,6 +2,7 @@
 // A composite field (a quantity, a time field, a tag input) counts as one control, read and written through js/unsaved/widgets.js.
 
 import { isWidget, readWidget, writeWidget } from './widgets.js';
+import { TRACK_DEFAULT, isTracked } from '../track-value.js';
 
 /** @typedef {HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement} Field */
 
@@ -32,6 +33,7 @@ export function readValue(c) {
  */
 export function readDefault(c) {
     // A composite field is built by script, so there is no markup value a browser could have restored over: what it holds when the bar looks is its saved state.
+    if (isTracked(c) && c.hasAttribute(TRACK_DEFAULT)) return c.getAttribute(TRACK_DEFAULT) ?? '';
     if (isWidget(c)) return readWidget(/** @type {HTMLElement} */ (/** @type {unknown} */ (c)));
     if (c instanceof HTMLInputElement && c.type === 'checkbox') return c.defaultChecked ? 'on' : 'off';
     if (c instanceof HTMLInputElement && c.type === 'radio') {

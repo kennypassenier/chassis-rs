@@ -1,27 +1,10 @@
 // Dialogs: opening at the top, the close label and the attach.
 import { Controller, attachOne } from '../controller.js';
 import { getStrings } from '../strings.js';
-import { DIALOG_OPEN_EVENT } from './constants.js';
+import { attachDialogGuards, requestDialogClose } from './dialog-guard.js';
+import { openDialog } from './dialog-open.js';
 
-/**
- * Put a dialog that has just opened, and its `.kp-dialog__body`, back at
- * the top [scope-96]. A closed dialog keeps its scroll position, so a
- * long dialog scrolled and closed reopened where it was left (Kenny,
- * 2026-09-15: "Bovenaan openen"). Called after showModal()/show(), because
- * a closed dialog has no box to scroll. The one exception is focus: when
- * the element the dialog focused on opening lies below the fold, it is
- * scrolled back into view, as far as needed and no further, so focus is
- * never hidden.
- *
- * @param {HTMLDialogElement} dialog
- */
-export function openAtTop(dialog) {
-    const body = dialog.querySelector(':scope > .kp-dialog__body');
-    for (const box of [dialog, body]) if (box) box.scrollTop = 0;
-    const focused = document.activeElement;
-    if (focused instanceof HTMLElement && focused !== dialog && dialog.contains(focused))
-        focused.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-}
+export { openAtTop, openDialog } from './dialog-open.js';
 
 /**
  * Wire `[data-kp-dialog="<id>"]` buttons to the dialog with that id.
@@ -29,7 +12,10 @@ export function openAtTop(dialog) {
  * showModal() by default: the modal form is the one that traps focus and
  * makes the rest of the page inert. `data-kp-dialog-mode="non-modal"` on
  * the trigger opens with show() instead, for a palette-like panel that
- * must not inert the page.
+ * must not inert the page. A drawer marked `data-kp-drawer-mode="beside"`
+ * opens beside the list (openDialog(), js/overlays/dialog-open.js), and a
+ * dialog marked `data-kp-dialog-guard` asks before a changed form closes
+ * (js/overlays/dialog-guard.js, started here) [uxdialogs1101].
  *
  * @param {ParentNode} root
  * @param {{ modal?: boolean }} [options] the default mode when a trigger says nothing
@@ -44,8 +30,10 @@ export function attachDialogs(root = document, { modal = true } = {}) {
     const closers = /** @type {HTMLElement[]} */ ([...root.querySelectorAll('[data-kp-dialog-close]')])
         .filter((button) => !('kpDialogCloseAttached' in button.dataset))
         .map((button) => attachOne(button, DialogCloser));
+    const stopGuards = attachDialogGuards();
     return () => {
         for (const control of [...triggers.splice(0), ...closers.splice(0)]) control?.destroy();
+        stopGuards();
     };
 }
 
@@ -68,11 +56,7 @@ class DialogTrigger extends Controller {
     open() {
         const { host: trigger, dialog } = this;
         const asModal = trigger.dataset.kpDialogMode === undefined ? this.modal : trigger.dataset.kpDialogMode !== 'non-modal';
-        if (dialog.open) return;
-        if (asModal) dialog.showModal();
-        else dialog.show();
-        openAtTop(dialog);
-        dialog.dispatchEvent(new CustomEvent(DIALOG_OPEN_EVENT, { bubbles: true, detail: { trigger, modal: asModal } }));
+        openDialog(dialog, { trigger, modal: asModal });
     }
 }
 
@@ -83,7 +67,11 @@ class DialogCloser extends Controller {
         button.dataset.kpDialogCloseAttached = '';
         this.own(() => delete button.dataset.kpDialogCloseAttached);
         // The value, if any, becomes the dialog's returnValue — so a consumer's `close` listener can tell "save" from "cancel".
-        this.listen(button, 'click', () => button.closest('dialog')?.close(button.dataset.kpDialogClose || undefined));
+        // Without one (or with `cancel`) it is a way out, which a guarded dialog asks about first [uxdialogs1101].
+        this.listen(button, 'click', () => {
+            const dialog = button.closest('dialog');
+            if (dialog) requestDialogClose(dialog, button.dataset.kpDialogClose || undefined, button);
+        });
     }
 }
 

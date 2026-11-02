@@ -33,7 +33,10 @@ export const tourStepsOnPage = (steps, find) => steps.filter((step) => !!find(st
 /**
  * Where the card goes: centred on its target, kept `gutter` px inside the
  * window, and `gap` px under the target, or over it when the target's middle
- * is in the lower half of the window. Not rounded: a target at a fractional
+ * is in the lower half of the window. When that side has no room the card
+ * takes the other side; when neither side has room (a target taller than the
+ * window) it lies over the target, kept `gutter` px inside the window, so it
+ * is never out of reach [kyugaps-1102]. Not rounded: a target at a fractional
  * position keeps the card exactly `gap` px from it.
  * @param {{ top: number, bottom: number, left: number, width: number, height: number }} target the target's box in the window
  * @param {{ width: number, height: number }} card
@@ -43,8 +46,27 @@ export const tourStepsOnPage = (steps, find) => steps.filter((step) => !!find(st
  */
 export function tourCardPlace(target, card, view, { gutter = TOUR_GUTTER, gap = TOUR_GAP } = {}) {
     const left = Math.max(gutter, Math.min(view.width - card.width - gutter, target.left + target.width / 2 - card.width / 2));
-    const top = target.top + target.height / 2 > view.height / 2 ? target.top - gap - card.height : target.bottom + gap;
-    return { left, top };
+    return { left, top: tourCardTop(target, card, view, gutter, gap) };
+}
+
+/**
+ * The card's top: the preferred side, else the other side, else over the target inside the window.
+ * @param {{ top: number, bottom: number, height: number }} target
+ * @param {{ height: number }} card
+ * @param {{ height: number }} view
+ * @param {number} gutter
+ * @param {number} gap
+ */
+function tourCardTop(target, card, view, gutter, gap) {
+    const above = target.top - gap - card.height;
+    const below = target.bottom + gap;
+    const fitsAbove = above >= gutter;
+    const fitsBelow = below + card.height <= view.height - gutter;
+    const prefersAbove = target.top + target.height / 2 > view.height / 2;
+    if (prefersAbove ? fitsAbove : fitsBelow) return prefersAbove ? above : below;
+    if (prefersAbove ? fitsBelow : fitsAbove) return prefersAbove ? below : above;
+    const highest = Math.max(gutter, view.height - card.height - gutter);
+    return Math.max(gutter, Math.min(highest, prefersAbove ? above : below));
 }
 
 /** Is `el` laid out (not hidden, not inside something hidden)? @param {Element | null} el */

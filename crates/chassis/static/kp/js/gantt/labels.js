@@ -10,7 +10,7 @@ const MEASURERS = new WeakMap();
  * Measured once per text and font (a label hidden by its narrow bar can be measured too), and again only when either changes.
  * @param {GanttModel} c @param {HTMLElement} bar
  */
-function labelWidth(c, bar) {
+export function labelWidth(c, bar) {
     const label = /** @type {HTMLElement} */ (bar.firstElementChild);
     const text = label.textContent ?? '';
     const style = getComputedStyle(label);
@@ -43,10 +43,11 @@ const NOW_GAP_PX = 4;
 /**
  * The label that stands outside a bar: a sibling of the bar in its lane (a bar clips what is inside it, and a theme may cut its
  * corners), placed by the same custom properties as the bar, so it moves with the window as the bar does.
- * @param {GanttModel} c @param {GanttLaneModel} lane @param {HTMLElement} bar @param {'after' | 'before' | ''} side @param {number} room px
+ * @param {GanttModel} c @param {GanttLaneModel} lane @param {HTMLElement} bar @param {'after' | 'before' | 'below' | ''} side @param {number} room px
  * @param {number} [shift] px the label stands clear of a mark that is beside the bar, away from the bar
+ * @param {number} [row] the row the label stands on, when not its bar's (a fitted label on its own line under the bar)
  */
-function setOutside(c, lane, bar, side, room, shift = 0) {
+export function setOutside(c, lane, bar, side, room, shift = 0, row) {
     let el = c.outside.get(bar);
     if (!side) {
         el?.remove();
@@ -64,14 +65,14 @@ function setOutside(c, lane, bar, side, room, shift = 0) {
     if (el.dataset.kpSide !== side) el.dataset.kpSide = side;
     if (el.dataset.kpState !== bar.dataset.kpState) el.dataset.kpState = bar.dataset.kpState ?? '';
     for (const name of ['--kp-g-s', '--kp-g-e', '--kp-g-row']) {
-        const value = bar.style.getPropertyValue(name);
+        const value = name === '--kp-g-row' && row !== undefined ? String(row) : bar.style.getPropertyValue(name);
         if (el.style.getPropertyValue(name) !== value) el.style.setProperty(name, value);
     }
     el.style.setProperty('--kp-g-label-room', `${Math.floor(room)}px`);
     el.style.setProperty('--kp-g-label-shift', `${Math.round(shift)}px`);
 }
 /** The outside labels of bars that are gone or out of the window go with them. @param {GanttModel} c */
-function dropOutside(c) {
+export function dropOutside(c) {
     for (const [bar, el] of c.outside)
         if (!bar.isConnected || bar.hidden) {
             el.remove();

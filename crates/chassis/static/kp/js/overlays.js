@@ -25,6 +25,7 @@
 export {
     TOAST_MS,
     DIALOG_OPEN_EVENT,
+    DIALOG_CLOSE_REQUEST_EVENT,
     TAB_CHANGE_EVENT,
     TOAST_LINGER_MS,
     TOAST_SHOW_EVENT,
@@ -38,7 +39,8 @@ export {
     SCROLL_OVERFLOW,
     SCROLL_BOXES,
 } from './overlays/constants.js';
-export { openAtTop, attachDialogs, closeLabel } from './overlays/dialogs.js';
+export { openAtTop, openDialog, attachDialogs, closeLabel } from './overlays/dialogs.js';
+export { DIALOG_GUARD, attachDialogGuards, dialogChanged, markDialogSaved, forgetDialogEdits, whenDialogFree, requestDialogClose } from './overlays/dialog-guard.js';
 export { selectTab, attachTabs } from './overlays/tabs.js';
 export { revealTab, watchTabOverflow } from './overlays/tab-row.js';
 export { toastRegion, toast } from './overlays/toast.js';

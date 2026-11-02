@@ -88,7 +88,11 @@
 //            under them: a lane's own (`lane`, a thin band: waiting since the
 //            last contact) or the whole plot's (a band: the follow-up is due).
 //            A lane with `href` is a link; `sub` is a second line under its
-//            label. The range word `all` fits the window to everything on the
+//            label. [forms-1102] `tries` (a whole number) puts a mark at the end
+//            of the lane's name, beside the plot: "1 try left" (warning), "No
+//            tries left" (danger), "3 tries left" (muted); `mark` is the page's
+//            own word in that place (muted). The name column is as wide as the
+//            name and its mark, and never cuts either. The range word `all` fits the window to everything on the
 //            timeline and now, and stays fitted as the data changes. The axis
 //            steps go up to four weeks, a week starting on Monday
 //   chrome   [gaps-time-1019] options read again when the attribute changes (js/live-options.js):
@@ -105,7 +109,10 @@
 //   scroll   [wish-1028, Kitchen 3] a timeline narrower than 32rem keeps its plot a readable width and scrolls sideways inside its own
 //            frame instead of squeezing the lanes; the lane names stay in view and a live window opens at its right end. The width is
 //            `--kp-gantt-min-width` (30rem; 0 turns it off); `data-kp-gantt-scroll="off"` never scrolls, `"always"` keeps the minimum
-//            at every width. A mouse still brushes a range; a finger pans
+//            at every width. A mouse still brushes a range; a finger pans. `"fit"` [gantt-fit-1101] lays the whole window across the
+//            frame at every width (no sideways scroll) and keeps every bar's label whole: inside its bar, after it, before it, or on
+//            its own line under it, never on the line for now beside a bar; the rows are packed with the labels, and a lane is as tall
+//            as the rows it uses (no spare row). Read again when it changes
 //   line     `.kp-gantt--line` [kpadopt4]: one lane and no toolbar, no lane
 //            names and no brush, fitted to its data: the dated line under a
 //            journey stepper

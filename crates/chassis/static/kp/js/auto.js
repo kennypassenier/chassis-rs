@@ -44,6 +44,10 @@ import { THEMES } from './theme-registry.js';
 import { restoreRemembered } from './remember.js';
 import { AutoLoader } from './auto/loader.js';
 import { applyStoredCalm } from './calm.js';
+import { languageReady, registerDictionary } from './strings/runtime.js';
+
+/** The longest `auto.js` waits for a dictionary before it attaches the parts anyway, in ms. */
+const LANGUAGE_WAIT_MS = 3000;
 
 export { NEEDS } from './auto/needs.js';
 
@@ -79,6 +83,10 @@ if (typeof document !== 'undefined') {
     // runs after the parse and before the first frame. A state restored at
     // DOMContentLoaded instead would be a state the reader saw flip.
     restoreRemembered();
+    // kp's own Dutch [habits-1101]: registered as a loader, so an English
+    // page never fetches it, and a page whose root says `lang="nl"` (or
+    // `data-kp-lang="nl"`) has it before the first part draws its words.
+    registerDictionary('nl', () => import('./strings-nl.js').then((module) => module.NL_STRINGS));
     // `?theme=<name>` picks a theme for this load without storing it
     // [AR42], on a page that opts in with `data-kp-theme-from-query` on
     // <html>: the concept demo is one page rendered under every theme, and
@@ -95,7 +103,24 @@ if (typeof document !== 'undefined') {
             // No location (a non-browser document): nothing to read.
         }
     }
+    /** Wait for the strings, but never so long that a stalled or failing dictionary keeps the parts from attaching. @returns {Promise<void>} */
+    const waitForLanguage = () =>
+        new Promise((resolve) => {
+            const timer = setTimeout(() => {
+                console.warn(`kp-themes: the language did not settle within ${LANGUAGE_WAIT_MS} ms; attaching with the strings as they stand.`);
+                resolve();
+            }, LANGUAGE_WAIT_MS);
+            languageReady()
+                .catch((error) => console.error('kp-themes: the language failed to settle; attaching with the strings as they stand.', error))
+                .then(() => {
+                    clearTimeout(timer);
+                    resolve();
+                });
+        });
     const start = () => {
+        void waitForLanguage().then(attachEverything);
+    };
+    const attachEverything = () => {
         const attached = attachAll();
         attached.ready.then(() => document.documentElement.setAttribute(READY_ATTRIBUTE, attached.modules.join(' ')));
     };

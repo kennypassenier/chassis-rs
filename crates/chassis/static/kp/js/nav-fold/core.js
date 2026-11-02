@@ -6,7 +6,7 @@ import { resolveStrings } from '../strings.js';
 import { FoldGroups } from './groups.js';
 import { buildMore } from './more.js';
 import { planFold, planSeparators } from './plan.js';
-import { NAV_FOLD_EVENT, counterOf, isSep } from './read.js';
+import { NAV_FOLD_EVENT, counterOf, isPinned, isSep } from './read.js';
 
 /** A pixel of safety on the room the list has: offsetWidth rounds each item to whole pixels. */
 const ROOM_SAFETY_PX = 1;
@@ -80,6 +80,7 @@ export class NavFoldCore extends Controller {
                 room: list.clientWidth - ROOM_SAFETY_PX,
                 moreWidth: more.offsetWidth,
                 keep: items.map((li) => li.hasAttribute('data-kp-nav-keep')),
+                pinned: items.map(isPinned),
             });
         }
         const seps = items.map(isSep);
@@ -156,7 +157,7 @@ export class NavFoldCore extends Controller {
 
     /** Draw the More menu from the groups when they changed. @param {import('../menu-button.js').MenuGroup[]} groups */
     drawMenu(groups) {
-        const next = JSON.stringify([groups.map((g) => [g.group, g.items.map((i) => [i.label, i.href ?? '', i.disabled ?? '', i.attrs ?? null])]), this.groups.ruledAt]);
+        const next = JSON.stringify([groups.map((g) => [g.group, g.items.map((i) => [i.label, i.href ?? '', i.disabled ?? '', i.hint ?? '', i.attrs ?? null])]), this.groups.ruledAt]);
         if (next !== this.signature) {
             this.signature = next;
             if (groups.length) setMenu(this.wrapper, groups);

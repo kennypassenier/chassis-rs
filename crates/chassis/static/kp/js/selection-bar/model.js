@@ -1,6 +1,10 @@
 // The selection bar's selector, events and numbers, its memory's shape, and reading the rows it serves: their keys, their
 // names and which are ticked.
 
+import { hostsOf } from '../controller.js';
+import { rowPick } from '../row-pick.js';
+import { PICK_ROW, ROW_PICK } from '../row-pick/rows.js';
+
 /** The bars this module looks after. */
 export const SELECTION = '[data-kp-selection]';
 /** The boxes it reads. */
@@ -13,6 +17,8 @@ export const SELECTION_CLEAR_EVENT = 'kp-selection-clear';
 export const SELECTION_MATCHING_EVENT = 'kp-selection-matching';
 /** Fired on the bar, cancelable, when a button marked `data-kp-selection-action` is pressed: `{ action, button, keys, items, matching, undoMs }`. */
 export const SELECTION_ACTION_EVENT = 'kp-selection-action';
+/** The property a floating bar publishes on the root for the toasts: its distance from the window's foot while it shows a selection. */
+export const SELECTION_LIFT_PROPERTY = '--kp-selection-lift';
 /** The names shown before "+N more". */
 export const SELECTION_NAMES = 6;
 /** How long the bar waits for a burst of ticks before it says the count [ms]. */
@@ -64,8 +70,8 @@ export function sourcesOf(bar) {
     const doc = bar.ownerDocument;
     const named = (bar.getAttribute('data-kp-selection-for') ?? '').split(/\s+/).filter(Boolean);
     if (named.length) return /** @type {HTMLElement[]} */ (named.map((id) => doc.getElementById(id)).filter((el) => el !== null));
-    // The nearest: the first ancestor that holds select boxes.
-    for (let up = bar.parentElement; up; up = up.parentElement) if (up.querySelector(BOX)) return [up];
+    // The nearest: the first ancestor that holds select boxes or rows picked without them (js/row-pick.js).
+    for (let up = bar.parentElement; up; up = up.parentElement) if (up.querySelector(`${BOX}, ${ROW_PICK}`)) return [up];
     return [];
 }
 
@@ -84,6 +90,16 @@ export function readSources(memory) {
     let shownTicked = 0;
     let index = 0;
     for (const source of memory.sources) {
+        // Rows picked without boxes (js/row-pick.js): the source is the picker, or holds one.
+        for (const host of hostsOf(source, ROW_PICK)) {
+            const picker = rowPick(host);
+            if (!picker) continue;
+            const read = readPicks(host, picker.keys());
+            for (const key of read.known) known.add(key);
+            for (const item of read.items) if (!items.has(item.key)) items.set(item.key, item);
+            shown += read.shown;
+            shownTicked += read.shownTicked;
+        }
         for (const box of /** @type {NodeListOf<HTMLInputElement>} */ (source.querySelectorAll(BOX))) {
             const row = rowOf(box);
             if (!row) continue;
@@ -100,3 +116,26 @@ export function readSources(memory) {
     return { items: [...items.values()], known, shown, shownTicked };
 }
 
+
+/**
+ * Read a source whose rows are picked without boxes (js/row-pick.js): the keyed rows, which are shown and which are picked.
+ * @param {HTMLElement} source
+ * @param {readonly string[]} picked the picked keys, in the order picked
+ */
+function readPicks(source, picked) {
+    /** @type {Map<string, SelectionItem>} */
+    const byKey = new Map();
+    const known = new Set();
+    let shown = 0;
+    let shownTicked = 0;
+    for (const row of /** @type {NodeListOf<HTMLElement>} */ (source.querySelectorAll(PICK_ROW))) {
+        const key = row.dataset.kpRowKey ?? '';
+        known.add(key);
+        const on = shownRow(row);
+        if (on) shown += 1;
+        if (!picked.includes(key)) continue;
+        if (on) shownTicked += 1;
+        byKey.set(key, { key, label: labelOf(row) });
+    }
+    return { items: picked.flatMap((key) => byKey.get(key) ?? []), known, shown, shownTicked };
+}

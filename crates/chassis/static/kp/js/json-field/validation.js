@@ -22,16 +22,19 @@ export function setState(c, next, message, where = {}) {
     const broken = next === 'invalid';
     // The form is held back while the JSON is broken (a field that allows plain text is never broken).
     area.setCustomValidity(broken ? strings.jsonBlocked : '');
+    // The marks (red border, error slot, aria-invalid) wait until the reader has left the field or tried to submit, as `:user-invalid`
+    // does for a native field [ux-1101, required-early]; until then the sentence is a plain line.
+    const marked = broken && c.touched;
     if (holder) {
-        status.textContent = broken ? '' : message;
-        if (broken) showError(area, message);
+        status.textContent = marked ? '' : message;
+        if (marked) showError(area, message);
         else clearError(area);
     } else {
         status.textContent = message;
-        if (broken) area.setAttribute('aria-invalid', 'true');
+        if (marked) area.setAttribute('aria-invalid', 'true');
         else area.removeAttribute('aria-invalid');
     }
-    field?.classList.toggle('kp-field--invalid', broken);
+    field?.classList.toggle('kp-field--invalid', marked);
     if (changed) {
         const detail = { state: next, line: where.line ?? null, column: where.column ?? null, message, keys: where.keys ?? null };
         area.dispatchEvent(new CustomEvent(JSON_STATE_EVENT, { bubbles: true, detail }));

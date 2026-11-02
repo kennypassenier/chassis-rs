@@ -5,6 +5,19 @@ import { OPTION, PICK_EVENT } from './values.js';
 import { clearMarks, markSelection, showSaveState } from './marks.js';
 import { PickerPreview } from './preview.js';
 
+/**
+ * A labelled trigger names the theme worn (themeMenuMarkup's `trigger: 'label'`) [kitchen-1101, chassis-rs gap 24].
+ * @param {Element} picker @param {string} theme
+ */
+function nameTrigger(picker, theme) {
+    const trigger = picker.closest('.kp-theme-menu')?.querySelector('[data-kp-theme-trigger="label"]');
+    const name = picker.querySelector(`[data-kp-theme="${CSS.escape(theme)}"]`)?.textContent?.trim();
+    if (!(trigger instanceof HTMLElement) || !name) return;
+    const current = trigger.querySelector('.kp-theme-menu__current');
+    if (current) current.textContent = name;
+    trigger.setAttribute('aria-label', `${trigger.dataset.kpThemeLabel ?? ''}: ${name}`);
+}
+
 export class ThemePicker extends PickerPreview {
     connect() {
         const picker = this.host;
@@ -50,6 +63,7 @@ export class ThemePicker extends PickerPreview {
         const chosen = pendingTheme() ?? applied;
         const stored = persist ? storeTheme(chosen) : true;
         showSaveState(/** @type {ParentNode} */ (status ?? picker.parentNode ?? document), !stored);
+        nameTrigger(picker, chosen);
         picker.dispatchEvent(new CustomEvent(PICK_EVENT, { bubbles: true, detail: { theme: chosen, stored } }));
         // A picker inside a menu closes it: leaving the menu open
         // after a choice makes it look as though the click missed.

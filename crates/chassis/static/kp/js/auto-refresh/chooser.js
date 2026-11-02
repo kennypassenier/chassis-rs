@@ -4,6 +4,7 @@ import { attachMenuButtons, setMenu } from '../menu-button.js';
 import { attachSegmented, setSegmentedItems, setSegmentedValues } from '../segmented.js';
 import { getStrings } from '../strings.js';
 import { make } from './bar.js';
+import { NARROW_ATTRIBUTE, showChosen } from './narrow.js';
 import { wordsFor } from './words.js';
 
 /** The chooser of one control. */
@@ -27,9 +28,18 @@ export class Chooser {
         this.unwire = null;
     }
 
-    /** The look the attribute names. @returns {'menu' | 'segmented'} */
+    /** The look the attribute names; a narrow bar shows every choice, so it is segments there [ux-1101 round 2]. @returns {'menu' | 'segmented'} */
     look() {
+        if (this.el.hasAttribute(NARROW_ATTRIBUTE)) return 'segmented';
         return this.el.getAttribute('data-kp-look') === 'menu' ? 'menu' : 'segmented';
+    }
+
+    /** On the narrow bar, bring the current choice into the middle of its scrolling row, once the row is laid out. */
+    showCurrent() {
+        if (!this.segHost || !this.el.hasAttribute(NARROW_ATTRIBUTE)) return;
+        const track = this.segHost;
+        const view = this.el.ownerDocument.defaultView;
+        if (view) view.requestAnimationFrame(() => showChosen(track));
     }
 
     /** Build the chooser parts of the look the attribute names (segments or a menu) and put them in the bar. */
@@ -83,6 +93,7 @@ export class Chooser {
         } else if (this.segHost) {
             setSegmentedItems(this.segHost, [...list.map((n) => ({ value: String(n), label: wordsFor(n) })), { value: 'other', label: s.refreshOther }]);
             setSegmentedValues(this.segHost, [String(interval)]);
+            this.showCurrent();
         }
     }
 

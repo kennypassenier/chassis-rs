@@ -13,7 +13,7 @@
 // logged, the rest to quiet) and told once in the console, so a red cannot appear in a calm calendar by mistake;
 // `data-kp-calm-map="none"` passes the tones through. A quiet cell still has an accessible name ("14/10/2026, nothing
 // logged"; `data-kp-quiet-words="none"` leaves the words out) and keeps its visible text empty; the count of a day prints
-// only on a logged day. The uptime strip follows the same attribute: `up` and `degraded` are logged, `down` is quiet and its
+// on every tone that carries one (a logged day, or a `warn` kept by `data-kp-calm-map="none"`), never on a quiet or paused day. The uptime strip follows the same attribute: `up` and `degraded` are logged, `down` is quiet and its
 // word is "nothing logged". A data table takes the same three tones in CSS alone [gaps-1031, audhd-recepten 3]:
 // `data-kp-tones="calm"` on the `.kp-datatable` (or a bare `.kp-table`) and `data-kp-tone="logged | quiet | paused"` on a cell; the
 // page writes the cell's words itself. Nothing runs on import.

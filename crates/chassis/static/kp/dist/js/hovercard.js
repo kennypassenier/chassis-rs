@@ -1,0 +1,3 @@
+/* @kp-soft/themes v12.2.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d}from"./chunk-OF5THFXG.js";import"./chunk-XTEUHQDW.js";import"./chunk-LJVG4ITM.js";import"./chunk-RMUSFKWU.js";import"./chunk-XAUG53M6.js";import"./chunk-K4TM2OLZ.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{a as HOVERCARD_ATTRIBUTE,c as HOVERCARD_CARD,b as HOVERCARD_EVENT,d as attachHoverCards};
+//# sourceMappingURL=hovercard.js.map

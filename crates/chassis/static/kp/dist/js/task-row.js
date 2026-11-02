@@ -1,0 +1,3 @@
+/* @kp-soft/themes v12.2.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d}from"./chunk-7Y2IEJOC.js";import"./chunk-Z7QJWZWD.js";import"./chunk-GK5L2RJQ.js";import"./chunk-H6BXZNSW.js";import"./chunk-IATOUS7C.js";import"./chunk-PXSUTE7V.js";import"./chunk-XTEUHQDW.js";import"./chunk-LJVG4ITM.js";import"./chunk-RMUSFKWU.js";import"./chunk-XAUG53M6.js";import"./chunk-K4TM2OLZ.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{c as TASK_OPEN_EVENT,b as TASK_TOGGLE_EVENT,d as buildTaskRow,a as factNode};
+//# sourceMappingURL=task-row.js.map

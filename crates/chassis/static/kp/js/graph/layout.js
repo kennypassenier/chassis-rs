@@ -47,6 +47,9 @@ export const ringOf = (data, hub) =>
  * @typedef {{ cx: number, cy: number, rx: number, ry: number }} GraphRing
  */
 
+/** What the ring keeps over its top node for the node and its name: measured as the room a 360 px picture left, where it fits. */
+const LABEL_ROOM = 40;
+
 /**
  * The ring's centre and radii in a W×H box. `ring` is its size as a share of the box (0.36), `inset` keeps a strip at the top
  * and the bottom clear (for chrome drawn inside the picture [graph-1020]).
@@ -68,6 +71,9 @@ function ringGeometry(W, H, { ring = 0.36, inset, stretch = 1 } = {}) {
         rx = Math.min(rx, W * 0.24);
         ry = Math.max(ry, Hs * ring);
     }
+    // The top node's name stands above it: a low picture (data-kp-graph-height under 360 px) left it 26 px and the name was
+    // cut to "s…" [kyu-1101 graph-height]. The ring keeps LABEL_ROOM over its top node.
+    ry = Math.min(ry, Math.max(Hs * 0.15, cy - top - LABEL_ROOM));
     return { cx, cy, rx: rx * stretch, ry };
 }
 /**

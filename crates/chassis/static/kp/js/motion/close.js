@@ -1,6 +1,7 @@
 // Closing a dialog as its entrance played backwards, and opening it as that close turned around.
 import { closing, entranceOf, entrances, keepsLines, nativeClose, turnEntrances } from './keyframes.js';
-import { themeMotion } from './timing.js';
+import { closeTime, themeMotion } from './timing.js';
+import { DIALOG_CLOSE_REQUEST_EVENT } from './constants.js';
 
 /**
  * Close a dialog the way it opened, backwards, then close it for real. With
@@ -14,7 +15,9 @@ import { themeMotion } from './timing.js';
 export async function closeDialog(dialog, returnValue) {
     const close = () => nativeClose?.call(dialog, returnValue);
     if (!dialog.open || closing.has(dialog)) return;
-    const { close: duration } = themeMotion(dialog);
+    // A guarded dialog with a changed form asks first [uxdialogs1101]: the request is cancelable, js/overlays/dialog-guard.js answers it.
+    if (!dialog.dispatchEvent(new CustomEvent(DIALOG_CLOSE_REQUEST_EVENT, { cancelable: true, detail: { returnValue } }))) return;
+    const duration = closeTime(dialog);
     const kept = entrances.get(dialog) ?? [];
     if (duration <= 0) return void close();
     closing.add(dialog);
@@ -66,7 +69,7 @@ export const opensAsReversedClose = (el) => getComputedStyle(el).getPropertyValu
 /**
  * Open `dialog` as its close played backwards [research/open-reverse]:
  * closeDialog() plays each kept entrance with `direction: 'reverse'` in
- * themeMotion().close; this replaces the register's entrance with the same
+ * themeMotion().close (a drawer closes faster, closeTime(), and still opens in that time); this replaces the register's entrance with the same
  * keyframes on the same curve, forwards, in that same time, and the
  * backdrop's fade turned around, so frame t of the opening is frame
  * (close - t) of the close. Only in a theme that asks for it.

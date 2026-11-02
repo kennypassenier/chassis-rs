@@ -1,6 +1,9 @@
-//! kp-themes 12 is served as one bundle: no chassis-owned JavaScript may
-//! still import the module tree (a page with both would hold the controller
-//! registry, strings and theme registry twice). The gzip side is in `gzip`.
+//! kp-themes 12 is served as one bundle (and, since 12.2, as the split
+//! folder `dist/js/`): no chassis-owned JavaScript may import the loose module
+//! tree (a page with both would hold the controller registry, strings and
+//! theme registry twice), and the kit's pages import the split folder, never
+//! the one-file bundle (two copies of the theme state on one page). The gzip
+//! side is in `gzip`.
 
 use super::*;
 
@@ -38,6 +41,36 @@ fn chassis_javascript_imports_kp_themes_from_the_bundle_only() {
     assert!(seen > 20, "the kit's own scripts were found ({seen})");
 }
 
+/// The chassis files that deliberately stay on the one-file bundle: the
+/// web-app runtime, which is injected into pages of a project's web app that
+/// import the bundle themselves.
+const BUNDLE_USERS: &[&str] = &["chassis/webapp-runtime.js"];
+
+#[test]
+fn kit_pages_import_the_split_folder_not_the_bundle() {
+    for (name, body) in chassis_owned_js() {
+        let code = body.lines().filter(|l| !l.trim_start().starts_with("//"));
+        let imports_bundle = code.clone().any(|l| l.contains("kp/dist/kp-themes.min.js"));
+        assert_eq!(
+            imports_bundle,
+            BUNDLE_USERS.contains(&name),
+            "{name}: import the entries under dist/js/ (overlays.js, flash.js, ...), not the bundle; \
+             only {BUNDLE_USERS:?} stay on it"
+        );
+    }
+}
+
+#[test]
+fn the_split_entries_are_in_the_core_table() {
+    for entry in ["auto.js", "core.js", "lazy-register.js", "index.js"] {
+        let name = format!("kp/dist/js/{entry}");
+        assert!(
+            ASSETS.iter().any(|(n, _, _)| *n == name),
+            "the kit pages need {name} without the webapp feature"
+        );
+    }
+}
+
 #[test]
 fn the_bundle_is_in_the_core_table() {
     assert!(
@@ -46,4 +79,52 @@ fn the_bundle_is_in_the_core_table() {
             .any(|(n, _, _)| *n == "kp/dist/kp-themes.min.js"),
         "the kit pages need the bundle without the webapp feature"
     );
+}
+
+/// Every literal `kp/dist/js/<entry>.js` a kit script imports must be a file
+/// the table serves, and none may name `index.js`: that entry re-exports all
+/// of kp-themes and would pull every module onto the page. (A name built at
+/// run time, `${part}`, is checked by the browser measure, not here.)
+#[test]
+fn kit_scripts_import_existing_per_module_entries_never_index() {
+    let mut seen = 0;
+    for (name, body) in chassis_owned_js() {
+        for line in body.lines().filter(|l| !l.trim_start().starts_with("//")) {
+            let mut rest = line;
+            while let Some(at) = rest.find("kp/dist/js/") {
+                rest = &rest[at + "kp/dist/js/".len()..];
+                let file: String = rest
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '.')
+                    .collect();
+                if !file.ends_with(".js") {
+                    continue; // `${part}.js`: built at run time
+                }
+                seen += 1;
+                assert_ne!(
+                    file, "index.js",
+                    "{name}: index.js pulls every kp-themes module"
+                );
+                let path = format!("kp/dist/js/{file}");
+                assert!(
+                    ASSETS.iter().any(|(n, _, _)| *n == path),
+                    "{name} imports {path}, which is not served"
+                );
+            }
+        }
+    }
+    assert!(seen > 20, "the kit's entry imports were found ({seen})");
+}
+
+/// The kit reads the private statics, so the embedded bytes exist once; the
+/// public consts only equal them for outside callers.
+#[test]
+fn the_public_consts_equal_the_statics() {
+    assert_eq!(ASSETS.len(), CORE_TABLE.len());
+    #[cfg(feature = "assets")]
+    assert_eq!(WEBAPP_KP_ASSETS.len(), WEBAPP_TABLE.len());
+    assert!(std::ptr::eq(
+        all_assets().next().unwrap(),
+        CORE_TABLE.first().unwrap()
+    ));
 }

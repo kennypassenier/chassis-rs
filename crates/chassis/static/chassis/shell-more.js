@@ -5,7 +5,7 @@
 // because the window is narrow, the link moves into THIS menu, so a header
 // never has two "More" controls (the fold's own item is hidden in CSS).
 
-import { attachMenuButtons, attachDialogs, setMenu } from '../kp/dist/kp-themes.min.js';
+import { attachMenuButtons, setMenu } from '../kp/dist/js/menu-button.js';
 import { $, $$ } from './shell-dom.js';
 
 // What the server drew into the menu, as the groups setMenu takes.
@@ -51,8 +51,8 @@ export function attachHeaderMenus(joined) {
   }
   const help = $('#chassis-help');
   if (help) {
-    attachDialogs($('[data-chassis-help-open]')?.parentElement ?? document);
-    attachDialogs(help);
+    // The drawer and its opener are on the page at boot, so auto.js attaches
+    // their dialogs (attachDialogs runs on every page); nothing to call here.
     joined.push('help-drawer');
   }
 }

@@ -57,6 +57,8 @@ export function showError(field, message, { wrapper = '.kp-field', invalidClass 
     box?.classList.add(invalidClass);
     if (holder === null) return;
     if (holder.id === '') holder.id = `${field.getAttribute('id') ?? `kp-field-${nextHolderNumber()}`}-error`;
+    // A message that appears is said once, politely, beside the field's description [forms-1102]; a page's own role stays.
+    if (!holder.hasAttribute('role')) holder.setAttribute('role', 'status');
     holder.textContent = message;
     holder.hidden = false;
     // Appended rather than replaced: a field with help text keeps
@@ -64,6 +66,16 @@ export function showError(field, message, { wrapper = '.kp-field', invalidClass 
     // first time someone gets something wrong.
     const described = (marked.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
     if (!described.includes(holder.id)) marked.setAttribute('aria-describedby', [...described, holder.id].join(' '));
+}
+
+/**
+ * The message a field shows now: what showError put in its error slot, or '' when it shows none.
+ *
+ * @param {HTMLElement} field
+ * @param {{ wrapper?: string }} [options]
+ */
+export function messageOf(field, { wrapper = '.kp-field' } = {}) {
+    return field.closest(wrapper)?.querySelector(FIELD_ERROR)?.textContent?.trim() ?? '';
 }
 
 /**

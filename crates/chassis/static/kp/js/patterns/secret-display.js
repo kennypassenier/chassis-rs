@@ -1,7 +1,6 @@
 // One secret display field [kpadopt4]: shown as a mask, shown in full on request for a few seconds, copied without being shown.
 import { watchOptions } from '../live-options.js';
-import { SECRET_MASK, SECRET_TTL } from './constants.js';
-import { readSecret, reasonOf } from './secret-read.js';
+import { displayOptions, readSecret, reasonOf } from './secret-read.js';
 import { secrets } from './secret-api.js';
 import { LAST_CALL_SECONDS, SecretBase } from './secret-base.js';
 import { buildDisplay, make } from './secret-parts.js';
@@ -40,6 +39,7 @@ export class SecretControl extends SecretBase {
         this.own(() => {
             this.ticket += 1;
             value.textContent = this.mask;
+            this.parts.unbox();
             for (const part of this.built) part.remove();
             delete field.dataset.kpSecretState;
             secrets.delete(field);
@@ -93,12 +93,10 @@ export class SecretControl extends SecretBase {
 
     /** The three options; `readOptions()` is the one place that reads them. */
     readOptions() {
-        const field = this.host;
-        this.hold = field.dataset.kpSecretRevealOn === 'hold';
-        const ttl = Math.max(0, Number.parseInt(field.dataset.kpSecretTtl ?? '', 10));
-        this.seconds = Number.isFinite(ttl) ? ttl : SECRET_TTL;
-        const maskLength = Math.max(1, Number.parseInt(field.dataset.kpSecretMask ?? '', 10) || SECRET_MASK);
-        this.mask = (field.dataset.kpSecretMaskChar ?? '•').repeat(maskLength);
+        const { hold, seconds, mask } = displayOptions(this.host);
+        this.hold = hold;
+        this.seconds = seconds;
+        this.mask = mask;
     }
 
     /** @param {string[]} names the live option attributes that changed */
@@ -244,10 +242,9 @@ export class SecretControl extends SecretBase {
     /** The value already shown is copied as it stands; a hidden one is read, copied and never drawn. @param {HTMLButtonElement} copy */
     onCopy(copy) {
         if (this.disabledWhy() !== undefined) return;
-        const idle = this.s.secretCopy;
         const name = this.host.getAttribute('aria-label') ?? this.s.secretLabel;
         const read = () => (this.state === 'shown' ? (this.parts.value.textContent ?? '') : this.read('copy'));
-        void this.copyOut(copy, read, name, () => {
+        void this.copyOut(copy, read, name, (idle) => {
             copy.textContent = idle;
             delete copy.dataset.kpCopied;
         });

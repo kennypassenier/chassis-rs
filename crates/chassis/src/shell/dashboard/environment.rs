@@ -27,6 +27,20 @@ pub(super) fn build(
     env.add_global("prefix", prefix.to_string());
     env.add_global("assets", asset_version());
     env.add_global("themes", minijinja::Value::from_serialize(themes()));
+    // kp-themes split delivery: what theme-boot.js needs to write the worn
+    // theme's register link before first paint (see the layout's head).
+    env.add_global("register_pattern", REGISTER_PATTERN);
+    env.add_global("base_stylesheet", BASE_STYLESHEET);
+    env.add_global("split_entry", SPLIT_ENTRY);
+    env.add_global("default_theme", DEFAULT_THEME);
+    env.add_global(
+        "theme_names",
+        themes()
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect::<Vec<_>>()
+            .join(","),
+    );
     env.add_global("nav", minijinja::Value::from_serialize(kit_nav));
     // kit-kp11: the shell reads each navigation entry's page id from
     // `pages`, entry for entry (with_pages replaces both from the registry).

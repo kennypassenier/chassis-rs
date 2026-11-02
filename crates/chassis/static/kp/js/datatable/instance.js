@@ -36,7 +36,7 @@ export const defaultFilter = (row, query) => (row.textContent ?? '').toLowerCase
  * @property {(which?: 'view' | 'page') => HTMLTableRowElement[]} rows  the rows the table shows, in order: every page of the view, or this page
  * @property {() => string[]} selected
  * @property {(keys: readonly string[]) => void} select
- * @property {(options?: { keepPage?: boolean }) => void} refresh re-read the rows after the consumer added or removed some, and the filter panel's choice lists with them; the page goes back to the first unless `keepPage`. The table also notices rows added to or removed from its body by itself (a client-side table), so a removed row leaves the count and the pager at once and the reader stays on the page; a row marked `data-kp-row-hidden` is held out of the table and stays hidden until the attribute goes [b3b4-1019]
+ * @property {(options?: { keepPage?: boolean }) => void} refresh re-read the rows after the consumer added or removed some, and the filter panel's choice lists with them; the page goes back to the first unless `keepPage`. The table also notices rows added to or removed from its body by itself (a client-side table), so a removed row leaves the count and the pager at once and the reader stays on the page; a row marked `data-kp-row-hidden` is held out of the table and stays hidden until the attribute goes [b3b4-1019]; with `data-kp-keep-focused-row` the row that holds the focus is kept in place of its fresh copy [medicine-1102]
  */
 
 /** @type {WeakMap<Element, DataTableHandle>} */

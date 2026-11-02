@@ -40,6 +40,8 @@ function buildRing(doc) {
     const ring = doc.createElement('span');
     ring.className = 'kp-undo__ringbox';
     ring.setAttribute('aria-hidden', 'true');
+    // The drain is the Undo window's clock, not part of the toast's arrival or leave: motion must not wait on it.
+    ring.setAttribute('data-kp-motion-clock', '');
     const circles = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
     circles.setAttribute('class', 'kp-undo__ring');
     circles.setAttribute('viewBox', '0 0 24 24');
