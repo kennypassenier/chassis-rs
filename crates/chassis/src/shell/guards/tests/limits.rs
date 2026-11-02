@@ -89,6 +89,43 @@ async fn static_files_pass_the_in_flight_cap_and_handlers_do_not() {
     assert!(!is_static_file(&axum::http::Method::GET, "/api/kit/status"));
 }
 
+/// An API route that happens to end in a file extension (`/api/report.svg`,
+/// `/api/data.js`) does work like any handler: it must meet the cap, or a
+/// caller could skip it by choosing a name.
+#[tokio::test]
+async fn an_api_path_with_a_file_extension_still_meets_the_in_flight_cap() {
+    let g = guards(1, 5000);
+    let slow = || async {
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        "ok"
+    };
+    let app = Router::new()
+        .route("/slow", get(slow))
+        .route("/api/report.svg", get(slow))
+        .layer(axum::middleware::from_fn_with_state(
+            g.clone(),
+            in_flight_guard,
+        ));
+    let a = app.clone();
+    let held = tokio::spawn(async move {
+        a.oneshot(Request::builder().uri("/slow").body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+    });
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/report.svg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+    held.await.unwrap();
+}
+
 #[tokio::test]
 async fn timeout_applies_except_to_exempt_prefixes() {
     let g = guards(8, 50);

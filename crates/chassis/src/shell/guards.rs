@@ -187,13 +187,18 @@ const STATIC_EXTENSIONS: &[&str] = &[
 ];
 
 /// A GET or HEAD for a page asset: anything under `/static/`, or a path whose
-/// last segment ends in one of [`STATIC_EXTENSIONS`] (a web app's own files).
+/// last segment ends in one of [`STATIC_EXTENSIONS`] (a web app's own files),
+/// except under `/api/`, where every route is a handler.
 pub(crate) fn is_static_file(method: &axum::http::Method, path: &str) -> bool {
     if method != axum::http::Method::GET && method != axum::http::Method::HEAD {
         return false;
     }
     if path.starts_with("/static/") {
         return true;
+    }
+    // `/api/report.svg` is a handler that does work, whatever its name ends in.
+    if path == "/api" || path.starts_with("/api/") {
+        return false;
     }
     let last = path.rsplit('/').next().unwrap_or("");
     last.rsplit_once('.')
