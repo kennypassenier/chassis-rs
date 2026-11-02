@@ -4,12 +4,18 @@
 //
 //   chassisData.configure({ name: 'kitchen', routes: ['/api/dishes', '/api/dishes/:id'] });
 //   await chassisData.get('/api/dishes/7');   // { data, rev, offline, savedAt }
+//
+// With `db: true` (or { syncUrl, pullMs, live, pageLimit }) the app also gets the
+// local database, `chassisData.db.collection(name)` (docs/LOCAL_DB_DESIGN.md).
 
 import { bindBand } from './data-band.js';
 import { normalize } from './data-config.js';
 import { createData } from './data-client.js';
+import { bootDb } from './db-boot.js';
 import { createFailedView } from './data-failed-view.js';
 import { wordsOf } from './data-errors.js';
+import { createHub } from './db-hub.js';
+import { lazyDb } from './db-lazy.js';
 import { installLogoutGuard } from './logout-guard.js';
 import { memoryStore, openStore } from './data-store.js';
 
@@ -39,6 +45,7 @@ export function installData(win, doc, deps = {}, kp = null) {
     // The facade exists synchronously, before the app's module scripts: the server puts the runtime first in <head>.
     let ready = null;
     let words = {};
+    const hub = createHub();
     // The logout guard needs no configure(): it reads the stored queues of
     // every chassis-data database, and adds the open client's own once there.
     installLogoutGuard({ win, doc, confirm: kp?.openConfirmation, client: async () => (ready ? await ready : null), messages: () => wordsOf(words) });
@@ -48,9 +55,15 @@ export function installData(win, doc, deps = {}, kp = null) {
         words = config.messages;
         ready = (async () => {
             const store = await storeFor(win, config.name, deps);
-            const emit = (name, detail) => win.dispatchEvent(new win.CustomEvent(name, { detail }));
+            const listeners = new Map();
+            const events = { on: (name, fn) => (listeners.set(name, [...(listeners.get(name) ?? []), fn]), () => listeners.set(name, listeners.get(name).filter((f) => f !== fn))) };
+            const emit = (name, detail) => {
+                win.dispatchEvent(new win.CustomEvent(name, { detail }));
+                for (const fn of listeners.get(name) ?? []) fn(detail);
+            };
+            let dbBytes = () => 0;
             const data = await createData({
-                config, store, emit, storage: storageOf(win),
+                config, store, emit, storage: storageOf(win), extraBytes: () => dbBytes(),
                 fetch: (...a) => win.fetch(...a),
                 setTimer: (fn, ms) => win.setTimeout(fn, ms),
                 clearTimer: (id) => win.clearTimeout(id),
@@ -59,11 +72,33 @@ export function installData(win, doc, deps = {}, kp = null) {
             const view = kp?.openDialog ? createFailedView({ win, doc, kp, data, messages: config.messages, describe: config.describe }) : null;
             if (kp) bindBand({ win, doc, kp, data, messages: config.messages, view });
             win.addEventListener('online', () => data.retry());
-            return { ...data, review: (trigger) => view?.open(trigger) };
+            const local = config.db ? bootDb({
+                win, doc, app: config.name, options: config.db, data, hub, events, emit, storage: storageOf(win), deps,
+                fetch: (...a) => win.fetch(...a), setTimer: (fn, ms) => win.setTimeout(fn, ms), clearTimer: (id) => win.clearTimeout(id),
+                now: () => Date.now(), uuid: () => win.crypto.randomUUID(),
+            }) : null;
+            if (local) dbBytes = local.bytes;
+            return {
+                ...data,
+                review: (trigger) => view?.open(trigger),
+                dbEnsure: () => (local ? local.ensure() : Promise.reject(new Error('chassisData.db: pass db: true to configure() to use the local database.'))),
+                // "Keep everything" also decides what the local database stores.
+                async keepAll(on) {
+                    const result = await data.keepAll(on);
+                    await local?.keepAllChanged(result).catch((err) => !err?.offline && console.warn('chassisData.db: the local database could not follow "keep everything".', err));
+                    return result;
+                },
+                // Logout: the offline copy, the queue and the local database all go.
+                async purge() {
+                    await data.purge();
+                    await local?.purge();
+                },
+            };
         })();
         return ready;
     };
-    const facade = { configure, ready: () => ready };
+    const dbEnsure = () => (ready ? ready.then((client) => client.dbEnsure()) : Promise.reject(new Error('chassisData: call configure() first.')));
+    const facade = { configure, ready: () => ready, db: lazyDb({ ensure: dbEnsure, hub }) };
     for (const name of METHODS) {
         facade[name] = async (...args) => {
             if (!ready) throw new Error('chassisData: call configure() first.');

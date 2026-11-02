@@ -53,13 +53,13 @@ function createReplayer({ getQueue, config, setTimer, clearTimer }) {
     return { kick, schedule };
 }
 
-export async function createData({ config, fetch, store, storage, emit = () => {}, setTimer, clearTimer, now, uuid = () => globalThis.crypto.randomUUID() }) {
+export async function createData({ config, fetch, store, storage, emit = () => {}, setTimer, clearTimer, now, uuid = () => globalThis.crypto.randomUUID(), extraBytes = () => 0 }) {
     let queue = null;
     let writes = null;
     const replayer = createReplayer({ getQueue: () => queue, config, setTimer, clearTimer });
     const cache = await createCache({
         store, config, now,
-        extraBytes: () => queue?.bytes() ?? 0,
+        extraBytes: () => (queue?.bytes() ?? 0) + extraBytes(), // the queue and the local database count against the cap
         onLevel: (detail) => emit('chassis-data-storage', detail),
     });
     const reconcile = createReconciler({ config, cache, hasPending: (path) => queue.list().some((e) => e.path === path && e.state !== 'failed') });
@@ -96,6 +96,8 @@ export async function createData({ config, fetch, store, storage, emit = () => {
             return ok;
         },
         usage: () => cache.usage(),
+        /** Re-read the cap level (the local database grew): fires `chassis-data-storage` when it moved. */
+        settle: () => cache.settle(),
         async clearCopy() {
             await cache.clear();
         },

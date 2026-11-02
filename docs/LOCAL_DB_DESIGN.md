@@ -283,6 +283,41 @@ a cached route any more, the route leaves `configure({ routes })`.
 until they choose to; then `SqliteChangeLog` with one `sync_upsert` /
 `sync_delete` call per write in their app database.
 
+## Client contract, as built (feat-localdb-client-1)
+
+Readings of the points the decisions leave open; the server half must match:
+
+- **Opt in**: `chassisData.configure({ name, db: true })` (or `db: { syncUrl, pullMs,
+  pageLimit, live }`; defaults `/api/sync`, 300000 ms, the server's limit, no live
+  channel). `routes` may be empty when `db` is given. `live` is the app's SSE path.
+- **Manifest** (`GET <syncUrl>`): `{ schema: "<hash>", collections: [{ name, key, rev,
+  indexes: [..], routes: { list, item } }] }`. `routes` may also be `[list, item]`;
+  `item` has exactly one `:param`. A collection without routes can be read, not
+  written. `hash` is accepted for `schema`. Names are `[a-z][a-z0-9_]{0,39}`.
+- **Feed**: `since` is sent only after the first page; `limit` only when `db.pageLimit`
+  is set. Upserts are `{ key, rev, data }`; `data` carries the key field. A
+  from-the-beginning answer has no `deletes` the client needs (it ignores them).
+- **Stored record**: `{ key, rev, data, size, syncedAt, gen }` with keyPath `key` and
+  each index on `data.<index>` (not a flat copy of the item, so item fields never
+  collide with bookkeeping). Query results are `data` (plus `pending: true`).
+- **Resync**: a pull from the beginning always stamps a generation and prunes
+  records without it afterwards, so the first pull, a 410 and "keep everything"
+  switched on all take the same road.
+- **Timer**: fires every `pullMs` but pulls only while the page is visible; becoming
+  visible or focused pulls at once.
+- **Hints**: SSE event `sync` with data `["dishes"]`, `{"collections":[..]}` or
+  `dishes,freezer` pulls those; empty data or `resync` pulls all.
+- **Writes**: `create` POSTs to `routes.list` with the key in the body; `put` / `patch`
+  / `delete` go to `routes.item` with `If-Match` = the stored record's rev (none for a
+  record that only exists in the queue). Queue, failed list and band are chassisData's.
+- **Cap**: the database's bytes are added to the cache and queue bytes of the 50 MB
+  cap. A page whose upserts do not fit is not stored (its deletes are), the
+  collection is `stale`, the cursor stays.
+- **Events** on `window`: `chassis-db-pulled` (`{ collection, pages, removed, stopped }`);
+  a 401 uses the existing `chassis-data-synced` with `stopped: "auth"`.
+- **Purge**: the logout guard deletes `chassis-db:*` with `chassis-data:*`; so does the
+  worker. The keep choices (`chassis-db:<app>:keep`, localStorage) stay.
+
 ## Testing plan (run at release only, with Kenny's OK)
 
 - Rust unit: cursor encoding, page limits, one-row-per-key replacement, floor

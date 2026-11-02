@@ -108,9 +108,9 @@ function survivesLogout(pathname) {
     return ASSET_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
-/** Whether an IndexedDB name belongs to the offline app data client. */
+/** Whether an IndexedDB name belongs to the offline app data client or its local database. */
 function isAppDataDb(name) {
-    return typeof name === 'string' && name.startsWith('chassis-data:');
+    return typeof name === 'string' && (name.startsWith('chassis-data:') || name.startsWith('chassis-db:'));
 }
 
 /** The oldest keys beyond `max`, in the order the cache lists them. */

@@ -6,6 +6,7 @@
 // IndexedDB directly; it never writes a record.
 
 import { DB_PREFIX } from './data-store.js';
+import { DB_PREFIX as LOCAL_DB_PREFIX } from './db-store.js';
 
 const once = (request) =>
     new Promise((resolve, reject) => {
@@ -14,10 +15,10 @@ const once = (request) =>
     });
 
 /** The names of this origin's offline databases, or null when the browser cannot list them. */
-export async function storedNames(idb) {
+export async function storedNames(idb, prefixes = [DB_PREFIX]) {
     if (!idb || typeof idb.databases !== 'function') return null;
     const all = await idb.databases();
-    return all.map((d) => d.name).filter((n) => typeof n === 'string' && n.startsWith(DB_PREFIX));
+    return all.map((d) => d.name).filter((n) => typeof n === 'string' && prefixes.some((p) => n.startsWith(p)));
 }
 
 /** How many edits (waiting, held or failed) database `name` holds. */
@@ -63,9 +64,9 @@ export async function countStoredQueues(idb, warn = console.warn) {
     return total;
 }
 
-/** Delete every offline database; a blocked one (open in another tab) is left to the worker. */
+/** Delete every offline database (`chassis-data:*` and the local database `chassis-db:*`); a blocked one (open in another tab) is left to the worker. */
 export async function deleteStoredCopies(idb) {
-    const names = (await storedNames(idb)) ?? [];
+    const names = (await storedNames(idb, [DB_PREFIX, LOCAL_DB_PREFIX])) ?? [];
     await Promise.all(names.map((name) => new Promise((resolve) => {
         const request = idb.deleteDatabase(name);
         request.onsuccess = request.onerror = request.onblocked = () => resolve();
