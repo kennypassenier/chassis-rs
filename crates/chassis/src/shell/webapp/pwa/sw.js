@@ -39,7 +39,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const req = event.request;
     if (isLogoutRequest({ url: req.url, origin: self.location.origin })) {
-        event.waitUntil(purgePrivate());
+        event.waitUntil(Promise.all([purgePrivate(), purgeAppData()]));
         return;
     }
     const wanted = isCacheableRequest({
@@ -74,6 +74,16 @@ async function purgePrivate() {
     const cache = await caches.open(CACHE);
     for (const key of await cache.keys()) {
         if (!survivesLogout(new URL(key.url).pathname)) await cache.delete(key);
+    }
+}
+
+// ... and the same for the offline app data client (chassis-data.js): its
+// databases are named `chassis-data:<app>`. The page purges them first; this
+// covers a logout that left the page before that finished.
+async function purgeAppData() {
+    if (!self.indexedDB?.databases) return;
+    for (const db of await self.indexedDB.databases()) {
+        if (isAppDataDb(db.name)) self.indexedDB.deleteDatabase(db.name);
     }
 }
 

@@ -15,10 +15,11 @@
 
 // A web app links and imports the one-file bundle itself (the split delivery is
 // opt-in per app), so this module must hold the same copy of kp-themes' state.
-import { attachAgo, attachEffects, attachRefresh, configureRemember, refreshOf, setAgo } from '../kp/dist/kp-themes.min.js';
+import { attachAgo, attachEffects, attachRefresh, configureRemember, connectionOf, refreshOf, setAgo, toast } from '../kp/dist/kp-themes.min.js';
 import { attachKitEffects } from './kit-effects.js';
 import { registerPwa } from './pwa-register.js';
 import { followThemeColor } from './theme-color.js';
+import { installData } from './data.js';
 import { installPush } from './push.js';
 import { installRefresh } from './refresh-kit.js';
 
@@ -46,6 +47,9 @@ export function installRuntime(win, doc, deps = {}) {
     // Web Push (habits-push-1): `window.chassisPush`, only on a page the
     // server marked with the push meta tag.
     (deps.installPush ?? installPush)(win, doc);
+    // Offline app data (feat-offline-1): `window.chassisData`, inert until the
+    // app calls `configure()`.
+    (deps.installData ?? ((w, d) => installData(w, d, {}, { connectionOf, toast })))(win, doc);
     win.chassisRuntime = { get effects() { return effects.current(); } };
     return win.chassisRuntime;
 }

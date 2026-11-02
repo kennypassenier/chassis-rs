@@ -1,0 +1,55 @@
+// Fakes for the offline client tests: a service with revisions, and the page
+// environment. Not a test file (no `.test.`), imported by the data_*.test.mjs.
+import { memoryStore } from '../../static/chassis/data-store.js';
+import { normalize } from '../../static/chassis/data-config.js';
+import { createData } from '../../static/chassis/data-client.js';
+
+/** A JSON service: items by path with `rev`, If-Match honoured, switchable network. */
+export function fakeService(items = {}) {
+    const svc = { items: { ...items }, up: true, calls: [], status: null };
+    svc.fetch = async (path, init = {}) => {
+        const headers = new Headers(init.headers);
+        svc.calls.push({ path, method: init.method, headers: Object.fromEntries(headers), body: init.body, credentials: init.credentials });
+        if (!svc.up) throw new TypeError('Failed to fetch');
+        if (svc.status) return reply(svc.status, { error: 'forced', remedy: 'x' });
+        const cur = svc.items[path];
+        if (init.method === 'GET') return cur ? reply(200, cur, cur.rev) : reply(404, { error: 'none', remedy: 'x' });
+        const want = headers.get('if-match')?.replace(/"/g, '');
+        if (want !== undefined && cur && String(cur.rev) !== want) return reply(409, { error: 'stale', remedy: 'reload', code: 'stale', rev: cur.rev });
+        if (init.method === 'DELETE') { delete svc.items[path]; return reply(200, {}); }
+        const body = JSON.parse(init.body);
+        const next = { ...(init.method === 'PATCH' ? cur : {}), ...body, rev: (cur?.rev ?? 0) + 1 };
+        svc.items[path] = next;
+        return reply(200, next, next.rev);
+    };
+    return svc;
+}
+
+function reply(status, body, rev) {
+    const headers = new Headers(rev === undefined ? {} : { etag: `"${rev}"` });
+    return { status, ok: status < 300, headers, json: async () => body };
+}
+
+export function fakeStorage() {
+    const m = new Map();
+    return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), dump: () => [...m.entries()] };
+}
+
+export const ROUTES = ['/api/dishes', '/api/dishes/:id'];
+
+/** A client over a fake service; `events` collects what it emitted. */
+export async function makeClient(svc, options = {}) {
+    const events = [];
+    const timers = [];
+    const store = options.store ?? memoryStore();
+    const storage = options.storage ?? fakeStorage();
+    const config = normalize({ name: 'kitchen', routes: ROUTES, ...options.config });
+    const data = await createData({
+        config, store, storage, fetch: svc.fetch,
+        emit: (name, detail) => events.push({ name, detail }),
+        setTimer: (fn, ms) => (timers.push({ fn, ms }), timers.length),
+        clearTimer: () => {},
+        now: () => 1000,
+    });
+    return { data, events, timers, store, storage, svc };
+}

@@ -108,6 +108,11 @@ function survivesLogout(pathname) {
     return ASSET_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
+/** Whether an IndexedDB name belongs to the offline app data client. */
+function isAppDataDb(name) {
+    return typeof name === 'string' && name.startsWith('chassis-data:');
+}
+
 /** The oldest keys beyond `max`, in the order the cache lists them. */
 function surplusKeys(keys, max = MAX_ENTRIES) {
     return keys.length > max ? keys.slice(0, keys.length - max) : [];
@@ -116,6 +121,6 @@ function surplusKeys(keys, max = MAX_ENTRIES) {
 if (typeof module !== 'undefined') {
     module.exports = {
         cacheNameFor, staleCaches, isCacheableRequest, isCacheableResponse, surplusKeys,
-        isLogoutRequest, survivesLogout,
+        isLogoutRequest, survivesLogout, isAppDataDb,
     };
 }

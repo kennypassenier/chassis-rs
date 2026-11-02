@@ -1,0 +1,154 @@
+// The write queue (feat-offline-1): edits made while the service could not be
+// reached, replayed in the order they were made. Transport-free: `send(entry)`
+// answers `{ status, body, etag }` (status 0 = no answer) and `store` is the
+// flat store, so the node tests drive it with fakes.
+//
+// Entry: { id, method, path, body, ifMatch, at, state: 'queued' | 'held',
+//          conflict? }. A `held` entry blocks everything behind it.
+
+import { classify, decide } from './data-policy.js';
+import { conflictRev, rebase, revOf } from './data-rev.js';
+
+/**
+ * hooks: onChange(entries) after any change; onSent(entry, rev, outcome);
+ * onHeld(entry); onDropped(entry); onSyncing(bool) around a replay; onSynced(summary) after it.
+ */
+export function createQueue({ store, send, field, policy, hooks = {} }) {
+    let entries = [];
+    let running = null;
+    let again = false;
+    const call = (name, ...args) => hooks[name]?.(...args);
+    const changed = () => call('onChange', entries);
+
+    async function persist(entry) {
+        const saved = await store.putQueue(entry);
+        entries = entries.map((e) => (e.id === saved.id ? saved : e));
+        return saved;
+    }
+
+    async function remove(entry) {
+        await store.deleteQueue(entry.id);
+        entries = entries.filter((e) => e.id !== entry.id);
+    }
+
+    async function rebaseBehind(entry, rev) {
+        for (const next of rebase(entries, entry.path, entry.ifMatch, rev)) await persist(next);
+    }
+
+    async function hold(entry, outcome) {
+        const answer = decide(policy, entry, outcome);
+        if (answer === 'drop') {
+            await remove(entry);
+            call('onDropped', entry);
+            return 'continue';
+        }
+        // One overwrite per edit: a second refusal must reach a person.
+        if (answer === 'overwrite' && !entry.overwritten) {
+            await persist({ ...entry, overwritten: true, ifMatch: conflictRev(outcome.body, field) });
+            return 'continue';
+        }
+        const held = await persist({ ...entry, state: 'held', conflict: { status: outcome.status, body: outcome.body ?? null } });
+        call('onHeld', held);
+        return 'stop:held';
+    }
+
+    /** One entry's turn: 'sent' or 'continue' (dropped / overwritten) with the next, or 'stop:<why>'. */
+    async function step(entry) {
+        const outcome = await send(entry);
+        const kind = classify(outcome.status);
+        if (kind === 'ok') {
+            const rev = revOf(outcome.body, outcome.etag, field);
+            await remove(entry);
+            await rebaseBehind(entry, rev);
+            call('onSent', entry, rev, outcome);
+            return 'sent';
+        }
+        if (kind === 'conflict' || kind === 'rejected') return hold(entry, outcome);
+        return `stop:${kind}`;
+    }
+
+    async function replayAll() {
+        let sent = 0;
+        let stopped = null;
+        call('onSyncing', true);
+        try {
+            while (entries.length > 0 && stopped === null) {
+                const head = entries[0];
+                if (head.state === 'held') {
+                    stopped = 'held';
+                    break;
+                }
+                const result = await step(head);
+                if (result === 'sent') sent += 1;
+                else if (result !== 'continue') stopped = result.replace('stop:', '');
+                changed();
+            }
+        } finally {
+            call('onSyncing', false);
+        }
+        const summary = { sent, remaining: entries.length, stopped };
+        call('onSynced', summary);
+        return summary;
+    }
+
+    return {
+        list: () => entries.map((e) => ({ ...e })),
+        pending: () => entries.length,
+        bytes: () => entries.reduce((n, e) => n + JSON.stringify(e).length, 0),
+        async load() {
+            entries = (await store.allQueue()).sort((a, b) => a.id - b.id);
+            changed();
+        },
+        async add(entry) {
+            const saved = await store.putQueue({ ...entry, state: 'queued' });
+            entries = [...entries, saved];
+            changed();
+            return saved;
+        },
+        /**
+         * Replay from the head; one replay at a time. A call while one runs
+         * (the network may have come back after it failed) makes it go round
+         * once more, and shares its answer.
+         */
+        replay() {
+            if (running) {
+                again = true;
+                return running;
+            }
+            running = (async () => {
+                let summary;
+                do {
+                    again = false;
+                    summary = await replayAll();
+                } while (again);
+                return summary;
+            })().finally(() => {
+                running = null;
+            });
+            return running;
+        },
+        async drop(id) {
+            const entry = entries.find((e) => e.id === id);
+            if (!entry) return false;
+            await remove(entry);
+            call('onDropped', entry);
+            changed();
+            return true;
+        },
+        /** End a hold: send the edit again with `rev` (default: the server's current one). */
+        async resave(id, rev) {
+            const entry = entries.find((e) => e.id === id && e.state === 'held');
+            if (!entry) return false;
+            const current = rev ?? conflictRev(entry.conflict?.body, field);
+            const { conflict: _gone, ...rest } = entry;
+            await persist({ ...rest, state: 'queued', ifMatch: current ?? null });
+            changed();
+            return true;
+        },
+        async clear() {
+            await store.clearQueue();
+            entries = [];
+            changed();
+        },
+    };
+}
