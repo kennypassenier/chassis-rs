@@ -86,8 +86,15 @@ pub(super) async fn serve(
     } else {
         body
     };
-    let versioned = query.as_deref().is_some_and(|q| q.contains("v="));
+    let versioned = query.as_deref().is_some_and(has_version_param);
     file_response(&served, body, versioned, &headers, csp)
+}
+
+/// Whether the query has a parameter named exactly `v` (`?v=abc`, `?a=1&v=2`).
+/// A substring test took `?env=prod` for a version and froze the file for a
+/// year.
+fn has_version_param(query: &str) -> bool {
+    query.split('&').any(|p| p.starts_with("v="))
 }
 
 /// The answer for a found file: its type, a cache policy, a strong ETag

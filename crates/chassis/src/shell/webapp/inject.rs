@@ -43,7 +43,11 @@ pub(super) fn with_head_tags(
         tags.push_str(&runtime_tag());
     }
     for tag in pwa.unwrap_or_default() {
-        if find(&compact, tag.key.as_bytes()).is_none() {
+        if !tag
+            .keys
+            .iter()
+            .any(|k| find(&compact, k.as_bytes()).is_some())
+        {
             tags.push_str(&tag.html);
         }
     }

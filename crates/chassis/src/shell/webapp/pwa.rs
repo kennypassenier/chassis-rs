@@ -225,8 +225,12 @@ impl super::WebApp {
 
     /// The path of the GET share target, when this app is installable and
     /// registered one (the kit guards it against cross-site navigations).
+    ///
+    /// Only the path: an action may carry a query (`/share?src=pwa`), and the
+    /// guard compares paths.
     pub(crate) fn get_share_path(&self) -> Option<&str> {
-        self.installable()?.share_target.as_ref()?.get_action()
+        let action = self.installable()?.share_target.as_ref()?.get_action()?;
+        Some(action.split(['?', '#']).next().unwrap_or(action))
     }
 
     /// fix-push-meta-1: drop (or restore) the `chassis-push` marker; the

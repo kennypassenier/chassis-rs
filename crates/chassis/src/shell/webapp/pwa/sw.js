@@ -38,6 +38,10 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
     const req = event.request;
+    if (isLogoutRequest({ url: req.url, origin: self.location.origin })) {
+        event.waitUntil(purgePrivate());
+        return;
+    }
     const wanted = isCacheableRequest({
         method: req.method,
         url: req.url,
@@ -61,6 +65,15 @@ async function networkFirst(event, req) {
         if (hit) return hit;
         if (req.mode === 'navigate') return offlinePage(cache);
         return Response.error();
+    }
+}
+
+// A logout leaves no page or private file in browser storage: offline, the
+// next person at this device would otherwise read the last page that was open.
+async function purgePrivate() {
+    const cache = await caches.open(CACHE);
+    for (const key of await cache.keys()) {
+        if (!survivesLogout(new URL(key.url).pathname)) await cache.delete(key);
     }
 }
 

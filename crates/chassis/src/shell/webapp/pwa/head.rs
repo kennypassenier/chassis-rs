@@ -4,10 +4,11 @@
 
 use super::{Pwa, routes};
 
-/// One tag a page may already carry: `key` is what a page mentions when it
-/// has the tag (compared with quotes removed), `html` is the tag.
+/// One tag a page may already carry: `keys` are the spellings a page uses
+/// when it has the tag (compared with quotes removed; any one counts),
+/// `html` is the tag.
 pub(in crate::shell::webapp) struct HeadTag {
-    pub(in crate::shell::webapp) key: &'static str,
+    pub(in crate::shell::webapp) keys: &'static [&'static str],
     pub(in crate::shell::webapp) html: String,
 }
 
@@ -35,25 +36,25 @@ impl Pwa {
         #[allow(unused_mut)]
         let mut tags = vec![
             HeadTag {
-                key: "rel=manifest",
+                keys: &["rel=manifest"],
                 html: self.manifest_link(),
             },
             HeadTag {
-                key: "name=theme-color",
+                keys: &["name=theme-color"],
                 html: format!(
                     "<meta name=\"theme-color\" content=\"{}\">",
                     self.theme_color
                 ),
             },
             HeadTag {
-                key: "apple-touch-icon",
+                keys: &["apple-touch-icon"],
                 html: format!(
                     "<link rel=\"apple-touch-icon\" href=\"{}\">",
                     routes::TOUCH_ICON_PATH
                 ),
             },
             HeadTag {
-                key: "rel=icon",
+                keys: &["rel=icon", "rel=shortcut icon"],
                 html: format!(
                     "<link rel=\"icon\" href=\"{}\" type=\"image/png\">",
                     routes::ICON_192_PATH
@@ -64,7 +65,7 @@ impl Pwa {
             tags.insert(
                 3,
                 HeadTag {
-                    key: "rel=icon",
+                    keys: &["rel=icon", "rel=shortcut icon"],
                     html: format!(
                         "<link rel=\"icon\" href=\"{}\" type=\"image/svg+xml\">",
                         routes::ICON_SVG_PATH
@@ -77,7 +78,7 @@ impl Pwa {
         #[cfg(feature = "push")]
         if self.push_marker {
             tags.push(HeadTag {
-                key: "name=chassis-push",
+                keys: &["name=chassis-push"],
                 html: "<meta name=\"chassis-push\" content=\"/api/kit/push\">".to_string(),
             });
         }
