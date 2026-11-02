@@ -90,8 +90,8 @@ adapters, and the apps store data differently today.
   makes `seq` commit in order, so a cursor never skips a late commit.
 - **App adapter**: an app that does not keep its data in the app database
   implements `SyncSource` itself, under the same rules (a monotonic counter
-  and tombstones written atomically with the data). Kitchen is the first case
-  (see 9). The kit ships a conformance test helper for the port.
+  and tombstones written atomically with the data). No app needs one now
+  (every app keeps its data in its app database). The kit ships a conformance test helper for the port.
 
 Alternative considered and rejected as the default: every app answers
 "changes since" from its own `rev` columns. A per-item rev is not a global
@@ -215,14 +215,13 @@ a cached route any more, the route leaves `configure({ routes })`.
 
 ## What each app changes
 
-**Kitchen** (first; data in `kitchen.json`, in memory, written whole):
-1. Server: a `SyncSource` adapter over its JSON store. Each item gets a `seq`
-   field, the file a `next_seq` and a `tombstones` list, all written in the
-   same atomic file write as the change (format 5 to 6, a migration that gives
-   existing items a seq). Collections: dishes, dish_parts, dish_categories,
-   ingredients, ingredient_categories, freezer, shelf, resting, log. Drafts and
-   settings stay outside (drafts are per screen, settings are one object with
-   their own rev).
+**Kitchen** (first): moves its data from `kitchen.json` into its app database
+(Kenny's rule, open question 1), importing the file once through
+`AppDbSpec::with_import`. Then:
+1. Server: one table per collection (dishes, dish_parts, dish_categories,
+   ingredients, ingredient_categories, freezer, shelf, resting, log), each
+   write calling `tx.sync_upsert` / `tx.sync_delete` in the same transaction.
+   Drafts and settings become tables too, outside the sync manifest.
 2. Server: `create` accepts a client UUID as described in decision 8.
 3. Server: publish `sync` on its live channel after each write (if Kitchen
    takes the live channel; else the 5-minute timer and the triggers suffice).
@@ -251,8 +250,10 @@ until they choose to; then `SqliteChangeLog` with one `sync_upsert` /
 
 ## Open questions for Kenny
 
-1. Kitchen keeps its readable `kitchen.json` with its own sync adapter, or
-   moves its data into the app database so it can use the kit's change log?
+1. Decided (Kenny, 2026-11-02: "ALLE info gaat vanaf nu in databases, geen
+   aparte .json bestanden meer, doe dit in elk project"): Kitchen moves its
+   data into its app database and uses the kit's `SqliteChangeLog`; no
+   `SyncSource` adapter over `kitchen.json`.
 2. Decided (Kenny, 2026-11-02, localdb-retention "30 dagen"): tombstones are
    kept 30 days by default, configurable per app.
 3. Decided (Kenny, 2026-11-02, localdb-pull "Elke 5 minuten"): an open app
