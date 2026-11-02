@@ -9,6 +9,11 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **`chassisData.post(path, body, opts?)` and `IdempotencyKey`** [feat-offline-post-1] (Kitchen's freezer card). A POST
+  queued offline replays in order with the other writes and carries a UUID `Idempotency-Key` made at enqueue time and
+  kept across replays; a refused replay goes to the failed list like any edit. No `If-Match` unless `opts.rev`; the copy
+  is amended only through `opts.optimistic(copy)`. Server: the opt-in `IdempotencyKey` extractor (UUID, 400 in the kit
+  shape); the app records the key with its write in one transaction (no kit store). Design: `docs/OFFLINE_DESIGN.md`.
 - **A kit view for refused offline edits** (`[feat-offline-failed-view-1]`).
   The conflict toast's "Review" action (and any element carrying
   `data-chassis-review`, or `chassisData.review()`) opens a kit drawer built
@@ -19,6 +24,15 @@ scaffold writes. A breaking change in either is a major and carries a
   `chassis-data-review` event is now cancelable: an app that builds its own
   view calls `preventDefault()` and the kit's stays shut. Texts can be
   replaced through `chassisData.configure({ messages })`.
+
+### Changed
+
+- **Offline keeping is trimmed** (`[feat-offline-keep-1]`). With `keepAll` off, a stored list answer now holds only the
+  entries of kept items (the new `itemKey` option, default `'id'`, maps an entry to its `:id` path) and item routes are
+  stored only for kept items, instead of the whole list once any item was kept. `keepItem(path, false)` removes the
+  item's copy and its list entry, `keepAll(false)` trims everything not kept, `keepAll(true)` stores full answers on the
+  next GET. `get()` now also returns `partial` (true for a trimmed list read offline). `keepAll` and `keepItem` return
+  promises; queued writes are never dropped by trimming. Design: `docs/OFFLINE_DESIGN.md`.
 
 ### Fixed
 

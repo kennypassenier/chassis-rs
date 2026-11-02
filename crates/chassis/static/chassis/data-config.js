@@ -1,6 +1,8 @@
 // Offline app data (feat-offline-1): the configuration an app hands to
 // `chassisData.configure()`, validated once, and the route table. Pure.
 
+import { childRoute } from './data-trim.js';
+
 export const DEFAULTS = Object.freeze({
     name: 'app',
     rev: 'rev',
@@ -9,6 +11,7 @@ export const DEFAULTS = Object.freeze({
     warnRatio: 0.8,
     retryMs: 30_000,
     onConflict: null,
+    itemKey: 'id',
     messages: {},
 });
 
@@ -54,9 +57,14 @@ export function normalize(options = {}) {
     if (!(merged.warnRatio > 0 && merged.warnRatio < 1)) {
         throw fail('warnRatio must be between 0 and 1', 'For example 0.8 warns at 80 percent of the cap.');
     }
+    if (typeof merged.itemKey !== 'string' && typeof merged.itemKey !== 'function') {
+        throw fail('itemKey must be a field name or a function', 'It maps a list entry to its item path, e.g. "id" for /api/dishes/:id.');
+    }
     positive(merged.maxBytes, 'maxBytes');
     positive(merged.retryMs, 'retryMs');
-    return { ...merged, compiled: merged.routes.map(compileRoute) };
+    const compiled = merged.routes.map(compileRoute);
+    for (const route of compiled) route.child = route.kind === 'list' ? childRoute(compiled, route) : null;
+    return { ...merged, compiled };
 }
 
 /** The route a path belongs to (query string ignored), or null. */

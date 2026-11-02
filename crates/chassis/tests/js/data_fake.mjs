@@ -6,7 +6,7 @@ import { createData } from '../../static/chassis/data-client.js';
 
 /** A JSON service: items by path with `rev`, If-Match honoured, switchable network. */
 export function fakeService(items = {}) {
-    const svc = { items: { ...items }, up: true, calls: [], status: null };
+    const svc = { items: { ...items }, up: true, calls: [], status: null, posted: new Map(), taken: 0, refusePost: null };
     svc.fetch = async (path, init = {}) => {
         const headers = new Headers(init.headers);
         svc.calls.push({ path, method: init.method, headers: Object.fromEntries(headers), body: init.body, credentials: init.credentials });
@@ -14,6 +14,14 @@ export function fakeService(items = {}) {
         if (svc.status) return reply(svc.status, { error: 'forced', remedy: 'x' });
         const cur = svc.items[path];
         if (init.method === 'GET') return cur ? reply(200, cur, cur.rev) : reply(404, { error: 'none', remedy: 'x' });
+        if (init.method === 'POST') { // an action: applied once per Idempotency-Key, a repeat answers the first result
+            const key = headers.get('idempotency-key');
+            if (svc.refusePost) return reply(svc.refusePost, { error: 'no', remedy: 'x' });
+            if (key && svc.posted.has(key)) return reply(200, svc.posted.get(key));
+            const result = { taken: ++svc.taken };
+            if (key) svc.posted.set(key, result);
+            return reply(200, result);
+        }
         const want = headers.get('if-match')?.replace(/"/g, '');
         if (want !== undefined && cur && String(cur.rev) !== want) return reply(409, { error: 'stale', remedy: 'reload', code: 'stale', rev: cur.rev });
         if (init.method === 'DELETE') { delete svc.items[path]; return reply(200, {}); }

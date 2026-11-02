@@ -205,7 +205,7 @@ test('no token or header is sent beyond the cookie, and none is stored', async (
 test('settings persist per device and keepItem only accepts item routes', async () => {
     const svc = fakeService();
     const first = await makeClient(svc);
-    first.data.keepItem(D1, true);
+    await first.data.keepItem(D1, true);
     assert.throws(() => first.data.keepItem('/api/dishes', true), /not an item route/);
     const again = await makeClient(svc, { storage: first.storage });
     assert.deepEqual(again.data.settings(), { all: false, items: [D1] });

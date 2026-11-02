@@ -12,7 +12,7 @@ import { createFailedView } from './data-failed-view.js';
 import { installLogoutGuard } from './logout-guard.js';
 import { memoryStore, openStore } from './data-store.js';
 
-const METHODS = ['get', 'put', 'patch', 'delete', 'queue', 'pending', 'failed', 'unsent', 'retry', 'drop', 'resave',
+const METHODS = ['get', 'put', 'patch', 'post', 'delete', 'queue', 'pending', 'failed', 'unsent', 'retry', 'drop', 'resave',
     'settings', 'keepAll', 'keepItem', 'isKept', 'usage', 'clearCopy', 'purge', 'review'];
 
 function storageOf(win) {

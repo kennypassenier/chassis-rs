@@ -10,7 +10,8 @@ export function shouldKeep(settings, route, path) {
     if (settings.all) return true;
     const pathname = path.split('?')[0];
     if (route.kind === 'item') return settings.items.includes(pathname);
-    return settings.items.length > 0; // a list is the way to a kept item
+    // A list is the way to a kept item: it is kept (trimmed to the kept items) when it has an item route.
+    return settings.items.length > 0 && route.child != null;
 }
 
 export function withAll(settings, on) {

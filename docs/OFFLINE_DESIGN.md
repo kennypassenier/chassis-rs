@@ -34,6 +34,7 @@ async fn put_dish(IfMatch(want): IfMatch, ...) -> Result<Revisioned<Dish>, Confl
 | `data-rev.js` | Pure: the revision of an answer (body field, else `ETag`), the `If-Match` value, rebasing queued writes after one succeeded. |
 | `data-policy.js` | Pure: what a status means (unreachable / conflict / rejected / auth / retry) and **the one conflict policy function**. |
 | `data-keep.js` | Pure: the per-device settings (all / per item), `shouldKeep`, the cap level. Loads and saves them in `localStorage`. |
+| `data-trim.js`, `data-trimmer.js` | Pure: list-to-item mapping and `storable` (what of an answer is kept); and the trim of the stored copy after a switch-off. |
 | `data-store.js` | IndexedDB behind a flat store interface (`reads`, `queue`). The only file that touches IndexedDB. |
 | `data-cache.js` | Reads copy with byte accounting and the cap. |
 | `data-queue.js` | The write queue and its replay (ordering, stop rules, rebase). |
@@ -51,8 +52,26 @@ async fn put_dish(IfMatch(want): IfMatch, ...) -> Result<Revisioned<Dish>, Confl
 path (a record `{path, data, rev, size, savedAt}`). No normalisation of lists
 into items: the app already has a list route and an item route, and Kitchen's
 adapter is just the route table. An "item" for the per-item toggle is a path
-matching an `:id` route. A list route is kept when "all" is on or at least one
-item is kept, so a kept dish can still be reached from its list.
+matching an `:id` route.
+
+**Trimmed keeping** (feat-offline-keep-1). With "keep everything" on, every
+answer is stored whole (`partial: false`). With it off, only kept items are
+stored, and a list answer is stored **trimmed** to the entries whose item is
+kept (`partial: true`), so the device does not hold every recipe because one is
+kept. A list route belongs to the item route one `/:param` below it
+(`/api/dishes` -> `/api/dishes/:id`); a list entry maps to its item path through
+the `itemKey` option (default `'id'`; a field name or `(entry) => key`). The
+answer may be an array or an object with an `items` array; any other shape, or a
+list without an item route, is not stored while "keep everything" is off, and
+nothing is stored at all while no item is kept. `keepItem(path, false)` removes
+that item's copy and its entry from stored lists; `keepAll(false)` trims every
+stored answer to the kept items (data-trimmer.js); `keepAll(true)` removes
+nothing and the next GET of a list stores the full answer. `get()` reports
+`partial` (offline reads of a trimmed list: `{offline: true, partial: true}`)
+so an app can say "only saved items are shown". `keepAll` / `keepItem` now
+return a promise (the trimming is awaited); `keepItem` still throws at once for
+a non-item path. Trimming only touches the `reads` store: queued writes are
+never dropped.
 
 **Writes queue behind each other.** On a network failure (fetch throws, or
 502/503/504) a write is queued with the `If-Match` it had (the revision of the
@@ -62,6 +81,26 @@ the order they were made. After a replayed write succeeds, later queued writes
 for the same path that carried the old revision are rebased to the new one: they
 are the same person's follow-up edits, not stale saves. An optimistic local
 update (put / patch / delete of the copy) makes offline reads show the edit.
+
+**`post(path, body, opts?)`** (feat-offline-post-1, Kenny: "Kit krijgt post()", for
+Kitchen's freezer "take 1"). Online it POSTs as usual. On a network failure or
+while the queue is not empty it joins the queue like the other writes, in order.
+Its entry carries `key`, a UUID made at enqueue time by `crypto.randomUUID()`
+and kept for the entry's whole life, sent as `Idempotency-Key` on the first
+try and on every replay (the entry is stored with the key, so a reload keeps
+it too). No `If-Match` unless `opts.rev` is given. A refused replay (409/4xx)
+takes the same road as PUT/PATCH/DELETE: failed list, review drawer ("Add"),
+`onConflict` policy, `resave` (same key). The local copy of `path` is **not**
+amended for a POST, because the kit cannot know what an action does to it;
+`opts.optimistic(copy)` returns the new copy and is applied once at enqueue
+(the function itself is never stored). The answer of a POST is never stored as
+the copy of its path. Server: `IdempotencyKey` (next to `IfMatch`) is an
+optional-header extractor, a UUID or 400 in the kit's shape. **Chosen: the
+extractor only, no kit store.** Answering a repeated key with the first result
+is exact only when the key is recorded in the same transaction as the write,
+which only the app's database can do (pattern in the module docs of
+`shell/http/idempotency.rs`); a kit-side bounded store would be a second place
+that can disagree with the data. Additions only: a minor.
 
 **409 on replay: skip and continue** (Kenny, form offline-conflict, "Overslaan",
 2026-11-02). The refused edit moves to the **failed list**: it stays in the same
