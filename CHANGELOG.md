@@ -7,6 +7,16 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed
+
+- **The login lands on the page the visitor came from.** A logged-out page
+  load is redirected to `/login?next=<path and query>`, the login form keeps
+  it in a hidden field, and a successful login (token or passkey) goes there
+  instead of always to `/`. Only a plain same-origin path is followed: `//host`,
+  `/\host`, a scheme, control characters, `/login` and `/logout` all fall back
+  to `/`. The home page itself and non-GET requests still redirect to plain
+  `/login`. (Reported by Kitchen.)
+
 ## [4.2.0] - 2026-11-02
 
 ### Migration

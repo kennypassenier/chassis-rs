@@ -37,6 +37,7 @@ mod definitions;
 mod environment;
 mod errors;
 mod login;
+pub(crate) use login::{login_get_next, login_post_next};
 mod render;
 mod sections;
 mod status;
@@ -382,7 +383,7 @@ pub async fn login_get(
     ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     headers: HeaderMap,
 ) -> Response {
-    login::get(&d, peer, &headers)
+    login::get(&d, peer, &headers, None)
 }
 
 /// `POST /login`: wrong token re-renders the page with the message and
@@ -393,7 +394,7 @@ pub async fn login_post(
     headers: HeaderMap,
     axum::Form(form): axum::Form<LoginForm>,
 ) -> Response {
-    login::post(&d, peer, &headers, &form).await
+    login::post(&d, peer, &headers, &form, None).await
 }
 
 /// `GET /` — the status page (K17).

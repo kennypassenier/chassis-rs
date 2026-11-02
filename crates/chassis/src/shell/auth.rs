@@ -21,6 +21,9 @@ mod door_tests;
 mod limits;
 mod lookup;
 mod navigation;
+pub(crate) mod next;
+#[cfg(test)]
+mod next_tests;
 mod secrets;
 mod session;
 #[cfg(test)]
@@ -159,8 +162,19 @@ pub async fn require_admin(
             "log in on /login, then repeat the call",
         )
         .into_response(),
-        None => Redirect::to("/login").into_response(),
+        None => Redirect::to(&login_redirect(&req)).into_response(),
     }
+}
+
+/// `/login`, carrying the page the visitor asked for as `next` (GET only:
+/// a POST cannot be replayed by a redirect).
+fn login_redirect(req: &Request<Body>) -> String {
+    if req.method() != axum::http::Method::GET {
+        return "/login".into();
+    }
+    let uri = req.uri();
+    let target = uri.path_and_query().map_or("/", |pq| pq.as_str());
+    next::login_url(target)
 }
 
 /// The login form's fields.

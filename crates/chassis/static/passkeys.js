@@ -60,6 +60,12 @@ export async function registerPasskey(label) {
   await post('/passkeys/register/finish', { ceremony, label, credential });
 }
 
+// The page the login form was sent from (its hidden field, which the
+// server only fills with a safe path); the server checks it again.
+function loginNext() {
+  return document.querySelector('#login-form input[name=next]')?.value || null;
+}
+
 export async function loginWithPasskey() {
   const { ceremony, options } = await post('/passkeys/login/start');
   const pk = options.publicKey;
@@ -81,11 +87,11 @@ export async function loginWithPasskey() {
   const res = await fetch('/passkeys/login/finish', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ceremony, credential }),
+    body: JSON.stringify({ ceremony, credential, next: loginNext() }),
     redirect: 'follow',
   });
   if (res.ok || res.redirected) {
-    window.location.href = '/';
+    window.location.href = res.url ? new URL(res.url).pathname + new URL(res.url).search : '/';
   } else {
     throw refusal(await res.json().catch(() => ({})), res.status);
   }

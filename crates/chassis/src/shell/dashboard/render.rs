@@ -30,6 +30,7 @@ impl Dashboard {
         &self,
         error: Option<&str>,
         https: bool,
+        next: Option<&str>,
     ) -> Result<Html<String>, Error> {
         self.render(
             "login.html",
@@ -37,6 +38,8 @@ impl Dashboard {
                 logged_in => false,
                 active_nav => "",
                 error => error,
+                // Only a safe path is echoed into the form.
+                next => next.and_then(crate::shell::auth::next::safe_next),
                 remember_me_days => self.remember_me_days,
                 passkeys => self.passkeys_enabled && https,
             },

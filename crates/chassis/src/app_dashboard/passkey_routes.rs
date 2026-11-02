@@ -68,7 +68,7 @@ pub(super) fn routes(
     // gets login_burst ceremonies at once and login_per_min after that.
     let public = Router::new()
         .route("/passkeys/login/start", post(passkeys::login_start))
-        .route("/passkeys/login/finish", post(passkeys::login_finish))
+        .route("/passkeys/login/finish", post(passkeys::login_finish_next))
         .layer(from_fn_with_state(pk.clone(), passkeys::require_https))
         .with_state(pk.clone())
         .layer(from_fn_with_state(login_limit.clone(), ip_rate_limit));

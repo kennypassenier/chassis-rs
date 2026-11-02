@@ -162,5 +162,5 @@ async fn a_logged_out_fetch_gets_a_401_json_and_a_navigation_the_redirect() {
     .await
     .unwrap();
     assert_eq!(nav.status(), 303);
-    assert_eq!(nav.headers()["location"], "/login");
+    assert_eq!(nav.headers()["location"], "/login?next=%2Fdata%2Fsnapshot");
 }
