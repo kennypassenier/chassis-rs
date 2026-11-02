@@ -20,9 +20,9 @@ const root = document.querySelector('[data-notify-card]');
 if (root) start(root).catch((error) => console.error('chassis notifications card', error));
 
 async function start(card) {
-  // Every part comes from kp-themes' one bundle; the name only says which part
-  // the call site wants.
-  const kp = (_part) => import('./kp/dist/js/index.js');
+  // Each part is its own entry under dist/js/ (kp-themes 12.2): the name is the
+  // entry's file name, so a page loads only the parts it asks for.
+  const kp = (part) => import(`./kp/dist/js/${part}.js`);
   const [{ setCardState }, flash, forms, kpi] = await Promise.all([kp('card-state'), kp('flash'), kp('forms'), kp('kpi')]);
   const { runFlashButton, attachFlashButtons } = flash;
 

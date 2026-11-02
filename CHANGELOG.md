@@ -333,6 +333,16 @@ These are the steps that pick up the unreleased fixes:
   850 KiB to 148 KiB gzip; its JavaScript does not drop yet, because the kit's
   code imports `dist/js/index.js` (every module, 235 files, 754 KiB gzip
   against 633 KiB for the bundle) until it imports only the names it uses.
+  [kpsplit-9] It now does: every kit script imports the per-module entries
+  of kp-themes 12.2.0-pre.472fd3474 (`dist/js/overlays.js`, `flash.js`,
+  `forms.js`, ...), and a page that builds a part's name at run time imports
+  `dist/js/<part>.js`. `auto.js` already attaches the dialogs, the effects
+  and the theme pickers on every page, so the kit no longer calls those;
+  its calls for markup that may arrive after the boot stay. Measured in
+  Firefox (cold cache): a kit page's JavaScript drops from about 805 KiB to
+  258 KiB gzip on `/login` and from about 810 KiB to 320-345 KiB on `/`,
+  `/clients` and `/storage`. `index.js` stays served for apps that import it;
+  the build guard checks the folder from every entry, not from `index.js`.
 
 - **Status, Storage and Clients no longer keep an interval each**: the
   three remembered keys (`chassis-status-refresh`, `chassis-storage-refresh`,

@@ -32,15 +32,15 @@ const clientsPageRoot = document.querySelector('[data-clients-page]');
 if (clientsPageRoot) startClientsPage(clientsPageRoot);
 
 async function startClientsPage(root) {
-  // The name only keys the cache; every part is the one kp-themes bundle.
+  // The name is the entry's file name under dist/js/ (kp-themes 12.2); the cache holds each once.
   const modules = {};
-  const load = async (name) => (modules[name] ??= await import('../kp/dist/js/index.js'));
+  const load = async (name) => (modules[name] ??= await import(`../kp/dist/js/${name}.js`));
   const wanted = CLIENTS_MODULES.filter(([selector]) => root.querySelector(selector));
-  await Promise.all([...wanted.map(([, name]) => load(name)), load('overlays'), load('hovercard'), load('problems'), load('datatable'), load('steplist')]);
+  await Promise.all([...wanted.map(([, name]) => load(name)), load('hovercard'), load('problems'), load('datatable'), load('steplist')]);
   if (modules.remember) modules.remember.restoreRemembered(root);
-  // The dialogs and hovercards live outside the page's root (a dialog in the
-  // top layer, a card on <body>), and both modules attach each trigger once.
-  modules.overlays.attachDialogs(document);
+  // The hovercards live outside the page's root (a card on <body>) and the
+  // module attaches each trigger once. The dialogs are attached by auto.js,
+  // which runs on the whole document.
   modules.hovercard.attachHoverCards(document);
   const issueDialog = document.getElementById('issue-dialog');
   if (issueDialog) await startIssueDialog(issueDialog, load, root.dataset.clientsOne);

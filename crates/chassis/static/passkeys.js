@@ -121,7 +121,7 @@ document.addEventListener('click', async (event) => {
   const register = event.target.closest('[data-passkey-register]');
   const button = login || register;
   if (!button || button.getAttribute('aria-busy') === 'true') return;
-  const { runFlashButton } = await import('./kp/dist/js/index.js');
+  const { runFlashButton } = await import('./kp/dist/js/flash.js');
   const lock = register ? holdDialog(button.closest('dialog')) : () => {};
   await runFlashButton(button, async () => {
     if (login) {

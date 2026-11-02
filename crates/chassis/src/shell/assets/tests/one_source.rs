@@ -54,7 +54,7 @@ fn kit_pages_import_the_split_folder_not_the_bundle() {
         assert_eq!(
             imports_bundle,
             BUNDLE_USERS.contains(&name),
-            "{name}: import dist/js/index.js (or core.js, lazy-register.js), not the bundle; \
+            "{name}: import the entries under dist/js/ (overlays.js, flash.js, ...), not the bundle; \
              only {BUNDLE_USERS:?} stay on it"
         );
     }
@@ -79,4 +79,39 @@ fn the_bundle_is_in_the_core_table() {
             .any(|(n, _, _)| *n == "kp/dist/kp-themes.min.js"),
         "the kit pages need the bundle without the webapp feature"
     );
+}
+
+/// Every literal `kp/dist/js/<entry>.js` a kit script imports must be a file
+/// the table serves, and none may name `index.js`: that entry re-exports all
+/// of kp-themes and would pull every module onto the page. (A name built at
+/// run time, `${part}`, is checked by the browser measure, not here.)
+#[test]
+fn kit_scripts_import_existing_per_module_entries_never_index() {
+    let mut seen = 0;
+    for (name, body) in chassis_owned_js() {
+        for line in body.lines().filter(|l| !l.trim_start().starts_with("//")) {
+            let mut rest = line;
+            while let Some(at) = rest.find("kp/dist/js/") {
+                rest = &rest[at + "kp/dist/js/".len()..];
+                let file: String = rest
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '.')
+                    .collect();
+                if !file.ends_with(".js") {
+                    continue; // `${part}.js`: built at run time
+                }
+                seen += 1;
+                assert_ne!(
+                    file, "index.js",
+                    "{name}: index.js pulls every kp-themes module"
+                );
+                let path = format!("kp/dist/js/{file}");
+                assert!(
+                    ASSETS.iter().any(|(n, _, _)| *n == path),
+                    "{name} imports {path}, which is not served"
+                );
+            }
+        }
+    }
+    assert!(seen > 20, "the kit's entry imports were found ({seen})");
 }

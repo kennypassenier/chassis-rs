@@ -9,16 +9,34 @@ use std::collections::BTreeSet;
 /// table already; naming it makes a vendoring that forgets it a build error.
 pub const KP_BUNDLE: &str = "kp/dist/kp-themes.min.js";
 
-/// The split module bundle (kp-themes 12.2): the page's boot entry and the two
-/// entries kit code imports. `index.js` is the fourth entry: it re-exports
-/// every module and pulls the whole folder, so no page loads it on start, but
-/// the kit's late `import()`s name it, so it must be served.
+/// The split module bundle (kp-themes 12.2): the page's boot entry (`auto.js`),
+/// the two entries every kit page imports by name (`core.js`,
+/// `lazy-register.js`; the rest of the kit imports its per-module entries,
+/// `overlays.js`, `flash.js`, ... ) and `index.js`. No kit page loads
+/// `index.js`; it stays because apps may import it. It does not re-export
+/// every module (`busy-card.js` is only an entry), so the folder is checked
+/// from every unhashed file in it (`split_roots`), not from these four.
 pub const SPLIT_ENTRIES: &[&str] = &[
     "kp/dist/js/auto.js",
     "kp/dist/js/core.js",
     "kp/dist/js/lazy-register.js",
     "kp/dist/js/index.js",
 ];
+
+/// The roots the split folder is checked from: the required entries plus every
+/// other file in the folder that is not a content-hashed chunk, i.e. each
+/// per-module entry (kp-themes 12.2 gives every component one).
+pub fn split_roots(files: &[String]) -> Vec<&str> {
+    let mut roots: Vec<&str> = SPLIT_ENTRIES.to_vec();
+    for f in files {
+        let name = f.strip_prefix(SPLIT_JS_PREFIX);
+        if name.is_some_and(|n| n.ends_with(".js") && !n.starts_with("chunk-") && !n.contains('/'))
+        {
+            roots.push(f);
+        }
+    }
+    roots
+}
 
 /// The base stylesheet and the register the no-flash fallback names (the
 /// server writes `{theme}` into the register pattern; `formal` is the
@@ -43,7 +61,7 @@ pub fn require_files(files: &[String], names: &[&str], what: &str) -> Result<(),
 }
 
 /// The split folder must be whole: every `.js` file under it is reachable
-/// from the four entries (a chunk nothing imports is a stale leftover), and
+/// from a root (an entry; a chunk nothing imports is a stale leftover), and
 /// every file the entries import exists (a missing chunk is a 404 that only
 /// shows once a widget is used).
 pub fn check_split_folder(files: &[String], closure: &BTreeSet<String>) -> Result<(), String> {

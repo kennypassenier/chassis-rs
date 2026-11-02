@@ -118,7 +118,7 @@ fn guard_kp_files(files: &[String]) {
     use kp_guards::*;
     let root =
         PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR")).join("static");
-    let split = import_closure(&root, SPLIT_ENTRIES);
+    let split = import_closure(&root, &split_roots(files));
     let checks = [
         require_files(files, CORE_KP_JS, "CORE_KP_JS"),
         require_files(files, &[KP_BUNDLE], "KP_BUNDLE"),

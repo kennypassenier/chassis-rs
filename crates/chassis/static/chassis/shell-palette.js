@@ -4,7 +4,10 @@
 // The pieces live in shell-palette-keys / -options / -clients and share one
 // `ctx` object (the page facts and the palette's handle).
 
-import { attachNavFolds, attachPalettes, palette as paletteOf, attachShortcuts, attachTabbars, attachDialogs } from '../kp/dist/js/index.js';
+import { attachNavFolds } from '../kp/dist/js/nav-fold.js';
+import { attachPalettes, palette as paletteOf } from '../kp/dist/js/palette.js';
+import { attachShortcuts } from '../kp/dist/js/shortcuts.js';
+import { attachTabbars } from '../kp/dist/js/tabbar.js';
 import { $ } from './shell-dom.js';
 import { createClientCommands } from './shell-palette-clients.js';
 import { registerKeys } from './shell-palette-keys.js';
@@ -93,8 +96,7 @@ function wireRun(ctx, run, sendTest) {
 function attachTabbar(run, joined) {
   const tabbar = $('#chassis-tabbar');
   if (!tabbar) return;
-  attachDialogs(tabbar);
-  attachDialogs($('#chassis-more'));
+  // The tab bar's More drawer is a dialog on the page at boot: auto.js attaches it.
   attachTabbars(document);
   joined.push('tabbar', 'dialogs');
   $('#chassis-more')?.addEventListener('click', (event) => {

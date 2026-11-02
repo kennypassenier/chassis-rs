@@ -32,6 +32,7 @@ async fn entries_maps_and_the_loose_modules_still_revalidate() {
         "kp/dist/js/auto.js",
         "kp/dist/js/core.js",
         "kp/dist/js/lazy-register.js",
+        "kp/dist/js/overlays.js",
         "kp/dist/js/index.js",
         "kp/dist/kp-themes-base.min.css",
         "kp/dist/css/formal-register.min.css",
@@ -70,10 +71,22 @@ fn every_chunk_a_split_entry_imports_is_a_hashed_chunk() {
             seen += 1;
         }
     }
-    assert!(seen > 200, "{seen} chunks");
-    assert_eq!(
-        stray.len(),
-        4,
-        "only the four entries are unhashed: {stray:?}"
+    assert!(seen > 100, "{seen} chunks");
+    // kp-themes 12.2 gives every component its own unhashed entry next to
+    // auto.js, core.js and lazy-register.js (158 in 12.2.0-pre.472fd3474).
+    assert!(
+        stray.len() > 100,
+        "the per-module entries are served: {} unhashed",
+        stray.len()
     );
+    for entry in [
+        "auto.js",
+        "core.js",
+        "lazy-register.js",
+        "overlays.js",
+        "flash.js",
+    ] {
+        let name = format!("kp/dist/js/{entry}");
+        assert!(stray.contains(&name.as_str()), "{name} is an entry");
+    }
 }
