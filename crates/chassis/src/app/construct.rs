@@ -116,6 +116,7 @@ impl App {
             subsystems: Vec::new(),
             scrape_sources: Vec::new(),
             timeout_exempt: HashSet::new(),
+            browser_features: Vec::new(),
             #[cfg(feature = "request-guard")]
             request_guards: Vec::new(),
             #[cfg(feature = "request-guard")]

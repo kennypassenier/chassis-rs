@@ -81,6 +81,16 @@ impl App {
         self
     }
 
+    /// Let the pages use a browser feature the kit's `Permissions-Policy`
+    /// turns off by default (`camera`, `microphone`, `geolocation`,
+    /// `accelerometer`, `gyroscope`, `magnetometer`, `display-capture`,
+    /// `midi`, `payment`, `usb`): it is sent as `feature=(self)`. A name
+    /// that is not lowercase letters and `-` is refused at start.
+    pub fn allow_browser_feature(&mut self, feature: impl Into<String>) -> &mut Self {
+        self.browser_features.push(feature.into());
+        self
+    }
+
     /// Paths under this prefix are not subject to the request timeout
     /// (long polls, streaming).
     pub fn exempt_from_timeout(&mut self, path_prefix: impl Into<String>) -> &mut Self {
