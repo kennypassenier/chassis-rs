@@ -251,6 +251,20 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Fixed
 
+- **A push endpoint can no longer point into the local network**
+  (`[fix-hunt-push-1]`): the server posts to every stored endpoint, and only
+  the scheme was checked, so a logged-in caller could subscribe
+  `https://127.0.0.1:..`, `https://169.254.169.254/..`, a private address or a
+  single-label name such as `https://nas/` and make the service request it
+  (the status code came back in `last_error`). Loopback, private, link-local,
+  CGNAT and unique-local addresses, `localhost` and single-label names are
+  refused at subscribe. A public name that resolves to a private address is
+  not caught (no resolver hook); noted in `docs/PUSH_DESIGN.md`.
+- **A too-large push notification fails once, up front** (`[fix-hunt-push-2]`):
+  `send` used to build, fail to encrypt and record "the push payload is N
+  bytes" as the last error of every subscription; it now returns the error
+  before anything is attempted, and no subscription is marked failed.
+
 - **A GET share target is no longer forgeable from another site**
   (habits, `[fix-sec-share-1]`): `ShareTarget::get(path)` writes on GET by
   design, and the `Lax` session cookie rides a top-level navigation from any

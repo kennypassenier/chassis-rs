@@ -206,3 +206,21 @@ async fn the_handle_says_why_when_the_service_has_not_started() {
     let err = handle.send(Push::new("x")).await.unwrap_err();
     assert!(err.message.contains("not available"), "{}", err.message);
 }
+
+#[tokio::test]
+async fn a_payload_too_large_for_one_record_fails_up_front_and_taints_no_subscription() {
+    let rig = rig(4, Some("mailto:ops@example.org")).await;
+    rig.subscribe("ok");
+    let err = rig
+        .sender
+        .send(&Push::new("x").body(&"a".repeat(5000)))
+        .await
+        .unwrap_err();
+    assert!(err.message.contains("bytes"), "{}", err.message);
+    assert!(rig.fake.seen.lock().unwrap().is_empty());
+    let subs = rig.store.all().unwrap();
+    assert_eq!(
+        subs[0].last_error, None,
+        "the notification is at fault, not the browser"
+    );
+}
