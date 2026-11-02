@@ -7,6 +7,7 @@ use super::*;
 use crate::shell::health::{self, SubsystemStatus};
 use axum::routing::get;
 
+mod body_limit;
 mod cli;
 mod config;
 mod knob_table;

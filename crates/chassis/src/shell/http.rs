@@ -10,6 +10,7 @@
 //! is added by a layer that always does.
 
 mod access_log_line;
+pub(crate) mod body_limit;
 mod error_page;
 mod error_response;
 mod hygiene;
@@ -25,7 +26,7 @@ use axum::extract::{Request, State};
 use axum::http::{HeaderName, HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::Response;
-use tower_http::limit::RequestBodyLimitLayer;
+use body_limit::BodyLimits;
 use tower_http::request_id::{
     MakeRequestId, PropagateRequestIdLayer, RequestId, SetRequestIdLayer,
 };
@@ -89,16 +90,28 @@ pub async fn html_errors(
     error_page::html_errors(State(render), req, next).await
 }
 
-/// Wrap a router with the kit's layers. Order, outermost first as a
-/// request sees them: request-id set → access log (+ request counter) →
-/// HTML errors for navigations → body-size cap → in-flight cap → CSRF
-/// rule → request timeout → the routes; the id is propagated onto the
-/// response on the way out.
+/// [`with_kit_layers_limited`] with one body cap for every route.
 pub fn with_kit_layers(
     router: Router,
     guards: Guards,
     access: AccessState,
     max_body_bytes: usize,
+    html: Option<HtmlErrorRenderer>,
+) -> Router {
+    let limits = BodyLimits::new(max_body_bytes, Vec::new()).expect("no raised caps to refuse");
+    with_kit_layers_limited(router, guards, access, limits, html)
+}
+
+/// Wrap a router with the kit's layers. Order, outermost first as a
+/// request sees them: request-id set → access log (+ request counter) →
+/// HTML errors for navigations → body-size cap → in-flight cap → CSRF
+/// rule → request timeout → the routes; the id is propagated onto the
+/// response on the way out.
+pub(crate) fn with_kit_layers_limited(
+    router: Router,
+    guards: Guards,
+    access: AccessState,
+    body_limits: BodyLimits,
     html: Option<HtmlErrorRenderer>,
 ) -> Router {
     router
@@ -115,7 +128,10 @@ pub fn with_kit_layers(
             guards,
             crate::shell::guards::untrusted_proxy_guard,
         ))
-        .layer(RequestBodyLimitLayer::new(max_body_bytes))
+        .layer(middleware::from_fn_with_state(
+            body_limits,
+            body_limit::body_limit,
+        ))
         // Outside the limit layer, so its bare 413 passes through here.
         .layer(middleware::from_fn(json_413))
         // Outside every guard: their JSON refusals become pages for browsers.

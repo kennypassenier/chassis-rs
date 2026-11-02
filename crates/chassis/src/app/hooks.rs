@@ -91,6 +91,25 @@ impl App {
         self
     }
 
+    /// Raise the request-body cap for the paths under this prefix (a whole
+    /// segment: `/data/import` covers `/data/import/x`, not `/data/imports`)
+    /// to `max_bytes`, for a restore or import route whose body is bigger
+    /// than `max_body_bytes` (default 1 MiB, which stays the cap everywhere
+    /// else). The longest matching prefix wins; a bad prefix (not starting
+    /// with `/`) or a cap of 0 is refused at start. The raised cap is the
+    /// route's own, not a floor: lowering below the default works too.
+    ///
+    /// axum's `DefaultBodyLimit` cannot do this: the kit's cap wraps the body
+    /// before any route sees it, so a per-route layer can only lower it.
+    ///
+    /// ```ignore
+    /// app.body_limit("/data/import", 64 * 1024 * 1024);
+    /// ```
+    pub fn body_limit(&mut self, path_prefix: impl Into<String>, max_bytes: usize) -> &mut Self {
+        self.body_limits.push((path_prefix.into(), max_bytes));
+        self
+    }
+
     /// Paths under this prefix are not subject to the request timeout
     /// (long polls, streaming).
     pub fn exempt_from_timeout(&mut self, path_prefix: impl Into<String>) -> &mut Self {

@@ -23,11 +23,22 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 - **Habits**: drop the `no-store` stand-in on the app's JSON data; the worker
   no longer caches it. Users need no step: the next release of the worker
   replaces the old cache and the cached `/data/*.json` copies go with it.
+- **Habits**: drop `HABITS_MAX_BODY_BYTES` from the env file and call
+  `app.body_limit("/data/import", 64 * 1024 * 1024)` instead; every other route
+  keeps the 1 MiB cap.
 - A service that called `app.webapp(..)` twice used to keep only the second
   app; both are now mounted, and two installable ones are refused at start
   (add `.without_pwa()` to all but one).
 
 ### Added
+
+- **A raised request-body cap for chosen routes** (`[fix-body-limit-1]`,
+  Habits gap 14): `app.body_limit("/data/import", 64 * 1024 * 1024)` lets the
+  paths under a prefix take a body above `max_body_bytes` (default stays
+  1 MiB for everything else). The kit's cap used to wrap the whole router, so
+  axum's per-route `DefaultBodyLimit` could only lower it; the cap is now
+  looked up per request. A bad prefix or a cap of 0 is refused at start.
+  Documented in `docs/OPERATIONS.md`.
 
 - **Browser-policy headers on every answer** (`[fix-sec-headers-1]`, Habits
   security review): `Cross-Origin-Opener-Policy: same-origin`; a
