@@ -67,6 +67,16 @@ export function showError(field, message, { wrapper = '.kp-field', invalidClass 
 }
 
 /**
+ * The message a field shows now: what showError put in its error slot, or '' when it shows none.
+ *
+ * @param {HTMLElement} field
+ * @param {{ wrapper?: string }} [options]
+ */
+export function messageOf(field, { wrapper = '.kp-field' } = {}) {
+    return field.closest(wrapper)?.querySelector(FIELD_ERROR)?.textContent?.trim() ?? '';
+}
+
+/**
  * Clear what showError put there.
  *
  * @param {HTMLElement} field

@@ -64,6 +64,7 @@ export class TableExpand {
         // Meanwhile they carry `data-kp-folding="out"`, so the box around
         // them glides shut as they play, the mirror of its glide open
         // (Kenny's form v21: it snapped shut once they had gone).
+        this.t.tracks.hold();
         const going = fold ? this.t.model.pageRows.filter((row) => this.t.groups.groupOf(row) === key && !row.hidden) : [];
         if (fold) this.t.groups.folded.add(key);
         else {

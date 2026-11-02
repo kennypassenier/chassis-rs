@@ -11,6 +11,10 @@
 //                        timer: { seconds: 600, name: 'Rice' }, note: 'Do not walk away: it catches fast.' }, …], { start: 2 });
 //   el.addEventListener('kp-focus-steps-change', (e) => remember(e.detail.index));
 //
+// A step may carry a `body` [habits-1101], the longer detail under its text inside the body (`__detail`): a Node the page built (copied on
+// every draw) or a Markdown string drawn with the package's markdownFragment. A page that binds its own keys calls `nextStep(root)` and
+// `prevStep(root)`, which do exactly what the Next and Back buttons do (an answer is taken first; Done on the last step).
+//
 // Parts, made by the module: a head (`__head`) with "Step 3 of 8"
 // (`__count`), the theme's progress bar (`__bar`), Read aloud (`__speak`,
 // when the browser can) and the screen line (`__wake`); a body (`__body`)
@@ -136,7 +140,7 @@ export {
     SWIPE_DISTANCE,
 } from './focus-steps/constants.js';
 export { goToStep, getStepIndex, getStepsPassed, getSteps, setFocusSteps, setFocusStepsState } from './focus-steps/api.js';
-export { attachFocusSteps } from './focus-steps/attach.js';
+export { attachFocusSteps, nextStep, prevStep } from './focus-steps/attach.js';
 
 /** @typedef {import('./focus-steps/constants.js').FocusIngredient} FocusIngredient */
 /** @typedef {import('./focus-steps/constants.js').FocusChoice} FocusChoice */

@@ -1,14 +1,16 @@
 // Paints the focused step.
 import { getStrings } from '../strings.js';
 import { statePlate } from '../state-plate.js';
-import { focusState } from './state.js';
+import { appendBody } from './detail.js';
 import { el, part, stateOf } from './dom.js';
 import { answering, buildResumeAsk, emptyAction, lastIndex, onSummary, opt, summaryOn } from './resume.js';
-import { activeTrack, timerIdOf, timerStates, tracksOn } from './tracks.js';
+import { activeTrack, timerStates, tracksOn } from './tracks.js';
 import { dropLanes, ensureLanes, layoutLanes, paintLanes } from './lanes.js';
-import { blockerNames, blockersOf, laneSummaries } from './blockers.js';
-import { buildAnswer, buildSummary, paintAnswerState } from './flow.js';
-import { suggestion, waitLine } from './band.js';
+import { blockersOf, laneSummaries } from './blockers.js';
+import { buildAnswer, buildSummary } from './answer-ui.js';
+import { paintAnswerState } from './flow.js';
+import { needsList, timerButton, waitBlock } from './paint-extras.js';
+import { suggestion } from './band.js';
 import { paintLive } from './track-nav.js';
 
 /** Write the step shown, its count and bar, and the buttons. @param {HTMLElement} root @param {boolean} arrive */
@@ -102,6 +104,7 @@ export function paint(root, arrive) {
             const text = el('kp-focus-steps__text', 'p');
             text.textContent = step.text;
             holder.append(text);
+            appendBody(holder, step);
             if (step.answer) buildAnswer(root, holder, step, text);
             if (step.note) {
                 const note = el(`kp-alert kp-alert--${step.noteTone === 'warning' ? 'warning' : 'info'} kp-focus-steps__note`, 'p');
@@ -150,63 +153,10 @@ export function paint(root, arrive) {
         const text = el('kp-focus-steps__text', 'p');
         text.textContent = step.text;
         holder.append(text);
-        if (blocks.length) {
-            // The step waits: what for, how long, and the button to the track that can go on.
-            holder.setAttribute('data-kp-focus-steps-locked', '');
-            const wait = el('kp-alert kp-alert--info kp-focus-steps__wait', 'div');
-            wait.setAttribute('role', 'status');
-            const what = el('kp-focus-steps__wait-text');
-            const title = el('kp-focus-steps__wait-title', 'strong');
-            title.textContent = strings.focusTrackWaitTitle(blockerNames(state, blocks));
-            const line = el('kp-focus-steps__wait-line', 'span');
-            line.textContent = waitLine(state, blocks, timers, index);
-            what.append(title, line);
-            wait.append(what);
-            const next = suggestion(laneSummaries(root));
-            if (next) {
-                const go = /** @type {HTMLButtonElement} */ (el('kp-button kp-button--primary kp-focus-steps__wait-go', 'button'));
-                go.type = 'button';
-                go.setAttribute('data-kp-focus-go', String(state.tracks.indexOf(next.track)));
-                go.textContent = strings.focusTrackGo(next.name);
-                wait.append(go);
-            }
-            holder.append(wait);
-        }
-        if (step.ingredients?.length) {
-            const needs = el('kp-focus-steps__needs', 'section');
-            const title = el('kp-focus-steps__needs-title', 'h3');
-            focusState.serial += 1;
-            title.id = `kp-focus-steps-${focusState.serial}-needs`;
-            title.textContent = strings.focusNeeds;
-            needs.setAttribute('aria-labelledby', title.id);
-            const list = el('kp-focus-steps__needs-list', 'ul');
-            for (const item of step.ingredients) {
-                const row = el('kp-focus-steps__need', 'li');
-                const { name, amount } = typeof item === 'string' ? { name: item, amount: '' } : item;
-                const a = el('kp-focus-steps__amount', 'span');
-                a.textContent = amount ?? '';
-                const n = el('kp-focus-steps__name', 'span');
-                n.textContent = name;
-                row.append(a, n);
-                list.append(row);
-            }
-            needs.append(title, list);
-            holder.append(needs);
-        }
-        if (step.timer && step.timer.seconds > 0) {
-            const minutes = Math.round(step.timer.seconds / 60);
-            const button = /** @type {HTMLButtonElement} */ (el('kp-button kp-focus-steps__timer', 'button'));
-            button.type = 'button';
-            button.setAttribute('data-kp-timer-start', String(step.timer.seconds));
-            button.setAttribute('data-kp-timer-name', step.timer.name ?? strings.focusCount(index + 1, total));
-            // The timer has an id of its own, so the timer list, the lanes and a page that watches it name the same one.
-            button.setAttribute('data-kp-timer-id', timerIdOf(state, index));
-            if (blocks.length) button.setAttribute('aria-disabled', 'true');
-            const list = root.getAttribute('data-kp-focus-steps-timers');
-            if (list) button.setAttribute('data-kp-timer-for', list);
-            button.textContent = strings.focusTimer(step.timer.seconds < 60 ? `${step.timer.seconds} s` : `${minutes} min`);
-            holder.append(button);
-        }
+        appendBody(holder, step);
+        if (blocks.length) waitBlock(root, holder, state, blocks, timers, index);
+        if (step.ingredients?.length) holder.append(needsList(step.ingredients));
+        if (step.timer && step.timer.seconds > 0) holder.append(timerButton(root, state, step.timer, blocks.length > 0, index, total));
         if (step.note) {
             const note = el(`kp-alert kp-alert--${step.noteTone === 'warning' ? 'warning' : 'info'} kp-focus-steps__note`, 'p');
             note.textContent = step.note;

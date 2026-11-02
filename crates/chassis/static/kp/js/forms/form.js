@@ -102,6 +102,7 @@ export class FormController extends Controller {
         // type the third character of an email address is technically
         // true and practically hostile.
         if (this.when === 'blur' || (this.again === 'blur' && stateHolder(field).getAttribute('aria-invalid') === 'true')) this.validateField(field);
+        this.refreshSummary();
     }
 
     /** @param {Event} event */
@@ -111,6 +112,22 @@ export class FormController extends Controller {
         // "Punish late, reward early": once a field is marked, fixing
         // it clears the mark as you type.
         if (this.when === 'input' || (this.again === 'input' && stateHolder(field).getAttribute('aria-invalid') === 'true')) this.validateField(field);
+        this.refreshSummary();
+    }
+
+    /** A summary on show follows the fields: the message each shows now, a fixed field gone, the summary hidden when none is left. */
+    refreshSummary() {
+        const summary = this.summary;
+        if (summary === null || summary.hidden) return;
+        const bad = dedupe(this.handle.invalid());
+        if (bad.length === 0) summary.hidden = true;
+        else writeSummary(summary, bad, this.look());
+    }
+
+    /** What the summary needs of the settings. */
+    look() {
+        const { summaryHeading, summaryHeadingClass, wrapper } = this.settings;
+        return { summaryHeading, summaryHeadingClass, wrapper };
     }
 
     /** Show the summary of the invalid fields and move the focus. @param {HTMLElement[]} bad */
@@ -120,7 +137,7 @@ export class FormController extends Controller {
             if (this.settings.focusFirstInvalid) bad[0]?.focus();
             return;
         }
-        writeSummary(summary, bad, this.settings);
+        writeSummary(summary, bad, this.look());
         // Focused, not merely rendered: a message above the fold is
         // invisible to someone whose focus is at the bottom of a long
         // form, which is exactly where the submit button is.

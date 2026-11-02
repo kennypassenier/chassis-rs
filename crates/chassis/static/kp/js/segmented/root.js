@@ -9,6 +9,9 @@ import { choose, turnTri } from './actions.js';
 import { targetIndex } from './keys.js';
 import { roving } from './roving.js';
 
+/** The keys that give a three-way chip a state directly [ux-1101]. @type {Record<string, 'include' | 'exclude'>} */
+const DIRECT_KEYS = { '+': 'include', '=': 'include', '-': 'exclude' };
+
 /** The item and the group an event happened in, or nulls. @param {Event} event */
 function itemAndGroup(event) {
     const item = event.target instanceof Element ? event.target.closest(SEGMENTED_ITEM) : null;
@@ -86,6 +89,15 @@ export class SegmentedRoot extends Controller {
             event.preventDefault();
             enhance(group);
             if (!groupDisabled(group) && !itemDisabled(item)) turnTri(group, item, 'any');
+            return;
+        }
+        // Plus wants and minus leaves out, at once, whatever the chip was [ux-1101].
+        const direct = isTri(group) && !isAll(item) ? DIRECT_KEYS[event.key] : undefined;
+        if (direct) {
+            HANDLED.add(event);
+            event.preventDefault();
+            enhance(group);
+            if (!groupDisabled(group) && !itemDisabled(item)) turnTri(group, item, direct);
             return;
         }
         const to = targetIndex(event, group, at, items.length);

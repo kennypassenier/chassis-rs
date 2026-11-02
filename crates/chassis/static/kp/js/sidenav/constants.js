@@ -4,6 +4,8 @@
 export const SIDENAV_TOGGLE_EVENT = 'kp-sidenav-toggle';
 export const SIDENAV_SLIM_EVENT = 'kp-sidenav-slim';
 export const SIDENAV_MODE_EVENT = 'kp-sidenav-mode';
+/** A category folded or unfolded by a press: `{ id, expanded, source }`, bubbling from the category [habits-1101]. */
+export const SIDENAV_GROUP_EVENT = 'kp-sidenav-group';
 /** A change that was asked for and refused: by a listener, or by a static backdrop [Bootstrap's hidePrevented]. */
 export const SIDENAV_PREVENTED_EVENT = 'kp-sidenav-prevented';
 /** The mark a consumer puts on a toggler they wire themselves [AR29]. */

@@ -59,8 +59,23 @@ export class QuantityControl extends Controller {
         return change(this.host, getQuantity(this.host) + by * rulesOf(this.host).step, 'button');
     }
 
+    /**
+     * A press in the number's box beside the number (its padding, the unit) puts the caret in the number, as the box's text cursor
+     * promises: the whole box, a fingertip high, is the number's target [uxtouch1101; the number alone is a few characters wide].
+     * @param {PointerEvent} event
+     */
+    focusFromField(event) {
+        const field = event.target instanceof Element ? event.target.closest('.kp-quantity__field') : null;
+        const input = inputOf(this.host);
+        if (!field || !input || event.target === input || isDisabled(this.host) || !this.host.contains(field)) return;
+        event.preventDefault();
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+    }
+
     /** A pointer went down on a button: step now, and again while it is held, slowly first and then faster. @param {PointerEvent} event */
     down(event) {
+        this.focusFromField(event);
         const b = this.stepButton(event);
         if (!b || event.button !== 0 || isDisabled(this.host)) return;
         this.press(b);

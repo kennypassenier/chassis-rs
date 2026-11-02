@@ -35,6 +35,8 @@ export class SecretBase extends Controller {
         this.timer = 0;
         /** The timer that puts Copy's own words back. */
         this.copiedTimer = 0;
+        /** The words Copy had before the first copy of a run of copies, which it gets back. */
+        this.copyIdle = '';
         /** Cancels the clipboard clearing a copy scheduled. */
         this.cancelClear = () => {};
         /** The polite region. Set by the subclass's build. @type {HTMLElement | null} */
@@ -97,7 +99,7 @@ export class SecretBase extends Controller {
      * @param {HTMLButtonElement} copy
      * @param {() => string | Promise<string>} read
      * @param {string} name what the announcement calls the field
-     * @param {() => void} settle puts the button's own words back
+     * @param {(idle: string) => void} settle puts the button's own words back: the ones it had before the copy
      */
     async copyOut(copy, read, name, settle) {
         let text = '';
@@ -111,12 +113,14 @@ export class SecretBase extends Controller {
             return;
         }
         delete copy.dataset.kpCopyFailed;
+        // A second copy inside the window finds "Copied" on the button; the words to return to were noted at the first.
+        if (!copy.hasAttribute('data-kp-copied')) this.copyIdle = copy.textContent ?? '';
         copy.textContent = this.s.copied;
         copy.dataset.kpCopied = '';
         copy.dispatchEvent(new CustomEvent(COPY_EVENT, { bubbles: true, detail: { text: '' } }));
         this.say(this.s.copiedAnnouncement(name));
         window.clearTimeout(this.copiedTimer);
-        this.copiedTimer = window.setTimeout(settle, this.copiedMs);
+        this.copiedTimer = window.setTimeout(() => settle(this.copyIdle), this.copiedMs);
         this.scheduleClear(text);
     }
 

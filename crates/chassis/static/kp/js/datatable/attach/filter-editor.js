@@ -60,7 +60,7 @@ export class TableFilterEditor {
         const legend = identity.make('legend', 'kp-sr-only');
         legend.textContent = s.tableFilterChoicesLegend(label);
         const choices = identity.make('div', 'kp-datatable__filter-editor-choices');
-        for (const value of this.t.filterUi.choiceValues(at)) {
+        for (const value of this.t.filterUi.choices.choiceValues(at)) {
             const option = identity.make('label', 'kp-field__option');
             const box = /** @type {HTMLInputElement} */ (identity.make('input', CHECK_CLASS));
             box.type = 'checkbox';
@@ -98,7 +98,7 @@ export class TableFilterEditor {
                 field.append(text, input);
                 pair.append(field);
             } else {
-                const picker = this.t.filterUi.datePickerFor(input);
+                const picker = this.t.filterUi.choices.datePickerFor(input);
                 picker.prepend(text);
                 pair.append(picker);
             }

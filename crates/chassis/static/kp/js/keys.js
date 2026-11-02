@@ -40,6 +40,9 @@ function isMac() {
     return /mac|iphone|ipad/i.test(platform);
 }
 
+/** Whether the modifier key is ⌘ here rather than Ctrl, for a part that names its own shortcuts (the Markdown editor) [habits-1101]. */
+export const isMacPlatform = () => isMac();
+
 /** @param {string} key */
 const capText = (key) => (key.toLowerCase() === 'mod' ? (isMac() ? '⌘' : 'Ctrl') : key);
 

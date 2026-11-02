@@ -2,6 +2,7 @@
 import { RESTS, windowOf } from './window.js';
 import { clusterPoints } from './points.js';
 import { placeLabels } from './labels.js';
+import { isFit, placeFitLabels } from './fit.js';
 import { frame, wordsOf } from './build.js';
 import { edgeTicks, syncDays, syncTicks } from './axis.js';
 import { rel, stamp } from './scale.js';
@@ -25,7 +26,8 @@ export function visible(c) {
         }
     }
     clusterPoints(c);
-    placeLabels(c);
+    if (isFit(c)) placeFitLabels(c);
+    else placeLabels(c);
 }
 /** Words that grow with the clock: a running bar's name and card. @param {GanttModel} c @param {number} nowMs */
 export function refresh(c, nowMs) {

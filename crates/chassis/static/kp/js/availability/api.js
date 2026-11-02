@@ -1,7 +1,8 @@
 // The functions a page calls to set the spec and read or set an answer.
 import { getStrings } from '../strings.js';
 import { STATE, availabilityBest, el, glyphOf, toneOf, wordOf } from './facts.js';
-import { paintCell, paintSummary, render } from './paint.js';
+import { paintCell } from './cell.js';
+import { paintSummary, render } from './paint.js';
 /** @typedef {import('./types.js').AvState} AvState */
 /** @typedef {import('./types.js').AvailabilityAnswer} AvailabilityAnswer */
 /** @typedef {import('./types.js').AvailabilityAnswers} AvailabilityAnswers */

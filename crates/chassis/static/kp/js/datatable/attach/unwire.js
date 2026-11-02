@@ -148,7 +148,10 @@ export class TableUnwire {
     /** The pager emptied, the slots as they were, the busy count and layer gone. */
     restoreSlots() {
         const { controls, busy, model } = this.t;
-        if (controls.pager !== null) controls.pager.textContent = '';
+        if (controls.pager !== null) {
+            controls.pager.textContent = '';
+            controls.pager.hidden = false;
+        }
         if (controls.empty !== null) controls.empty.hidden = busy.emptyWasHidden;
         if (controls.loadingSlot !== null) controls.loadingSlot.hidden = true;
         if (controls.failedSlot !== null) controls.failedSlot.hidden = true;

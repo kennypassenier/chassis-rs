@@ -5,6 +5,7 @@ import { Controller } from '../controller.js';
 import { rowSelect } from '../row-select.js';
 import { getStrings } from '../strings.js';
 import { draw, parts, say, sync, untick } from './draw.js';
+import { publishLift } from './lift.js';
 import { BOX, SELECTION_ACTION_EVENT, SELECTION_CLEAR_EVENT, SELECTION_EVENT, SELECTION_MATCHING_EVENT, sourcesOf } from './model.js';
 
 /** @typedef {import('./model.js').Memory} Memory */
@@ -61,6 +62,7 @@ export class SelectionBar extends Controller {
         this.listen(bar, 'click', (event) => this.onClick(/** @type {MouseEvent} */ (event)));
         this.listen(this.doc, 'keydown', (event) => this.onKey(/** @type {KeyboardEvent} */ (event)));
         sync(bar, this.memory);
+        publishLift(this);
     }
 
     onOptions() {

@@ -10,7 +10,11 @@ export const SPLIT = '[data-kp-split]';
 export const TREE_EXPAND_EVENT = 'kp-tree-expand';
 /** Fired on a tree when an item is selected: `{ item, id }`. */
 export const TREE_SELECT_EVENT = 'kp-tree-select';
-/** Fired on a reorder list when the order changed. A contract value [TH26]: `{ order, id, from, to }`. */
+/**
+ * Fired on a reorder list when the order changed. A contract value [TH26]: `{ order, id, from, to }`; a list in a group
+ * (`data-kp-reorder-group`) adds `fromList` and `toList`, the keys of the list the item left and the one it is in now
+ * (`data-kp-reorder-list`, else the id) [habits-1101]. A move across lists fires on the list that took the item.
+ */
 export const REORDER_EVENT = 'kp-reorder';
 /** Fired on a split pane when the divider moved; the detail carries the percentage. */
 export const SPLIT_EVENT = 'kp-split';

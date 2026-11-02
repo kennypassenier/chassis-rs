@@ -6,6 +6,9 @@ import { menuState } from './state.js';
 /** @type {WeakMap<Element, MenuState>} */
 export const menus = new WeakMap();
 
+/** The entries a page last gave each menu button with setMenu(), so a context menu can show the same [habits-1101]. @type {WeakMap<Element, MenuGroup[]>} */
+export const filled = new WeakMap();
+
 /** @param {string} prefix */
 export const nextId = (prefix) => `${prefix}-${(menuState.idSeq += 1)}`;
 

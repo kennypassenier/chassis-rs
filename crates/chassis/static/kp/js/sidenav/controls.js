@@ -1,6 +1,7 @@
 // The shortcut, the group toggles, the togglers' clicks and Escape.
 import { sidenavGroups } from '../remember.js';
 import { parseChord, typing } from './helpers.js';
+import { SIDENAV_GROUP_EVENT } from './constants.js';
 import { OPTIONS } from './options.js';
 import { SidenavFlyout } from './flyout.js';
 /** @typedef {ReturnType<typeof parseChord>} Chord */
@@ -60,11 +61,22 @@ export class SidenavControls extends SidenavFlyout {
             for (const other of this.panel.querySelectorAll('.kp-sidenav__category[data-kp-sidenav-expanded]')) {
                 other.removeAttribute(OPTIONS.expanded);
                 other.querySelector('.kp-sidenav__category-toggle')?.setAttribute('aria-expanded', 'false');
+                this.tellGroup(other, false, 'accordion');
             }
         }
         category.toggleAttribute(OPTIONS.expanded, !expanded);
         toggle.setAttribute('aria-expanded', String(!expanded));
         this.saveGroups();
+        this.tellGroup(category, !expanded, event instanceof MouseEvent && event.detail === 0 ? 'keyboard' : 'pointer');
+    }
+
+    /**
+     * Say a group folded or unfolded: `kp-sidenav-group` on the category, bubbling, with the id the remembered state uses.
+     * @param {Element} category @param {boolean} expanded @param {'pointer' | 'keyboard' | 'accordion'} source
+     */
+    tellGroup(category, expanded, source) {
+        const id = sidenavGroups(this.panel).find((entry) => entry.group === category)?.id;
+        category.dispatchEvent(new CustomEvent(SIDENAV_GROUP_EVENT, { bubbles: true, detail: { id, expanded, source } }));
     }
 
     /**

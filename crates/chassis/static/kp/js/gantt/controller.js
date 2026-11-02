@@ -11,6 +11,7 @@ import { rangeSeconds, rel } from './scale.js';
 import { paintChrome } from './chrome.js';
 import { freshWindow, setLive } from './model.js';
 import { GanttInput, barOf } from './input.js';
+import { isFit } from './fit.js';
 
 /** The shortest window a zoom to a selection opens, in seconds. */
 const MIN_ZOOM_S = 60;
@@ -44,6 +45,7 @@ export class GanttControl extends GanttInput {
         this.watchWidth();
         this.watchFonts();
         this.own(watchOptions(el, CHROME_OPTIONS, () => this.redrawChrome()));
+        this.own(watchOptions(el, ['data-kp-gantt-scroll'], () => this.refit()));
         c.timer = window.setInterval(() => tick(c), GANTT_TICK_MS);
         this.own(() => window.clearInterval(c.timer));
         this.listen(c.scroll, 'pointercancel', () => this.endDrag(false));
@@ -62,11 +64,25 @@ export class GanttControl extends GanttInput {
         tick(this.c);
     }
 
+    /** The scroll option changed (`fit` and back): the lanes are packed and the viewport measured again [gantt-fit-1101]. */
+    refit() {
+        // Packed fresh: no row the other way of packing gave is kept.
+        for (const lane of this.c.lanes) {
+            lane.rows = 1;
+            lane.bars = [];
+        }
+        this.c.held = null;
+        this.c.tickKey = '';
+        this.redrawChrome();
+    }
+
     /** A web font that arrives after the first measure changes every width: the labels are measured again. */
     watchFonts() {
         const fonts = this.host.ownerDocument.fonts;
         const refit = () => {
             this.c.labels.clear();
+            // A fitted timeline packs its rows by the words' widths: they are packed again.
+            if (isFit(this.c) && this.c.runs.length) paint(this.c);
             tick(this.c);
         };
         fonts?.addEventListener?.('loadingdone', refit);

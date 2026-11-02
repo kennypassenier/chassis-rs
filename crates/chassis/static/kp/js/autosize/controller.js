@@ -3,14 +3,13 @@
 import { Controller } from '../controller.js';
 import { resolveLocale } from '../locale.js';
 import { getStrings } from '../strings.js';
-import { AUTOSIZE_EVENT, AUTOSIZE_MAX_LINES, AUTOSIZE_MIN_LINES, PHONE, PHONE_HEIGHT_SHARE } from './constants.js';
+import { AUTOSIZE_MAX_LINES, AUTOSIZE_MIN_LINES, PHONE, PHONE_HEIGHT_SHARE } from './constants.js';
 import { CounterLine } from './counter.js';
 import { forgetDraft, keepDraft, restoreDraft } from './draft.js';
-import { chromeOf, cssAutosizeSupported, dropTwin, fitTextarea, lineHeightOf } from './fit.js';
+import { cssAutosizeSupported, dropTwin, lineHeightOf } from './fit.js';
+import { attr, hookValueSetter, registerSubmitKey } from './hooks.js';
+import { measureArea } from './measure.js';
 import { applyState, unframe } from './status.js';
-
-/** One markup attribute's text, or the fallback. @param {Element} el @param {string} name @param {string} fallback */
-const attr = (el, name, fallback) => el.getAttribute(name) ?? fallback;
 
 /** The controller of one `textarea[data-kp-autosize]`. */
 export class AutosizeController extends Controller {
@@ -112,7 +111,7 @@ export class AutosizeController extends Controller {
         this.own(() => this.reset());
         area.classList.add('kp-autosize');
         if (!area.hasAttribute('data-kp-resize')) area.setAttribute('data-kp-resize', 'vertical');
-        this.hookValueSetter();
+        hookValueSetter(this);
         this.watchSize();
         restoreDraft(area);
         const form = area.form;
@@ -120,7 +119,7 @@ export class AutosizeController extends Controller {
             this.listen(form, 'submit', () => forgetDraft(area));
             this.listen(form, 'reset', () => this.onChange());
         }
-        this.registerSubmitKey();
+        registerSubmitKey(this);
         this.listen(area, 'input', () => this.onInput());
         this.listen(area, 'paste', () => {
             this.pasteAt = area.selectionStart;
@@ -131,27 +130,9 @@ export class AutosizeController extends Controller {
         if (area.getAttribute('data-kp-state') === 'loading') applyState(this, 'loading');
     }
 
-    /** A script writes `value =`: the setter is the one door. */
-    hookValueSetter() {
-        const area = this.area;
-        const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
-        if (!descriptor?.get || !descriptor.set) return;
-        const { get, set } = descriptor;
-        const c = this;
-        Object.defineProperty(area, 'value', {
-            configurable: true,
-            get() {
-                return get.call(this);
-            },
-            set(v) {
-                set.call(this, v);
-                c.measure();
-                c.drawCounter();
-            },
-        });
-        this.own(() => {
-            delete (/** @type {any} */ (area).value);
-        });
+    /** Size the box for its text, with the engine in use, and report the height. */
+    measure() {
+        measureArea(this);
     }
 
     /** A change of width changes the wrapping; the viewport and a font arriving change the cap and the lines. */
@@ -172,32 +153,6 @@ export class AutosizeController extends Controller {
         if (this.view.visualViewport) this.listen(this.view.visualViewport, 'resize', onViewport);
         if (this.phoneQuery) this.listen(this.phoneQuery, 'change', onViewport);
         void this.doc.fonts?.ready.then(() => this.measure());
-    }
-
-    /** Mod+Enter submits, and the `?` sheet lists it. */
-    registerSubmitKey() {
-        const area = this.area;
-        if (attr(area, 'data-kp-submit-key', 'off') !== 'mod-enter') return;
-        void import('../shortcuts.js').then(({ registerShortcuts }) => {
-            if (this.destroyed) return;
-            const unregister = registerShortcuts(
-                area,
-                [
-                    {
-                        keys: 'Mod Enter',
-                        what: this.strings.autosizeSubmit,
-                        group: this.strings.autosizeGroup,
-                        when: () => this.doc.activeElement === area && !area.disabled && !area.readOnly,
-                        run: () => {
-                            if (area.form?.requestSubmit) area.form.requestSubmit();
-                            else area.form?.submit();
-                        },
-                    },
-                ],
-                { dev: false },
-            );
-            this.own(() => unregister?.());
-        });
     }
 
     /** Undo what the box got: the card, frame, counter, twin, inline sizes, class and marks. */
@@ -251,62 +206,5 @@ export class AutosizeController extends Controller {
             // Only when the part the caret is on would be hidden: the box's end is below the fold and the caret is at the end.
             if (area.selectionStart === area.value.length) area.scrollIntoView({ block: 'nearest' });
         }
-    }
-
-    // --- Measure. ---
-    /** Size the box for its text, with the engine in use, and report the height. */
-    measure() {
-        const area = this.area;
-        if (this.state === 'loading') {
-            const cs = this.view.getComputedStyle(area);
-            area.style.blockSize = `${Math.ceil(this.minRows() * lineHeightOf(cs) + chromeOf(cs))}px`;
-            area.style.overflowY = 'hidden';
-            return;
-        }
-        const engine = this.engineInUse();
-        area.setAttribute('data-kp-autosize-engine-used', engine);
-        if (engine === 'css') this.measureCss();
-        else this.measureJs();
-    }
-
-    /** The browser sizes the field; the package says the least and the most, and measures to report. */
-    measureCss() {
-        const area = this.area;
-        const cs = this.view.getComputedStyle(area);
-        const lh = lineHeightOf(cs);
-        const chrome = chromeOf(cs);
-        const rows = this.maxRows();
-        const cap = this.phoneCap();
-        area.style.blockSize = '';
-        area.style.overflowY = '';
-        area.style.setProperty('--kp-autosize-min', `${Math.ceil(this.minRows() * lh + chrome)}px`);
-        const most = rows === null ? 'none' : `${Math.ceil(Math.min(rows * lh + chrome, cap ?? Number.POSITIVE_INFINITY))}px`;
-        area.style.setProperty('--kp-autosize-max', most);
-        const result = fitTextarea(area, { minRows: this.minRows(), maxRows: rows, ...(cap !== undefined ? { maxPx: cap } : {}), apply: false });
-        this.report(result.height, result.lines, result.capped);
-    }
-
-    /** The package sizes the field itself, from the twin's measure. */
-    measureJs() {
-        const area = this.area;
-        const cap = this.phoneCap();
-        area.style.removeProperty('--kp-autosize-min');
-        area.style.removeProperty('--kp-autosize-max');
-        const result = fitTextarea(area, {
-            minRows: this.minRows(),
-            maxRows: this.maxRows(),
-            ...(cap !== undefined ? { maxPx: cap } : {}),
-            keepPx: this.shrinks() ? 0 : this.tallest,
-        });
-        this.tallest = Math.max(this.tallest, result.height);
-        this.report(result.height, result.lines, result.capped);
-    }
-
-    /** Mark the cap, and fire the event when the height changed. @param {number} height @param {number} lines @param {boolean} capped */
-    report(height, lines, capped) {
-        this.area.toggleAttribute('data-kp-autosize-capped', capped);
-        if (height === this.lastHeight) return;
-        this.lastHeight = height;
-        this.area.dispatchEvent(new CustomEvent(AUTOSIZE_EVENT, { bubbles: true, detail: { height, lines, capped } }));
     }
 }

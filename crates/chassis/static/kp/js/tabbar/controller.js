@@ -3,6 +3,7 @@
 import { Controller } from '../controller.js';
 import { TABBAR_HEIGHT_PROPERTY } from './badge.js';
 import { TabbarDialog } from './dialog.js';
+import { fitTabbar, TABBAR_FIT_ATTRIBUTE } from './fit.js';
 
 export class TabbarController extends Controller {
     /** @param {HTMLElement} bar */
@@ -16,7 +17,19 @@ export class TabbarController extends Controller {
     connect() {
         if (!this.view) return;
         this.publishHeight();
+        this.fitLabels();
         this.wireDialogs();
+    }
+
+    /** The labels tighten before any is cut (js/tabbar/fit.js): measured on a resize, a redraw of the tabs and the fonts' arrival. */
+    fitLabels() {
+        const { host: bar, doc, view } = this;
+        const fit = () => fitTabbar(bar);
+        if (typeof ResizeObserver !== 'undefined') this.observe(new ResizeObserver(fit)).observe(bar);
+        this.observe(new view.MutationObserver(fit)).observe(bar, { childList: true, subtree: true, characterData: true });
+        this.own(() => bar.removeAttribute(TABBAR_FIT_ATTRIBUTE));
+        void doc.fonts?.ready.then(() => this.host.isConnected && fit());
+        fit();
     }
 
     /** The height, published while the bar is on the screen. A static bar sits in the page's flow and gives nobody room to keep. */

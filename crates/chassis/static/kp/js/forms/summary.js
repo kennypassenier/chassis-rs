@@ -1,7 +1,7 @@
 // The error summary of a form: one line per field (one per radio group), each a link that focuses its field.
 
 import { getStrings } from '../strings.js';
-import { nameOf } from './errors.js';
+import { messageOf, nameOf } from './errors.js';
 
 /**
  * One line per group, not per radio button: four radios in one
@@ -20,8 +20,8 @@ export function dedupe(list) {
     });
 }
 
-/** One line of the summary: a link to the field that focuses it. @param {HTMLElement} field */
-function summaryLine(field) {
+/** One line of the summary: a link to the field that focuses it, and the message the field shows now. @param {HTMLElement} field @param {string} wrapper */
+function summaryLine(field, wrapper) {
     const item = document.createElement('li');
     const link = document.createElement('a');
     link.href = `#${field.getAttribute('id') ?? ''}`;
@@ -31,6 +31,13 @@ function summaryLine(field) {
         field.focus();
     });
     item.append(link);
+    const message = messageOf(field, { wrapper });
+    if (message !== '') {
+        const why = document.createElement('span');
+        why.className = 'kp-form__summary-message';
+        why.textContent = ` ${message}`;
+        item.append(why);
+    }
     return item;
 }
 
@@ -38,16 +45,16 @@ function summaryLine(field) {
  * Write the summary of the invalid fields into its element.
  * @param {HTMLElement} summary
  * @param {HTMLElement[]} bad
- * @param {{ summaryHeading: string, summaryHeadingClass: string }} look
+ * @param {{ summaryHeading: string, summaryHeadingClass: string, wrapper: string }} look
  */
-export function writeSummary(summary, bad, { summaryHeading, summaryHeadingClass }) {
+export function writeSummary(summary, bad, { summaryHeading, summaryHeadingClass, wrapper }) {
     summary.textContent = '';
     const heading = document.createElement(summaryHeading);
     heading.className = summaryHeadingClass;
     const s = getStrings();
     heading.textContent = bad.length === 1 ? s.formSummaryOne : s.formSummaryMany(bad.length);
     const list = document.createElement('ul');
-    for (const field of bad) list.append(summaryLine(field));
+    for (const field of bad) list.append(summaryLine(field, wrapper));
     summary.append(heading, list);
     summary.hidden = false;
 }

@@ -59,7 +59,7 @@ export class TableApply {
             const at = Number(/** @type {HTMLElement} */ (set).dataset.kpFilterColumn);
             if (this.t.columns.filterKinds[at] !== 'choice') continue;
             const value = this.t.model.filters.get(at);
-            this.t.filterUi.fillChoices(set, at, Array.isArray(value) ? value : []);
+            this.t.filterUi.choices.fillChoices(set, at, Array.isArray(value) ? value : []);
         }
     }
 

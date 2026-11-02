@@ -28,6 +28,10 @@
 //   data-kp-select-matching  how many rows match in all (the page counts them): the bar offers "Select all 312 that match"
 //   data-kp-undo-ms          read by the page's undo (default 6000); the bar only carries it in the action event
 //
+// A `floating-bottom` bar also publishes `--kp-selection-lift` on the root (its panel's distance from the window's foot while it shows a
+// selection, else 0px): `.kp-toasts` rises above it by that much, as it rises above a tab bar. On a bar narrower than 30rem the count has a row
+// of its own, so no theme's button width or page's words can run it under "Actions" [habits-1101].
+//
 // The bar keeps its place whether or not anything is ticked: it slides over a
 // space it holds (inline and sticky-top) or floats up from the foot
 // (floating-bottom), so the list under it never jumps. A press on a button

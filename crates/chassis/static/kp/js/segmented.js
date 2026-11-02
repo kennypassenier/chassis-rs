@@ -53,6 +53,23 @@
 // "any":"not answered"}'`: what a screen reader hears after a chip and what a
 // press announces (the usual picker's Not today, js/usual-picker.js).
 //
+// The three-way state as a word [ux-1101]: `data-kp-segmented-tri-look="word"`, the default since Kenny's verdict of
+// 2026-11-01 (`mark` keeps the approved ring), puts the state after the label as a small word, "want", "not" or "either"
+// (`data-kp-segmented-tags='{"include":"with","exclude":"without","any":"either"}'`, else the dictionary's `triTag…`), the
+// three stacked in one cell so a chip never changes width; the look switches at runtime. In every three-way group `+` (or `=`) wants the focused chip and `-` leaves it
+// out at once, beside Space / Enter (the cycle) and Delete (let go); the chips name these keys in `aria-keyshortcuts`.
+//
+// Chips on whole tracks [ux-1101]: `data-kp-segmented-fit="tracks"` on a chip group (`flow`, the default, is the approved
+// wrap) lays the chips on equal tracks as wide as the widest chip, the rows balanced so no chip stands alone on a second
+// line (7 chips that fit 6 across lie as 4 + 3). Under `data-kp-segmented-fold-at` (default `30rem`; `none` never) of the
+// room around it (its list toolbar's width, else its own) the group is narrow (`data-kp-segmented-narrow`, round 2): the
+// toolbar stands as one column, the group on a row of its own under the search, its tracks sharing that whole row, every
+// chip a touch target high with its label at the start and its count at the end. `data-kp-segmented-fold="menu"` folds a
+// narrow single or multi group that needs more than one row into the package's menu button instead, "Show: All ▾" (the
+// group's own name, then what is chosen), whose entries are the chips with their counts; a pick is a press on the chip, so
+// the event and the announcement are the group's own, and the group stays in the page, collapsed, so the page reads its
+// values as before. Every attribute switches at runtime. A three-way group lies on tracks but never folds.
+//
 // Events (bubbling, on the group):
 //   kp-segmented-change   { value: string | null, values: string[], item }
 //                         `values` are the values on (empty = All); `value`
@@ -86,6 +103,7 @@ export { layout } from './segmented/plate.js';
 export { setSegmentedTri, setSegmentedValues, resetSegmented, setSegmentedCounts } from './segmented/api.js';
 export { setSegmentedItems } from './segmented/items.js';
 export { attachSegmented } from './segmented/root.js';
+export { FIT_ATTRIBUTE, FOLD_AT_ATTRIBUTE, FOLD_ATTRIBUTE, FOLDED_ATTRIBUTE, FOLD_AT_DEFAULT, NARROW_ATTRIBUTE, balanceTracks } from './segmented/fit.js';
 
 /** @typedef {import('./segmented/constants.js').SegmentedItem} SegmentedItem */
 /** @typedef {import('./segmented/constants.js').TriValues} TriValues */

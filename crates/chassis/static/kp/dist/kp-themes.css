@@ -80,6 +80,20 @@
     --chart-3: hsl(80, 30%, 38%);
     --chart-4: hsl(15, 55%, 45%);
     --chart-5: hsl(220, 15%, 55%);
+    /* Categorical colours [habits-1101]: twelve for a project or a tag (red, orange, amber, lime, green, teal, cyan, blue, indigo, violet, pink, slate), each read as ink on the ground and as a fill under --kp-cat-ink; neighbours differ in lightness as well as hue. */
+    --kp-cat-1: hsl(5, 39%, 49%);
+    --kp-cat-2: hsl(28, 96%, 27%);
+    --kp-cat-3: hsl(41, 92%, 30%);
+    --kp-cat-4: hsl(76, 97%, 18%);
+    --kp-cat-5: hsl(138, 49%, 33%);
+    --kp-cat-6: hsl(173, 93%, 19%);
+    --kp-cat-7: hsl(188, 93%, 28%);
+    --kp-cat-8: hsl(212, 68%, 34%);
+    --kp-cat-9: hsl(235, 37%, 55%);
+    --kp-cat-10: hsl(270, 36%, 40%);
+    --kp-cat-11: hsl(328, 43%, 37%);
+    --kp-cat-12: hsl(214, 17%, 26%);
+    --kp-cat-ink: hsl(40, 25%, 97%);
     /* Code: the keyword and the string of a code block, from the chart hues, dark or light enough to be read rather than only seen [fix-58]. */
     --code-keyword: hsl(218, 45%, 35%);
     --code-string: hsl(35, 55%, 38%);
@@ -212,6 +226,20 @@
     --chart-3: hsl(318, 92%, 66%);
     --chart-4: hsl(78, 88%, 60%);
     --chart-5: hsl(200, 22%, 93%);
+    /* Categorical colours [habits-1101]: twelve for a project or a tag (red, orange, amber, lime, green, teal, cyan, blue, indigo, violet, pink, slate), each read as ink on the ground and as a fill under --kp-cat-ink; neighbours differ in lightness as well as hue. */
+    --kp-cat-1: hsl(5, 60%, 63%);
+    --kp-cat-2: hsl(23, 94%, 69%);
+    --kp-cat-3: hsl(40, 76%, 42%);
+    --kp-cat-4: hsl(81, 44%, 57%);
+    --kp-cat-5: hsl(136, 38%, 46%);
+    --kp-cat-6: hsl(173, 69%, 47%);
+    --kp-cat-7: hsl(188, 86%, 38%);
+    --kp-cat-8: hsl(214, 100%, 76%);
+    --kp-cat-9: hsl(235, 61%, 69%);
+    --kp-cat-10: hsl(268, 95%, 82%);
+    --kp-cat-11: hsl(331, 90%, 79%);
+    --kp-cat-12: hsl(214, 32%, 83%);
+    --kp-cat-ink: hsl(220, 16%, 5%);
     /* Code: the keyword and the string of a code block, from the chart hues, dark or light enough to be read rather than only seen [fix-58]. */
     --code-keyword: hsl(188, 96%, 62%);
     --code-string: hsl(268, 90%, 70%);
@@ -342,6 +370,20 @@
     --chart-3: hsl(353, 84%, 62%);
     --chart-4: hsl(263, 100%, 70%);
     --chart-5: hsl(50, 12%, 82%);
+    /* Categorical colours [habits-1101]: twelve for a project or a tag (red, orange, amber, lime, green, teal, cyan, blue, indigo, violet, pink, slate), each read as ink on the ground and as a fill under --kp-cat-ink; neighbours differ in lightness as well as hue. */
+    --kp-cat-1: hsl(4, 100%, 69%);
+    --kp-cat-2: hsl(23, 100%, 73%);
+    --kp-cat-3: hsl(42, 97%, 41%);
+    --kp-cat-4: hsl(76, 73%, 47%);
+    --kp-cat-5: hsl(147, 99%, 35%);
+    --kp-cat-6: hsl(174, 98%, 42%);
+    --kp-cat-7: hsl(187, 99%, 38%);
+    --kp-cat-8: hsl(214, 99%, 78%);
+    --kp-cat-9: hsl(236, 100%, 77%);
+    --kp-cat-10: hsl(268, 99%, 84%);
+    --kp-cat-11: hsl(331, 99%, 82%);
+    --kp-cat-12: hsl(214, 31%, 86%);
+    --kp-cat-ink: hsl(270, 9%, 4%);
     /* Code: the keyword and the string of a code block, from the chart hues, dark or light enough to be read rather than only seen [fix-58]. */
     --code-keyword: hsl(56, 98%, 51%);
     --code-string: hsl(184, 100%, 50%);
@@ -468,6 +510,20 @@
     --chart-3: hsl(48, 98%, 68%);
     --chart-4: hsl(258, 100%, 72%);
     --chart-5: hsl(260, 100%, 91%);
+    /* Categorical colours [habits-1101]: twelve for a project or a tag (red, orange, amber, lime, green, teal, cyan, blue, indigo, violet, pink, slate), each read as ink on the ground and as a fill under --kp-cat-ink; neighbours differ in lightness as well as hue. */
+    --kp-cat-1: hsl(4, 78%, 63%);
+    --kp-cat-2: hsl(24, 100%, 65%);
+    --kp-cat-3: hsl(41, 91%, 39%);
+    --kp-cat-4: hsl(78, 61%, 46%);
+    --kp-cat-5: hsl(145, 84%, 35%);
+    --kp-cat-6: hsl(174, 99%, 39%);
+    --kp-cat-7: hsl(188, 92%, 36%);
+    --kp-cat-8: hsl(214, 100%, 73%);
+    --kp-cat-9: hsl(237, 88%, 73%);
+    --kp-cat-10: hsl(268, 100%, 80%);
+    --kp-cat-11: hsl(330, 100%, 77%);
+    --kp-cat-12: hsl(214, 44%, 81%);
+    --kp-cat-ink: hsl(263, 89%, 7%);
     /* Code: the keyword and the string of a code block, from the chart hues, dark or light enough to be read rather than only seen [fix-58]. */
     --code-keyword: hsl(341, 100%, 64%);
     --code-string: hsl(179, 94%, 59%);
@@ -594,6 +650,20 @@
     --chart-3: hsl(210, 60%, 55%);
     --chart-4: hsl(41, 100%, 36%);
     --chart-5: hsl(270, 50%, 60%);
+    /* Categorical colours [habits-1101]: twelve for a project or a tag (red, orange, amber, lime, green, teal, cyan, blue, indigo, violet, pink, slate), each read as ink on the ground and as a fill under --kp-cat-ink; neighbours differ in lightness as well as hue. */
+    --kp-cat-1: hsl(5, 39%, 49%);
+    --kp-cat-2: hsl(28, 95%, 27%);
+    --kp-cat-3: hsl(41, 92%, 30%);
+    --kp-cat-4: hsl(75, 97%, 18%);
+    --kp-cat-5: hsl(138, 49%, 33%);
+    --kp-cat-6: hsl(173, 97%, 19%);
+    --kp-cat-7: hsl(188, 93%, 28%);
+    --kp-cat-8: hsl(213, 66%, 35%);
+    --kp-cat-9: hsl(235, 37%, 55%);
+    --kp-cat-10: hsl(270, 35%, 41%);
+    --kp-cat-11: hsl(328, 42%, 38%);
+    --kp-cat-12: hsl(214, 19%, 27%);
+    --kp-cat-ink: hsl(285, 45%, 97%);
     /* Code: the keyword and the string of a code block, from the chart hues, dark or light enough to be read rather than only seen [fix-58]. */
     --code-keyword: hsl(330, 55%, 52%);
     --code-string: hsl(160, 45%, 35%);
@@ -723,6 +793,20 @@
     --chart-3: hsl(200, 50%, 42%);
     --chart-4: hsl(88, 35%, 38%);
     --chart-5: hsl(35, 25%, 45%);
+    /* Categorical colours [habits-1101]: twelve for a project or a tag (red, orange, amber, lime, green, teal, cyan, blue, indigo, violet, pink, slate), each read as ink on the ground and as a fill under --kp-cat-ink; neighbours differ in lightness as well as hue. */
+    --kp-cat-1: hsl(6, 34%, 48%);
+    --kp-cat-2: hsl(25, 72%, 28%);
+    --kp-cat-3: hsl(39, 66%, 33%);
+    --kp-cat-4: hsl(77, 76%, 19%);
+    --kp-cat-5: hsl(135, 36%, 35%);
+    --kp-cat-6: hsl(173, 89%, 19%);
+    --kp-cat-7: hsl(188, 90%, 28%);
+    --kp-cat-8: hsl(213, 56%, 34%);
+    --kp-cat-9: hsl(234, 29%, 52%);
+    --kp-cat-10: hsl(269, 31%, 38%);
+    --kp-cat-11: hsl(329, 36%, 36%);
+    --kp-cat-12: hsl(214, 14%, 25%);
+    --kp-cat-ink: hsl(42, 32%, 95%);
     /* Code: the keyword and the string of a code block, from the chart hues, dark or light enough to be read rather than only seen [fix-58]. */
     --code-keyword: hsl(158, 42%, 32%);
     --code-string: hsl(24, 70%, 41%);
@@ -852,6 +936,20 @@
     --chart-3: hsl(160, 55%, 55%);
     --chart-4: hsl(280, 60%, 70%);
     --chart-5: hsl(2, 70%, 66%);
+    /* Categorical colours [habits-1101]: twelve for a project or a tag (red, orange, amber, lime, green, teal, cyan, blue, indigo, violet, pink, slate), each read as ink on the ground and as a fill under --kp-cat-ink; neighbours differ in lightness as well as hue. */
+    --kp-cat-1: hsl(6, 50%, 60%);
+    --kp-cat-2: hsl(23, 84%, 68%);
+    --kp-cat-3: hsl(39, 67%, 42%);
+    --kp-cat-4: hsl(81, 40%, 57%);
+    --kp-cat-5: hsl(135, 36%, 44%);
+    --kp-cat-6: hsl(172, 55%, 50%);
+    --kp-cat-7: hsl(187, 100%, 34%);
+    --kp-cat-8: hsl(214, 97%, 74%);
+    --kp-cat-9: hsl(234, 50%, 65%);
+    --kp-cat-10: hsl(268, 78%, 79%);
+    --kp-cat-11: hsl(331, 76%, 77%);
+    --kp-cat-12: hsl(214, 23%, 81%);
+    --kp-cat-ink: hsl(215, 65%, 12%);
     /* Code: the keyword and the string of a code block, from the chart hues, dark or light enough to be read rather than only seen [fix-58]. */
     --code-keyword: hsl(190, 80%, 62%);
     --code-string: hsl(35, 85%, 60%);
@@ -981,6 +1079,20 @@
     --chart-3: hsl(45, 70%, 55%);
     --chart-4: hsl(95, 40%, 52%);
     --chart-5: hsl(320, 40%, 62%);
+    /* Categorical colours [habits-1101]: twelve for a project or a tag (red, orange, amber, lime, green, teal, cyan, blue, indigo, violet, pink, slate), each read as ink on the ground and as a fill under --kp-cat-ink; neighbours differ in lightness as well as hue. */
+    --kp-cat-1: hsl(6, 53%, 62%);
+    --kp-cat-2: hsl(23, 89%, 70%);
+    --kp-cat-3: hsl(39, 63%, 44%);
+    --kp-cat-4: hsl(81, 42%, 59%);
+    --kp-cat-5: hsl(135, 34%, 46%);
+    --kp-cat-6: hsl(172, 57%, 52%);
+    --kp-cat-7: hsl(187, 95%, 36%);
+    --kp-cat-8: hsl(214, 99%, 76%);
+    --kp-cat-9: hsl(234, 53%, 67%);
+    --kp-cat-10: hsl(268, 86%, 81%);
+    --kp-cat-11: hsl(331, 83%, 79%);
+    --kp-cat-12: hsl(214, 26%, 83%);
+    --kp-cat-ink: hsl(20, 14%, 10%);
     /* Code: the keyword and the string of a code block, from the chart hues, dark or light enough to be read rather than only seen [fix-58]. */
     --code-keyword: hsl(28, 85%, 58%);
     --code-string: hsl(12, 65%, 58%);
@@ -1110,6 +1222,20 @@
     --chart-3: hsl(255, 60%, 52%);
     --chart-4: hsl(205, 90%, 36%);
     --chart-5: hsl(140, 60%, 28%);
+    /* Categorical colours [habits-1101]: twelve for a project or a tag (red, orange, amber, lime, green, teal, cyan, blue, indigo, violet, pink, slate), each read as ink on the ground and as a fill under --kp-cat-ink; neighbours differ in lightness as well as hue. */
+    --kp-cat-1: hsl(1, 67%, 51%);
+    --kp-cat-2: hsl(28, 95%, 27%);
+    --kp-cat-3: hsl(41, 93%, 31%);
+    --kp-cat-4: hsl(76, 97%, 18%);
+    --kp-cat-5: hsl(146, 94%, 27%);
+    --kp-cat-6: hsl(173, 96%, 19%);
+    --kp-cat-7: hsl(188, 97%, 28%);
+    --kp-cat-8: hsl(210, 99%, 32%);
+    --kp-cat-9: hsl(240, 75%, 64%);
+    --kp-cat-10: hsl(273, 60%, 44%);
+    --kp-cat-11: hsl(321, 96%, 33%);
+    --kp-cat-12: hsl(0, 0%, 26%);
+    --kp-cat-ink: hsl(50, 100%, 97%);
     /* Code: the keyword and the string of a code block, from the chart hues, dark or light enough to be read rather than only seen [fix-58]. */
     --code-keyword: hsl(45, 100%, 29%);
     --code-string: hsl(0, 85%, 45%);
@@ -1240,6 +1366,20 @@
     --chart-3: hsl(210, 70%, 60%);
     --chart-4: hsl(355, 75%, 60%);
     --chart-5: hsl(40, 45%, 72%);
+    /* Categorical colours [habits-1101]: twelve for a project or a tag (red, orange, amber, lime, green, teal, cyan, blue, indigo, violet, pink, slate), each read as ink on the ground and as a fill under --kp-cat-ink; neighbours differ in lightness as well as hue. */
+    --kp-cat-1: hsl(6, 51%, 60%);
+    --kp-cat-2: hsl(23, 85%, 69%);
+    --kp-cat-3: hsl(39, 66%, 43%);
+    --kp-cat-4: hsl(81, 40%, 57%);
+    --kp-cat-5: hsl(135, 35%, 45%);
+    --kp-cat-6: hsl(172, 56%, 51%);
+    --kp-cat-7: hsl(188, 93%, 35%);
+    --kp-cat-8: hsl(214, 99%, 75%);
+    --kp-cat-9: hsl(234, 51%, 66%);
+    --kp-cat-10: hsl(268, 80%, 80%);
+    --kp-cat-11: hsl(331, 78%, 77%);
+    --kp-cat-12: hsl(214, 30%, 82%);
+    --kp-cat-ink: hsl(200, 25%, 8%);
     /* Code: the keyword and the string of a code block, from the chart hues, dark or light enough to be read rather than only seen [fix-58]. */
     --code-keyword: hsl(43, 65%, 55%);
     --code-string: hsl(165, 55%, 45%);
@@ -1369,6 +1509,20 @@
     --chart-3: hsl(38, 60%, 35%);
     --chart-4: hsl(140, 35%, 30%);
     --chart-5: hsl(205, 45%, 35%);
+    /* Categorical colours [habits-1101]: twelve for a project or a tag (red, orange, amber, lime, green, teal, cyan, blue, indigo, violet, pink, slate), each read as ink on the ground and as a fill under --kp-cat-ink; neighbours differ in lightness as well as hue. */
+    --kp-cat-1: hsl(4, 48%, 38%);
+    --kp-cat-2: hsl(27, 97%, 19%);
+    --kp-cat-3: hsl(41, 97%, 23%);
+    --kp-cat-4: hsl(76, 100%, 12%);
+    --kp-cat-5: hsl(145, 97%, 20%);
+    --kp-cat-6: hsl(173, 94%, 13%);
+    --kp-cat-7: hsl(188, 91%, 22%);
+    --kp-cat-8: hsl(211, 98%, 23%);
+    --kp-cat-9: hsl(237, 35%, 44%);
+    --kp-cat-10: hsl(271, 47%, 30%);
+    --kp-cat-11: hsl(326, 59%, 26%);
+    --kp-cat-12: hsl(214, 21%, 16%);
+    --kp-cat-ink: hsl(38, 28%, 78%);
     /* Code: the keyword and the string of a code block, from the chart hues, dark or light enough to be read rather than only seen [fix-58]. */
     --code-keyword: hsl(17, 74%, 36%);
     --code-string: hsl(24, 12%, 15%);
@@ -1504,6 +1658,20 @@
     --chart-3: hsl(186, 78%, 58%);
     --chart-4: hsl(12, 88%, 62%);
     --chart-5: hsl(212, 16%, 87%);
+    /* Categorical colours [habits-1101]: twelve for a project or a tag (red, orange, amber, lime, green, teal, cyan, blue, indigo, violet, pink, slate), each read as ink on the ground and as a fill under --kp-cat-ink; neighbours differ in lightness as well as hue. */
+    --kp-cat-1: hsl(6, 43%, 61%);
+    --kp-cat-2: hsl(23, 75%, 71%);
+    --kp-cat-3: hsl(37, 46%, 47%);
+    --kp-cat-4: hsl(82, 36%, 61%);
+    --kp-cat-5: hsl(134, 26%, 48%);
+    --kp-cat-6: hsl(171, 48%, 58%);
+    --kp-cat-7: hsl(189, 62%, 42%);
+    --kp-cat-8: hsl(214, 85%, 75%);
+    --kp-cat-9: hsl(234, 42%, 65%);
+    --kp-cat-10: hsl(267, 65%, 80%);
+    --kp-cat-11: hsl(332, 66%, 78%);
+    --kp-cat-12: hsl(214, 25%, 83%);
+    --kp-cat-ink: hsl(216, 16%, 10%);
     /* Code: the keyword and the string of a code block, from the chart hues, dark or light enough to be read rather than only seen [fix-58]. */
     --code-keyword: hsl(214, 84%, 62%);
     --code-string: hsl(268, 76%, 69%);
@@ -3884,6 +4052,88 @@
         overflow-wrap: var(--kp-badge-wrap, anywhere);
     }
 
+    /* --- Categorical colours [habits-1101] ----------------------------------
+ * Twelve colours a page gives a project, a tag or a series by name, from the theme: `--kp-cat-1` … `--kp-cat-12` (red, orange,
+ * amber, lime, green, teal, cyan, blue, indigo, violet, pink, slate), each readable as ink on the ground and as a fill under
+ * `--kp-cat-ink`. `data-kp-cat="1"` … `"12"` on any element sets `--kp-cat` to that colour for it and what it holds, so a part
+ * paints with `var(--kp-cat)`. Two parts use it: `.kp-cat-dot`, a small round mark beside a name, and `.kp-cat-chip`, a filled
+ * label (a tag) with the ink on it. */
+    [data-kp-cat='1'] {
+        --kp-cat: var(--kp-cat-1);
+    }
+
+    [data-kp-cat='2'] {
+        --kp-cat: var(--kp-cat-2);
+    }
+
+    [data-kp-cat='3'] {
+        --kp-cat: var(--kp-cat-3);
+    }
+
+    [data-kp-cat='4'] {
+        --kp-cat: var(--kp-cat-4);
+    }
+
+    [data-kp-cat='5'] {
+        --kp-cat: var(--kp-cat-5);
+    }
+
+    [data-kp-cat='6'] {
+        --kp-cat: var(--kp-cat-6);
+    }
+
+    [data-kp-cat='7'] {
+        --kp-cat: var(--kp-cat-7);
+    }
+
+    [data-kp-cat='8'] {
+        --kp-cat: var(--kp-cat-8);
+    }
+
+    [data-kp-cat='9'] {
+        --kp-cat: var(--kp-cat-9);
+    }
+
+    [data-kp-cat='10'] {
+        --kp-cat: var(--kp-cat-10);
+    }
+
+    [data-kp-cat='11'] {
+        --kp-cat: var(--kp-cat-11);
+    }
+
+    [data-kp-cat='12'] {
+        --kp-cat: var(--kp-cat-12);
+    }
+
+    .kp-cat-dot {
+        display: inline-block;
+        flex: none;
+        inline-size: var(--kp-cat-dot, 0.625rem);
+        block-size: var(--kp-cat-dot, 0.625rem);
+        border-radius: 50%;
+        background: var(--kp-cat, var(--muted-foreground));
+        vertical-align: middle;
+    }
+
+    .kp-cat-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--kp-space-xs, 0.25rem);
+        padding: 0 var(--kp-space-sm, 0.5rem);
+        border-radius: var(--kp-radius-pill, 999px);
+        background: var(--kp-cat, var(--muted));
+        color: var(--kp-cat-ink, var(--background));
+        font-size: var(--kp-text-xs, 0.75rem);
+        font-weight: 600;
+        line-height: 1.6;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+    a.kp-cat-chip:hover {
+        text-decoration: underline;
+    }
     /* --- Card [TH6] ------------------------------------------------------ */
 
     .kp-card {
@@ -7187,6 +7437,12 @@
         background: var(--muted);
     }
 
+
+    /* A button in a cell keeps its label on one line: squeezed by its column on a phone, "Edit" broke into "E / d / it"
+     * in every theme [uxdialogs-1101 drawer-beside]. The column takes the button's width instead. */
+    .kp-table td :is(.kp-button, .kp-icon-button) {
+        white-space: nowrap;
+    }
     /* --- Action columns [scope-143] --------------------------------------- */
 
     /* A list's row buttons sit in columns the whole list shares, so a button
@@ -7289,14 +7545,15 @@
         justify-self: start;
     }
 
-    /* On a narrow list (under 30rem) the row's text takes the whole line
-     * and its buttons stack under it, one per line, each centred under the
-     * row (Kenny, 2026-10-05: "the phone view can center the buttons, left
-     * alignment doesn't look nice"), each label on a single line: a label is
-     * never wrapped or cut (Kenny's UI rule; the equal columns of the wider
-     * list cut "Review and update all 4…" by 20 px on the dashboard's Inbox,
-     * action-columns-narrow-M1). The wider list keeps the equal columns
-     * Kenny approved (2026-10-04). */
+    /* On a narrow list (under 30rem) the row's text takes the whole line and its buttons stand under it in ONE row, full width, the
+     * primary first [ux-1101, action-list-narrow; Medicine Cabinet: at 390 a dose row stacked Skip above Take, centred and word-wide,
+     * and the primary was the second target]. The row is a wrapping flex line: every button grows to share the width, a label is never
+     * wrapped or cut (Kenny's UI rule; the equal columns of the wider list cut "Review and update all 4…" by 20 px on the dashboard's
+     * Inbox, action-columns-narrow-M1), and only when the labels cannot share one line does a button drop to the next. The primary is
+     * the last button in the markup (the order rule), so here it is moved to the front with `order`: the markup and the focus order
+     * stay as the wider list has them. The wider list keeps the equal columns Kenny approved (2026-10-04).
+     * `data-kp-actions-narrow="stack"` on the list keeps the earlier narrow look: one button per line, centred under the row (Kenny,
+     * 2026-10-05: "the phone view can center the buttons"). */
     @container kp-action-list (max-width: 30rem) {
         .kp-action-list > li {
             grid-template-columns: minmax(0, 1fr);
@@ -7307,14 +7564,31 @@
             grid-column: 1;
         }
 
-        .kp-action-list .kp-row-actions {
+        .kp-action-list:not([data-kp-actions-narrow='stack']) .kp-row-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: stretch;
+            gap: var(--kp-action-gap, var(--kp-space-sm, 0.5rem));
+        }
+
+        .kp-action-list:not([data-kp-actions-narrow='stack']) .kp-row-actions > * {
+            flex: 1 1 auto;
+            justify-content: center;
+            white-space: nowrap;
+        }
+
+        .kp-action-list:not([data-kp-actions-narrow='stack']) .kp-row-actions > :last-child:not(:first-child) {
+            order: -1;
+        }
+
+        .kp-action-list[data-kp-actions-narrow='stack'] .kp-row-actions {
             grid-template-columns: minmax(0, 1fr);
             grid-auto-flow: row;
             justify-content: stretch;
             row-gap: var(--kp-space-xs, 0.25rem);
         }
 
-        .kp-action-list .kp-row-actions > * {
+        .kp-action-list[data-kp-actions-narrow='stack'] .kp-row-actions > * {
             grid-column: 1;
             justify-self: center;
             inline-size: auto;
@@ -8902,6 +9176,24 @@
         rotate: 45deg;
     }
 
+    /* A heading with one action beside its toggle (`.kp-sidenav__category-action`, after the toggle): the toggle and the action share
+       the first row, the submenu takes the full second row. The action stays when the group is folded [habits-1101]. */
+    .kp-sidenav__category:has(> .kp-sidenav__category-action) {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+    }
+
+    .kp-sidenav__category:has(> .kp-sidenav__category-action) > .kp-sidenav__submenu {
+        grid-column: 1 / -1;
+    }
+
+    .kp-sidenav__category-action {
+        display: flex;
+        align-items: center;
+        padding-inline-end: var(--kp-sidenav-list-pad, 0.4rem);
+    }
+
     .kp-sidenav__submenu {
         display: grid;
         grid-template-rows: 0fr;
@@ -9637,6 +9929,15 @@
         margin-block-start: 0.25rem;
     }
 
+    /* On the top layer the plate is fixed, not absolute: an absolute one is placed in the initial containing block,
+     * and position-area pinned a popover under a button scrolled 1226 px down to that block's bottom edge, 714 px above
+     * its button [kitchen-1101, chassis-rs gap 23]. Fixed follows the button; the fallbacks open it above a button near
+     * the bottom edge, or toward the start near the end edge. */
+    .kp-popover[popover] {
+        position: fixed;
+        position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+    }
+
     .kp-menu {
         display: flex;
         flex-direction: column;
@@ -9757,8 +10058,9 @@
 
     .kp-toasts {
         position: fixed;
-        /* Above a bottom tab bar when the page has one (js/tabbar.js). */
-        inset-block-end: calc(1rem + var(--kp-tabbar-height, 0px));
+        /* Above a bottom tab bar when the page has one (js/tabbar.js), and above a floating selection bar that shows a
+         * selection (js/selection-bar.js publishes `--kp-selection-lift`, the bar's distance from the window's foot). */
+        inset-block-end: max(calc(1rem + var(--kp-tabbar-height, 0px)), calc(var(--kp-selection-lift, 0px) + var(--kp-space-md, 0.75rem)));
         inset-inline-end: 1rem;
         display: flex;
         flex-direction: column;
@@ -11345,11 +11647,10 @@
         min-inline-size: 0;
     }
 
-    /* A date bound is the package's date picker (scope-58): each takes a
- * whole row of the range, so its calendar button stays beside its field. */
-    .kp-datatable__range > .kp-datepicker {
-        --kp-datepicker-input-min: 5rem;
-        flex: 1 1 100%;
+    /* A date bound is the package's date picker (scope-58): it fills its labelled cell [ux-1101], so its calendar button stays beside
+ * its field. */
+    .kp-datatable__range > .kp-datatable__bound > .kp-datepicker {
+        --kp-datepicker-input-min: 4rem;
         min-inline-size: 0;
     }
 
@@ -11683,7 +11984,8 @@
         font-size: var(--kp-text-xs, 0.75rem);
     }
 
-    /* A narrow bar: the count, "Actions" and untick; the names fold to the count. */
+    /* A narrow bar: the count, "Actions" and untick; the names fold to the count. The count never keeps a width the
+     * buttons beside it need (it wraps instead), so no theme's wide capitals or word set can run it under "Actions". */
     @container kp-selection (max-width: 40rem) {
         .kp-selection__panel {
             grid-template-columns: minmax(0, 1fr) auto auto;
@@ -11692,6 +11994,11 @@
                 'actions actions actions'
                 'offer offer offer'
                 'result result result';
+        }
+
+        .kp-selection__count {
+            min-inline-size: 0;
+            overflow-wrap: anywhere;
         }
 
         .kp-selection__names {
@@ -11710,6 +12017,20 @@
 
         .kp-selection[data-kp-selection-open] .kp-selection__actions {
             display: flex;
+        }
+    }
+
+    /* A phone-width bar (a container under 30rem): the count has a row of its own above "Actions" and untick, whatever the
+     * theme's button width or the page's words (measured at 390 px: brutalism and synthwave ran 20 and 24 px under "Actions"). */
+    @container kp-selection (max-width: 30rem) {
+        .kp-selection__panel {
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            grid-template-areas:
+                'count count count'
+                'toggle . clear'
+                'actions actions actions'
+                'offer offer offer'
+                'result result result';
         }
     }
 
@@ -12445,6 +12766,64 @@
         }
     }
 
+    /* The panel opens over the table, anchored to its button, and the table does not move [ux-1101, table-filters].
+     * Fixed, as the add-filter menu is (see base.css): placed against the window, still following its anchor, and flipped above
+     * the button where the window has no room below. `data-kp-filters="inline"` on a table keeps the old panel in the flow.
+     * Knobs: `--kp-datatable-filters-width` (default 34rem). */
+    .kp-datatable__filters[data-kp-filters-popover] {
+        position: fixed;
+        inset: auto;
+        inset-block-start: anchor(bottom);
+        inset-inline-end: anchor(end);
+        position-try-fallbacks: flip-block, flip-inline;
+        inline-size: min(var(--kp-datatable-filters-width, 34rem), calc(100vw - 2 * var(--kp-space-md, 0.75rem)));
+        margin: var(--kp-space-xs, 0.25rem) 0 0;
+        padding: var(--kp-space-md, 0.75rem);
+        box-sizing: border-box;
+        overflow: visible;
+    }
+
+    .kp-datatable__filters[data-kp-filters-popover][hidden] {
+        display: none;
+    }
+
+    /* A bound is its label over its field, so min and max are never an unnamed pair of boxes. */
+    .kp-datatable__bound {
+        display: flex;
+        flex: 1 1 7rem;
+        flex-direction: column;
+        gap: var(--kp-space-xs, 0.25rem);
+        min-inline-size: 0;
+    }
+
+    .kp-datatable__range > .kp-datatable__bound > input {
+        min-inline-size: 0;
+    }
+
+    /* A date range stays on one line: two labelled days, each with its calendar button. */
+    .kp-datatable__range:has(> .kp-datatable__bound > .kp-datepicker) {
+        flex-wrap: nowrap;
+    }
+    /* `data-kp-row-actions="menu"` on a table (js/datatable/attach/row-actions.js) [ux-1101, table-rows]: the primary action keeps the
+     * button's own width and the menu button sits after it, square; in a card the primary fills the row beside the menu button, so a
+     * phone shows one button and one menu button where it showed a stack of small ones. The menu is the package's `.kp-menu`, opened
+     * in the top layer by the menu button, so a short table never clips it. */
+    .kp-table__actions--menu {
+        grid-auto-flow: column;
+        grid-auto-columns: auto;
+        grid-template-columns: minmax(var(--kp-actions-button, 5rem), 1fr) auto;
+        align-items: stretch;
+    }
+
+    .kp-table__actions--menu > .kp-table__more {
+        display: flex;
+    }
+
+    .kp-table__more-button {
+        min-inline-size: var(--kp-control-height-sm, 2rem);
+        padding-inline: var(--kp-space-sm, 0.5rem);
+        line-height: 1;
+    }
     /* --- Forms [TH38] ---------------------------------------------------- */
 
     /* A radio group laid out in a row rather than a column. The fieldset is
@@ -12749,9 +13128,10 @@
     }
 
     /* Secret field [kpadopt4] -----------------------------------------------
- * `.kp-secret[data-kp-secret]` (js/patterns.js): a masked value, Reveal and
- * Copy, and one line under them for the countdown, the reason a field is off
- * or why it could not be read. The value box has the control height and the
+ * `.kp-secret[data-kp-secret]` (js/patterns.js): a masked value (with the
+ * countdown inside its box since uxtouch1101, secret-clock.css), Reveal and
+ * Copy, and one line under them for the reason a field is off or why it
+ * could not be read. The value box has the control height and the
  * row's width whatever it holds, and the line under it always keeps its
  * room, so showing, hiding, loading or failing moves nothing. A long value
  * stays on one line and scrolls inside its box (a fade at the end says there
@@ -12993,6 +13373,70 @@
         font-variant-numeric: tabular-nums;
     }
 
+    /* The value's box [uxtouch1101; kyu review 2026-11-01: Reveal grew the field and pushed everything under it 61 px]. A display
+     * field's value stands in `.kp-secret__box` with the clock (the countdown, "Reading…") at its end edge and the drain along its
+     * foot, so showing a value writes inside the field: the field keeps one height in every state and nothing under it moves. The
+     * value keeps the clock's room free at its end while the clock speaks (`--kp-secret-clock`, measured by the script). The box is
+     * the row's flex item, in the value's place; the value fills it and keeps every theme's paint. Knob: --kp-secret-clock-gap
+     * (the sm step, between the value's text and the clock). */
+    .kp-secret__box {
+        position: relative;
+        display: grid;
+        flex: 1 1 var(--kp-secret-min, 16rem);
+        min-inline-size: 0;
+    }
+
+    .kp-secret__box > .kp-secret__value {
+        grid-area: 1 / 1;
+        min-inline-size: 0;
+    }
+
+    .kp-secret:is([data-kp-secret-state='shown'], [data-kp-secret-state='loading']) .kp-secret__box > .kp-secret__value {
+        padding-inline-end: calc(var(--kp-secret-clock, 0px) + 2 * var(--kp-secret-clock-gap, var(--kp-space-sm, 0.5rem)));
+    }
+
+    .kp-secret__clock {
+        grid-area: 1 / 1;
+        z-index: 1;
+        align-self: center;
+        justify-self: end;
+        display: flex;
+        align-items: center;
+        gap: var(--kp-space-xs, 0.25rem);
+        margin-inline-end: var(--kp-secret-clock-gap, var(--kp-space-sm, 0.5rem));
+        color: var(--muted-foreground);
+        font-size: var(--kp-text-xs, 0.75rem);
+        font-variant-numeric: tabular-nums;
+        line-height: 1.25rem;
+        white-space: nowrap;
+        pointer-events: none;
+    }
+
+    .kp-secret__clock:empty {
+        display: none;
+    }
+
+    /* The drain runs along the box's foot, inside its border, rather than over the line under the buttons. */
+    .kp-secret__box > .kp-secret__drain {
+        position: absolute;
+        inset-inline: 1px;
+        inset-block-end: 1px;
+        z-index: 1;
+    }
+
+    /* A wrapping value keeps its lines of room as its height, not as its least height: a value longer than that scrolls inside the
+     * box instead of growing the field when it is shown. */
+    .kp-secret[data-kp-secret-wrap='wrap'] .kp-secret__value {
+        block-size: calc(var(--kp-secret-lines, 2) * 1.5em + 2 * var(--kp-space-xs, 0.25rem) + 2px);
+        min-block-size: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .kp-secret[data-kp-secret-wrap='wrap'] .kp-secret__clock {
+        align-self: end;
+        margin-block-end: var(--kp-space-xs, 0.25rem);
+    }
     /* --- Step list: the steps of one run, live ----------------------------
  * The list of a process in flight (an update, an import, a deploy): each
  * step is waiting, running, done, failed or skipped, and the page changes it
@@ -14628,24 +15072,24 @@
 
     /* A narrow timeline keeps a readable plot and scrolls inside its own frame [wish-1028, Kitchen 3]: under 32rem the body is at
      * least --kp-gantt-min-width wide (30rem; 0 turns it off) and the frame scrolls sideways, with the lane names held at the start
-     * edge. data-kp-gantt-scroll="off" never scrolls, "always" keeps the minimum at every width. A mouse still brushes a range; a
-     * finger pans (touch-action). */
+     * edge. data-kp-gantt-scroll="off" never scrolls, "always" keeps the minimum at every width, "fit" lays the whole window across
+     * the width with every label whole (fits-its-width.css). A mouse still brushes a range; a finger pans (touch-action). */
     @container kp-gantt (max-width: 32rem) {
-        .kp-gantt:not([data-kp-gantt-scroll='off']) .kp-gantt__scroll {
+        .kp-gantt:not([data-kp-gantt-scroll='off'], [data-kp-gantt-scroll='fit']) .kp-gantt__scroll {
             overflow-x: auto;
             touch-action: pan-x pan-y;
         }
 
-        .kp-gantt:not([data-kp-gantt-scroll='off']) .kp-gantt__body {
+        .kp-gantt:not([data-kp-gantt-scroll='off'], [data-kp-gantt-scroll='fit']) .kp-gantt__body {
             min-inline-size: var(--kp-gantt-min-width, 30rem);
         }
 
-        .kp-gantt:not([data-kp-gantt-scroll='off']) :is(.kp-gantt__lane, .kp-gantt__corner) {
+        .kp-gantt:not([data-kp-gantt-scroll='off'], [data-kp-gantt-scroll='fit']) :is(.kp-gantt__lane, .kp-gantt__corner) {
             position: sticky;
             inset-inline-start: 0;
         }
 
-        .kp-gantt:not([data-kp-gantt-scroll='off']) .kp-gantt__lane {
+        .kp-gantt:not([data-kp-gantt-scroll='off'], [data-kp-gantt-scroll='fit']) .kp-gantt__lane {
             z-index: 2;
             background: var(--card);
         }
@@ -14937,6 +15381,37 @@
         background: var(--card);
     }
 
+    /* A timeline that fits its width [gantt-fit-1101] (`data-kp-gantt-scroll="fit"`, js/gantt/fit.js): the whole window across the
+     * frame at every width, no sideways scroll, and every bar's label whole. js/gantt/fit.js packs a lane's rows by what a bar takes
+     * with its words and puts each label inside its bar, after it, before it, or on its own line under it (`data-kp-side="below"`, the
+     * row under the bar's); it places the label by its own start (`--kp-g-label-at`, seconds like a bar's), so the words stand where
+     * the packing measured them. A lane is as tall as the rows it uses. The axis keeps its own step (fewer ticks when narrow). */
+    .kp-gantt[data-kp-gantt-scroll='fit'] .kp-gantt__outside[data-kp-side] {
+        inset-inline: calc((var(--kp-g-label-at, 0) - var(--kp-g-from, 0)) / var(--kp-g-span, 21600) * 100%) auto;
+        max-inline-size: 100%;
+        margin-inline-start: 0;
+        text-align: start;
+    }
+
+    .kp-gantt__run[data-kp-label='below'] > .kp-gantt__label {
+        display: none;
+    }
+
+    /* A label on its own line keeps the line of a bar of its row and stands right under its bar, on its plate over the line for now
+     * (it does not leave its bar for it); only one wider than the whole plot wraps, over the rows kept for it. */
+    .kp-gantt__outside[data-kp-side='below'] {
+        z-index: 1;
+        white-space: normal;
+        overflow-wrap: break-word;
+    }
+
+    .kp-gantt__outside[data-kp-side='below'][data-kp-state='failed'] {
+        inset-block-start: calc(
+            var(--kp-gantt-pad) + var(--kp-g-row, 0) * var(--kp-gantt-row, 1.75rem) + (var(--kp-gantt-row, 1.75rem) - var(--kp-gantt-bar, 1.125rem)) /
+                2
+        );
+        line-height: var(--kp-gantt-bar, 1.125rem);
+    }
     /* --- Pipeline: where each item stands, a lane per stage [kpadopt4] ------
  * `section.kp-pipeline[data-kp-pipeline]` (js/pipeline.js). A read-only board: lanes side by side at one width, each as
  * tall as the tallest, a plate with the stage's name and its exact count in the stage's colour (a tint of the chart
@@ -15368,6 +15843,448 @@
         color: var(--foreground);
     }
 
+    /* --- Task row [habits-1101] ---------------------------------------------
+ * `.kp-task-row` (js/task-row.js): one grid with fixed tracks, handle · check · title · actions, every icon track one icon button
+ * wide (--kp-task-row-icon), so rows line up from top to bottom whatever their titles and the buttons of one role share a
+ * column. The facts line runs under the title and the actions both, so a narrow column (a day of a planner, a board's lane)
+ * keeps its facts on few lines. The row is the card plate; it stays that inside a reorder list, whose item look it replaces.
+ * Knobs: --kp-task-row-icon (2.25rem; 2.75rem on a touch screen), --kp-task-row-gap (0.25rem between rows of a .kp-task-list). */
+    .kp-task-list {
+        display: grid;
+        gap: var(--kp-task-row-gap, var(--kp-space-xs, 0.25rem));
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        min-inline-size: 0;
+    }
+
+    .kp-task-row,
+    .kp-reorder [data-kp-item].kp-task-row {
+        --kp-task-row-icon: 2.25rem;
+        box-sizing: border-box;
+        display: grid;
+        grid-template-columns: var(--kp-task-row-icon) var(--kp-task-row-icon) minmax(0, 1fr) auto;
+        grid-template-areas:
+            'handle check title actions'
+            '. . facts facts';
+        align-items: start;
+        gap: 0 var(--kp-space-xs, 0.25rem);
+        min-inline-size: 0;
+        margin: 0;
+        padding: var(--kp-space-xs, 0.25rem) var(--kp-space-sm, 0.5rem);
+        border: 1px solid var(--border);
+        border-radius: var(--radius, 0.5rem);
+        background: var(--card);
+        color: var(--card-foreground, var(--foreground));
+    }
+
+    @media (pointer: coarse) {
+        .kp-task-row,
+        .kp-reorder [data-kp-item].kp-task-row {
+            --kp-task-row-icon: 2.75rem;
+        }
+    }
+
+    .kp-task-row:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 1px;
+    }
+
+    /* The priority edge inside the 1 px border, so the content of a priority row keeps its neighbours' edge. */
+    .kp-task-row[data-kp-priority='high'] {
+        box-shadow: inset 3px 0 0 var(--destructive);
+    }
+
+    .kp-task-row[data-kp-priority='medium'] {
+        box-shadow: inset 3px 0 0 var(--warning);
+    }
+
+    /* The icon buttons take the row's type and the title's line height, so a glyph and the title's first line share one baseline
+       (the browser's own button size put the timer 1.5 px off the title). */
+    .kp-task-row__handle,
+    .kp-task-row .kp-icon-button {
+        inline-size: var(--kp-task-row-icon);
+        block-size: var(--kp-task-row-icon);
+        min-inline-size: 0;
+        padding: 0;
+        font: inherit;
+        line-height: 1.4;
+    }
+
+    /* One handle look in every list: the row's icon button, also inside a reorder list, whose own handle is a bordered chip. */
+    .kp-task-row > .kp-task-row__handle[data-kp-handle] {
+        padding: 0;
+        border-color: transparent;
+        background: none;
+        font: inherit;
+        line-height: 1.4;
+    }
+
+    .kp-task-row__handle {
+        grid-area: handle;
+        color: var(--muted-foreground);
+        cursor: grab;
+        touch-action: none;
+    }
+
+    .kp-task-row[data-kp-dragging] .kp-task-row__handle {
+        cursor: grabbing;
+    }
+
+    .kp-task-row__hit {
+        grid-area: check;
+        display: grid;
+        place-items: center;
+        block-size: var(--kp-task-row-icon);
+        cursor: pointer;
+    }
+
+    .kp-task-row__title {
+        grid-area: title;
+        align-self: baseline;
+        min-inline-size: 0;
+        margin: 0;
+        padding: calc((var(--kp-task-row-icon) - 1lh) / 2) var(--kp-space-xs, 0.25rem);
+        border: 0;
+        border-radius: var(--kp-radius-sm, calc(var(--radius, 0.5rem) / 2));
+        background: none;
+        color: inherit;
+        font: inherit;
+        line-height: 1.4;
+        text-align: start;
+        overflow-wrap: anywhere;
+        cursor: pointer;
+    }
+
+    .kp-task-row__title:hover {
+        text-decoration: underline;
+        text-underline-offset: 0.2em;
+    }
+
+    .kp-task-row__title:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: -2px;
+    }
+
+    .kp-task-row[data-kp-done] .kp-task-row__title {
+        color: var(--muted-foreground);
+        text-decoration: line-through;
+    }
+
+    .kp-task-row__facts {
+        grid-area: facts;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--kp-space-xs, 0.25rem) var(--kp-space-sm, 0.5rem);
+        min-inline-size: 0;
+        padding: 0 var(--kp-space-xs, 0.25rem) var(--kp-space-xs, 0.25rem);
+        color: var(--muted-foreground);
+        font-size: var(--kp-text-xs, 0.75rem);
+    }
+
+    .kp-task-row__facts:empty {
+        display: none;
+    }
+
+    .kp-task-row__fact {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--kp-space-xs, 0.25rem);
+    }
+
+    .kp-task-row__fact--project {
+        color: var(--card-foreground, var(--foreground));
+    }
+
+    /* The actions stand on the title's first baseline: beside a title on two lines they stay on its first line, and the grid itself
+       holds them there. */
+    .kp-task-row__actions {
+        grid-area: actions;
+        align-self: baseline;
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: var(--kp-task-row-icon);
+        align-items: center;
+    }
+
+    /* Picked (js/row-pick.js): ringed and tinted, so a picked row and the cursor's ring read apart. */
+    .kp-task-row[data-kp-picked] {
+        border-color: var(--primary);
+        background: color-mix(in oklab, var(--primary) 9%, var(--card));
+        box-shadow: inset 0 0 0 1px var(--primary);
+    }
+
+    .kp-task-row.is-cursor {
+        outline: 2px dashed var(--focus-ring);
+        outline-offset: 1px;
+    }
+    /* --- Popover form [ux-1101] -------------------------------------------------
+ * A small form anchored to its button (js/popover-form.js): a label over one row of field and accept button, and a problem
+ * line under them that holds its height, so a refusal moves nothing. The form is a `.kp-menu`, the raised plate every register
+ * already paints opaque, hung under the button at its start edge the way a menu button hangs its menu, and moved by the
+ * script when it would leave the screen. Under a coarse pointer its fields are a fingertip high, like the buttons.
+ * Knobs: --kp-popover-form-min (16rem), --kp-popover-form-max (min(22rem, 100vw - 2rem)), the plate's width. */
+    .kp-popover-form {
+        position: relative;
+        display: inline-flex;
+        inline-size: fit-content;
+        max-inline-size: 100%;
+    }
+
+    .kp-popover-form > .kp-popover-form__panel {
+        position: absolute;
+        z-index: 30;
+        inset-block-start: calc(100% + var(--kp-space-xs, 0.25rem));
+        inset-inline-start: 0;
+        box-sizing: border-box;
+        display: grid;
+        gap: var(--kp-space-xs, 0.25rem);
+        min-inline-size: var(--kp-popover-form-min, 16rem);
+        max-inline-size: var(--kp-popover-form-max, min(22rem, 100vw - 2rem));
+        padding: var(--kp-space-md, 0.75rem);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius, 0.5rem);
+        background: var(--popover);
+        color: var(--popover-foreground);
+    }
+
+    .kp-popover-form > .kp-popover-form__panel[hidden] {
+        display: none;
+    }
+
+    /* Lifted over a container that would clip it: placed in window coordinates by the script. */
+    .kp-popover-form > .kp-popover-form__panel:popover-open {
+        position: fixed !important;
+        inset: auto;
+        margin: 0;
+    }
+
+    .kp-popover-form__label {
+        font-weight: 600;
+    }
+
+    .kp-popover-form__hint {
+        margin: 0;
+        color: var(--muted-foreground);
+        font-size: var(--kp-text-sm, 0.8125rem);
+    }
+
+    /* The field takes the room, the accept button its own width, both on one line. */
+    .kp-popover-form__row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: var(--kp-space-sm, 0.5rem);
+    }
+
+    .kp-popover-form__row > :first-child {
+        min-inline-size: 0;
+    }
+
+    .kp-popover-form__problem {
+        min-block-size: 1lh;
+        margin: 0;
+        color: var(--destructive);
+        font-size: var(--kp-text-sm, 0.8125rem);
+    }
+
+    .kp-popover-form__panel[aria-busy] {
+        cursor: progress;
+    }
+
+    @media (pointer: coarse) {
+        .kp-popover-form__panel :is(input:not([type='checkbox'], [type='radio']), select) {
+            min-block-size: var(--kp-touch-target, 2.75rem);
+        }
+    }
+
+    /* --- Date navigation [ux-1101] ----------------------------------------------
+ * `.kp-date-nav` (js/date-nav.js): the label of the range shown, then Previous, Today and Next on three equal tracks as wide
+ * as the widest of them, so the three keep one width whatever their words and stand still when the label changes length.
+ * The label takes the room that is left; on a narrow column the buttons go under it and keep their tracks. The label is set
+ * in figures that line up (tabular), so "Week 45" and "Week 46" are one width. `data-kp-calendar-nav="off"` hides a
+ * calendar's own navigation when a date navigation drives it, so a page shows one. Knob: --kp-date-nav-gap. */
+    .kp-date-nav {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--kp-space-sm, 0.5rem) var(--kp-date-nav-gap, var(--kp-space-md, 0.75rem));
+        min-inline-size: 0;
+    }
+
+    .kp-date-nav__label {
+        flex: 1 1 14rem;
+        min-inline-size: 0;
+        margin: 0;
+        font-size: var(--kp-text-lg, 1.125rem);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        overflow-wrap: anywhere;
+    }
+
+    .kp-date-nav__current {
+        color: var(--muted-foreground);
+        font-size: var(--kp-text-sm, 0.8125rem);
+        font-weight: 400;
+    }
+
+    .kp-date-nav__steps {
+        display: grid;
+        flex: 0 1 auto;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--kp-space-xs, 0.25rem);
+        margin-inline-start: auto;
+    }
+
+    .kp-date-nav__steps > .kp-button {
+        justify-content: center;
+        white-space: nowrap;
+    }
+
+    .kp-calendar[data-kp-calendar-nav='off'] > .kp-calendar__nav {
+        display: none;
+    }
+
+    /* --- Board: lanes of cards a person moves between [habits-1101] ----------
+ * `section.kp-board[data-kp-board]` (js/board.js). Each lane is the pipeline's lane (`.kp-pipeline__lane`, its head, name and
+ * count), so every register paints it as its own; the cards are the page's, in a reorder list the lanes share. Wide, the lanes
+ * stand side by side at one width (at least --kp-board-lane-min, 15rem), as tall as the tallest, so a short lane is still a long
+ * drop target; more lanes than fit scroll sideways inside the board's box. Narrow (under 40rem of the board's own width,
+ * `data-kp-board-narrow-now`, written by the script), one lane shows under a switcher (`data-kp-board-switch`, the default
+ * since uxtouch1101), or a lane takes 85% of the box and snaps (`scroll`). Knobs: --kp-board-gap (0.75rem), --kp-board-lane-min
+ * (15rem), --kp-board-lane-narrow (85%), --kp-board-min (16rem, the board's least height), --kp-board-drop-min (6rem, the least
+ * height of a lane's list), --kp-board-switch-min (5rem, the least width of a lane's button in the switcher). */
+    .kp-board {
+        position: relative;
+        display: grid;
+        gap: var(--kp-board-gap, 0.75rem);
+        min-inline-size: 0;
+    }
+
+    /* The track is the containing block of what a lane positions: a scroller clips only what its own box contains, and the
+       reorder lists' `.kp-sr-only` status lines (position: absolute) in a lane off to the side widened the page by 248 px at 390. */
+    .kp-board__track {
+        position: relative;
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(var(--kp-board-lane-min, 15rem), 1fr);
+        gap: var(--kp-board-gap, 0.75rem);
+        align-items: stretch;
+        min-inline-size: 0;
+        min-block-size: var(--kp-board-min, 16rem);
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: thin;
+    }
+
+    .kp-board[data-kp-board-narrow-now] > .kp-board__track {
+        grid-auto-columns: var(--kp-board-lane-narrow, 85%);
+        scroll-snap-type: x mandatory;
+    }
+
+    .kp-board[data-kp-board-narrow-now] .kp-board__lane {
+        scroll-snap-align: start;
+    }
+
+    .kp-board[data-kp-board-switch] > .kp-board__track {
+        grid-auto-columns: minmax(0, 1fr);
+        scroll-snap-type: none;
+    }
+
+    /* The lane: the pipeline's plate, its head, then the list, with the empty line in the list's place. */
+    .kp-board__lane {
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .kp-board__lane[hidden],
+    .kp-board__tabs[hidden],
+    .kp-board__none[hidden] {
+        display: none;
+    }
+
+    .kp-board__list {
+        grid-row: 2;
+        grid-column: 1;
+        display: grid;
+        align-content: start;
+        gap: var(--kp-space-xs, 0.25rem);
+        min-inline-size: 0;
+        min-block-size: var(--kp-board-drop-min, 6rem);
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .kp-board__list > [data-kp-item] {
+        margin-block-end: 0;
+    }
+
+    /* Where a card can go: a dashed place in the lane's list, under nothing a pointer could hit. */
+    .kp-board__none {
+        grid-row: 2;
+        grid-column: 1;
+        align-self: start;
+        padding: var(--kp-space-md, 0.75rem) var(--kp-space-sm, 0.5rem);
+        border: 1px dashed var(--border-strong);
+        border-radius: var(--kp-radius-sm, calc(var(--radius, 0.5rem) / 2));
+        text-align: center;
+        pointer-events: none;
+    }
+
+    /* The switcher [uxtouch1101]: a button per lane, its name over its exact count, on whole tracks that wrap onto a second row
+       rather than scroll (four lanes stand in one row at 390 px). Each button is the package's tab, so a register paints it as its
+       own; the count is the tab's own count badge. */
+    .kp-board__tabs {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--kp-board-switch-min, 5rem)), 1fr));
+    }
+
+    .kp-board__tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: var(--kp-space-xs, 0.25rem);
+        min-inline-size: 0;
+        padding-inline: var(--kp-space-xs, 0.25rem);
+        text-align: center;
+    }
+
+    .kp-board__tab-name {
+        max-inline-size: 100%;
+        overflow-wrap: break-word;
+    }
+
+    .kp-board__tab > .kp-tab__count {
+        margin-inline-start: 0;
+    }
+
+    /* An empty or failed board: the package's state plate over the whole board, the lanes held still under it. */
+    .kp-board:has(> .kp-board__plate:not([hidden])) {
+        min-block-size: var(--kp-stateplate-floor, 12rem);
+    }
+
+    .kp-board__plate {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        display: grid;
+        background: var(--card);
+        color: var(--card-foreground, var(--foreground));
+    }
+
+    .kp-board__plate[hidden] {
+        display: none;
+    }
+
+    .kp-board__plate > .kp-stateplate {
+        block-size: 100%;
+    }
+
+    .kp-board:has(> .kp-board__plate:not([hidden])) > :is(.kp-board__track, .kp-board__tabs) {
+        visibility: hidden;
+    }
     /* --- A diff of several files [gap-diff-view; homelab's editui.js diffBlocks] -------------------------------------
  *
  * js/diff.js writes the lines `.kp-diff` already dresses and adds what a diff of several files needs: a header per file
@@ -17010,6 +17927,9 @@
  * three buttons, the same row in every month: below --kp-calendar-nav-fit
  * (20.5rem, which holds formal's widest month in English); a register
  * whose type is wider sets its own, measured with its widest month. The
+ * calendar also measures the words it carries (--kp-calendar-nav-measured,
+ * js/calendar/nav-fit.js), and the larger of the two wins, so a longer
+ * language folds in time [kitchen-1101]. The
  * nav is a container so its children can compare the two (100cqi). */
     .kp-calendar__nav {
         container: kp-calendar-nav / inline-size;
@@ -17027,25 +17947,30 @@
         white-space: nowrap;
     }
 
+    /* Previous and Next are one role, one width (measured by js/calendar/nav-fit.js) [almanac-1101]. */
+    .kp-calendar__nav > :is([data-kp-calendar-prev], [data-kp-calendar-next]) {
+        min-inline-size: var(--kp-calendar-step-min, auto);
+    }
+
     .kp-calendar__nav > [data-kp-calendar-prev] {
-        grid-row: calc(1 + max(0, sign(var(--kp-calendar-nav-fit, 20.5rem) - 100cqi)));
+        grid-row: calc(1 + max(0, sign(max(var(--kp-calendar-nav-fit, 20.5rem), var(--kp-calendar-nav-measured, 0px)) - 100cqi)));
         grid-column: 1;
     }
 
     .kp-calendar__nav > [data-kp-calendar-next] {
-        grid-row: calc(1 + max(0, sign(var(--kp-calendar-nav-fit, 20.5rem) - 100cqi)));
-        grid-column: calc(3 - max(0, sign(var(--kp-calendar-nav-fit, 20.5rem) - 100cqi)));
+        grid-row: calc(1 + max(0, sign(max(var(--kp-calendar-nav-fit, 20.5rem), var(--kp-calendar-nav-measured, 0px)) - 100cqi)));
+        grid-column: calc(3 - max(0, sign(max(var(--kp-calendar-nav-fit, 20.5rem), var(--kp-calendar-nav-measured, 0px)) - 100cqi)));
     }
 
     .kp-calendar__nav > [data-kp-calendar-today] {
-        grid-row: calc(1 + max(0, sign(var(--kp-calendar-nav-fit, 20.5rem) - 100cqi)));
-        grid-column: calc(4 - max(0, sign(var(--kp-calendar-nav-fit, 20.5rem) - 100cqi)));
+        grid-row: calc(1 + max(0, sign(max(var(--kp-calendar-nav-fit, 20.5rem), var(--kp-calendar-nav-measured, 0px)) - 100cqi)));
+        grid-column: calc(4 - max(0, sign(max(var(--kp-calendar-nav-fit, 20.5rem), var(--kp-calendar-nav-measured, 0px)) - 100cqi)));
     }
 
     .kp-calendar__title {
         grid-row: 1;
-        grid-column: calc(2 - max(0, sign(var(--kp-calendar-nav-fit, 20.5rem) - 100cqi))) / span
-            calc(1 + 2 * max(0, sign(var(--kp-calendar-nav-fit, 20.5rem) - 100cqi)));
+        grid-column: calc(2 - max(0, sign(max(var(--kp-calendar-nav-fit, 20.5rem), var(--kp-calendar-nav-measured, 0px)) - 100cqi))) / span
+            calc(1 + 2 * max(0, sign(max(var(--kp-calendar-nav-fit, 20.5rem), var(--kp-calendar-nav-measured, 0px)) - 100cqi)));
         margin: 0;
         font-size: clamp(var(--kp-text-sm, 0.8125rem), 5.4cqi, var(--kp-calendar-title-size, 1.125rem));
         text-align: center;
@@ -17173,6 +18098,12 @@
         font-variant-numeric: tabular-nums;
         line-height: 1.1;
         cursor: pointer;
+    }
+
+    /* A day still to come, with nothing about it, answers no press [almanac-1101 future-days]: it keeps its dashed
+     * look and its place in the keyboard path, and says it is unavailable. */
+    .kp-calendar__day[aria-disabled='true'] {
+        cursor: default;
     }
 
     .kp-calendar__day[hidden] {
@@ -17529,17 +18460,31 @@
         justify-content: flex-end;
     }
 
+    .kp-heat__col[data-kp-heat-reach='end'] {
+        justify-content: flex-start;
+    }
+
+    /* A name stands inside its own header [habits-1101 theme-sweep]: js/heat/draw-parts.js gives it the empty columns
+     * beside it (--kp-heat-from and --kp-heat-to, grid lines), and an unnamed header keeps its own column under it, all
+     * on the axis's one row. A page's own markup without them flows as before. */
+    .kp-heat__axis > .kp-heat__cells > .kp-heat__col {
+        grid-row: 1;
+        grid-column: var(--kp-heat-from, auto) / var(--kp-heat-to, auto);
+    }
+
     .kp-heat .kp-heat__col[data-kp-minor] {
         overflow: hidden;
         font-size: 0;
         user-select: none;
     }
 
-    /* On a phone every second name goes: thirty columns are 8 px each there. */
+    /* On a phone every second name goes: thirty columns are 8 px each there. Important, so a register that sets the
+     * axis's type (a later layer) cannot bring a name back that has no room [habits-1101 theme-sweep: cut in cyberpunk,
+     * blueprint, deco, nostromo and titanium]. */
     @media (max-width: 40rem) {
         .kp-heat .kp-heat__col:not([data-kp-minor], [data-kp-picked], :last-child):nth-child(6n + 4) {
             overflow: hidden;
-            font-size: 0;
+            font-size: 0 !important;
             user-select: none;
         }
     }
@@ -18292,6 +19237,19 @@
         white-space: nowrap;
     }
 
+    /* A label too long for its tab tightens before it is cut [habits-1101 theme-sweep]: js/tabbar/fit.js sets the
+ * loosest step at which every label fits, on the whole bar, so the labels keep one size and one tracking. `tight`
+ * closes the tracking to --kp-tabbar-tight-tracking (0; a register with spaced capitals keeps a little of its
+ * spacing), `small` also lowers the size to --kp-tabbar-small-size (0.6875rem). Only past both does the ellipsis
+ * come. */
+    .kp-tabbar[data-kp-tabbar-fit] .kp-tabbar__label {
+        letter-spacing: var(--kp-tabbar-tight-tracking, 0);
+    }
+
+    .kp-tabbar[data-kp-tabbar-fit='small'] .kp-tabbar__label {
+        font-size: var(--kp-tabbar-small-size, 0.6875rem);
+    }
+
     /* The mark: a line along the bar's top edge over the current tab. It grows
  * from the middle when a tab becomes current; a register gives it the
  * theme's own shape. */
@@ -18680,6 +19638,173 @@
         z-index: 20;
     }
 
+    /* --- Context menu [habits-1101] -----------------------------------------
+ * The menu js/context-menu.js opens at the pointer: the menu button's own `.kp-menu--rich` plate, hung from an invisible button
+ * that stands where the menu was asked for, so every register paints it as it paints the menu button's menu. Its top start corner
+ * is at the point; the script moves it to the other side or over the point where it would leave the screen. */
+    .kp-menu-button.kp-context-menu {
+        position: fixed;
+        z-index: 40;
+        inline-size: 0;
+        block-size: 0;
+        max-inline-size: none;
+    }
+
+    .kp-context-menu__anchor {
+        position: absolute;
+        inset: 0;
+        inline-size: 0;
+        block-size: 0;
+        padding: 0;
+        border: 0;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .kp-menu-button.kp-context-menu > .kp-menu {
+        inset-block-start: 0;
+        inset-inline-start: 0;
+        inset-inline-end: auto;
+    }
+    /* --- Markdown editor [habits-1101] ----------------------------------------
+ * `.kp-md-editor[data-kp-md-editor]` (js/markdown-editor.js): the page's text area under a toolbar of the package's small ghost
+ * buttons, and the reader's preview beside it on one row as tall as the text (the preview scrolls inside it), or behind Write /
+ * Preview tabs when the editor is narrow (`data-kp-md-tabbed`, written by the script). Knobs: --kp-md-editor-gap (0.5rem),
+ * --kp-md-editor-min (12rem, the least height of the text and the preview). */
+    .kp-md-editor {
+        display: grid;
+        gap: var(--kp-md-editor-gap, 0.5rem);
+        min-inline-size: 0;
+    }
+
+    .kp-md-editor__bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--kp-space-xs, 0.25rem) var(--kp-space-md, 0.75rem);
+        min-inline-size: 0;
+    }
+
+    .kp-md-editor__toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--kp-space-xs, 0.25rem);
+    }
+
+    /* Square tools of one size, the picture centred: a row of equals, whatever the glyph. */
+    .kp-md-editor__tool {
+        inline-size: var(--kp-control-height-sm, 2rem);
+        min-inline-size: var(--kp-control-height-sm, 2rem);
+        padding-inline: 0;
+        justify-content: center;
+    }
+
+    .kp-md-editor__glyph {
+        font-size: var(--kp-text-md, 1rem);
+        line-height: 1;
+    }
+
+    .kp-md-editor__glyph--bold {
+        font-weight: 800;
+    }
+
+    .kp-md-editor__glyph--italic {
+        font-style: italic;
+        font-family: var(--theme-font-display, serif);
+    }
+
+    .kp-md-editor__glyph--heading {
+        font-weight: 700;
+        font-family: var(--theme-font-display, inherit);
+    }
+
+    .kp-md-editor__icon {
+        inline-size: 1.125rem;
+        block-size: 1.125rem;
+    }
+
+    .kp-md-editor__tabs {
+        border-block-end: 0;
+    }
+
+    .kp-md-editor__tabs[hidden] {
+        display: none;
+    }
+
+    .kp-md-editor__body {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--kp-md-editor-gap, 0.5rem);
+        min-inline-size: 0;
+    }
+
+    .kp-md-editor[data-kp-md-tabbed] > .kp-md-editor__body,
+    .kp-md-editor[data-kp-md-preview='off'] > .kp-md-editor__body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .kp-md-editor__text {
+        min-block-size: var(--kp-md-editor-min, 12rem);
+        resize: vertical;
+    }
+
+    .kp-md-editor__text[hidden],
+    .kp-md-editor__preview[hidden] {
+        display: none;
+    }
+
+    /* The preview takes the row the text sets and scrolls inside it: a long preview never makes the text area grow. */
+    .kp-md-editor__preview {
+        box-sizing: border-box;
+        block-size: 0;
+        min-block-size: 100%;
+        overflow: auto;
+        padding: var(--kp-space-sm, 0.5rem) var(--kp-space-md, 0.75rem);
+        border: 1px solid var(--border);
+        border-radius: var(--radius, 0.5rem);
+        background: var(--card);
+        color: var(--card-foreground, var(--foreground));
+    }
+
+    .kp-md-editor[data-kp-md-tabbed] .kp-md-editor__preview {
+        block-size: auto;
+        min-block-size: var(--kp-md-editor-min, 12rem);
+    }
+
+    .kp-md-editor__preview:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+    }
+
+    .kp-md-editor__empty {
+        margin: 0;
+        color: var(--muted-foreground);
+    }
+
+    /* A task in the reader (`tasks: 'show'` or `'toggle'`): the box in the marker's place, the words beside it on one edge. */
+    .kp-markdown li.kp-markdown__task {
+        list-style: none;
+        margin-inline-start: -1.5em;
+    }
+
+    .kp-markdown__check {
+        display: inline-flex;
+        align-items: baseline;
+        gap: var(--kp-space-sm, 0.5rem);
+        cursor: pointer;
+    }
+
+    .kp-markdown__check > .kp-field__check {
+        flex: none;
+        align-self: center;
+        margin: 0;
+    }
+
+    .kp-markdown__check:has(> :checked) > span {
+        color: var(--muted-foreground);
+        text-decoration: line-through;
+    }
     /* --- Drawer, help and the tour [scope-143] ----------------------------- */
 
     /* A drawer: a head (the title, the close button, one sentence), a body
@@ -19051,11 +20176,14 @@
         box-shadow: inset 0 0 0 calc(var(--focus-ring-width, 2px) + var(--kp-focus-ring-inner-width, 2px)) var(--focus-ring);
     }
 
-    /* Every segment the same width on a full-width control. */
+    /* Every segment the same width on a full-width control, as long as every label fits its share; a longer label
+ * keeps its words and the others share what is left [habits-1101 theme-sweep: "Pomodoro" and "Countdown" were cut
+ * beside a third segment with room to spare]. Too long for the track altogether, it scrolls like any segmented
+ * control (js/segmented.js), and a register that wraps its labels between words gives the words their room here. */
     .kp-segmented--block {
         display: grid;
         inline-size: 100%;
-        grid-auto-columns: minmax(0, 1fr);
+        grid-auto-columns: minmax(min-content, 1fr);
     }
 
     .kp-segmented__item {
@@ -19427,6 +20555,156 @@
         font-weight: 500;
         letter-spacing: 0.06em;
         text-transform: uppercase;
+    }
+
+    /* The three-way chip's state as a word [ux-1101]: the default look of a `data-kp-segmented="tri"` group since Kenny's verdict
+ * of 2026-11-01 ("default changed to The word"); `data-kp-segmented-tri-look="mark"` keeps the approved ring mark instead.
+ * The mark gives way to a small word after the label, "want", "not" or "either" (`data-kp-segmented-tags`, else the dictionary),
+ * so the state reads at a glance and the next press is guessable. The three words stand stacked in one cell and only the chip's
+ * own is drawn: a chip is as wide as its longest word in every state and nothing moves on a press. The chip keeps the approved
+ * paint of its state (filled while wanted, struck through on the destructive edge while left out). Knob: --kp-tri-tag-size (0.72em). */
+    .kp-segmented__tag {
+        display: none;
+    }
+
+    .kp-segmented[data-kp-segmented='tri']:not([data-kp-segmented-tri-look='mark']) > .kp-segmented__item > .kp-segmented__mark {
+        display: none;
+    }
+
+    .kp-segmented[data-kp-segmented='tri']:not([data-kp-segmented-tri-look='mark']) > .kp-segmented__item:not([data-kp-segmented-all]) {
+        padding-inline: var(--kp-chip-pad-inline, var(--kp-space-md, 0.75rem)) var(--kp-space-xs, 0.25rem);
+    }
+
+    .kp-segmented[data-kp-segmented='tri']:not([data-kp-segmented-tri-look='mark']) > .kp-segmented__item > .kp-segmented__tag {
+        display: inline-grid;
+        flex: none;
+        padding: 0.1em 0.55em;
+        border: 1px solid color-mix(in oklab, currentColor 45%, transparent);
+        border-radius: var(--kp-chip-radius, var(--kp-radius-pill, 999px));
+        font-size: var(--kp-tri-tag-size, 0.72em);
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        line-height: 1.4;
+        text-transform: uppercase;
+    }
+
+    .kp-segmented__tag > span {
+        grid-area: 1 / 1;
+        text-align: center;
+        visibility: hidden;
+    }
+
+    .kp-segmented__item:not([data-kp-segmented-tri]) > .kp-segmented__tag > [data-state='any'],
+    .kp-segmented__item[data-kp-segmented-tri='include'] > .kp-segmented__tag > [data-state='include'],
+    .kp-segmented__item[data-kp-segmented-tri='exclude'] > .kp-segmented__tag > [data-state='exclude'] {
+        visibility: visible;
+    }
+
+    .kp-segmented[data-kp-segmented='tri']:not([data-kp-segmented-tri-look='mark']) > .kp-segmented__item:not([data-kp-segmented-tri]) > .kp-segmented__tag {
+        border-style: dashed;
+        color: var(--muted-foreground);
+    }
+
+    .kp-segmented[data-kp-segmented='tri']:not([data-kp-segmented-tri-look='mark']) > .kp-segmented__item[data-kp-segmented-tri='include'] > .kp-segmented__tag {
+        border-color: currentColor;
+    }
+
+    .kp-segmented[data-kp-segmented='tri']:not([data-kp-segmented-tri-look='mark']) > .kp-segmented__item[data-kp-segmented-tri='exclude'] > .kp-segmented__tag {
+        border-color: var(--destructive);
+        background: var(--destructive);
+        color: var(--destructive-foreground);
+    }
+
+    /* Chips on whole tracks [ux-1101]: `data-kp-segmented-fit="tracks"` on a `.kp-segmented--chips` group. js/segmented/fit.js
+ * measures the widest chip and writes the number of tracks (--kp-seg-cols) and one track's width (--kp-seg-track), balanced
+ * over the rows so no chip stands alone on a line; every chip fills its track, so the chips of one group share one width and
+ * their edges line up from row to row. Until the script has measured (`data-kp-segmented-cols` absent) the chips flow as
+ * approved. Narrow (`data-kp-segmented-narrow`, written under `data-kp-segmented-fold-at` of its toolbar's width) the group
+ * takes a row of its own under the search and its tracks share that whole row; with `data-kp-segmented-fold="menu"` it
+ * collapses in place instead (its width still read, out of sight and out of reach) and the package's menu button stands
+ * before it, "Show: All ▾" (`.kp-segmented__fold`, js/segmented/fold.js). Knob: --kp-chip-gap. */
+    .kp-segmented--chips[data-kp-segmented-fit='tracks'] {
+        flex: 1 1 auto;
+        min-inline-size: 0;
+    }
+
+    .kp-segmented--chips[data-kp-segmented-fit='tracks'][data-kp-segmented-cols] {
+        display: grid;
+        grid-template-columns: repeat(var(--kp-seg-cols, 1), minmax(0, var(--kp-seg-track, max-content)));
+        /* The track look's column flow (.kp-segmented) would add a column per chip: the chips fill rows here. */
+        grid-auto-flow: row;
+        justify-content: start;
+        align-items: stretch;
+    }
+
+    .kp-segmented--chips[data-kp-segmented-fit='tracks'][data-kp-segmented-cols] > .kp-segmented__item {
+        justify-content: center;
+        min-inline-size: 0;
+        text-align: center;
+    }
+
+    /* One synchronous read: every chip in one row at its own width. */
+    .kp-segmented--chips[data-kp-segmented-fit='tracks'][data-kp-segmented-measure] {
+        display: flex;
+        flex-wrap: nowrap;
+    }
+
+    .kp-segmented--chips[data-kp-segmented-fit='tracks'][data-kp-segmented-measure] > .kp-segmented__item {
+        flex: none;
+        inline-size: max-content;
+    }
+
+    /* Narrow [ux-1101 round 2]: the group's tracks share its whole row, so the grid's two edges line up with the search above it
+     * and no row ends ragged; each chip is a touch target high, its label at the start and its count at the end of its track, so
+     * the counts stand in one column per track and the chosen chip, filled, is found at a glance. Nothing scrolls. */
+    .kp-segmented--chips[data-kp-segmented-fit='tracks'][data-kp-segmented-cols][data-kp-segmented-narrow] {
+        grid-template-columns: repeat(var(--kp-seg-cols, 1), minmax(0, 1fr));
+        justify-content: stretch;
+        overflow: visible;
+    }
+
+    .kp-segmented--chips[data-kp-segmented-fit='tracks'][data-kp-segmented-cols][data-kp-segmented-narrow] > .kp-segmented__item {
+        justify-content: space-between;
+        min-block-size: var(--kp-touch-target, 2.75rem);
+        text-align: start;
+    }
+
+    /* A list toolbar that holds a narrow group stands as one column (search, then the chips under it), as the stacked toolbar
+     * does, keyed on its own room rather than the window's. */
+    .kp-toolbar:has(> .kp-toolbar__filters .kp-segmented[data-kp-segmented-narrow]) {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .kp-toolbar:has(> .kp-toolbar__filters .kp-segmented[data-kp-segmented-narrow]) > .kp-toolbar__filters {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* Folded: collapsed where it stands, so its width is still the width it would have. */
+    .kp-segmented--chips[data-kp-segmented-folded] {
+        block-size: 0;
+        margin-block: 0;
+        overflow: hidden;
+        visibility: hidden;
+    }
+
+    .kp-segmented__fold {
+        align-self: start;
+    }
+
+    /* The menu of a narrow group (`data-kp-segmented-fold="menu"`) is a touch target high, as the chips it stands for. */
+    .kp-segmented__fold:has(+ .kp-segmented[data-kp-segmented-narrow]) > .kp-segmented__fold-button {
+        min-block-size: var(--kp-touch-target, 2.75rem);
+    }
+
+    .kp-segmented__fold > .kp-menu {
+        min-inline-size: max(var(--kp-menu-min-width, 10rem), 100%);
+    }
+
+    @media (pointer: coarse) {
+        .kp-segmented--chips[data-kp-segmented-fit='tracks'] > .kp-segmented__item {
+            min-block-size: var(--kp-touch-target, 2.75rem);
+        }
     }
 
     .kp-toolbar__state {
@@ -20921,6 +22199,21 @@
         text-wrap: pretty;
     }
 
+    /* A step's body (Markdown or a node the page built) under its text: it wraps inside the step's measure. */
+    .kp-focus-steps__detail {
+        min-inline-size: 0;
+        overflow-wrap: anywhere;
+        line-height: 1.5;
+    }
+
+    .kp-focus-steps__detail > :first-child {
+        margin-block-start: 0;
+    }
+
+    .kp-focus-steps__detail > :last-child {
+        margin-block-end: 0;
+    }
+
     /* What the step needs sits in a box with room of its own on every side: the title and the rows never touch its
        edge, whatever a register draws there (a bar, a clip, a border) [cook-1017; Kenny: "text die tegen de rand plakt
        zonder marge"]. `--kp-focus-steps-needs-pad` sets it (1rem on the sides). */
@@ -22010,8 +23303,10 @@
         margin: 0;
         padding-inline-start: 1.25rem;
         overflow-y: auto;
-        font-family: var(--font-mono, ui-monospace, monospace);
-        font-size: var(--kp-text-xs, 0.75rem);
+        /* [uxdialogs1101] What will be lost is read as sentences ("3 containers: jellyfin, …"), so it is set in the body font at the
+         * small step, not the code font; the name to type keeps its code chip below. */
+        font-family: inherit;
+        font-size: var(--kp-text-sm, 0.8125rem);
         overflow-wrap: anywhere;
     }
 
@@ -24945,6 +26240,48 @@
         cursor: not-allowed;
     }
 
+    /* On a coarse pointer a tooltip cannot be reached (nothing hovers, and a disabled button takes no tap), so the reason is printed
+     * under the control as a plain line instead [ux-1101, disabled-touch; Medicine Cabinet: "I took one" out of stock]. The line is
+     * `.kp-reason__line`, which js/reason.js keeps beside the tooltip (the tooltip stays the description a screen reader hears); the
+     * control keeps its place and the line takes its width and wraps. A fine pointer never sees it unless the control asks (`data-kp-reason-line="always"`). */
+    .kp-reason__line {
+        display: none;
+    }
+
+    /* The same line on any pointer where the control says `data-kp-reason-line="always"` (a page that wants the reason always in view,
+     * and the way to judge the touch look with a mouse). */
+    .kp-reason[data-kp-reason-off][data-kp-reason-line='always'] {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--kp-space-xs, 0.25rem);
+    }
+
+    .kp-reason[data-kp-reason-off][data-kp-reason-line='always'] > .kp-reason__line {
+        display: block;
+        color: var(--muted-foreground);
+        font-size: var(--kp-text-sm, 0.8125rem);
+        line-height: 1.3;
+        text-align: center;
+        overflow-wrap: anywhere;
+    }
+
+    @media (pointer: coarse) {
+        .kp-reason[data-kp-reason-off] {
+            flex-direction: column;
+            align-items: stretch;
+            gap: var(--kp-space-xs, 0.25rem);
+        }
+
+        .kp-reason[data-kp-reason-off] > .kp-reason__line {
+            display: block;
+            color: var(--muted-foreground);
+            font-size: var(--kp-text-sm, 0.8125rem);
+            line-height: 1.3;
+            text-align: center;
+            overflow-wrap: anywhere;
+        }
+    }
+
     /* --- A disabled control in a column of buttons [b3b4-1019; kyu gap 16] ---
  * In a row's button box (`.kp-row-actions`, js/actions.js) the wrapper is the grid item that holds the column, so it
  * fills the column and the control fills the wrapper: the same width and the same edge as the plain buttons of the
@@ -25393,12 +26730,15 @@
         display: flex;
         flex-direction: column;
         gap: var(--kp-ops-gap);
+        --_ops-pad-inline: var(--kp-ops-pad-inline, clamp(var(--kp-space-md, 1rem), 3vw, var(--kp-space-xl, 2rem)));
         box-sizing: border-box;
         inline-size: 100%;
-        max-inline-size: var(--kp-ops-width, max(80vw, 64rem));
+        /* The width is the content's, not the border box's: 80vw of content beside its padding, as the page rule asks.
+         * Counted with the padding, a 1280 px page column was 976 px, 76% [medicine-1101 20]. 'full' (none) makes the sum
+         * invalid, which leaves no maximum. */
+        max-inline-size: calc(var(--kp-ops-width, max(80vw, 64rem)) + 2 * var(--_ops-pad-inline));
         margin-inline: auto;
-        padding: var(--kp-ops-pad-block, var(--kp-space-xl, 2rem))
-            var(--kp-ops-pad-inline, clamp(var(--kp-space-md, 1rem), 3vw, var(--kp-space-xl, 2rem)));
+        padding: var(--kp-ops-pad-block, var(--kp-space-xl, 2rem)) var(--_ops-pad-inline);
     }
 
     .kp-ops[data-kp-ops-width='full'] {
@@ -25725,6 +27065,77 @@
         white-space: nowrap;
     }
 
+    /* The bar without its own freshness line [ux-1101]: `data-kp-refresh-line="off"` on a `.kp-refresh` leaves "updated 12 s ago"
+ * (and "updating…" in its place) out, for a page that already says how fresh its data is in its own header (kyu: "Updated 2 min
+ * ago" beside the bar's "not updated yet"). Outside a form grid the bar then packs to its content, so Refresh now stands beside the
+ * chooser as one control; in a form grid both keep their tracks. A failed refresh still says so in its note with Retry now. `on` (default) is the approved bar. With
+ * the menu look (`data-kp-look="menu"`) the control is one menu button and one Refresh now. */
+    .kp-refresh[data-kp-refresh-line='off'] > .kp-refresh__bar > .kp-refresh__line {
+        display: none;
+    }
+
+    .kp-refresh[data-kp-refresh-line='off']:where(:not(.kp-formgrid .kp-refresh)) > .kp-refresh__bar {
+        grid-template-columns: none;
+        grid-auto-columns: max-content;
+        grid-auto-flow: column;
+        justify-content: start;
+    }
+
+
+    /* The narrow bar [ux-1101 round 2]: under 30rem of the control's own width (js/auto-refresh/narrow.js writes
+     * `data-kp-refresh-narrow`; `data-kp-refresh-stack` says `always` or `never`) the bar is two rows on two tracks. The first holds
+     * the caption ("Refresh automatically", or the page's own title or label) and Refresh now at the end; the second holds every
+     * choice, segments on one line across the whole width, which scroll sideways with the segmented control's own fade on the side
+     * that has more, the current choice brought into view. Everything is a touch target high. Outside a form grid only; a form grid
+     * stacks the bar on its own width. */
+    .kp-refresh__caption {
+        display: none;
+    }
+
+    .kp-refresh[data-kp-refresh-line='off'][data-kp-refresh-narrow]:not(.kp-formgrid .kp-refresh) > .kp-refresh__bar {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-auto-columns: auto;
+        grid-auto-flow: row;
+        justify-content: stretch;
+        /* The window's own fold (under 40rem, menu-hangs-from-buttons.css) starts every cell at the start edge; here each has its place. */
+        justify-items: stretch;
+        align-items: center;
+        row-gap: var(--kp-space-sm, 0.5rem);
+    }
+
+    .kp-refresh[data-kp-refresh-line='off'][data-kp-refresh-narrow]:not(.kp-formgrid .kp-refresh) > .kp-refresh__bar:not(:has(> .kp-refresh__title, > .kp-refresh__label)) > .kp-refresh__caption {
+        display: block;
+        min-inline-size: 0;
+        margin: 0;
+        color: var(--muted-foreground);
+        font-size: var(--kp-text-sm, 0.8125rem);
+        font-weight: 600;
+        line-height: 1.5;
+        overflow-wrap: break-word;
+    }
+
+    .kp-refresh[data-kp-refresh-line='off'][data-kp-refresh-narrow]:not(.kp-formgrid .kp-refresh) > .kp-refresh__bar > :is(.kp-refresh__caption, .kp-refresh__title, .kp-refresh__label) {
+        grid-column: 1;
+    }
+
+    .kp-refresh[data-kp-refresh-line='off'][data-kp-refresh-narrow]:not(.kp-formgrid .kp-refresh) > .kp-refresh__bar > .kp-refresh__now {
+        grid-row: 1;
+        grid-column: 2;
+        justify-self: end;
+        min-block-size: var(--kp-touch-target, 2.75rem);
+    }
+
+    .kp-refresh[data-kp-refresh-line='off'][data-kp-refresh-narrow]:not(.kp-formgrid .kp-refresh) > .kp-refresh__bar > .kp-refresh__chooser {
+        grid-column: 1 / -1;
+    }
+
+    .kp-refresh[data-kp-refresh-line='off'][data-kp-refresh-narrow]:not(.kp-formgrid .kp-refresh) .kp-refresh__segments {
+        inline-size: 100%;
+    }
+
+    .kp-refresh[data-kp-refresh-line='off'][data-kp-refresh-narrow]:not(.kp-formgrid .kp-refresh) .kp-refresh__segments > .kp-segmented__item {
+        min-block-size: var(--kp-touch-target, 2.75rem);
+    }
     /* The menu hangs from the button's start edge: the chooser stands at the start of its row. */
     .kp-refresh__menu > .kp-menu {
         inset-inline: 0 auto;
@@ -35768,6 +37179,18 @@
         display: none;
     }
 
+    /* The plate is the whole footprint [ux-1101, table-states]: the line that counts rows ("Showing 0 of 0"), the pager and the sort
+     * summary describe rows that are not there, so they leave while a plate stands in the rows' place. The search stays: a search that
+     * found nothing needs its way out. A pager with nothing to page hides itself (`hidden`, js/datatable/attach/render.js). */
+    .kp-datatable[data-kp-state-covered] > .kp-datatable__bar:has(> [data-kp-datatable-status], > [data-kp-datatable-pager]):not(:has([data-kp-datatable-search])),
+    .kp-datatable[data-kp-state-covered] [data-kp-datatable-sort-summary] {
+        display: none;
+    }
+
+    .kp-datatable__pager[hidden] {
+        display: none;
+    }
+
     .kp-datatable > :is([data-kp-datatable-empty], [data-kp-datatable-failed]).kp-stateplate {
         min-block-size: max(var(--kp-stateplate-floor, 12rem), min(var(--kp-datatable-held, 0px), var(--kp-footprint-max, 48rem)));
         /* The host is held at its loaded height (js/footprint.js): the plate takes what the toolbar and the pager leave [states-check-1019]. */
@@ -36728,21 +38151,171 @@
      * WCAG 2.5.5 / Apple HIG ask 44 px for a finger. The 36 px default, the 28 px small button and the 28 px tool-row buttons
      * (code, JSON field, command copy) are right for a mouse and stay as they are under a fine pointer; only a coarse pointer
      * (a phone, a tablet) lifts the box. The floor sits on the button itself (min-block-size / min-inline-size), so layout
-     * follows: tool rows come out one height, and a register's own paint is untouched. `html` in front outweighs the
+     * follows: tool rows come out one height, and a register's own paint is untouched. The bar's search trigger joins them
+     * [uxtouch1101]; every other small part gets an invisible hit area instead (touch-hit-area.css). `html` in front outweighs the
      * registers' `[data-theme] .kp-button--sm` without !important. Knob: --kp-touch-target (2.75rem). */
     @media (pointer: coarse) {
-        html :is(.kp-button, .kp-icon-button, .kp-nav__toggle, .kp-sidenav__toggle):is(*, .kp-button--sm, .kp-button--lg) {
+        html :is(.kp-button, .kp-icon-button, .kp-nav__toggle, .kp-sidenav__toggle, .kp-nav__search-trigger):is(*, .kp-button--sm, .kp-button--lg) {
             min-block-size: var(--kp-touch-target, 2.75rem);
             min-inline-size: var(--kp-touch-target, 2.75rem);
         }
 
-        html .kp-icon-button {
+        html .kp-icon-button,
+        html .kp-sidenav__launcher > :is(button, .kp-icon-button) {
             inline-size: max(2.25rem, var(--kp-touch-target, 2.75rem));
             block-size: max(2.25rem, var(--kp-touch-target, 2.75rem));
         }
     }
 }
 
+@layer kp.components {
+    /* --- Touch hit areas: every small interactive part is a fingertip wide under a coarse pointer [uxtouch1101] ---
+     * The app reviews (2026-11-01) counted 57 to 340 targets under 44 px per page on a phone: segmented items and chips 28-30 px,
+     * the switch 24, check boxes and radios 18, quantity numbers 24, inputs and selects 36, the time field's toggle 36 wide,
+     * uptime cells 11 by 25, table and list name links 20-24, the dialog's ✕. touch-target.css lifts buttons by their box; these
+     * parts keep their look exactly and get a larger hit area instead: an invisible `::after` centred on the part, at least
+     * --kp-touch-target (2.75rem, 44 px) each way, which takes the pointer for its part (a pseudo-element's press is its element's).
+     * A check box or a radio takes it on its label (a label holding the box, or the label after it), reaching back over the box;
+     * the switch takes it on its track. Inputs and selects are the exception: a field cannot carry a pseudo-element, so it stands
+     * at the target's height (not inside a sentence, where it is a word of the line). Uptime cells grow only in height: a cell
+     * 11 px wide shares its row with its neighbours, and a tap on the row opens the nearest one (js/uptime-strip.js); their strip,
+     * which clips, gives the room back by a padding its negative margin takes away, so nothing around it moves, and stands over
+     * the strip's title so a press just above a cell is the cell's.
+     *
+     * Applies under `(pointer: coarse)`, and under `data-kp-touch` on any element (a kiosk whose touch screen reports a mouse, a
+     * demo of the touch layout). Knobs: --kp-touch-target (2.75rem); --kp-touch-hit-paint (transparent) and
+     * --kp-touch-hit-outline (none) draw the areas, for checking a layout by eye; --kp-touch-check-gap (0.5rem) is the gap between
+     * a check box and the label after it. */
+    @media (pointer: coarse) {
+        html :is(.kp-uptime__cell, .kp-datatable__edit, label:has(> .kp-field__check), .kp-field__check + label),
+        html :is(.kp-table, .kp-datatable) :is(td, th[scope='row']) a[href],
+        html :is(.kp-listrow__name a[href], a.kp-listrow__name) {
+            position: relative;
+        }
+
+        html :is(.kp-segmented__item, .kp-switch__input, .kp-time__toggle, .kp-dialog__close, .kp-datatable__edit)::after,
+        html :is(.kp-table, .kp-datatable) :is(td, th[scope='row']) a[href]::after,
+        html :is(.kp-listrow__name a[href], a.kp-listrow__name)::after {
+            content: '';
+            position: absolute;
+            inset: min(0px, calc((100% - var(--kp-touch-target, 2.75rem)) / 2));
+            background: var(--kp-touch-hit-paint, transparent);
+            outline: var(--kp-touch-hit-outline, none);
+        }
+
+        html label:has(> .kp-field__check)::after {
+            content: '';
+            position: absolute;
+            inset-block: min(0px, calc((100% - var(--kp-touch-target, 2.75rem)) / 2));
+            inset-inline: calc((1.15rem - var(--kp-touch-target, 2.75rem)) / 2) 0;
+            background: var(--kp-touch-hit-paint, transparent);
+            outline: var(--kp-touch-hit-outline, none);
+        }
+
+        html .kp-field__check + label::after {
+            content: '';
+            position: absolute;
+            inset-block: min(0px, calc((100% - var(--kp-touch-target, 2.75rem)) / 2));
+            inset-inline: calc((1.15rem - var(--kp-touch-target, 2.75rem)) / 2 - 1.15rem - var(--kp-touch-check-gap, 0.5rem)) 0;
+            background: var(--kp-touch-hit-paint, transparent);
+            outline: var(--kp-touch-hit-outline, none);
+        }
+
+        html .kp-uptime__cell::after {
+            content: '';
+            position: absolute;
+            inset-block: min(0px, calc((100% - var(--kp-touch-target, 2.75rem)) / 2));
+            inset-inline: 0;
+            background: var(--kp-touch-hit-paint, transparent);
+            outline: var(--kp-touch-hit-outline, none);
+        }
+
+        html :is(.kp-field__input, .kp-combobox__input, .kp-datatable__search):not(textarea, [type='range'], [type='color'], .kp-sentence *, .kp-time--inline *) {
+            min-block-size: var(--kp-touch-target, 2.75rem);
+        }
+
+        html .kp-quantity__input {
+            align-self: stretch;
+        }
+
+        html .kp-uptime__track {
+            position: relative;
+            z-index: 1;
+            padding-block: 0.75rem;
+            margin-block: -0.75rem;
+        }
+    }
+
+    /* The same under `data-kp-touch`, for a page that knows it is touched whatever the pointer says. */
+    [data-kp-touch] :is(.kp-uptime__cell, .kp-datatable__edit, label:has(> .kp-field__check), .kp-field__check + label),
+    [data-kp-touch] :is(.kp-table, .kp-datatable) :is(td, th[scope='row']) a[href],
+    [data-kp-touch] :is(.kp-listrow__name a[href], a.kp-listrow__name) {
+        position: relative;
+    }
+
+    [data-kp-touch] :is(.kp-segmented__item, .kp-switch__input, .kp-time__toggle, .kp-dialog__close, .kp-datatable__edit)::after,
+    [data-kp-touch] :is(.kp-table, .kp-datatable) :is(td, th[scope='row']) a[href]::after,
+    [data-kp-touch] :is(.kp-listrow__name a[href], a.kp-listrow__name)::after {
+        content: '';
+        position: absolute;
+        inset: min(0px, calc((100% - var(--kp-touch-target, 2.75rem)) / 2));
+        background: var(--kp-touch-hit-paint, transparent);
+        outline: var(--kp-touch-hit-outline, none);
+    }
+
+    [data-kp-touch] label:has(> .kp-field__check)::after {
+        content: '';
+        position: absolute;
+        inset-block: min(0px, calc((100% - var(--kp-touch-target, 2.75rem)) / 2));
+        inset-inline: calc((1.15rem - var(--kp-touch-target, 2.75rem)) / 2) 0;
+        background: var(--kp-touch-hit-paint, transparent);
+        outline: var(--kp-touch-hit-outline, none);
+    }
+
+    [data-kp-touch] .kp-field__check + label::after {
+        content: '';
+        position: absolute;
+        inset-block: min(0px, calc((100% - var(--kp-touch-target, 2.75rem)) / 2));
+        inset-inline: calc((1.15rem - var(--kp-touch-target, 2.75rem)) / 2 - 1.15rem - var(--kp-touch-check-gap, 0.5rem)) 0;
+        background: var(--kp-touch-hit-paint, transparent);
+        outline: var(--kp-touch-hit-outline, none);
+    }
+
+    [data-kp-touch] .kp-uptime__cell::after {
+        content: '';
+        position: absolute;
+        inset-block: min(0px, calc((100% - var(--kp-touch-target, 2.75rem)) / 2));
+        inset-inline: 0;
+        background: var(--kp-touch-hit-paint, transparent);
+        outline: var(--kp-touch-hit-outline, none);
+    }
+
+    [data-kp-touch] :is(.kp-field__input, .kp-combobox__input, .kp-datatable__search):not(textarea, [type='range'], [type='color'], .kp-sentence *, .kp-time--inline *) {
+        min-block-size: var(--kp-touch-target, 2.75rem);
+    }
+
+    [data-kp-touch] .kp-quantity__input {
+        align-self: stretch;
+    }
+
+    [data-kp-touch] .kp-uptime__track {
+        position: relative;
+        z-index: 1;
+        padding-block: 0.75rem;
+        margin-block: -0.75rem;
+    }
+
+    /* The buttons' own floor (touch-target.css) follows `data-kp-touch` too, the bar's search trigger with them. */
+    [data-kp-touch] :is(.kp-button, .kp-icon-button, .kp-nav__toggle, .kp-sidenav__toggle, .kp-nav__search-trigger):is(*, .kp-button--sm, .kp-button--lg) {
+        min-block-size: var(--kp-touch-target, 2.75rem);
+        min-inline-size: var(--kp-touch-target, 2.75rem);
+    }
+
+    [data-kp-touch] .kp-icon-button {
+        inline-size: max(2.25rem, var(--kp-touch-target, 2.75rem));
+        block-size: max(2.25rem, var(--kp-touch-target, 2.75rem));
+    }
+}
 @layer kp.layout {
     /* --- Plain card: a state host without its own frame [wish-1120, homelab 90] ---
      * A `.kp-card[data-kp-state]` is a framed card, so one inside a section card drew a card in a card. With
@@ -37731,6 +39304,35 @@
         opacity: 0.6;
     }
 
+    /* A column head [ux-1101, docs-guidance; Medicine Cabinet: "Active" was repeated beside every switch]. A first row marked
+     * `.kp-listrow--head` (and `aria-hidden="true"`: it only repeats what the controls are named) names the columns on the list's own
+     * tracks, with the same cells as a row (`.kp-listrow__identity`, `__status`, `__stepper`, `__switch`, `__action`). While the list
+     * has one and is wide, the rows drop the word beside their switch: it stays in the control's name for a screen reader, and the head
+     * carries it for the eye. In the card layout the head is not drawn and every row says the word itself again. */
+    .kp-listrow--head {
+        padding-block: var(--kp-space-xs, 0.25rem);
+        color: var(--muted-foreground);
+        font-size: var(--kp-text-sm, 0.8125rem);
+        font-weight: 600;
+    }
+
+    .kp-listrow--head > .kp-listrow__switch {
+        justify-self: end;
+    }
+
+    @container kp-list (width > 40rem) {
+        .kp-list:has(> .kp-listrow--head) > .kp-listrow:not(.kp-listrow--head) .kp-switch > :not(input) {
+            position: absolute;
+            inline-size: 1px;
+            block-size: 1px;
+            margin: -1px;
+            padding: 0;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+        }
+    }
+
     /* The phone card: the identity and the status each on a line, the stepper filling the line beside the switch, the action on a line of its own. */
     @container kp-list (max-width: 40rem) {
         .kp-listrow {
@@ -37760,6 +39362,10 @@
 
         .kp-listrow__status:empty,
         .kp-listrow__action:empty {
+            display: none;
+        }
+
+        .kp-listrow--head {
             display: none;
         }
     }
@@ -37859,6 +39465,147 @@
         box-sizing: border-box;
     }
 }
+/* --- Dialog options [uxdialogs1101] ----------------------------------------------------------------------------------
+ * Three looks the app review of 2026-11-01 asked for. Each is opt-in, switches at runtime, and leaves the approved dialog
+ * as the default. They stand in the last layer because every register paints a dialog's backdrop and edge itself, and a
+ * register beats kp.components.
+ *
+ * `data-kp-backdrop="scrim"` on a dialog, or on any element round it (`<html>` for the whole page): the page behind a
+ * modal dialog stays readable under a translucent scrim, so the row a confirmation acts on is still in sight. `opaque`
+ * (default) is the theme's own backdrop; a dialog that says `opaque` keeps it under a page that says `scrim`.
+ * Knob: --kp-dialog-scrim (rgb(0 0 0 / 0.4), a dimming rather than a theme colour, as the base backdrop is).
+ *
+ * `data-kp-dialog-phone="sheet"` on a dialog or round it: under 40rem a modal `.kp-dialog` stands on the foot of the
+ * screen, the whole width, its actions sharing one row of equal buttons where the thumb is. `centre` (default) keeps
+ * it in the middle. A drawer is never a sheet.
+ *
+ * The one-level confirmation (`data-kp-dialog-stack="replace"`, js/components/confirm-dialog.js): the dialog keeps its
+ * height, its own parts step aside, and the confirmation stands in their place; a dialog centres it, a drawer keeps it
+ * at the top. */
+@layer kp.layout {
+    :where([data-kp-backdrop='scrim']) .kp-dialog:not([data-kp-backdrop='opaque'])::backdrop,
+    .kp-dialog[data-kp-backdrop='scrim']::backdrop {
+        background: var(--kp-dialog-scrim, rgb(0 0 0 / 0.4));
+        backdrop-filter: none;
+    }
+
+    @media (max-width: 40rem) {
+        :where([data-kp-dialog-phone='sheet']) .kp-dialog:modal:not(.kp-drawer, [data-kp-dialog-phone='centre']),
+        .kp-dialog[data-kp-dialog-phone='sheet']:modal:not(.kp-drawer) {
+            inset: auto 0 0;
+            box-sizing: border-box;
+            inline-size: 100%;
+            max-inline-size: 100%;
+            max-block-size: calc(100dvh - var(--kp-space-xl, 2rem));
+            margin: 0;
+            padding-block-end: max(1.25rem, env(safe-area-inset-bottom, 0px));
+            border-inline: 0;
+            border-block-end: 0;
+            border-end-start-radius: 0;
+            border-end-end-radius: 0;
+        }
+
+        :where([data-kp-dialog-phone='sheet']) .kp-dialog:modal:not(.kp-drawer, [data-kp-dialog-phone='centre']) > .kp-dialog__actions,
+        .kp-dialog[data-kp-dialog-phone='sheet']:modal:not(.kp-drawer) > .kp-dialog__actions {
+            display: grid;
+            grid-auto-columns: minmax(0, 1fr);
+            grid-auto-flow: column;
+        }
+    }
+
+    :is(.kp-dialog, .kp-drawer)[data-kp-confirm-replaced] > :not(.kp-confirm--inline) {
+        display: none !important;
+    }
+
+    .kp-dialog[data-kp-confirm-replaced]:not(.kp-drawer) {
+        display: flex !important;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    dialog.kp-confirm--inline {
+        position: static;
+        inset: auto;
+        box-sizing: border-box;
+        inline-size: auto;
+        max-inline-size: none;
+        max-block-size: none;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        box-shadow: none;
+        animation: none;
+    }
+
+    .kp-drawer[data-kp-confirm-replaced] > .kp-confirm--inline {
+        padding: var(--kp-space-md, 1rem) var(--kp-space-lg, 1.5rem);
+    }
+}
+
+/* --- Drawer widths and the drawer beside the list [uxdialogs1101] ----------------------------------------------------
+ * `data-kp-drawer-width` on a `dialog.kp-drawer`: `narrow` (22rem) for two or three fields, `wide` (48rem) for an
+ * editor; without it the drawer keeps its 28rem. Under 40rem a drawer with a width is the whole window, as the default
+ * drawer already is there.
+ *
+ * `data-kp-drawer-mode="beside"` (js/overlays/dialog-open.js opens it with show(), not showModal()): no backdrop, the
+ * page stays usable, the row whose control opened it is marked `data-kp-drawer-current` (a muted plate with a primary
+ * edge at its start, as the master-detail list marks its row), and Escape still closes it. An element marked
+ * `data-kp-drawer-room` makes room for it at its end edge while it is open, so nothing of the list stands under it.
+ * Under 40rem a beside drawer opens modal: there is no room beside anything. `modal` (default) is the approved drawer.
+ * Knobs [KT6]: --kp-drawer-narrow (22rem), --kp-drawer-wide (48rem), --kp-drawer-room (the drawer's width and a gap),
+ * --kp-drawer-shadow, --kp-drawer-z (40). */
+@layer kp.components {
+    dialog.kp-drawer[data-kp-drawer-width='narrow'] {
+        --kp-drawer-width: min(var(--kp-drawer-narrow, 22rem), 100vw);
+    }
+
+    dialog.kp-drawer[data-kp-drawer-width='wide'] {
+        --kp-drawer-width: min(var(--kp-drawer-wide, 48rem), 100vw);
+    }
+
+    @media (max-width: 40rem) {
+        dialog.kp-drawer[data-kp-drawer-width] {
+            --kp-drawer-width: 100vw;
+        }
+    }
+}
+
+@layer kp.layout {
+    dialog.kp-drawer[data-kp-drawer-mode='beside'][open]:not(:modal) {
+        z-index: var(--kp-drawer-z, 40);
+        /* A drawer that is also a .kp-dialog would take the open dialog's cap (100dvh - 2rem); beside, it is the window's height. */
+        max-block-size: 100dvh;
+        box-shadow: var(--kp-drawer-shadow, -1rem 0 2rem -1.5rem rgb(0 0 0 / 0.45));
+    }
+
+    [data-kp-drawer-current]:not(tr) {
+        background: var(--muted);
+        box-shadow: inset 3px 0 0 var(--primary);
+    }
+
+    tr[data-kp-drawer-current] > * {
+        background: var(--muted);
+    }
+
+    tr[data-kp-drawer-current] > :first-child {
+        box-shadow: inset 3px 0 0 var(--primary);
+    }
+
+    :root:has(dialog.kp-drawer[data-kp-drawer-mode='beside'][open]:not(:modal)) [data-kp-drawer-room] {
+        padding-inline-end: var(--kp-drawer-room, calc(min(28rem, 100vw) + var(--kp-space-md, 1rem)));
+    }
+
+    :root:has(dialog.kp-drawer[data-kp-drawer-mode='beside'][data-kp-drawer-width='narrow'][open]:not(:modal)) [data-kp-drawer-room] {
+        padding-inline-end: var(--kp-drawer-room, calc(min(var(--kp-drawer-narrow, 22rem), 100vw) + var(--kp-space-md, 1rem)));
+    }
+
+    :root:has(dialog.kp-drawer[data-kp-drawer-mode='beside'][data-kp-drawer-width='wide'][open]:not(:modal)) [data-kp-drawer-room] {
+        padding-inline-end: var(--kp-drawer-room, calc(min(var(--kp-drawer-wide, 48rem), 100vw) + var(--kp-space-md, 1rem)));
+    }
+}
+
 @layer kp.components {
     /* --- A button that follows a quantity [mc-r2] ---
      * The reason a button is off ("Choose how many boxes first.") stands under the quantity it follows, in the field's help style but in the
@@ -54773,11 +56520,16 @@
         background: var(--accent);
     }
 
-    [data-theme='brutalism'] .kp-dialog {
-        /* The drop starts 2.5 rem up-left of the footprint: on a narrow
-           screen the dialog leaves that much room on both sides, so no
-           frame of the drop is outside the window. */
+    /* The drop starts 2.5 rem up-left of the footprint: on a narrow
+       screen the dialog leaves that much room on both sides, so no
+       frame of the drop is outside the window. An edge drawer is not
+       dropped and keeps its own width: capped, it stood 80 px off a
+       390 px phone's edge [habits-1101 theme-sweep]. */
+    [data-theme='brutalism'] .kp-dialog:not(.kp-drawer) {
         max-inline-size: var(--kp-dialog-max-width, min(32rem, calc(100vw - 2 * var(--kp-sig-br-h-slab))));
+    }
+
+    [data-theme='brutalism'] .kp-dialog {
         /* js/motion.js measures the theme's time on an unopened probe and
            takes a close as two thirds of what it reads: the unopened dialog
            runs one and a half drops, the open one a drop, which is also its
@@ -56518,6 +58270,11 @@
         font-weight: 700;
         letter-spacing: 0.08em;
         text-transform: uppercase;
+    }
+
+    /* A label too long for its tab keeps a trace of the capitals' spacing as it tightens (js/tabbar/fit.js). */
+    [data-theme='brutalism'] .kp-tabbar {
+        --kp-tabbar-tight-tracking: 0.02em;
     }
 
     [data-theme='brutalism'] .kp-tabbar__tab::before {
@@ -74870,6 +76627,13 @@
         outline-offset: 2px;
         z-index: 1;
     }
+    /* The resting dashed outline is transparent and outranked the shared focus ring, so a focused day showed nothing
+     * [habits-1101 theme-sweep]: focus draws the ring, solid, as the other themes do. */
+    [data-theme='forest'] :is(.kp-heat__cell, .kp-matrix__cell):focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
+        z-index: 1;
+    }
     [data-theme='forest'] .kp-heat__cell:active:not(.kp-skeleton, [aria-disabled='true'], :focus-visible),
     [data-theme='forest'] .kp-matrix__cell:active:not([data-kp-inert], [aria-disabled='true'], .kp-skeleton, :focus-visible) {
         outline-style: solid;
@@ -80548,6 +82312,11 @@
         text-transform: uppercase;
     }
 
+    /* A label too long for its tab stays in spaced capitals as it tightens, the spacing only narrower (js/tabbar/fit.js). */
+    [data-theme='deco'] .kp-tabbar {
+        --kp-tabbar-tight-tracking: 0.05em;
+    }
+
     [data-theme='deco'] .kp-tabbar__tab::before {
         inset-inline: 0.25rem;
         block-size: 1px;
@@ -82552,6 +84321,12 @@
         [data-theme='deco'] .kp-segmented:not(.kp-segmented--chips, .kp-segmented--block) {
             --kp-seg-tracking: 0.02em;
             --kp-seg-size: 0.68rem;
+            --kp-seg-item-pad-inline: 0.375rem;
+        }
+        /* A full-width track closes its tracking and padding up the same way, at its own size, so three words in
+           spaced capitals ("Pomodoro / Countdown / Flow") sit whole on a phone [habits-1101 theme-sweep]. */
+        [data-theme='deco'] .kp-segmented.kp-segmented--block:not(.kp-segmented--chips) {
+            --kp-seg-tracking: 0.02em;
             --kp-seg-item-pad-inline: 0.375rem;
         }
     }
@@ -88940,6 +90715,23 @@
 
     [data-theme='blueprint'] .kp-calendar__busy-text {
         font-size: var(--kp-text-md, 1rem);
+    }
+
+    /* The picked day focused [habits-1101 theme-sweep]: the pick's ring is the pen's cyan, and so is the package's ring
+       for a focused pick (--ring is --primary here), so today picked looked the same with and without the keyboard on
+       it. Focused, the pick keeps its cyan line and a second ring stands round it, as the house ring stands off a part:
+       a dark gap the width of the ring beyond the cyan, then the focus ring's light band. Today keeps its inner ring. */
+    [data-theme='blueprint'] .kp-calendar__grid td[aria-selected='true'] > .kp-calendar__day:focus-visible {
+        box-shadow:
+            0 0 0 calc(4px + var(--focus-ring-width, 2px)) var(--focus-ring-contrast),
+            0 0 0 calc(4px + 2 * var(--focus-ring-width, 2px)) var(--focus-ring);
+    }
+
+    [data-theme='blueprint'] .kp-calendar__grid td[aria-selected='true'] > .kp-calendar__day[data-kp-today]:focus-visible {
+        box-shadow:
+            inset 0 0 0 2px currentColor,
+            0 0 0 calc(4px + var(--focus-ring-width, 2px)) var(--focus-ring-contrast),
+            0 0 0 calc(4px + 2 * var(--focus-ring-width, 2px)) var(--focus-ring);
     }
 }
 
@@ -102871,6 +104663,17 @@
         border-radius: 0;
         background: repeating-linear-gradient(to bottom, transparent 0 calc(1.2rem - 1px), var(--border) calc(1.2rem - 1px) 1.2rem) center bottom
             1rem / calc(100% - 4rem) 3.6rem no-repeat;
+    }
+
+    /* The empty plate without its ruled lines [ux-1101]: `data-kp-empty-lines="off"` on the plate or on any element round it (the
+       page's <html> for every plate) leaves the three ruled lines at the foot out and gives the plate the air of its top, so the
+       words stand centred on a plain plate under the double rule. kyu read the lines as a skeleton still loading. The default
+       (`on`) is the approved plate. */
+    [data-theme='formal'][data-kp-empty-lines='off'] .kp-empty,
+    [data-theme='formal'] [data-kp-empty-lines='off'] .kp-empty,
+    [data-theme='formal'] .kp-empty[data-kp-empty-lines='off'] {
+        padding-block-end: 1.25rem;
+        background: none;
     }
 
     /* Inside a card the empty state is the card's stage, which has its frame: the double rule along the top of the plate

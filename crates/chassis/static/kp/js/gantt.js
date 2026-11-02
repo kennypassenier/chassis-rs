@@ -105,7 +105,10 @@
 //   scroll   [wish-1028, Kitchen 3] a timeline narrower than 32rem keeps its plot a readable width and scrolls sideways inside its own
 //            frame instead of squeezing the lanes; the lane names stay in view and a live window opens at its right end. The width is
 //            `--kp-gantt-min-width` (30rem; 0 turns it off); `data-kp-gantt-scroll="off"` never scrolls, `"always"` keeps the minimum
-//            at every width. A mouse still brushes a range; a finger pans
+//            at every width. A mouse still brushes a range; a finger pans. `"fit"` [gantt-fit-1101] lays the whole window across the
+//            frame at every width (no sideways scroll) and keeps every bar's label whole: inside its bar, after it, before it, or on
+//            its own line under it, never on the line for now beside a bar; the rows are packed with the labels, and a lane is as tall
+//            as the rows it uses (no spare row). Read again when it changes
 //   line     `.kp-gantt--line` [kpadopt4]: one lane and no toolbar, no lane
 //            names and no brush, fitted to its data: the dated line under a
 //            journey stepper

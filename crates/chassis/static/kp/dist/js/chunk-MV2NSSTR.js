@@ -1,0 +1,3 @@
+/* @kp-soft/themes v12.1.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d,e,f,g,h,i}from"./chunk-ZEBXKVC4.js";import"./chunk-ECA65QZN.js";import"./chunk-TCYLCDYM.js";import"./chunk-KSLYBXQL.js";import"./chunk-PTKVLINS.js";import"./chunk-YKG3U2IW.js";import"./chunk-UTINK3IY.js";import"./chunk-WMKPQ742.js";import"./chunk-3Z4KKGO5.js";import"./chunk-22LME7MA.js";import"./chunk-OHFUIDCK.js";import"./chunk-OG6L4GK2.js";export{a as NAV_FOLD,b as NAV_FOLD_EVENT,e as NAV_FOLD_OWNED,c as NAV_MORE,d as NAV_SEP,i as attachNavFolds,h as foldNav,f as planFold,g as planSeparators};
+//# sourceMappingURL=chunk-MV2NSSTR.js.map

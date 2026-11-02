@@ -2,6 +2,7 @@
 
 import { getStrings } from '../strings.js';
 import { ID_END, ID_RADIX, ID_START } from './constants.js';
+import { buildCaption } from './narrow.js';
 
 /** An element with a class. @param {Document} doc @param {string} tag @param {string} className */
 export function make(doc, tag, className) {
@@ -76,6 +77,8 @@ export function buildBar(doc) {
     count.setAttribute('aria-hidden', 'true');
     const { note, retry, failure } = buildFailure(doc);
     const bar = make(doc, 'div', 'kp-refresh__bar');
-    bar.append(chooser, line, now);
-    return { chooser, custom, input, problem, line, ago, busyWords, now, count, note, retry, failure, bar };
+    // The caption is drawn only on the narrow bar of a control without its own line (js/auto-refresh/narrow.js).
+    const caption = buildCaption(doc);
+    bar.append(caption, chooser, line, now);
+    return { chooser, custom, input, problem, line, ago, busyWords, now, count, note, retry, failure, bar, caption };
 }

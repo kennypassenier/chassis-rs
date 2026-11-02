@@ -31,18 +31,13 @@
 
 import { Controller, attachAll, controllerOf } from './controller.js';
 import { getStrings } from './strings.js';
+import { announce, buildHead, makeList, emitRows, ensureAddAndStatus, numberRow, whole, writeAddButton, writeRemoveButtons } from './row-editor/dom.js';
 import { statePlate } from './state-plate.js';
 
 export const ROWS = '[data-kp-rows]';
 
 /** The focusable things a new row hands the focus to, first one wins. */
 const FOCUSABLE = 'input:not([type="hidden"]):not(:disabled), button:not(:disabled), select:not(:disabled), [tabindex="0"]';
-
-/** @param {string | null} value @param {number} fallback */
-const whole = (value, fallback) => {
-    const n = Number.parseInt(value ?? '', 10);
-    return Number.isFinite(n) && n >= 0 ? n : fallback;
-};
 
 /** One editor: its rows, its template and its head, add button and status line. */
 export class RowEditor extends Controller {
@@ -58,7 +53,7 @@ export class RowEditor extends Controller {
     }
 
     get list() {
-        return /** @type {HTMLElement} */ (this.host.querySelector('[data-kp-rows-list]') ?? this.makeList());
+        return /** @type {HTMLElement} */ (this.host.querySelector('[data-kp-rows-list]') ?? makeList(this.host));
     }
 
     get min() {
@@ -95,49 +90,19 @@ export class RowEditor extends Controller {
         return /** @type {HTMLElement[]} */ ([...this.list.children]).filter((el) => el.classList.contains('kp-rows__row'));
     }
 
-    /** @returns {HTMLElement} */
-    makeList() {
-        const list = this.host.ownerDocument.createElement('ol');
-        list.className = 'kp-rows__list';
-        list.setAttribute('data-kp-rows-list', '');
-        this.host.prepend(list);
-        return list;
-    }
-
     /** The parts the markup left out: the head row, the add button and the status line. */
     ensureParts() {
         const doc = this.host.ownerDocument;
         if (!this.host.querySelector(':scope > .kp-rows__head')) this.makeHead(doc);
-        if (!this.host.querySelector('[data-kp-rows-add]')) {
-            const add = doc.createElement('button');
-            add.type = 'button';
-            add.className = 'kp-button';
-            add.setAttribute('data-kp-rows-add', '');
-            this.host.append(add);
-        }
-        if (!this.host.querySelector('.kp-rows__status')) {
-            const status = doc.createElement('p');
-            status.className = 'kp-rows__status';
-            status.setAttribute('role', 'status');
-            this.host.append(status);
-        }
+        ensureAddAndStatus(this.host);
     }
 
     /** The labels once, over the columns, from the labels of the first row (or of the template). @param {Document} doc */
     makeHead(doc) {
         const sample = this.rows()[0] ?? this.template()?.content.firstElementChild;
         const labels = [...(sample?.querySelectorAll(':scope > [data-label]') ?? [])];
-        if (labels.length === 0) return;
-        const head = doc.createElement('div');
-        head.className = 'kp-rows__head';
-        head.setAttribute('aria-hidden', 'true');
-        for (const cell of labels) {
-            const label = doc.createElement('span');
-            label.className = 'kp-rows__label';
-            label.textContent = cell.getAttribute('data-label');
-            head.append(label);
-        }
-        this.host.insertBefore(head, this.list);
+        const head = buildHead(doc, labels);
+        if (head) this.host.insertBefore(head, this.list);
     }
 
     /** @returns {HTMLTemplateElement | null} */
@@ -162,7 +127,7 @@ export class RowEditor extends Controller {
         if (!template || this.rows().length >= this.max) return null;
         const row = /** @type {HTMLElement} */ (template.content.firstElementChild?.cloneNode(true));
         this.serial += 1;
-        this.number(row, this.serial);
+        numberRow(row, this.serial);
         this.list.append(row);
         this.wire(row);
         const index = this.rows().length;
@@ -190,17 +155,6 @@ export class RowEditor extends Controller {
         this.say(getStrings().rowsRemoved(this.units[0], at + 1, left.length));
     }
 
-    /** Give `{n}` in a new row's attributes and text its number. @param {Element} row @param {number} n */
-    number(row, n) {
-        for (const el of [row, ...row.querySelectorAll('*')]) {
-            for (const attribute of el.getAttributeNames()) {
-                const value = el.getAttribute(attribute) ?? '';
-                if (value.includes('{n}')) el.setAttribute(attribute, value.replaceAll('{n}', String(n)));
-            }
-            for (const node of el.childNodes) if (node.nodeType === Node.TEXT_NODE && node.textContent?.includes('{n}')) node.textContent = node.textContent.replaceAll('{n}', String(n));
-        }
-    }
-
     /** Attach the package's controls inside a new row, as the boot attached the first rows'. @param {HTMLElement} row */
     wire(row) {
         if (this.host.getAttribute('data-kp-rows-attach') === 'none') return;
@@ -212,35 +166,13 @@ export class RowEditor extends Controller {
 
     /** Write what depends on the count: the remove buttons, the add button, the plate and the line under the rows. */
     sync() {
-        const doc = this.host.ownerDocument;
         const s = getStrings();
         const rows = this.rows();
         const [unit, units] = this.units;
         const atMin = rows.length <= this.min;
         const atMax = rows.length >= this.max;
-        for (const [at, row] of rows.entries()) {
-            let button = row.querySelector('[data-kp-rows-remove]');
-            if (!button) {
-                button = doc.createElement('button');
-                button.className = 'kp-button kp-rows__remove';
-                button.setAttribute('data-kp-rows-remove', '');
-                button.setAttribute('type', 'button');
-                button.textContent = '×';
-                row.append(button);
-            }
-            button.setAttribute('aria-label', s.rowsRemove(unit, at + 1));
-            button.toggleAttribute('aria-disabled', atMin);
-            if (atMin) button.setAttribute('aria-disabled', 'true');
-        }
-        const add = this.host.querySelector('[data-kp-rows-add]');
-        if (add) {
-            if (!add.textContent?.trim() || add.hasAttribute('data-kp-rows-written')) {
-                add.textContent = s.rowsAdd(unit);
-                add.setAttribute('data-kp-rows-written', '');
-            }
-            add.toggleAttribute('aria-disabled', atMax);
-            if (atMax) add.setAttribute('aria-disabled', 'true');
-        }
+        writeRemoveButtons(rows, s, unit, atMin);
+        writeAddButton(this.host.querySelector('[data-kp-rows-add]'), s, unit, atMax);
         const status = this.host.querySelector('.kp-rows__status');
         if (status) status.textContent = atMax ? s.rowsAtMax(this.max, units) : atMin && this.min > 0 ? s.rowsAtMin(this.min, this.min === 1 ? unit : units) : '';
         this.host.toggleAttribute('data-kp-rows-empty', rows.length === 0);
@@ -263,26 +195,12 @@ export class RowEditor extends Controller {
 
     /** Say something to a screen reader, in the status line. @param {string} words */
     say(words) {
-        const live = this.host.querySelector('.kp-rows__live') ?? this.host.appendChild(this.makeLive());
-        live.textContent = '';
-        queueMicrotask(() => {
-            live.textContent = words;
-        });
-    }
-
-    /** @returns {HTMLElement} */
-    makeLive() {
-        const live = this.host.ownerDocument.createElement('span');
-        live.className = 'kp-sr-only kp-rows__live';
-        live.setAttribute('role', 'status');
-        return live;
+        announce(this.host, words);
     }
 
     /** @param {string} type @param {HTMLElement} row @param {number} index */
     emit(type, row, index) {
-        const rows = this.rows();
-        this.host.dispatchEvent(new CustomEvent(type, { bubbles: true, detail: { row, index, count: rows.length } }));
-        this.host.dispatchEvent(new CustomEvent('kp-rows-change', { bubbles: true, detail: { count: rows.length, rows } }));
+        emitRows(this.host, type, row, index, this.rows());
     }
 
     /** Let go of the controls inside the rows and of what this wrote. */

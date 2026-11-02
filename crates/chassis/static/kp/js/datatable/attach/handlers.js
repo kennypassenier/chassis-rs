@@ -58,8 +58,7 @@ export class TableHandlers {
 
     onToggle() {
         if (this.t.filterUi.panel === null || this.t.filterUi.toggle === null) return;
-        this.t.filterUi.panel.hidden = !this.t.filterUi.panel.hidden;
-        this.t.filterUi.toggle.setAttribute('aria-expanded', String(!this.t.filterUi.panel.hidden));
+        this.t.filterUi.setPanelOpen(Boolean(this.t.filterUi.panel.hidden), true);
     }
 
     /** @param {number | string} column @param {FilterValue | null} value */

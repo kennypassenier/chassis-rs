@@ -1,0 +1,3 @@
+/* @kp-soft/themes v12.1.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{h as b,i as c}from"./chunk-RCFU47JF.js";import{i as a}from"./chunk-ZASD6JE4.js";import"./chunk-A54J235N.js";import"./chunk-XB6CQZES.js";import"./chunk-JR65OBKC.js";import"./chunk-NTFH7MC5.js";import"./chunk-YKG3U2IW.js";import"./chunk-UTINK3IY.js";import"./chunk-RHOP7MTC.js";import"./chunk-5VNHYGXC.js";import"./chunk-44ANMXPB.js";import"./chunk-WMKPQ742.js";import"./chunk-3Z4KKGO5.js";import"./chunk-PELN7MTG.js";import"./chunk-22LME7MA.js";import"./chunk-KZNC5FA3.js";import"./chunk-OHFUIDCK.js";import"./chunk-OG6L4GK2.js";export{a as NEEDS,b as READY_ATTRIBUTE,c as attachAll};
+//# sourceMappingURL=auto.js.map

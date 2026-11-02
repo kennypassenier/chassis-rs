@@ -6,7 +6,7 @@ import { ARRIVE_KEYS } from './constants.js';
 import { switching } from './switching.js';
 import { themeMotion } from './timing.js';
 import { sizeEase, steppedDuration } from './size.js';
-import { repaintedIn } from './leave.js';
+import { batchOf, repaintedIn } from './repaint.js';
 import { arriveMode, firstRender, foldingOutFor, followsAFold, settledHeight } from './fold-size.js';
 /** @typedef {import('./fold-size.js').SizeOptions} SizeOptions */
 
@@ -220,22 +220,6 @@ export class BoxSize extends Controller {
             }
         }
     }
-}
-
-/**
- * What one batch of records says before any arrives: which targets were hidden before it, and which nodes it took out.
- * @param {MutationRecord[]} records
- */
-function batchOf(records) {
-    /** @type {Map<Node, boolean>} */
-    const hiddenBefore = new Map();
-    /** @type {Set<Node>} */
-    const moved = new Set();
-    for (const record of records) {
-        if (record.type === 'attributes' && !hiddenBefore.has(record.target)) hiddenBefore.set(record.target, record.oldValue !== null);
-        if (record.type === 'childList') for (const node of record.removedNodes) moved.add(node);
-    }
-    return { hiddenBefore, moved };
 }
 
 /**

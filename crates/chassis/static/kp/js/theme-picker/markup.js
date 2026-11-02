@@ -57,7 +57,10 @@ export function themeOptionsMarkup({ themes = THEMES, labels = {}, grouped = tru
  * pass one when there are two menus. Everything a person reads is
  * escaped; the icon is trusted markup you pass.
  *
- * @param {{ id?: string, label?: string, icon?: string, themes?: readonly import('../theme-registry.js').ThemeRecord[], labels?: Partial<Record<string, string>>, grouped?: boolean, groupLabels?: { light?: string, dark?: string }, className?: string }} [options]
+ * `trigger: 'label'` draws a labelled button that names the theme worn ("Formal ▾", `current` or the root's theme) and keeps
+ * that name on a pick, for a settings row [kitchen-1101, chassis-rs gap 24]; the default is the icon button.
+ *
+ * @param {{ id?: string, label?: string, icon?: string, themes?: readonly import('../theme-registry.js').ThemeRecord[], labels?: Partial<Record<string, string>>, grouped?: boolean, groupLabels?: { light?: string, dark?: string }, className?: string, trigger?: 'icon' | 'label', current?: string }} [options]
  * @returns {string}
  */
 export function themeMenuMarkup({
@@ -69,17 +72,38 @@ export function themeMenuMarkup({
     grouped,
     groupLabels,
     className = '',
+    trigger = 'icon',
+    current,
 } = {}) {
     const safeId = escapeHtml(id);
     const safeLabel = escapeHtml(label);
     const classes = `kp-theme-menu ${escapeHtml(className)}`.trim();
     return (
         `<span class="${classes}">` +
-        `<button type="button" class="kp-icon-button" popovertarget="${safeId}" aria-label="${safeLabel}" style="anchor-name: --${safeId}">` +
-        icon +
-        `</button>` +
+        (trigger === 'label' ? labelTrigger(safeId, label, current, themes, labels) : iconTrigger(safeId, safeLabel, icon)) +
         `<div popover="auto" id="${safeId}" class="kp-popover" style="position-anchor: --${safeId}">` +
         `<ul class="kp-menu" data-kp-theme-picker aria-label="${safeLabel}">${themeOptionsMarkup({ themes, labels, grouped, groupLabels })}</ul>` +
         `</div></span>`
+    );
+}
+
+/** The icon button. @param {string} safeId @param {string} safeLabel @param {string} icon */
+function iconTrigger(safeId, safeLabel, icon) {
+    return `<button type="button" class="kp-icon-button" popovertarget="${safeId}" aria-label="${safeLabel}" style="anchor-name: --${safeId}">${icon}</button>`;
+}
+
+/**
+ * The labelled button: the theme's name and a caret; the controller renames it on a pick.
+ * @param {string} safeId @param {string} label @param {string | undefined} current
+ * @param {readonly import('../theme-registry.js').ThemeRecord[] | undefined} themes @param {Partial<Record<string, string>> | undefined} labels
+ */
+function labelTrigger(safeId, label, current, themes = THEMES, labels = {}) {
+    const worn = current ?? (typeof document === 'undefined' ? undefined : document.documentElement.dataset.theme);
+    const record = themes.find((t) => t.name === worn) ?? themes[0];
+    const name = record ? (labels[record.name] ?? record.label) : '';
+    return (
+        `<button type="button" class="kp-button" data-kp-theme-trigger="label" data-kp-theme-label="${escapeHtml(label)}" popovertarget="${safeId}" ` +
+        `aria-label="${escapeHtml(`${label}: ${name}`)}" style="anchor-name: --${safeId}">` +
+        `<span class="kp-theme-menu__current">${escapeHtml(name)}</span><span aria-hidden="true">▾</span></button>`
     );
 }

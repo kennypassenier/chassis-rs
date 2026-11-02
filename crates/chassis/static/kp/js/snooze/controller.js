@@ -5,6 +5,7 @@ import { attachDatePickers } from '../datepicker.js';
 import { MENU_SELECT_EVENT, attachMenuButtons, setMenu } from '../menu-button.js';
 import { runMoment, runsRelative } from '../runs.js';
 import { SNOOZE_END_EVENT, SNOOZE_EVENT, snoozeChoices } from './choices.js';
+import { paintTrigger } from './build.js';
 import { SnoozePanel } from './panel.js';
 
 /** @typedef {import('../snooze.js').SnoozeHandle} SnoozeHandle */
@@ -116,25 +117,7 @@ export class SnoozePicker extends SnoozePanel {
         end.hidden = !snoozed;
         end.disabled = this.busy;
         this.host.dataset.kpSnoozedState = snoozed ? 'snoozed' : 'idle';
-        if (this.chips) return;
-        trigger.replaceChildren();
-        const text = this.doc.createElement('span');
-        text.className = 'kp-button__text';
-        text.textContent = snoozed ? s.snoozeChange : s.snoozeTrigger;
-        trigger.append(text);
-        trigger.setAttribute('aria-describedby', status.id);
-        if (this.busy) {
-            const layer = this.doc.createElement('span');
-            layer.className = 'kp-button__busy';
-            layer.setAttribute('aria-hidden', 'true');
-            const spin = this.doc.createElement('span');
-            spin.className = 'kp-spinner';
-            layer.append(spin);
-            trigger.append(layer);
-        }
-        trigger.toggleAttribute('data-kp-busy', this.busy);
-        trigger.toggleAttribute('aria-busy', this.busy);
-        trigger.setAttribute('aria-disabled', String(this.busy));
+        if (!this.chips) paintTrigger(this.doc, trigger, { text: snoozed ? s.snoozeChange : s.snoozeTrigger, describedBy: status.id, busy: this.busy });
     }
 
     /** Fill the menu or the chips with what is offered now. */

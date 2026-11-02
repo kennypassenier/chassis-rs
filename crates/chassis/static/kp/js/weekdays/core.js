@@ -29,6 +29,15 @@ export class WeekdaysCore extends Controller {
         this.items = chipItems(this.o, s);
         this.lines = buildLines(host, this.o, this.id);
         this.quick = buildQuick(doc, this.o, s);
+        /** Whether the reader has picked, left the group or tried to submit: only then does "pick at least n" show [ux-1101, required-early]. */
+        this.touched = false;
+    }
+
+    /** The reader has interacted: show what is missing, and go on showing it. */
+    touch() {
+        if (this.touched) return;
+        this.touched = true;
+        this.paint();
     }
 
     /** The picked values, in the order the chips stand. @returns {string[]} */
@@ -66,7 +75,7 @@ export class WeekdaysCore extends Controller {
         const { summary, why, reason } = this.lines;
         const have = this.values();
         summary.textContent = this.words();
-        const ok = have.length >= this.o.min;
+        const ok = have.length >= this.o.min || !this.touched;
         why.hidden = ok;
         why.textContent = ok ? '' : this.s.weekdaysMin(this.o.min);
         const described = [this.o.showSummary ? summary.id : '', ok ? '' : why.id, reason.hidden ? '' : reason.id].filter(Boolean).join(' ');

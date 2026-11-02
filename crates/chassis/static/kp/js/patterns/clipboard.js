@@ -11,11 +11,12 @@ import { SECRET_CLIPBOARD_EVENT } from './constants.js';
 //
 //   <div class="kp-secret" data-kp-secret data-kp-secret-ttl="30" data-kp-secret-label="API token"></div>
 //
-// The module builds what the markup leaves out: the value box with the mask,
-// Reveal and Copy (package buttons, `.kp-copyable__button` for the copied
-// and blocked looks), and the line under them that holds the countdown, the
-// reason a field is disabled, or why it could not be read. That line always
-// has its height, so nothing moves when it fills.
+// The module builds what the markup leaves out: the value box with the mask
+// and, inside it, the clock that holds the countdown [uxtouch1101], Reveal
+// and Copy (package buttons, `.kp-copyable__button` for the copied and
+// blocked looks), and the line under them that holds the reason a field is
+// disabled or why it could not be read. The box and the line always have
+// their height, so nothing moves when a value shows or a line fills.
 //
 //   data-kp-secret-ttl="30"        seconds a shown value stays; 0: until Hide is pressed (the ttl, the mask and reveal-on
 //                                  are read again when the attribute changes, js/live-options.js)
@@ -38,8 +39,8 @@ import { SECRET_CLIPBOARD_EVENT } from './constants.js';
 //                                  answers `kp-secret-request` or passes `secretLoad`, and the value is in
 //                                  the page only while it is shown
 //
-// While shown the countdown ticks each second (a drain rule under the value
-// runs out with it), and pauses while the reader selects the value or holds
+// While shown the countdown ticks each second (a drain rule along the foot of
+// the value's box runs out with it), and pauses while the reader selects the value or holds
 // the focus in it; it hides at once when the tab goes to the background. A
 // screen reader hears "Shown. Hides in 30 s.", "Hides in 10 s" and "Hidden
 // again" from a polite region, not every second. The state is

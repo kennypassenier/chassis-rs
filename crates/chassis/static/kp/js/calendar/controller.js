@@ -136,7 +136,8 @@ export class CalendarController extends Controller {
 
     /** @param {MouseEvent} event */
     onDay(event) {
-        const iso = this.dayOf(event)?.dataset.kpDate;
+        const day = this.dayOf(event);
+        const iso = day?.getAttribute('aria-disabled') === 'true' ? undefined : day?.dataset.kpDate;
         // A click from Enter or Space has no pointer behind it: detail 0.
         if (iso) this.pick(iso, event.detail === 0 ? 'keyboard' : 'pointer');
     }

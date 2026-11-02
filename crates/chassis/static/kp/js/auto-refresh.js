@@ -28,6 +28,13 @@
 //   data-kp-refresh-stack    auto (default) | always | never: outside a `.kp-formgrid` the bar folds to one column under 40rem of
 //                            viewport (chooser, freshness line, Refresh now, on the start edge); `always` folds it at any width,
 //                            `never` keeps the row. A form grid folds on its own width (data-kp-formgrid-stack). CSS only
+//   data-kp-refresh-line     on (default) | off [ux-1101]: off leaves the bar's own freshness line out, for a page that already
+//                            says how fresh its data is (kyu's "Updated 2 min ago" beside the bar's "not updated yet"); with
+//                            data-kp-look="menu" the control is one menu button and Refresh now. Under 30rem of the control's
+//                            own width (round 2, js/auto-refresh/narrow.js; data-kp-refresh-stack `always` / `never` overrides)
+//                            the bar is two rows: "Refresh automatically" (or the title or label) with Refresh now, then every
+//                            choice as segments on a row of their own that scroll, the current one in view; the menu look shows
+//                            those segments while narrow. Switchable at runtime
 //   data-kp-remember         name: the choice per page per device (js/remember.js, component `refresh`)
 //   data-kp-stale-after      seconds; the freshness line turns stale after it (default 3 x the interval)
 //   data-kp-refresh-hover    "pause": no refresh while the pointer is over a `.kp-table-wrap` being read

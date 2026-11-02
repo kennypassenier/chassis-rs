@@ -44,6 +44,7 @@
 //                               closes it
 //   data-kp-ring-radius="0.42"  the ring's size, a share of the picture
 //   data-kp-node-radius="18"    the base node radius in px (14)
+//   data-kp-graph-height="260"  the drawing's height in px (200-1200), in place of the one from its width
 
 export { GRAPH, GRAPH_CHANGE_EVENT, GRAPH_RETRY_EVENT, GRAPH_DETAIL_EVENT, GRAPH_OPTION_ATTRIBUTES } from './graph/constants.js';
 export { graphOptionsOf, setGraphOptions } from './graph/options.js';

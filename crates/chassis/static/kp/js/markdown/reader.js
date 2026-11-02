@@ -3,6 +3,7 @@
 import { getStrings } from '../strings.js';
 import { DEFAULT_HEADING_LEVEL, LIST_ITEM, MARKDOWN_LIMIT, MAX_HEADING_LEVEL, TAB_WIDTH } from './values.js';
 import { inline } from './inline.js';
+import { TASK_ITEM, drawTask } from './tasks.js';
 
 /** @typedef {import('../markdown.js').MarkdownOptions} MarkdownOptions */
 /** @typedef {{ list: HTMLElement, indent: number, last: HTMLElement | null }} ListLevel */
@@ -16,10 +17,15 @@ export class MarkdownReader {
      * @param {Document} doc
      * @param {string} text
      * @param {MarkdownOptions} [options]
+     * @param {number} [offset] the source line this text starts at (a quote's lines are read by a reader of their own)
      */
-    constructor(doc, text, { headings = DEFAULT_HEADING_LEVEL, limit = MARKDOWN_LIMIT } = {}) {
+    constructor(doc, text, { headings = DEFAULT_HEADING_LEVEL, limit = MARKDOWN_LIMIT, tasks = 'off' } = {}, offset = 0) {
         this.doc = doc;
         this.limit = limit;
+        /** Whether `- [ ]` items are drawn as checkboxes: `off` (text, as approved), `show` or `toggle`. */
+        this.tasks = tasks;
+        /** The source line of this text's first line. */
+        this.offset = offset;
         this.out = doc.createDocumentFragment();
         let source = String(text ?? '').replace(/\r\n?/g, '\n');
         /** Whether the text was cut at the limit. */
@@ -116,9 +122,10 @@ export class MarkdownReader {
         if (!/^\s*>/.test(line)) return false;
         this.flush();
         const quoted = [];
+        const start = this.i;
         while (this.i < this.lines.length && /^\s*>/.test(this.lines[this.i])) quoted.push(this.lines[this.i++].replace(/^\s*>\s?/, ''));
         const quote = this.doc.createElement('blockquote');
-        quote.append(new MarkdownReader(this.doc, quoted.join('\n'), { headings: this.base, limit: this.limit }).read());
+        quote.append(new MarkdownReader(this.doc, quoted.join('\n'), { headings: this.base, limit: this.limit, tasks: this.tasks }, this.offset + start).read());
         this.out.append(quote);
         return true;
     }
@@ -155,7 +162,9 @@ export class MarkdownReader {
             stack.push(top);
         }
         const li = this.doc.createElement('li');
-        inline(this.doc, li, m[3]);
+        const task = this.tasks === 'off' ? null : TASK_ITEM.exec(m[3]);
+        if (task) drawTask(li, task, this.offset + this.i, this.tasks === 'toggle' ? 'toggle' : 'show', (target, words) => inline(this.doc, target, words));
+        else inline(this.doc, li, m[3]);
         top.list.append(li);
         top.last = li;
     }

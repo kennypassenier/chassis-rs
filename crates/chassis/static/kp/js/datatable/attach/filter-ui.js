@@ -1,10 +1,8 @@
 // The filter panel: its columns, pills, add menu, editor and choice lists.
-import { ADD_FILTER, CHECK_CLASS, FILTERS, FILTER_TOGGLE, PILLS } from '../selectors.js';
+import { ADD_FILTER, FILTERS, FILTER_TOGGLE, PILLS } from '../selectors.js';
+import { TableFilterChoices } from './filter-choices.js';
 import { attachDatePickers } from '../../datepicker.js';
-import { splitList } from '../filter.js';
-import { collator } from '../../locale.js';
-import { compareByOrder } from '../sort.js';
-import { getStrings } from '../../strings.js';
+import { FilterPopover } from './filter-popover.js';
 /** @typedef {import('../events.js').FilterKind} FilterKind */
 /** @typedef {import('./controller.js').DataTableControl} DataTableControl */
 
@@ -13,12 +11,16 @@ export class TableFilterUi {
     constructor(t) {
         /** The table this part belongs to. */
         this.t = t;
+        /** The choice values, the boxes that follow them and the date picker's markup. */
+        this.choices = new TableFilterChoices(t);
         // ── Filters, declared on the headers ───────────────────────────
         this.filterColumns = this.t.columns.filterKinds.flatMap((kind, at) => (kind === null ? [] : [at]));
         /** @type {HTMLElement | null} */
         this.panel = null;
         /** @type {HTMLButtonElement | null} */
         this.toggle = null;
+        /** The panel's popover, unless the table keeps it inline [ux-1101]. @type {FilterPopover | null} */
+        this.popover = null;
         /** @type {HTMLElement | null} */
         this.pills = null;
         this.addMode = (this.t.wrap.dataset.kpFilterMode ?? this.t.settings.filterMode) === 'add';
@@ -70,6 +72,22 @@ export class TableFilterUi {
         const toggle = this.takeToggle(panel);
         toggle.setAttribute('aria-controls', panel.id);
         toggle.setAttribute('aria-expanded', String(!panel.hidden));
+        if (FilterPopover.wanted(this.t)) {
+            const open = !panel.hidden;
+            this.popover = new FilterPopover(this.t, panel, toggle);
+            if (open) this.popover.open(false);
+        }
+    }
+
+    /** Open or close the panel, wherever it is drawn. @param {boolean} open @param {boolean} [focus] */
+    setPanelOpen(open, focus = false) {
+        if (this.panel === null || this.toggle === null) return;
+        if (this.popover !== null) {
+            this.popover.setOpen(open, focus);
+            return;
+        }
+        this.panel.hidden = !open;
+        this.toggle.setAttribute('aria-expanded', String(open));
     }
 
     /** The panel's toggle: the page's, or one made here, in the top bar. @param {HTMLElement} panel */
@@ -97,7 +115,7 @@ export class TableFilterUi {
         legend.textContent = columns.labelOf(at);
         set.append(legend);
         if (kind === 'choice') {
-            this.fillChoices(set, at, []);
+            this.choices.fillChoices(set, at, []);
             return set;
         }
         const range = this.rangeField(at, kind);
@@ -109,24 +127,25 @@ export class TableFilterUi {
     /**
      * A range filter's two bounds: numbers, or the package's own date pickers. A date bound is the package's own date picker, not a
      * bare date input, so it wears every theme's picker (scope-58, Kenny's second nostromo pass). The picker holds ISO in
-     * data-kp-date-value whatever the field shows.
+     * data-kp-date-value whatever the field shows. Every bound has its own visible label, "Min" and "Max" for numbers, "From" and
+     * "To" for days [ux-1101]; the column's name is the fieldset's legend.
      * @param {number} at @param {FilterKind} kind
      */
     rangeField(at, kind) {
         const { identity } = this.t;
-        const label = this.t.columns.labelOf(at);
         const range = identity.make('div', 'kp-datatable__range');
-        for (const bound of ['from', 'to']) {
+        for (const bound of /** @type {const} */ (['from', 'to'])) {
             const input = /** @type {HTMLInputElement} */ (identity.make('input', 'kp-field__input'));
             input.dataset.kpFilterBound = bound;
-            input.setAttribute('aria-label', bound === 'from' ? identity.s0.tableFilterFrom(label) : identity.s0.tableFilterTo(label));
-            if (kind === 'range') {
-                input.type = 'number';
-                range.append(input);
-                continue;
-            }
             input.id = `${identity.id}-filter-${at}-${bound}`;
-            range.append(this.datePickerFor(input));
+            const words = kind === 'range' ? [identity.s0.tableFilterMin, identity.s0.tableFilterMax] : [identity.s0.tableFilterFromLabel, identity.s0.tableFilterToLabel];
+            const label = /** @type {HTMLLabelElement} */ (identity.make('label', 'kp-field__label kp-datatable__bound-label'));
+            label.htmlFor = input.id;
+            label.textContent = bound === 'from' ? words[0] : words[1];
+            const cell = identity.make('div', 'kp-datatable__bound');
+            if (kind === 'range') input.type = 'number';
+            cell.append(label, kind === 'range' ? input : this.choices.datePickerFor(input));
+            range.append(cell);
         }
         return range;
     }
@@ -196,81 +215,5 @@ export class TableFilterUi {
         });
         this.addButton = found;
         return found;
-    }
-
-    /**
-     * A choice filter's values: the header's `data-kp-filter-options`, else
-     * every value the rows hold, in the column's declared order or the
-     * locale's. The add-filter editor asks when it opens and the filter
-     * panel asks again on refresh(), so rows written after the attach are
-     * in both.
-     *
-     * @param {number} at
-     */
-    choiceValues(at) {
-        const declared = splitList(this.t.columns.headers[at]?.dataset.kpFilterOptions);
-        if (declared.length > 0) return declared;
-        const values = [...new Set(this.t.model.all.map((row) => this.t.columns.choiceText(row, at)).filter((v) => v !== ''))];
-        const order = this.t.columns.orders[at];
-        return values.sort((a, b) => (order ? compareByOrder(order, a, b, collator(this.t.controls.locale).compare) : collator(this.t.controls.locale).compare(a, b)));
-    }
-
-    /**
-     * Put a panel fieldset's boxes in step with the choice values: one box
-     * per value the rows hold now, ticked where `ticked` has it, and a
-     * ticked value no row holds any more stays, so it can still be
-     * unticked. Nothing is rebuilt while the list already matches, so a
-     * focused box keeps its focus.
-     *
-     * @param {Element} set @param {number} at @param {string[]} ticked
-     */
-    fillChoices(set, at, ticked) {
-        const values = [...this.choiceValues(at)];
-        for (const value of ticked) if (!values.includes(value)) values.push(value);
-        const boxes = /** @type {HTMLInputElement[]} */ ([...set.querySelectorAll('input[type="checkbox"]')]);
-        if (boxes.length === values.length && boxes.every((box, i) => box.value === values[i])) return;
-        for (const box of boxes) box.closest('.kp-field__option')?.remove();
-        for (const value of values) {
-            const option = this.t.identity.make('label', 'kp-field__option');
-            const box = /** @type {HTMLInputElement} */ (this.t.identity.make('input', CHECK_CLASS));
-            box.type = 'checkbox';
-            box.value = value;
-            box.checked = ticked.includes(value);
-            option.append(box, ` ${value}`);
-            set.append(option);
-        }
-    }
-
-    /**
-     * The package's date picker around a text field: the markup the
-     * standalone picker has, class for class and string for string — a
-     * plain button with the glyph, named by aria-label and title
-     * [Kenny's note of 2026-09-13 — it was a ghost button reading
-     * "Calendar"]. The caller attaches it.
-     *
-     * @param {HTMLInputElement} input
-     */
-    datePickerFor(input) {
-        const picker = this.t.identity.make('div', 'kp-datepicker');
-        picker.dataset.kpDatepicker = '';
-        picker.dataset.kpLocale = this.t.controls.locale;
-        input.type = 'text';
-        input.inputMode = 'numeric';
-        input.dataset.kpDateInput = '';
-        const s = getStrings();
-        const opener = /** @type {HTMLButtonElement} */ (this.t.identity.make('button', 'kp-button'));
-        opener.type = 'button';
-        opener.dataset.kpDateOpen = '';
-        opener.setAttribute('aria-label', s.calendarOpen);
-        opener.title = s.calendarOpen;
-        const glyph = this.t.identity.make('span');
-        glyph.setAttribute('aria-hidden', 'true');
-        glyph.textContent = s.calendarButton;
-        opener.append(glyph);
-        const datePanel = this.t.identity.make('div', 'kp-datepicker__panel');
-        datePanel.dataset.kpDatePanel = '';
-        datePanel.hidden = true;
-        picker.append(input, opener, datePanel);
-        return picker;
     }
 }

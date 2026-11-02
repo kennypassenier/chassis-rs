@@ -44,6 +44,21 @@ function buildToggle() {
 }
 
 /**
+ * Puts the field's own parts in without their arriving the theme's way [habits-1101 theme-sweep]: a box that eases
+ * its size (js/motion) plays an arrival on whatever is added to it, and the field's build is not news but the field
+ * itself. Forest's arrival clipped `.kp-time__control` for 1.4 s, cutting the focus ring of the box and its button.
+ * The mark is read by the motion's mutation callback, queued before this microtask, so it is gone right after; a
+ * page's own `data-kp-arrive` on the root is left alone.
+ * @param {HTMLElement} root @param {() => void} build
+ */
+function builtInPlace(root, build) {
+    if (root.hasAttribute('data-kp-arrive')) return build();
+    root.setAttribute('data-kp-arrive', 'none');
+    build();
+    queueMicrotask(() => root.removeAttribute('data-kp-arrive'));
+}
+
+/**
  * Build the parts into the root: nothing is wired here.
  * @param {HTMLElement} root
  */
@@ -67,6 +82,6 @@ export function buildParts(root) {
     input.setAttribute('aria-controls', popup.id);
     const skeleton = el('kp-skeleton kp-time__skeleton', 'span');
     skeleton.setAttribute('aria-hidden', 'true');
-    root.replaceChildren(control, hidden, why, zone, popup, skeleton);
+    builtInPlace(root, () => root.replaceChildren(control, hidden, why, zone, popup, skeleton));
     return { input, hidden, popup, presets: presetsFromAttribute(root) };
 }

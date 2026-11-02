@@ -106,6 +106,28 @@ export function drawDisc(root, measure) {
     });
 }
 
+/**
+ * A long name without a space, broken in two with a hyphen [kitchen-1101 18]: at a soft hyphen the page put in, else at the
+ * syllable boundary nearest the middle where a consonant starts a syllable ("Kippen-waterzooi", "Aardap-pelpuree"). Without it such a name was drawn whole at the smallest size, about 8 px on a 360 px phone.
+ * @param {string} text
+ * @returns {string[] | null}
+ */
+function hyphenHalves(text) {
+    const soft = text.indexOf('\u00ad');
+    if (soft > 0) return [`${text.slice(0, soft)}-`, text.slice(soft + 1).replaceAll('\u00ad', '')];
+    if (text.length < 8) return null;
+    const vowel = (/** @type {string} */ c) => /[aeiouyàáâäèéêëìíîïòóôöùúûü]/i.test(c);
+    let best = -1;
+    for (let i = 3; i <= text.length - 3; i += 1) {
+        // A consonant that starts a syllable: after a vowel (wa-ter), or after a consonant that ends the one before (kip-pen).
+        const starts = !vowel(text[i]) && vowel(text[i + 1] ?? '') && (vowel(text[i - 1]) || vowel(text[i - 2]));
+        // Never inside ch, gh, ph, sh, th: "Spag-hetti" reads wrong.
+        if (!starts || (text[i].toLowerCase() === 'h' && !vowel(text[i - 1]))) continue;
+        if (best < 0 || Math.abs(i - text.length / 2) < Math.abs(best - text.length / 2)) best = i;
+    }
+    return best < 0 ? null : [`${text.slice(0, best)}-`, text.slice(best)];
+}
+
 /** The smallest type a label is drawn in (units of the 200-unit disc). */
 const LABEL_MIN = 4.5;
 /** A label at or above this size is good as it is; below it a shorter form or a second line is tried first. */
@@ -133,10 +155,10 @@ function fitLabel(group, names, half, measure) {
         probe.remove();
         return width;
     };
-    /** The best break of a name into two lines, at a space near its middle. @param {string} text */
+    /** The best break of a name into two lines, at a space near its middle, else a hyphen break. @param {string} text */
     const halves = (text) => {
         const spaces = [...text.matchAll(/ /g)].map((m) => m.index ?? 0);
-        if (!spaces.length) return null;
+        if (!spaces.length) return hyphenHalves(text);
         const at = spaces.reduce((best, i) => (Math.abs(i - text.length / 2) < Math.abs(best - text.length / 2) ? i : best));
         return [text.slice(0, at).trim(), text.slice(at + 1).trim()];
     };

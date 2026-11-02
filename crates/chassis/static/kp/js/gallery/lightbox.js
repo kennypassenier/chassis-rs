@@ -9,6 +9,7 @@ import { GALLERY_CLOSE_EVENT, GALLERY_OPEN_EVENT, GALLERY_PICTURE_FAILED_EVENT, 
 import { again, attr, make } from './dom.js';
 import { actionsFor, drawInfo } from './lightbox-info.js';
 import { installChrome, installHash, installSwipe } from './lightbox-input.js';
+import { buildImage, buildVideo, zoomFigure } from './lightbox-media.js';
 
 /** @typedef {import('./gallery.js').Gallery} Gallery */
 
@@ -176,26 +177,7 @@ export class Lightbox extends Controller {
 
     /** @param {'in' | 'out' | 'toggle'} how @param {PointerEvent | MouseEvent} [event] */
     zoom(how, event) {
-        const { figure, picture } = this;
-        const now = figure.getAttribute('data-kp-zoom') === 'full';
-        const want = how === 'toggle' ? !now : how === 'in';
-        if (want === now) return;
-        figure.setAttribute('data-kp-zoom', want ? 'full' : 'fit');
-        if (want && event) {
-            // Centre the place that was pressed.
-            const img = picture.querySelector('img');
-            if (img) {
-                const box = img.getBoundingClientRect();
-                const px = (event.clientX - box.left) / (box.width || 1);
-                const py = (event.clientY - box.top) / (box.height || 1);
-                this.view.requestAnimationFrame(() => {
-                    picture.scrollLeft = px * picture.scrollWidth - picture.clientWidth / 2;
-                    picture.scrollTop = py * picture.scrollHeight - picture.clientHeight / 2;
-                });
-            }
-        } else if (!want) {
-            picture.scrollTo(0, 0);
-        }
+        zoomFigure(this, how, event);
     }
 
     toggleFull() {
@@ -231,7 +213,7 @@ export class Lightbox extends Controller {
         this.next.setAttribute('data-kp-disabled-reason', this.next.disabled ? strings.galleryLast : '');
         picture.replaceChildren();
         viewer.setState('loading');
-        picture.append(item.kind === 'video' ? this.buildVideo(item) : this.buildImage(item));
+        picture.append(item.kind === 'video' ? buildVideo(this, item) : buildImage(this, item));
         // The neighbours' originals are fetched while this one is looked at, so the arrows do not wait.
         for (let d = 1; d <= this.preload; d++) {
             for (const n of [items[this.at + d], items[this.at - d]]) if (n && n.kind !== 'video') new Image().src = n.src;
@@ -253,30 +235,5 @@ export class Lightbox extends Controller {
                 this.show();
             },
         });
-    }
-
-    /** @param {import('./constants.js').GalleryItem} item */
-    buildVideo(item) {
-        const video = /** @type {HTMLVideoElement} */ (make(this.doc, 'video', 'kp-gallery__video'));
-        video.controls = true;
-        video.setAttribute('playsinline', '');
-        video.preload = 'metadata';
-        if (item.poster) video.poster = item.poster;
-        video.setAttribute('aria-label', item.alt || item.caption || this.strings.galleryPicture);
-        video.addEventListener('loadedmetadata', () => this.items[this.at]?.id === item.id && this.viewer.setState('ready'));
-        video.addEventListener('error', () => this.failed(item));
-        video.src = item.src;
-        return video;
-    }
-
-    /** @param {import('./constants.js').GalleryItem} item */
-    buildImage(item) {
-        const img = /** @type {HTMLImageElement} */ (make(this.doc, 'img', 'kp-gallery__image'));
-        img.alt = item.alt || item.caption || '';
-        img.addEventListener('load', () => this.items[this.at]?.id === item.id && this.viewer.setState('ready'));
-        img.addEventListener('error', () => this.failed(item));
-        img.src = item.src;
-        if (this.zoomOn) img.addEventListener('dblclick', (event) => this.zoom('toggle', event));
-        return img;
     }
 }

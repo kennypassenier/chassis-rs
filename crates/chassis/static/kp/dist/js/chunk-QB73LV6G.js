@@ -1,0 +1,3 @@
+/* @kp-soft/themes v12.1.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+var c=(e,r="")=>e?.dataset.kpLabel??(e?.textContent??r).trim();function i(e,r){if(r===null||e.hasAttribute("data-kp-usual"))return()=>{};let o=e.parentElement,t=o?.parentElement;if(!o?.matches(".kp-formgrid__control, .kp-formrow__control")||!t?.matches(".kp-formgrid__row, .kp-formrow"))return()=>{};if(t.closest(".kp-formgrid")===null||t.querySelector(":scope > .kp-formgrid__value, :scope > .kp-formrow__aside"))return()=>{};let n=r.parentElement,l=r.nextSibling;return o.after(r),r.classList.add("kp-formgrid__value"),()=>{r.classList.remove("kp-formgrid__value"),n?.insertBefore(r,l)}}export{c as a,i as b};
+//# sourceMappingURL=chunk-QB73LV6G.js.map

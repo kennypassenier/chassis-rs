@@ -39,6 +39,13 @@ export class WeekdayPicker extends WeekdaysCore {
         });
         this.own(attachSegmented(el));
         this.listen(this.group, SEGMENTED_EVENT, (event) => this.onChips(event));
+        // Left the group, or a submit that would send it: the moments a native field's `:user-invalid` starts to show [ux-1101].
+        this.listen(el, 'focusout', (event) => {
+            const next = /** @type {FocusEvent} */ (event).relatedTarget;
+            if (!(next instanceof Node && el.contains(next))) this.touch();
+        });
+        const form = el.closest('form');
+        if (form !== null) this.listen(form, 'submit', () => this.touch());
         this.listen(this.quick.quick, 'click', (event) => this.onPreset(/** @type {MouseEvent} */ (event)));
         this.set(
             (el.dataset.kpValue ?? '')
@@ -70,6 +77,7 @@ export class WeekdayPicker extends WeekdaysCore {
     /** @param {Event} event */
     onChips(event) {
         if (event.target !== this.group) return;
+        this.touched = true;
         this.change(true);
     }
 
@@ -81,6 +89,7 @@ export class WeekdayPicker extends WeekdaysCore {
         const name = /** @type {keyof typeof SETS} */ (button.dataset.kpWeekdaysPreset);
         const same = button.getAttribute('aria-pressed') === 'true';
         // Pressing the set that is already picked lets it go again: a preset is a toggle, as a chip is.
+        this.touched = true;
         this.set(same ? [] : SETS[name]);
         this.change(true);
     }

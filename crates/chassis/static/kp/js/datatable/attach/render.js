@@ -33,6 +33,7 @@ export class TableRender {
     render() {
         const { controls, model } = this.t;
         this.t.sync.labelCells();
+        this.t.rowActions.sync();
         const count = controls.serverMode ? this.t.busy.total || 0 : model.shownRows.length;
         const pages = Math.max(1, Math.ceil(count / controls.size));
         model.page = Math.min(model.page, pages - 1);
@@ -43,7 +44,7 @@ export class TableRender {
         this.t.groups.syncGroups(s);
         if (controls.status !== null) this.writeStatus(controls.status, s, from, count);
         this.t.busy.drawOverlay(s);
-        if (controls.pager !== null) this.writePager(controls.pager, s, pages);
+        if (controls.pager !== null) this.writePager(controls.pager, s, pages, count);
         if (controls.empty !== null) this.syncEmpty(controls.empty, count);
         if (controls.failedSlot !== null) {
             const reason = controls.failedSlot.querySelector('[data-kp-datatable-failed-reason]');
@@ -121,9 +122,21 @@ export class TableRender {
         }, BUSY_TICK_MS);
     }
 
-    /** The pager: the page-size choice, Back, the page and Next. @param {HTMLElement} pager @param {ReturnType<typeof getStrings>} s @param {number} pages */
-    writePager(pager, s, pages) {
+    /**
+     * Whether the pager has anything to offer: more than one page, or more rows than the smallest page size a reader can choose.
+     * Two rows under "Previous 1 / 1 Next" is chrome without a use [ux-1101]; `data-kp-datatable-keep-pager` keeps it.
+     * @param {number} pages @param {number} count
+     */
+    pagerUseful(pages, count) {
+        const { controls, wrap } = this.t;
+        if (wrap.dataset.kpDatatableKeepPager !== undefined || pages > 1) return true;
+        return count > Math.min(controls.size, ...controls.sizes);
+    }
+
+    /** The pager: the page-size choice, Back, the page and Next. @param {HTMLElement} pager @param {ReturnType<typeof getStrings>} s @param {number} pages @param {number} count */
+    writePager(pager, s, pages, count) {
         const { model } = this.t;
+        pager.hidden = !this.pagerUseful(pages, count);
         pager.textContent = '';
         if (this.t.layoutSetup.sizeLabel !== null) pager.append(this.t.layoutSetup.sizeLabel);
         pager.append(this.pagerButton(s.previous, model.page > 0, () => (model.page -= 1), 'back'));

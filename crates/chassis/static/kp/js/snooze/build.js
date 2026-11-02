@@ -96,3 +96,29 @@ export function buildPanel(doc, s, id) {
     panel.append(make(doc, 'p', 'kp-snooze__panel-title', s.snoozePickTitle), inputs, error, actions);
     return { panel, picker, date, time, error, cancel, apply };
 }
+
+/**
+ * The trigger button's face: its words, the busy layer with a spinner while a snooze is saving, and the busy marks.
+ * @param {Document} doc @param {HTMLElement} trigger @param {{ text: string, describedBy: string, busy: boolean }} face
+ */
+export function paintTrigger(doc, trigger, { text, describedBy, busy }) {
+    trigger.replaceChildren();
+    const words = doc.createElement('span');
+    words.className = 'kp-button__text';
+    words.textContent = text;
+    trigger.append(words);
+    trigger.setAttribute('aria-describedby', describedBy);
+    if (busy) {
+        const layer = doc.createElement('span');
+        layer.className = 'kp-button__busy';
+        layer.setAttribute('aria-hidden', 'true');
+        const spin = doc.createElement('span');
+        spin.className = 'kp-spinner';
+        layer.append(spin);
+        trigger.append(layer);
+    }
+    trigger.toggleAttribute('data-kp-busy', busy);
+    trigger.toggleAttribute('aria-busy', busy);
+    trigger.setAttribute('aria-disabled', String(busy));
+}
+

@@ -16,6 +16,8 @@ import { TableSortSetup } from './sort-setup.js';
 import { TableLayoutSetup } from './layout-setup.js';
 import { TableReorder } from './reorder.js';
 import { TableGroups } from './groups.js';
+import { TableColumnTracks } from './column-tracks.js';
+import { TableRowActions } from './row-actions.js';
 import { TableSync } from './sync.js';
 import { TableRender } from './render.js';
 import { TablePills } from './pills.js';
@@ -67,6 +69,8 @@ export class DataTableControl extends Controller {
         /** @type {TableLayoutSetup} */ this.layoutSetup = UNMADE;
         /** @type {TableReorder} */ this.reorder = UNMADE;
         /** @type {TableGroups} */ this.groups = UNMADE;
+        /** @type {TableColumnTracks} */ this.tracks = UNMADE;
+        /** @type {TableRowActions} */ this.rowActions = UNMADE;
         /** @type {TableSync} */ this.sync = UNMADE;
         /** @type {TableRender} */ this.render = UNMADE;
         /** @type {TablePills} */ this.pills = UNMADE;
@@ -109,6 +113,8 @@ export class DataTableControl extends Controller {
         this.layoutSetup = new TableLayoutSetup(this);
         this.reorder = new TableReorder(this);
         this.groups = new TableGroups(this);
+        this.tracks = new TableColumnTracks(this);
+        this.rowActions = new TableRowActions(this);
         this.sync = new TableSync(this);
         this.render = new TableRender(this);
         this.pills = new TablePills(this);

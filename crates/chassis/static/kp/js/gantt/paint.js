@@ -7,11 +7,15 @@ import { MARK_GAP_PX, RUN_GAP_PX } from './labels.js';
 import { fillLaneLabel, paintPoints } from './points.js';
 import { paintChrome, paintKinds, paintZones } from './chrome.js';
 import { drawBusy, paintGhosts } from './busy.js';
+import { isFit, packFit } from './fit.js';
 import { refresh, syncTabStops, visible } from './selection.js';
 /** @typedef {import('./constants.js').GanttBar} GanttBar */
 /** @typedef {import('./constants.js').GanttLane} GanttLane */
 /** @typedef {import('./constants.js').GanttLaneModel} GanttLaneModel */
 /** @typedef {import('./constants.js').GanttModel} GanttModel */
+
+/** Until when a running run with a planned end holds its row, in seconds from the base. @type {WeakMap<GanttBar, number>} */
+const HELD = new WeakMap();
 
 /** Everything the timeline shows, from the model. @param {GanttModel} c */
 export function paint(c) {
@@ -51,6 +55,9 @@ export function paint(c) {
         if (before && before !== run.state) c.announcer.textContent = s.ganttAnnounce(run.label, stateWord(c, run.state));
         c.states.set(run.id, run.state);
         const item = { run, s: rel(c, startMs), e: endRaw == null ? null : rel(c, Math.max(endRaw, startMs)), bar, row: 0 };
+        // A running run with a planned end holds its row until then, or until now once it overruns [kitchen-1101 gantt-pack].
+        const plannedMs = run.state === 'running' && run.plannedEnd != null ? toMs(run.plannedEnd) : Number.NaN;
+        if (Number.isFinite(plannedMs)) HELD.set(item, rel(c, Math.max(plannedMs, nowMs, startMs)));
         byLane.get(run.lane)?.push(item);
     }
     for (const [id, bar] of c.bars)
@@ -96,17 +103,25 @@ export function paint(c) {
         marksOf.set(point.lane, list);
     }
     const before = new Map(c.lanes.flatMap((l) => l.bars.map((b) => [b.run.id, b.row])));
+    // A fitted timeline packs a bar with its label, and measures the words on bars already in the page [gantt-fit-1101].
+    const fit = isFit(c);
+    const unmeasured = fit && c.el.isConnected && [...c.bars.values()].some((bar) => !bar.isConnected);
     const old = new Map(c.lanes.map((l) => [l.lane.id, l]));
     /** @type {GanttLaneModel[]} */
     const lanes = [];
     for (const [id, lane] of laneById) {
         const bars = (byLane.get(id) ?? []).sort((a, b) => a.s - b.s);
-        const packed = packRows(
-            bars.map((b) => ({ id: b.run.id, s: b.s, e: b.e == null ? null : Math.max(b.e, b.s + reach) })),
-            before,
-            pad,
-            marksOf.get(id) ?? [],
-        );
+        const packed = fit
+            ? packFit(c, bars, marksOf.get(id) ?? [], minBar)
+            : packRows(
+                  bars.map((b) => {
+                      const e = b.e ?? HELD.get(b) ?? null;
+                      return { id: b.run.id, s: b.s, e: e == null ? null : Math.max(e, b.s + reach) };
+                  }),
+                  before,
+                  pad,
+                  marksOf.get(id) ?? [],
+              );
         let model = old.get(id);
         if (!model) {
             const label = make(doc, 'div', 'kp-gantt__lane');
@@ -117,10 +132,12 @@ export function paint(c) {
         model.lane = lane;
         fillLaneLabel(c, model.label, lane);
         model.track.setAttribute('aria-label', lane.label);
-        // Rows never fewer while the window stays the same. A lane with a run still open reserves one spare row: the next start in it
-        // overlaps that run, so the frame already has the room and does not grow when the start comes.
-        const spare = bars.some((b) => b.e == null) ? 1 : 0;
-        model.rows = Math.max(model.rows, packed.count + spare);
+        // Rows never fewer while the window stays the same. A lane with a run still open and no planned end reserves one spare row: the
+        // next start in it overlaps that run, so the frame already has the room and does not grow when the start comes. A run with a
+        // planned end needs none, and `data-kp-gantt-spare="off"` drops it for every run [kitchen-1101 gantt-pack].
+        const spareOn = c.el.getAttribute('data-kp-gantt-spare') !== 'off';
+        const spare = spareOn && bars.some((b) => b.e == null && !HELD.has(b)) ? 1 : 0;
+        model.rows = fit ? packed.count : Math.max(model.rows, packed.count + spare); // fitted: as tall as the rows it uses
         for (const b of bars) b.row = packed.rows.get(b.run.id) ?? 0;
         model.bars = bars;
         lanes.push(model);
@@ -198,10 +215,13 @@ export function paint(c) {
     c.plate.dataset.kpState = plateKind ?? '';
     paintGhosts(c);
     c.busy?.place();
+    if (fit) c.held = null;
     holdHeight(c);
     visible(c);
     refresh(c, nowMs);
     syncTabStops(c);
+    // New bars were packed before they were in the page, with words not yet measurable: once more, now they are.
+    if (unmeasured) paint(c);
 }
 /**
  * The scrolling viewport keeps the height it first had with data: a start that needs more rows than the lanes reserved scrolls
