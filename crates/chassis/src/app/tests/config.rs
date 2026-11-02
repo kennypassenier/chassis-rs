@@ -121,7 +121,7 @@ fn a_public_listen_address_without_trusted_proxies_is_warned_about() {
             .unwrap()
             .startup_warnings()
     };
-    let open = warnings("0.0.0.0:8080", "");
+    let open = warnings("0.0.0.0:0", "");
     let hit: Vec<_> = open
         .iter()
         .filter(|w| w.contains("trusted_proxies"))
@@ -129,8 +129,8 @@ fn a_public_listen_address_without_trusted_proxies_is_warned_about() {
     assert_eq!(hit.len(), 1, "{open:?}");
     assert!(hit[0].contains("Secure") && hit[0].contains("T_APP_TRUSTED_PROXIES"));
     for quiet in [
-        warnings("127.0.0.1:8080", ""),
-        warnings("0.0.0.0:8080", "10.0.0.1"),
+        warnings("127.0.0.1:0", ""),
+        warnings("0.0.0.0:0", "10.0.0.1"),
     ] {
         assert!(
             !quiet.iter().any(|w| w.contains("trusted_proxies")),

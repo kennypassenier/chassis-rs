@@ -41,7 +41,7 @@ fn dashboard_pages_render_with_layout_and_assets() {
     );
     let asset_url = html
         .split('"')
-        .find(|s| s.starts_with("/static/kp/dist/kp-themes.css?v="))
+        .find(|s| s.starts_with("/static/kp/dist/kp-themes-base.min.css?v="))
         .expect("versioned asset link")
         .to_string();
     let res = http.get(format!("{base}{asset_url}")).send().unwrap();
@@ -114,22 +114,27 @@ fn dashboard_pages_render_with_layout_and_assets() {
         html.contains(">Messages</th>"),
         "the project's extra client column (K16)"
     );
-    // feat-clients-4 (2026-09-10): the row carries one button now and every
-    // other control moved into the dialog it opens, so `data-requests` — the
-    // old toggle for a panel under the table — is gone on purpose. The panel
-    // itself is inside the dialog and loads when it opens.
+    // ux-chassis-manage (2026-11-01): Manage is a page of its own,
+    // `/clients/{id}`, with inline confirms; the row links to it and the
+    // page carries the token secret, the full-command copy, the test send
+    // and the confirmations the manage dialog used to hold.
+    let id = html
+        .split("href=\"/clients/")
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("clients page links a client page")
+        .to_string();
+    let res = http.get(format!("{base}/clients/{id}")).send().unwrap();
+    assert_eq!(res.status(), 200);
+    let one = res.text().unwrap();
     for needle in [
-        "data-manage=",
-        // kit-kp11: the dialog's close, the secret (Reveal and Copy of the
-        // token), the full-command copy and the test send, as the approved
-        // manage dialog names them.
-        "data-kp-dialog-close",
         "data-manage-secret",
         "data-manage-copy-full",
         "data-manage-send",
-        "data-kp-confirm=",
+        "data-client-confirm=\"revoke\"",
+        "data-client-confirm=\"delete\"",
     ] {
-        assert!(html.contains(needle), "clients page lacks {needle}");
+        assert!(one.contains(needle), "client page lacks {needle}");
     }
     assert!(
         !html.contains("data-requests="),

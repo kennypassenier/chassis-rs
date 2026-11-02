@@ -36,7 +36,11 @@ async fn k28_the_pages_speak_the_vocabulary_and_never_say_client() {
     let text = visible_text(&empty);
     assert_eq!(says_client(&text), None, "{empty}");
     assert!(empty.contains(">Sources</h1>"), "{empty}");
-    assert!(empty.contains("No sources yet"), "{empty}");
+    // [fix-hsb-ux-4]: the empty page says it once, in the vocabulary.
+    assert!(
+        empty.contains("source is one program with its own token"),
+        "{empty}"
+    );
     assert!(empty.contains("Issue a source"), "{empty}");
     assert!(
         empty.contains("Wire up your first source"),
@@ -212,7 +216,10 @@ async fn k28_without_vocabulary_the_pages_still_say_client() {
     let (_, _, page) = http(addr, "GET", "/clients", &[("Cookie", &cookie)], "").await;
     assert!(page.contains(">Clients</h1>"), "{page}");
     assert!(page.contains("Issue a client"), "{page}");
-    assert!(page.contains("No clients yet"), "{page}");
+    assert!(
+        page.contains("client is one program with its own token"),
+        "{page}"
+    );
     assert!(says_client(&visible_text(&page)).is_some(), "{page}");
     let (status, body) = issue(addr, &cookie, "job-tracker").await;
     assert_eq!(status, 201, "{body}");
