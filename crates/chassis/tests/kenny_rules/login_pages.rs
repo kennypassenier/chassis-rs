@@ -18,7 +18,6 @@ fn login_and_passkeys_pages_keep_their_approved_parts() {
         "kp-alert__why",
         "kp-alert__remedy",
         "kp-health",
-        "kp-ago",
         "data-passkey-login",
     ] {
         assert!(login.contains(part), "login.html lost {part}");

@@ -11,13 +11,9 @@
   <section class="kit-login__intro" aria-labelledby="login-title">
     <h1 id="login-title" class="kp-page-header__title">Log in to {{ app_name }}</h1>
     <p class="kp-lede" data-kp-lede-measure="normal">Paste the login token once; this browser then keeps you signed in. Programs that call the service do not log in: each has its own token on the {{ clients_label }} page.</p>
-    {#- [fix-hsb-ux-6] A visitor who is not signed in learns only whether the service answers. Version and start time are two list items with their own words and no separator characters, so no line can start with one when the row wraps. -#}
+    {#- [fix-kit-choice-1] A visitor who is not signed in learns only whether the service answers: no version, no start time (Kenny, "Weg bij anoniem"). Both stay on the signed-in Status page. -#}
     <div class="kit-login__state" data-kit-health>
       <span class="kp-health" data-kit-health-badge><span class="kp-health__dot" aria-hidden="true"></span> <span data-kit-health-words role="status">The service is running</span></span>
-      <ul class="kit-login__facts kp-text-muted">
-        <li>Version {{ version }}</li>
-        <li>Up <time class="kp-ago" data-kp-ago data-localised="true" data-kp-ago-verb="since" datetime="{{ started_at }}">since {{ started_at|human_time }}</time></li>
-      </ul>
     </div>
   </section>
   <section class="kp-card kit-login__card" aria-labelledby="login-card-title">

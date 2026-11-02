@@ -1,5 +1,5 @@
 // The Storage page's compact card: the space that can be given back and the
-// button that opens the dialog.
+// button that opens the dialog, and the legend of where the space goes.
 // Split out of chassis.js by responsibility; the page runs exactly as
 // before.
 
@@ -20,5 +20,6 @@ export function compactHtml(t, data) {
   return `<div class="storage-compact-card">
       <div class="kp-kpis" role="group" aria-label="Space that can be given back" data-kp-kpis-columns="all 1"><div class="kp-kpi"><span class="kp-kpi__label">Can be given back</span><span class="kp-kpi__value">${size(t.free)}</span><span class="kp-kpi__trend">${note}</span></div></div>
       <dl class="kp-kv kp-kv--lines"><div class="kp-kv__row"><dt>File now</dt><dd>${size(t.app)}</dd></div><div class="kp-kv__row"><dt>After compacting</dt><dd>about ${size(t.app - t.free)}</dd></div><div class="kp-kv__row"><dt>Last compacted</dt><dd>${data.last_compacted_at ? when(data.last_compacted_at) : 'never'}</dd></div></dl>
+      <figure class="kp-stackbar storage-legend" data-kp-stackbar data-storage-legend></figure>
       <div class="storage-compact-card__act"><button type="button" class="kp-button kp-button--primary" id="storage-open-compact" data-storage-compact${off ? ' disabled aria-describedby="storage-open-compact-why"' : ''}>Compact…</button><p class="kp-dialog__note" id="storage-open-compact-why">${esc(why)}</p></div></div>`;
 }

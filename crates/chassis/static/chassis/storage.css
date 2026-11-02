@@ -41,7 +41,7 @@
 /* Give back empty space: the figure above, the button and its sentence on the card's own bottom edge. */
 .storage-compact-card {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto auto 1fr;
   gap: var(--kp-space-md, 1rem);
   block-size: 100%;
 }
@@ -50,6 +50,13 @@
    card is as tall as its neighbour, and a stretched list spread its rows
    ~100 px apart; only the button keeps the bottom edge. */
 .storage-compact-card .kp-kv { align-content: start; }
+/* [fix-kit-choice-2] The legend of "Where the space goes" lives in this card
+   (Kenny, "Legende verhuizen"): it is the kp-themes share bar drawn with the
+   same numbers as the bar in the budget card, with the track itself cropped
+   away so only the title and the rows show. Rows sit at their own height;
+   only the button keeps the bottom edge. */
+.storage-legend { margin: 0; }
+.storage-legend :is(.kp-stackbar__bar, .kp-stackbar__total) { display: none; }
 .storage-compact-card__act {
   display: grid;
   align-content: end;

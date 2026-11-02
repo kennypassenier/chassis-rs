@@ -70,8 +70,10 @@ export function budgetHtml(t) {
       <div class="storage-budget__edit" data-storage-budget-edit></div></div>`;
 }
 
-export const stackSpec = (t) => ({
-  title: 'Where the space goes',
+// [fix-kit-choice-2] One spec, drawn twice by the kp-themes share bar: the bar
+// in the budget card (no legend) and the legend in the "Give back empty space"
+// card (the bar itself is cropped away there, see storage.css).
+const stackBase = (t) => ({
   total: t.budget,
   format: size,
   summary: `${size(t.total)} / ${size(t.budget)}`,
@@ -83,3 +85,6 @@ export const stackSpec = (t) => ({
     { key: 'wal', label: 'Pending writes', value: t.wal },
   ],
 });
+
+export const stackSpec = (t) => ({ ...stackBase(t), legend: false });
+export const legendSpec = (t) => ({ ...stackBase(t), title: 'Where the space goes' });

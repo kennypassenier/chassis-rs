@@ -4,7 +4,7 @@
 // (`ctx.draft`, `ctx.formSignature`) and must never eat what is being typed.
 import { api } from './json-api.js';
 import { editHtml, fixedBy, levelFor, mbBytes, problemWith } from './storage-budget-form.js';
-import { figureOf, stackSpec, totals } from './storage-budget-html.js';
+import { figureOf, legendSpec, stackSpec, totals } from './storage-budget-html.js';
 import { levelBadge, size } from './storage-format.js';
 
 export function createBudgetEditor(ctx) {
@@ -29,6 +29,8 @@ export function createBudgetEditor(ctx) {
     else kpi.removeAttribute('data-kp-tone');
     const bar = ctx.budgetCard.querySelector('[data-storage-stackbar]');
     if (bar) ctx.setStackbar(bar, stackSpec(t));
+    const legend = ctx.compactCard.querySelector('[data-storage-legend]');
+    if (legend) ctx.setStackbar(legend, legendSpec(t));
     ctx.budgetCard.querySelector('[data-storage-level]').innerHTML = levelBadge(level);
   }
 
