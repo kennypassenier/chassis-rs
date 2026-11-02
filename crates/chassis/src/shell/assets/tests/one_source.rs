@@ -115,3 +115,16 @@ fn kit_scripts_import_existing_per_module_entries_never_index() {
     }
     assert!(seen > 20, "the kit's entry imports were found ({seen})");
 }
+
+/// The kit reads the private statics, so the embedded bytes exist once; the
+/// public consts only equal them for outside callers.
+#[test]
+fn the_public_consts_equal_the_statics() {
+    assert_eq!(ASSETS.len(), CORE_TABLE.len());
+    #[cfg(feature = "assets")]
+    assert_eq!(WEBAPP_KP_ASSETS.len(), WEBAPP_TABLE.len());
+    assert!(std::ptr::eq(
+        all_assets().next().unwrap(),
+        CORE_TABLE.first().unwrap()
+    ));
+}

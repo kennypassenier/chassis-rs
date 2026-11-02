@@ -43,7 +43,7 @@ async fn entries_maps_and_the_loose_modules_still_revalidate() {
     }
     #[cfg(feature = "source-maps")]
     {
-        let map = format!("{}.map", a_chunk());
+        let map = "kp/dist/kp-themes.min.js.map".to_string();
         let res = serve(Path(map.clone()), RawQuery(None)).await;
         assert_eq!(res.headers()["cache-control"], "no-cache", "{map}");
     }
@@ -73,7 +73,7 @@ fn every_chunk_a_split_entry_imports_is_a_hashed_chunk() {
     }
     assert!(seen > 100, "{seen} chunks");
     // kp-themes 12.2 gives every component its own unhashed entry next to
-    // auto.js, core.js and lazy-register.js (158 in 12.2.0-pre.472fd3474).
+    // auto.js, core.js and lazy-register.js (158 in 12.2.0).
     assert!(
         stray.len() > 100,
         "the per-module entries are served: {} unhashed",
