@@ -23,6 +23,14 @@ impl App {
         ),
         ExitCode,
     > {
+        // The update state lives in the kit database: open it first, so the
+        // decision below reads the state a previous run left, also for an
+        // app with no dashboard.
+        let opened = self.kit_handle(self.loaded.as_ref().expect("loaded"));
+        if let Err(e) = opened {
+            eprintln!("{e}");
+            return Err(ExitCode::FAILURE);
+        }
         let updater = match self.build_updater(false) {
             Ok(u) => u,
             Err(e) => {

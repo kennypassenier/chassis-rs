@@ -60,18 +60,24 @@ pub(super) fn run_import(db: &Db, hook: ImportHook, state_dir: &Path) -> Result<
 /// `x` becomes `x.migrated` (`x.migrated.2` when that exists). A failed
 /// rename is a warning only: the marker already stops a second import.
 pub(crate) fn rename_migrated(files: &[PathBuf]) {
+    rename_with_suffix(files, "migrated");
+}
+
+/// `x` becomes `x.<suffix>` (`x.<suffix>.2` when that exists); the update
+/// state files use `imported`.
+pub(crate) fn rename_with_suffix(files: &[PathBuf], suffix: &str) {
     for f in files {
         if !f.exists() {
             continue;
         }
-        let mut target = PathBuf::from(format!("{}.migrated", f.display()));
+        let mut target = PathBuf::from(format!("{}.{suffix}", f.display()));
         let mut n = 2;
         while target.exists() {
-            target = PathBuf::from(format!("{}.migrated.{n}", f.display()));
+            target = PathBuf::from(format!("{}.{suffix}.{n}", f.display()));
             n += 1;
         }
         if let Err(e) = std::fs::rename(f, &target) {
-            tracing::warn!(file = %f.display(), error = %e, "could not rename an imported file to *.migrated; remove it by hand, it is no longer read");
+            tracing::warn!(file = %f.display(), suffix, error = %e, "could not rename an imported file; remove it by hand, it is no longer read");
         }
     }
 }

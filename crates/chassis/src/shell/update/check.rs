@@ -43,7 +43,7 @@ impl Updater {
     }
 
     pub(super) async fn check_inner(&self) -> Result<Outcome, Error> {
-        if let Some(state) = read_state(&self.state_path()) {
+        if let Some(state) = self.pending_state()? {
             return Ok(Outcome::Blocked {
                 pending: state.to_version,
             });
@@ -61,7 +61,7 @@ impl Updater {
         // rolled back is never retried by this process; otherwise the loop
         // reinstalls it every interval and the service churns through the
         // same crash. A NEWER release clears the way on its own.
-        if self.is_skipped(latest) {
+        if self.is_skipped(latest)? {
             (self.notify)(Event {
                 kind: "update.held",
                 version: latest.to_string(),
@@ -114,7 +114,10 @@ impl Updater {
                 last.latest = Some(latest.to_string());
                 last.outcome = Some(if !should_update(self.running, *latest) {
                     "current".to_string()
-                } else if self.is_skipped(*latest) {
+                } else if self.is_skipped(*latest).unwrap_or_else(|e| {
+                    tracing::error!(error = %e, "cannot read the skip list; assuming nothing is skipped");
+                    false
+                }) {
                     format!(
                         "newer available: {latest}, but it was rolled back earlier and is skipped"
                     )

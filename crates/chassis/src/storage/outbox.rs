@@ -11,29 +11,12 @@
 //! This module is only the queue. Which address a message goes to, the
 //! retries and the last error are the shell's and `notify_meta`'s business.
 
-// Without the `notify` feature only the schema step is used.
+// Without the `notify` feature nothing here is used (the schema step lives
+// in `kit_schema`).
 #![cfg_attr(not(feature = "notify"), allow(dead_code))]
 
-use super::db::{Db, Migration};
+use super::db::Db;
 use crate::core::error::Error;
-
-/// The schema step. Part of `kit_migrations()` whether or not the `notify`
-/// feature is compiled in, so every build agrees on the kit file's version.
-pub(crate) fn migration() -> Migration {
-    Migration::sql(
-        "CREATE TABLE kit_outbox (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            created_at   INTEGER NOT NULL,
-            kind         TEXT NOT NULL,
-            body         TEXT NOT NULL,
-            attempts     INTEGER NOT NULL DEFAULT 0,
-            next_try_at  INTEGER NOT NULL DEFAULT 0,
-            dedup_key    TEXT,
-            dedup_window TEXT
-         ) STRICT;
-         CREATE INDEX kit_outbox_due ON kit_outbox (next_try_at, id);",
-    )
-}
 
 /// One waiting message.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,8 +1,10 @@
 //! Construction of the [`Updater`] and the files it keeps next to the binary
-//! and in the state directory (`.prev`, `.staging`, `.drill`, the skip list).
+//! and the handle on the update tables of the kit database (`.prev`,
+//! `.staging` and `.drill` stay files: they are binaries and markers).
 //! Its own module so the path layout sits in one place, away from the
 //! network and install logic.
 
+use super::store::{UpdateStore, open_kit_file};
 use super::*;
 
 impl Updater {
@@ -18,24 +20,67 @@ impl Updater {
         with_suffix(&self.binary, ".drill")
     }
 
-    pub(super) fn skipped_versions(&self) -> Vec<String> {
-        std::fs::read(self.skip_path())
-            .ok()
-            .and_then(|b| serde_json::from_slice::<Vec<String>>(&b).ok())
-            .unwrap_or_default()
+    /// The update tables of the kit database. Opens the kit file on first
+    /// use (creating it) unless [`Updater::with_kit_db`] supplied the handle.
+    pub(super) fn store(&self) -> Result<&UpdateStore, Error> {
+        if let Some(s) = self.store.get() {
+            return Ok(s);
+        }
+        let opened = open_kit_file(&self.state_dir, &self.kit_file_name())?;
+        Ok(self.store.get_or_init(|| opened))
     }
 
-    pub(super) fn is_skipped(&self, v: Version) -> bool {
-        self.skipped_versions().contains(&v.to_string())
+    /// Like [`Updater::store`] for a read: when no kit file exists yet and no
+    /// old update file waits to be imported, there is nothing to read and
+    /// nothing is created (an operator running `<name> update` by hand must
+    /// not leave a kit file owned by the wrong user behind).
+    fn store_for_read(&self) -> Result<Option<&UpdateStore>, Error> {
+        let untouched = self.store.get().is_none()
+            && !self.state_dir.join(self.kit_file_name()).exists()
+            && !self.state_dir.join("update-state.json").exists()
+            && !self.state_dir.join("update-skip.json").exists();
+        if untouched {
+            return Ok(None);
+        }
+        self.store().map(Some)
+    }
+
+    /// `<binary name>-kit.db`: the kit file's name when the app gave no
+    /// handle. `App` always does, with `AppSpec.name`.
+    fn kit_file_name(&self) -> String {
+        let bin = self
+            .binary
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        crate::storage::kit_file_name(&bin)
+    }
+
+    /// Use the app's open kit database instead of opening the file again,
+    /// and bring any old `update-state.json` / `update-skip.json` in.
+    pub fn with_kit_db(self, db: crate::storage::Db) -> Result<Self, Error> {
+        let store = UpdateStore::with_db(db, &self.state_dir)?;
+        self.store.set(store).map_err(|_| {
+            Error::internal(
+                "the updater already has its kit database",
+                "call with_kit_db once, before the first check",
+            )
+        })?;
+        Ok(self)
+    }
+
+    /// The update on probation, if one is pending.
+    pub fn pending_state(&self) -> Result<Option<UpdateState>, Error> {
+        self.store_for_read()?.map_or(Ok(None), UpdateStore::state)
+    }
+
+    pub(super) fn is_skipped(&self, v: Version) -> Result<bool, Error> {
+        self.store_for_read()?
+            .map_or(Ok(false), |s| s.is_skipped(&v.to_string()))
     }
 
     pub(super) fn remember_skip(&self, version: &str) -> Result<(), Error> {
-        let mut v = self.skipped_versions();
-        if !v.iter().any(|s| s == version) {
-            v.push(version.to_string());
-        }
-        let bytes = serde_json::to_vec_pretty(&v).expect("skip list serialises");
-        write_atomic(&self.skip_path(), &bytes, "update skip list")
+        self.store()?.remember_skip(version)
     }
 
     /// The work behind [`Updater::new`].
@@ -76,14 +121,25 @@ impl Updater {
             notify,
             state_copy,
             last: Arc::new(Mutex::new(LastCheck::default())),
+            store: OnceLock::new(),
         })
     }
 
+    /// Where the update state lived before the kit database (3.x up to
+    /// 4.4): the file the one-time import reads.
+    #[deprecated(
+        since = "4.5.0",
+        note = "the update state lives in the kit database; use Updater::pending_state"
+    )]
     pub fn state_path(&self) -> PathBuf {
         self.state_dir.join("update-state.json")
     }
 
-    /// Versions that were installed and rolled back (CF-3): never retried.
+    /// Where the rolled-back versions lived before the kit database.
+    #[deprecated(
+        since = "4.5.0",
+        note = "the skip list lives in the kit database; it is only imported once"
+    )]
     pub fn skip_path(&self) -> PathBuf {
         self.state_dir.join("update-skip.json")
     }

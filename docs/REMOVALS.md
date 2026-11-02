@@ -21,6 +21,11 @@ Removing a row is part of the commit that removes the item.
 
 | Item | Since | Goes at | Replaced by |
 |---|---|---|---|
+| `chassis::shell::update::Updater::state_path` | 4.5.0 | 5.0.0 | `Updater::pending_state` (the update state is in the kit database) |
+| `chassis::shell::update::Updater::skip_path` | 4.5.0 | 5.0.0 | the `kit_update_skipped` table (the skip list is in the kit database) |
+| `chassis::shell::update::write_state` | 4.5.0 | 5.0.0 | `Updater` methods; the state is in the kit database |
+| `chassis::shell::update::read_state` | 4.5.0 | 5.0.0 | `Updater::pending_state` |
+| `chassis::shell::update::clear_state` | 4.5.0 | 5.0.0 | `Updater` methods; the state is in the kit database |
 
 `Goes at` moved from 3.0.0 to 4.0.0 on 2026-09-29: Kenny released 3.0.0
 for the local build path alone ("Nu als 3.0.0") and left the planned

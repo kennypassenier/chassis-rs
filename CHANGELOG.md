@@ -31,6 +31,26 @@ scaffold writes. A breaking change in either is a major and carries a
   `pending: true`; a failed edit leaves the view. Writes reuse chassisData's queue, failed list, band and
   logout guard; the 50 MB cap counts both databases; logout and the worker delete `chassis-db:*` too.
   See docs/LOCAL_DB_DESIGN.md ("Client contract, as built"). Round: [kp11].
+### Changed
+
+- **The self-update keeps its state in the kit database, no more JSON files** [feat-nojson-1] (Kenny, 2026-11-02:
+  all data in databases). `update-state.json` (the pending update) and `update-skip.json` (versions that were rolled
+  back) are the tables `kit_update_state` and `kit_update_skipped` of `<name>-kit.db` (a new kit migration, step 4).
+  The first start imports an existing file in one transaction and renames it `*.imported`; a corrupt one is reported
+  and set aside. Each write is committed before the binary swap goes on, so the probation, the attempt count and the
+  revert behave as before and survive the restart. The feature `self-update` now implies `storage`, and the kit file
+  opens for a service with only `core` + `self-update` (no dashboard) before the pending update is decided.
+  `Updater::pending_state()` and `Updater::with_kit_db(db)` are new; `Updater::state_path`/`skip_path` and the free
+  functions `write_state`/`read_state`/`clear_state` still exist, deprecated (they only describe the legacy files),
+  removal at 5.0.0 (`docs/REMOVALS.md`). A rollback to a build from before this change does not see the database:
+  restore the pre-update copy as usual.
+
+### Added
+
+- **`ImportContext::read_json` and `json_path`** [feat-nojson-1]. For an app moving a JSON file into its database:
+  `read_json::<T>(file)` is `Ok(None)` when the file is absent and an error naming the file when it does not parse,
+  never a silent default. The `storage` module docs carry a worked example, and `docs/STORAGE_DESIGN.md` states the
+  rule: no loose JSON data files, configuration stays TOML.
 
 ### Fixed
 

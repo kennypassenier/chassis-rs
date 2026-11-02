@@ -29,7 +29,7 @@ assets = ["core"]
 source-maps = []
 dashboard = ["core", "assets", "storage"]
 passkeys = ["dashboard", "dep:webauthn-rs"]
-self-update = ["core", "dep:minisign-verify", "dep:backon"]
+self-update = ["core", "storage", "dep:minisign-verify", "dep:backon"]
 notify = ["core", "dep:backon"]
 # feat-webapp-1: a project's own static browser app (HTML, ES modules, CSS)
 # under one path, behind the dashboard's login; hence it implies it.

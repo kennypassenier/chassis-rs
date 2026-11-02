@@ -66,7 +66,7 @@ impl App {
     #[cfg(feature = "storage")]
     pub(super) fn storage_files_to_check(&self) -> Vec<(String, usize)> {
         let mut out = Vec::new();
-        #[cfg(feature = "dashboard")]
+        #[cfg(any(feature = "dashboard", feature = "self-update"))]
         out.push((
             crate::storage::kit_file_name(self.spec.name),
             crate::storage::kit_schema_version(),

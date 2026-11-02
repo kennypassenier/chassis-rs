@@ -35,7 +35,8 @@ impl App {
         let copies_dir = pre_update_copies_dir(k, loaded);
         let sink = compose_sink(self.update_event_sink(), self.update_hook.clone());
         let state_copy = self.pre_update_state_copy(loaded);
-        let updater = Updater::new(
+        #[allow(unused_mut)]
+        let mut updater = Updater::new(
             self.update_config(mode, url, copies_dir)?,
             binary,
             loaded.state_dir.clone(),
@@ -43,6 +44,11 @@ impl App {
             sink,
             state_copy,
         )?;
+        // The app's open kit file, when `run` or `start` opened it already;
+        // the `update` subcommand opens nothing and reads what exists.
+        if let Some(db) = self.kit_handle_if_open() {
+            updater = updater.with_kit_db(db)?;
+        }
         Ok(Arc::new(updater))
     }
 

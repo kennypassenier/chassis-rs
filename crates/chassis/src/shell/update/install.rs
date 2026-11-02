@@ -3,6 +3,7 @@
 //! the next start, the drill marker and the health confirmation. Its own
 //! module because this is the part that changes files on disk.
 
+use super::store::UpdateStore;
 use super::*;
 
 impl Updater {
@@ -97,7 +98,7 @@ impl Updater {
                 previous_binary: prev.display().to_string(),
                 attempts: 0,
             };
-            write_state(&self.state_path(), &state)?;
+            self.store()?.set_state(&state)?;
         }
         (self.notify)(Event {
             kind: "update.installed",
@@ -119,7 +120,11 @@ impl Updater {
     fn revert(&self, s: &UpdateState) -> bool {
         let prev = PathBuf::from(&s.previous_binary);
         let restored = restore_from(&prev, &self.binary);
-        clear_state(&self.state_path());
+        if let Err(e) = self.store().and_then(UpdateStore::clear_state) {
+            // The next start finds a state that names another version and
+            // clears it as stale, so the revert itself still stands.
+            tracing::error!(error = %e, "cannot clear the update state after the revert");
+        }
         if let Err(e) = self.remember_skip(&s.to_version) {
             tracing::error!(error = %e, version = %s.to_version, "cannot record the rolled-back version; it may be retried next interval");
         }
@@ -153,7 +158,7 @@ impl Updater {
     /// the process should exit (after a revert) so the supervisor starts
     /// the restored binary.
     pub fn handle_pending_update(&self) -> Result<bool, Error> {
-        let state = read_state(&self.state_path());
+        let state = self.pending_state()?;
         match decide_at_startup(
             state,
             &self.running.to_string(),
@@ -162,12 +167,12 @@ impl Updater {
             StartAction::Normal => Ok(false),
             StartAction::Stale(s) => {
                 tracing::warn!(pending = %s.to_version, running = %self.running, "update state names another version; clearing it");
-                clear_state(&self.state_path());
+                self.store()?.clear_state()?;
                 Ok(false)
             }
             StartAction::Probation(s) => {
                 tracing::info!(to = %s.to_version, attempt = s.attempts, "new version on probation");
-                write_state(&self.state_path(), &s)?;
+                self.store()?.set_state(&s)?;
                 Ok(false)
             }
             StartAction::Revert(s) => Ok(self.revert(&s)),
@@ -191,8 +196,17 @@ impl Updater {
     /// Called once the service is bound and has served for `healthy_after`
     /// (liveness only, critic #3): the probation is over.
     pub fn confirm_healthy(&self) {
-        if read_state(&self.state_path()).is_some() {
-            clear_state(&self.state_path());
+        let pending = self.pending_state().unwrap_or_else(|e| {
+            tracing::error!(error = %e, "cannot read the update state to confirm the update");
+            None
+        });
+        if pending.is_some() {
+            if let Err(e) = self.store().and_then(UpdateStore::clear_state) {
+                // Left in place the state would count the next start as an
+                // attempt of an already proven version; say so.
+                tracing::error!(error = %e, "cannot clear the update state after a healthy start");
+                return;
+            }
             tracing::info!(version = %self.running, "update confirmed healthy");
             (self.notify)(Event {
                 kind: "update.ok",

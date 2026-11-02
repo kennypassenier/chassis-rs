@@ -5,6 +5,7 @@ mod events;
 mod install;
 mod loops;
 mod startup;
+mod store;
 mod trust;
 
 use super::*;

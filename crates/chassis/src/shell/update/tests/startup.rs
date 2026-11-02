@@ -25,7 +25,10 @@ async fn autonomous_writes_state_and_startup_reverts_after_the_attempts() {
         up.check_once().await.unwrap(),
         Outcome::Installed { .. }
     ));
-    let state = read_state(&up.state_path()).expect("autonomous writes state before the restart");
+    let state = up
+        .pending_state()
+        .unwrap()
+        .expect("autonomous writes state before the restart");
     assert_eq!(state.to_version, "1.1.0");
     assert_eq!(state.attempts, 0);
 
@@ -40,13 +43,13 @@ async fn autonomous_writes_state_and_startup_reverts_after_the_attempts() {
     )
     .unwrap();
     assert!(!new.handle_pending_update().unwrap(), "first start serves");
-    assert_eq!(read_state(&new.state_path()).unwrap().attempts, 1);
+    assert_eq!(new.pending_state().unwrap().unwrap().attempts, 1);
     // It crashes before confirming; the next start reverts.
     assert!(
         new.handle_pending_update().unwrap(),
         "second start reverts and asks to exit"
     );
-    assert!(read_state(&new.state_path()).is_none());
+    assert!(new.pending_state().unwrap().is_none());
     assert_eq!(
         std::fs::read(&bin).unwrap(),
         old,
@@ -107,7 +110,7 @@ async fn confirm_healthy_clears_probation_and_drill_marker_binds_to_the_version(
     // Probation → healthy clears the state and reports.
     new.handle_pending_update().unwrap();
     new.confirm_healthy();
-    assert!(read_state(&new.state_path()).is_none());
+    assert!(new.pending_state().unwrap().is_none());
     assert!(events.lock().unwrap().iter().any(|e| e.kind == "update.ok"));
     // With nothing pending, confirm_healthy stays silent.
     let before = events.lock().unwrap().len();
@@ -131,11 +134,8 @@ fn a_refused_prev_link_names_the_owner_and_the_directory() {
 }
 
 #[test]
-fn corrupt_state_reads_as_none_and_copies_are_pruned() {
+fn copies_are_pruned() {
     let dir = tempfile::tempdir().unwrap();
-    let p = dir.path().join("update-state.json");
-    std::fs::write(&p, b"{not json").unwrap();
-    assert!(read_state(&p).is_none());
     for v in ["1.0.0", "1.1.0", "1.2.0"] {
         std::fs::create_dir_all(dir.path().join("copies").join(v)).unwrap();
         std::thread::sleep(Duration::from_millis(20));

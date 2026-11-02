@@ -9,6 +9,7 @@ use crate::core::crypto::Key;
 use crate::core::session::SessionsFile;
 use crate::shell::store::EncryptedFile;
 use crate::storage::db::Db;
+use crate::storage::kit_migrations;
 
 mod import;
 mod rekey;

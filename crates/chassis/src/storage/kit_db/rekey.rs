@@ -4,11 +4,12 @@
 
 use std::path::Path;
 
+use super::KitDb;
 use super::seal::{open_text, seal_text};
-use super::{KitDb, kit_migrations};
 use crate::core::crypto::Key;
 use crate::core::error::Error;
 use crate::storage::db::Db;
+use crate::storage::kit_migrations;
 
 impl KitDb {
     /// Re-seal every sealed field from `old` to `new`, in ONE transaction.

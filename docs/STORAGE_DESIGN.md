@@ -136,3 +136,30 @@ The port takes the scope as a plain string on every call and
 multi-user kit returns the user's id there and nothing else changes: the
 table, the port, the routes and the browser script already carry it.
 
+# No loose JSON files (Kenny, 2026-11-02)
+
+**All data goes in a database. The kit keeps no data in separate `.json`
+files, and neither does an app built on it.** The kit's own last two,
+`update-state.json` and `update-skip.json`, moved into the kit file
+(`<name>-kit.db`, tables `kit_update_state` and `kit_update_skipped`) in
+4.5.0; the old sealed `*.json.enc` stores moved there in 3.11.0.
+
+- **Configuration is not data and stays a file.** What a person edits by
+  hand, `config.toml` and similar settings files, is read at start and is
+  never written by the service. Config stays TOML.
+- **What is not data stays what it is:** the binary, `.prev`, `.staging` and
+  the `.drill` marker are files and marks on the filesystem, not records.
+- **The update state needs the kit file.** The feature `self-update` implies
+  `storage`, and the kit file opens for a service with `self-update` even
+  when it has no dashboard, before the pending update is decided.
+- **How the kit moved its files:** at the first start the old file is read
+  into the database in one transaction and renamed `*.imported`
+  (`*.migrated` for the sealed stores). A corrupt old file is reported and
+  set aside, never trusted as data.
+- **How an app migrates:** give `AppDbSpec` the tables as migrations and a
+  `with_import` hook. The hook calls `ImportContext::read_json::<T>("x.json")`
+  (`Ok(None)` when the file is absent, an error naming the file when it does
+  not parse), inserts the rows, and reports the count and the file in an
+  `ImportReport`. A count mismatch or an error rolls the whole import back and
+  the next start retries; on success the file is renamed `*.migrated`. The
+  rustdoc of the `storage` module has a worked example.
