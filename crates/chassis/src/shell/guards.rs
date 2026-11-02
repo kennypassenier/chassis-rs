@@ -3,11 +3,15 @@
 //! keyed rate limiter for login and tokens. Every number is a knob (AR3);
 //! the defaults pass their own validation (HTTPSwitchboard rule).
 
+// The cross-site rule serves the login door and the share guard, both
+// dashboard parts; a core-only build has no caller.
+#[cfg(feature = "dashboard")]
 mod cross_site;
 mod csrf;
 mod ip_limit;
 mod proxy_notice;
 
+#[cfg(feature = "dashboard")]
 pub(crate) use cross_site::cross_site;
 
 use std::collections::HashSet;
