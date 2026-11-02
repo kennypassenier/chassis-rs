@@ -92,13 +92,22 @@ impl App {
             std::mem::take(&mut self.request_guard_exempt),
             guards.trusted_proxies.clone(),
         );
+        let policy = crate::shell::http::policy::HeaderPolicy::new(
+            &self.browser_features,
+            guards.trusted_proxies.clone(),
+        )?;
         let router = with_kit_layers(
             router,
             guards,
             access,
             self.limits.max_body_bytes,
             html_errors,
-        );
+        )
+        // Outside the kit's layers: every answer, errors included.
+        .layer(axum::middleware::from_fn_with_state(
+            policy,
+            crate::shell::http::policy::policy_headers,
+        ));
         // trusted-sources: outermost, so the error pages and every guard
         // inside see the mark.
         #[cfg(feature = "dashboard")]

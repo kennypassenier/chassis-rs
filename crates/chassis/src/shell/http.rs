@@ -13,6 +13,7 @@ mod access_log_line;
 mod error_page;
 mod error_response;
 mod hygiene;
+pub(crate) mod policy;
 
 // The dashboard's error page reads the request it renders for.
 #[cfg(any(feature = "dashboard", test))]

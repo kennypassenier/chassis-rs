@@ -292,6 +292,8 @@ pub struct App {
     subsystems: Vec<Arc<dyn Subsystem>>,
     scrape_sources: Vec<Arc<dyn ScrapeSource>>,
     timeout_exempt: HashSet<String>,
+    /// Browser features opted back in on the `Permissions-Policy`.
+    browser_features: Vec<String>,
     /// feat-guard-1: the project's checks in front of every route.
     #[cfg(feature = "request-guard")]
     request_guards: Vec<crate::shell::request_guard::RequestGuard>,

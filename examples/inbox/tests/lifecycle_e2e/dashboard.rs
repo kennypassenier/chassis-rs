@@ -181,6 +181,15 @@ fn project_page_renders_inside_the_layout_with_security_headers() {
     assert!(csp.contains("script-src 'self'"), "{csp}");
     assert_eq!(res.headers()["x-content-type-options"], "nosniff");
     assert_eq!(res.headers()["x-frame-options"], "DENY");
+    // [fix-sec-headers-1]: the configured policy headers on a kit page.
+    assert_eq!(res.headers()["cross-origin-opener-policy"], "same-origin");
+    assert!(
+        res.headers()["permissions-policy"]
+            .to_str()
+            .unwrap()
+            .contains("camera=()")
+    );
+    assert!(res.headers().get("strict-transport-security").is_none());
     let html = res.text().unwrap();
     assert!(html.contains("kp-nav"), "inside the kit's layout");
     assert!(
