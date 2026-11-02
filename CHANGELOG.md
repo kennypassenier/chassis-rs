@@ -11,11 +11,12 @@ scaffold writes. A breaking change in either is a major and carries a
 
 No breaking change; these are the steps that pick up the unreleased fixes.
 
-- **Almanac**: call `app.webapp(WebApp::embedded(..).at("/ui"))` first, then
-  add `app.pwa_page_head()` to the `<head>` of its own server-rendered pages
-  (the routes at `/`), and set `Pwa::new().start_url("/")` so the installed
-  app opens on them. Nothing else changes: the web app at `/ui` becomes
-  installable without further code.
+- **Almanac**: set `Pwa::new().start_url("/")` on the web app at `/ui` so
+  the installed app opens on its own pages. Pages rendered through the kit
+  layout (`render_project`) already carry the install tags and the script
+  that registers the worker; do not add `app.pwa_page_head()` to them (the
+  tags would appear twice). `pwa_page_head()` is only for a page that writes
+  its whole HTML itself, outside the kit layout.
 - **HTTPSwitchboard**: no code change; its web app at `/app/hsb` is
   installable from this release, with the icons in `web/pwa/` (including
   `icon.svg`).
@@ -213,6 +214,11 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Fixed
 
+- **Kit pages register the service worker** (almanac, `[fix-pwa-boot-1]`):
+  `/`, Clients, Storage and every page rendered through the kit layout
+  carried the manifest but not the script that registers the worker, so a
+  first visit to the start page installed nothing until a web-app page was
+  opened. The layout now writes the install tags with `pwa-boot.js`, once.
 - **Two web apps on one mount are refused at start** (`[fix-mounts-1]`):
   now that `App::webapp` takes several, two on the same path would have
   panicked in the router merge; start and `--check` say which path instead.

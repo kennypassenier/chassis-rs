@@ -42,9 +42,10 @@ impl App {
     /// The head markup for a page the project renders itself, so it joins
     /// the installed app (manifest link, colours, icons, and the script that
     /// registers the service worker); `None` before a web app is registered
-    /// or when none is installable. Register the web app first, then add
-    /// this inside `<head>` of the server-rendered pages: the kit's own
-    /// pages and the web app's files get their tags without it.
+    /// or when none is installable. Only for a page that writes its whole
+    /// HTML itself: the kit's own pages, every page rendered through the kit
+    /// layout (`render_project`) and the web app's files already carry these
+    /// tags, so adding it there would print them twice.
     #[cfg(feature = "webapp")]
     pub fn pwa_page_head(&self) -> Option<String> {
         self.webapp.iter().find_map(|w| w.pwa_page_head())

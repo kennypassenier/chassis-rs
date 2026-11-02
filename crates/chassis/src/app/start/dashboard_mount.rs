@@ -106,7 +106,7 @@ impl App {
             .clone()
             .unwrap_or_else(|| self.spec.name.to_string());
         let (routes, head) = match apps.iter().find(|w| w.is_installable()) {
-            Some(w) => (w.pwa_router(&brand), w.pwa_head_html()),
+            Some(w) => (w.pwa_router(&brand), w.pwa_page_head()),
             None => (None, None),
         };
         let mut merged = std::mem::take(&mut self.dashboard_router);

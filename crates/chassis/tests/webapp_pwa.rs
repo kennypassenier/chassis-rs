@@ -125,3 +125,19 @@ async fn a_web_app_below_the_root_installs_the_whole_service() {
         200
     );
 }
+
+/// almanac, 2026-11-02: the kit pages (`/` start page, Clients, Storage) and
+/// project pages rendered through the kit layout register the worker
+/// themselves, once; a fresh visitor landing there gets the worker without
+/// opening a web-app page, and no project adds the head a second time.
+#[tokio::test]
+async fn kit_pages_register_the_worker_once() {
+    let mut app = start(WebApp::embedded(FILES).at("/ui")).await;
+    let (_, login) = app.page("/login").await;
+    assert_eq!(login.matches("pwa-boot.js").count(), 1, "{login}");
+    assert_eq!(login.matches("rel=\"manifest\"").count(), 1, "{login}");
+    app.login().await;
+    let (_, clients) = app.page("/clients").await;
+    assert_eq!(clients.matches("pwa-boot.js").count(), 1, "{clients}");
+    assert_eq!(clients.matches("rel=\"manifest\"").count(), 1, "{clients}");
+}
