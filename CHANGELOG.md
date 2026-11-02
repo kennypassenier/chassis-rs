@@ -7,6 +7,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [4.3.0] - 2026-11-02
+
 ### Fixed
 
 - **A browser that asks for gzip now gets `window.chassisPrefs` on the web
