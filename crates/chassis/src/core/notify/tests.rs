@@ -77,3 +77,48 @@ fn missing_var_bad_method_and_no_events_are_refused_with_remedies() {
     let t: toml::Table = "[other]\nx=1\n".parse().unwrap();
     assert!(webhooks_from_table(&t, &env()).unwrap().is_empty());
 }
+
+#[test]
+fn a_webhook_body_carries_title_and_url_when_the_app_set_them() {
+    use crate::core::notify_link::Link;
+    let t: toml::Table = r#"
+[[notify.webhook]]
+events = ["task.due"]
+url = "http://h/default"
+
+[[notify.webhook]]
+events = ["task.due"]
+url = "http://h/custom"
+body = '{"what":"{{ kind }}"{% if url %},"open":"{{ url }}"{% endif %}{% if title %},"t":"{{ title }}"{% endif %}}'
+"#
+    .parse()
+    .unwrap();
+    let hooks = webhooks_from_table(&t, &env()).unwrap();
+    let e = event("task.due");
+    let link = Link::new(Some("Water drinken"), Some("/tasks/42")).unwrap();
+    // Default body: the event as JSON, then title and url.
+    assert_eq!(
+        hooks[0].render_body_linked(&e, Some(&link)).unwrap(),
+        r#"{"service":"inbox","kind":"task.due","at":"2026-09-05T07:00:00Z","version":"1.1.0","detail":"1.0.0 → 1.1.0","title":"Water drinken","url":"/tasks/42"}"#
+    );
+    assert_eq!(
+        hooks[0].render_body_linked(&e, None).unwrap(),
+        hooks[0].render_body(&e).unwrap(),
+        "no link, no change"
+    );
+    // A custom template sees title and url as variables, absent when unset.
+    assert_eq!(
+        hooks[1].render_body_linked(&e, Some(&link)).unwrap(),
+        r#"{"what":"task.due","open":"/tasks/42","t":"Water drinken"}"#
+    );
+    assert_eq!(
+        hooks[1].render_body_linked(&e, None).unwrap(),
+        r#"{"what":"task.due"}"#
+    );
+}
+
+#[test]
+fn only_the_kits_own_names_are_kit_events() {
+    assert!(is_kit_event("update.ok") && is_kit_event("service.started"));
+    assert!(!is_kit_event("task.due") && !is_kit_event("update.ok.extra"));
+}

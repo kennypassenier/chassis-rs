@@ -13,6 +13,8 @@ pub mod error;
 #[cfg(feature = "notify")]
 pub mod notify;
 #[cfg(feature = "notify")]
+pub mod notify_link;
+#[cfg(feature = "notify")]
 pub mod notify_target;
 // Only the shared sender (notify + dashboard) sends the token.
 #[cfg(all(feature = "notify", feature = "dashboard"))]

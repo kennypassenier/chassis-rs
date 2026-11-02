@@ -69,9 +69,11 @@ fn epoch_rfc3339(secs: i64) -> String {
 fn view_json(v: View) -> Value {
     let both_locked = v.primary.locked() && v.fallback.locked();
     json!({
-        "active": v.primary.value.is_some() || v.fallback.value.is_some(),
+        "active": v.primary.value.is_some() || v.fallback.value.is_some() || v.kit.is_some(),
         "primary": target_json(Which::Primary, &v.primary, v.saved[0], &v.code[0]),
         "fallback": target_json(Which::Fallback, &v.fallback, v.saved[1], &v.code[1]),
+        // Present only when `notify_kit_url` is set: where the kit's own events go.
+        "kit": v.kit.as_ref().map(|t| target_json(Which::Kit, t, false, &None)),
         "can_edit": !both_locked,
         // Only whether a token is set and which variable carries it; the
         // value never leaves the sender.

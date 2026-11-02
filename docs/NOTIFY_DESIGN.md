@@ -41,6 +41,7 @@ the outbox lives in the kit file that `dashboard` opens):
 | `notify_url` | none | Primary target, a kyu topic `http://<hub>/t/<topic>`. |
 | `notify_fallback_url` | none | Fallback target (a Home Assistant webhook address). |
 | `notify_outbox_max` | 5000 | Cap on unsent messages. |
+| `notify_kit_url` | none | Optional third target for the kit's own events (`KIT_EVENTS`). Configuration only (flag, `<P>_NOTIFY_KIT_URL`, config key); unset = they go to `notify_url`. |
 | `notify_token` | none | Secret. Client token for the primary target, sent as `Authorization: Bearer <token>`. Environment `<P>_NOTIFY_TOKEN` only. |
 
 The existing `notify_timeout_secs`, `notify_retries`, `notify_backoff_base_ms`
@@ -141,6 +142,31 @@ deleted and the fallback is NOT asked. A first publish answers `201`.
 Without a key nothing changes; success messages send none. `[[notify.webhook]]`
 entries do not send the headers. (The `Event` struct gained no field, so the
 key travels beside it.)
+
+**Title and link** (`[notify-link-1]`). `Event` is a public struct, so it
+cannot take fields in a minor. `Notifier::emit_linked(kind, version, detail,
+Link)` (and `emit_linked_keyed`) carries an optional `title` and `url` beside
+it (`Queued.link`), and they are merged into the JSON body when the outbox row
+is written: `{"service","kind","at","version","detail","title","url"}`, the
+last two only when set, so an unlinked body is unchanged. `Link` validates
+when built: url = a path of the app (`/x`, not `//x`, no blanks) or an
+absolute http(s) address; title = one line, at most 200 characters. A
+`[[notify.webhook]]` entry sends the same fields in its default body;
+a custom `body` template gets `title` and `url` as variables, left out of
+the context when unset. Rejected alternative: new fields on `Event` (major).
+The url is passed through as given; resolving a path against the app's
+public address is the receiver's job (the Habits push `url` works the same).
+
+**Kit events to their own target** (`[notify-kit-1]`). A message's route is
+derived from its kind: `is_kit_event(kind)` (the exact names in `KIT_EVENTS`)
+and `notify_kit_url` set means kit target, then the fallback; anything else
+primary, then the fallback. Nothing new is stored in the outbox, so a retry
+after a restart routes the same way and the schema stays at step 2. The kit
+target is a hub like the primary: it gets the bearer token and shares the
+"primary is down" memory. Consequence to know: an app that emits a kit name
+itself (`health.degraded`) is routed as a kit event. Not editable on the
+page (configuration only; no saved value, no code default) because the
+use is a deployment decision.
 
 **The Test message.** `POST /api/kit/notify/test` sends one message with
 `kind: "notify.test"` and a detail starting `TEST:` to EACH address that is
