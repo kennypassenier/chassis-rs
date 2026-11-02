@@ -34,7 +34,7 @@ pub mod testing;
 pub use app::{App, AppSpec, Control, Running};
 pub use core::error::{Error, IntoKitError, Kind};
 #[cfg(feature = "dashboard")]
-pub use shell::auth::Caller;
+pub use shell::auth::{Caller, RequireAdmin};
 #[cfg(feature = "dashboard")]
 pub use shell::dashboard::{
     Action, Check, CheckState, ClientAction, ClientColumn, Dashboard, FlashAction, JsonRender, Kpi,

@@ -12,6 +12,7 @@
 //! points at `gen-secret` rather than printing a value into the journal
 //! (critic #12).
 
+mod admin_extractor;
 mod caller;
 mod cookie_origin;
 mod door_hint;
@@ -41,6 +42,7 @@ use crate::core::error::{Error, Kind};
 use crate::shell::guards::{Guards, IpLimit};
 use crate::shell::store::{Clients, SessionStore};
 
+pub use admin_extractor::RequireAdmin;
 use caller::bearer;
 pub(crate) use door_hint::DoorHint;
 pub(crate) use lookup::{identify_request, still_valid_now};

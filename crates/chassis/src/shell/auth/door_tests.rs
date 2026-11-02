@@ -164,3 +164,33 @@ async fn a_cross_site_cookie_call_is_refused_but_bearer_and_same_site_pass() {
     let (s, _) = call_with(bearer, &[("sec-fetch-site", "cross-site")]).await;
     assert_eq!(s, StatusCode::OK, "bearer calls are unaffected");
 }
+
+/// [feat-require-admin-1]: `RequireAdmin` admits the admin, refuses a client
+/// token with a 403 JSON remedy, and a missing caller with the 401 of `Caller`.
+#[tokio::test]
+async fn require_admin_extractor_refuses_a_client_with_403() {
+    async fn run(caller: Option<Caller>) -> (StatusCode, String) {
+        let app = Router::new().route("/x", get(|_: RequireAdmin| async { "admin only" }));
+        let mut req = Request::builder().uri("/x").body(Body::empty()).unwrap();
+        if let Some(c) = caller {
+            req.extensions_mut().insert(c);
+        }
+        let res = tower::ServiceExt::oneshot(app, req).await.unwrap();
+        let status = res.status();
+        let bytes = axum::body::to_bytes(res.into_body(), 1 << 16)
+            .await
+            .unwrap();
+        (status, String::from_utf8(bytes.to_vec()).unwrap())
+    }
+    let (s, b) = run(Some(Caller::Admin)).await;
+    assert_eq!((s, b.as_str()), (StatusCode::OK, "admin only"));
+    let client = Caller::Client {
+        id: "c1".into(),
+        name: "pump".into(),
+    };
+    let (s, b) = run(Some(client)).await;
+    println!("AFTER (client on admin route): {s} {b}");
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    assert!(b.contains("\"error\"") && b.contains("\"remedy\"") && b.contains("pump"));
+    assert_eq!(run(None).await.0, StatusCode::UNAUTHORIZED);
+}

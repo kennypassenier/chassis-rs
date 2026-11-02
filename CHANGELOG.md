@@ -29,6 +29,9 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Added
 
+- **`RequireAdmin` extractor** (`[feat-require-admin-1]`, kyu): a handler on
+  an `api_routes` route takes `RequireAdmin` to admit only `Caller::Admin`; a
+  client token gets a 403 JSON `{error, remedy}`.
 - **API calls authenticated by the session cookie must be same-site**
   (`[fix-api-csrf-1]`, kyu): the cookie is `Lax`, so `GET /t/{t}/next?as=x`
   on an `api_routes` route could be triggered by a link on another website.
