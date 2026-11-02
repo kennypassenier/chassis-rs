@@ -50,6 +50,14 @@
    so a state change moves nothing. kp-themes holds the height; this holds the
    inside: the words start at the top (they were centred, so a shorter state
    moved them), and Retry now keeps its width while it is idle or not there. */
+/* [fix-kit-choice-3] Room for two lines of detail in every state (Kenny,
+   "Ruimte voor twee regels"): 7.75rem is the theme's 6.25rem plus 24 px, so a
+   message that wraps to a second line never moves the page. On a phone the
+   detail is not shown, so its band keeps the theme's own height. */
+.kp-connection { --kp-connection-min: 7.75rem; }
+@container kp-connection (max-width: 36rem) {
+    .kp-connection__band { min-block-size: 6rem; }
+}
 .kp-connection__band { align-items: start; }
 .kp-connection__body { align-self: stretch; align-content: start; }
 .kp-connection__retry { min-inline-size: 7.5rem; align-self: center; }

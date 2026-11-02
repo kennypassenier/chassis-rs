@@ -333,6 +333,15 @@ These are the steps that pick up the unreleased fixes:
 
 ### Fixed
 
+- **Kit pages, three choices of Kenny's (round `[kp11]`)**:
+  the login page shows an anonymous visitor only whether the service answers,
+  no version and no start time (they stay on Status; `/healthz` is unchanged)
+  (`[fix-kit-choice-1]`); on Storage the "Where the space goes" legend moved
+  into the "Give back empty space" card, so the two cards stay equal height
+  and the empty space in that card is used (`[fix-kit-choice-2]`); the hub
+  connection banner keeps 7.75rem (+24 px) on a wide screen, room for two
+  lines of detail in every state (`[fix-kit-choice-3]`).
+
 - **`/favicon.ico` no longer hides an app's own file**: the public redirect to
   `/pwa/icon-192.png` is only answered when the web app ships no
   `favicon.ico`; with one, that file is served.
