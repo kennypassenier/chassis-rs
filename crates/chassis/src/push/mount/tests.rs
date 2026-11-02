@@ -58,3 +58,16 @@ fn a_corrupt_row_is_a_config_error_with_a_remedy_not_a_new_key() {
         "never silently replaced"
     );
 }
+
+#[test]
+fn push_mounts_only_with_a_login_and_the_kit_file() {
+    assert!(will_mount(false, true));
+    assert!(
+        !will_mount(true, true),
+        "open dashboard: no key to seal with"
+    );
+    assert!(
+        !will_mount(false, false),
+        "no kit file to keep subscriptions in"
+    );
+}

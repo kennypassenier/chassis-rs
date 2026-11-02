@@ -9,6 +9,7 @@
 // accepts, so no extra header or token is needed. When the post does not
 // succeed (login expired, offline) the app opens at the notification's url
 // instead, so the person sees what is going on rather than a silent no-op.
+// A redirect is a failure too: the post is never followed (fix-push-redirect-1).
 
 self.addEventListener('push', (event) => {
     const text = event.data ? event.data.text() : '';
@@ -35,15 +36,21 @@ async function runClick(plan) {
     return showApp(plan.url);
 }
 
-/** POST to an app route with the cookie; whether the app accepted it. */
+/**
+ * POST to an app route with the cookie; whether the app accepted it. A
+ * redirect is not followed (`manual`) and is not an acceptance: it comes
+ * back as an opaque redirect (status 0) or a 3xx, so a route that bounces
+ * to a login page counts as failed and a cross-origin one is never visited.
+ */
 async function postAction(url) {
     try {
         const res = await fetch(url, {
             method: 'POST',
             credentials: 'same-origin',
+            redirect: 'manual',
             headers: { Accept: 'application/json' },
         });
-        return res.ok;
+        return res.type !== 'opaqueredirect' && res.ok && res.status >= 200 && res.status < 300;
     } catch {
         return false;
     }

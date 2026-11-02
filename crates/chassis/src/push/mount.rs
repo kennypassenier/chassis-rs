@@ -34,10 +34,17 @@ pub(crate) struct PushInput<'a> {
     pub auth: &'a AuthState,
 }
 
+/// Whether the push routes will be mounted: the dashboard has a login (a
+/// key to seal the VAPID secret with) and there is a kit file to keep the
+/// subscriptions in. The one decision `mount` and the page marker share.
+pub(crate) fn will_mount(open: bool, has_kit_db: bool) -> bool {
+    !open && has_kit_db
+}
+
 /// Connect the handle and build the API routes (behind the admin login);
 /// an empty router when the dashboard runs open.
 pub(crate) fn mount(input: PushInput<'_>) -> Result<Router, Error> {
-    if input.open {
+    if !will_mount(input.open, true) {
         tracing::warn!(
             "push: off, because the dashboard runs open and there is no key to seal the VAPID secret with"
         );
