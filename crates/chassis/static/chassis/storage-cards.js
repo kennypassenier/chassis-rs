@@ -1,7 +1,7 @@
 // The Storage page's cards: the kinds table (drawn once per width class),
 // the waiting and failed states, and the paint that fills every card from
 // the last read. Its own module because it is the page's only drawing code.
-import { attentionBand, budgetHtml, stackSpec, totals } from './storage-budget-html.js';
+import { attentionBand, budgetHtml, legendSpec, stackSpec, totals } from './storage-budget-html.js';
 import { compactHtml } from './storage-compact-card.js';
 import { levelBadge, size } from './storage-format.js';
 import { kindRow } from './storage-kinds.js';
@@ -65,6 +65,7 @@ export function createCards(ctx) {
     const compactData = ctx.compactCard.querySelector('[data-storage-compact]');
     compactData.innerHTML = compactHtml(t, ctx.data);
     await ctx.attachParts(compactData);
+    ctx.setStackbar(compactData.querySelector('[data-storage-legend]'), legendSpec(t));
     const kinds = ctx.data.kinds;
     ctx.kindsCard.querySelector('[data-storage-kinds-title]').textContent = `What is stored (${kinds.length} ${kinds.length === 1 ? 'kind' : 'kinds'})`;
     const sorted = [...kinds].sort((a, b) => b.bytes - a.bytes);

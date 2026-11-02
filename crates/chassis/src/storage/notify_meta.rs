@@ -17,7 +17,7 @@ const DROPPED: &str = "notify_dropped_total";
 pub(crate) struct LastError {
     /// RFC 3339.
     pub at: String,
-    /// `primary`, `fallback`, `outbox` (storage trouble) or `test`.
+    /// `primary`, `kit`, `fallback`, `outbox` (storage trouble) or `test`.
     pub target: String,
     /// A sentence; never an address (an address can carry a webhook id).
     pub message: String,
@@ -27,7 +27,7 @@ pub(crate) struct LastError {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct LastDelivery {
     pub at: String,
-    /// `primary` or `fallback`.
+    /// `primary`, `kit` or `fallback`.
     pub via: String,
 }
 
@@ -71,8 +71,20 @@ impl NotifyMeta {
         self.read_json(LAST_ERROR)
     }
 
+    /// Remember an error as the latest one AND as the last one of its own
+    /// target, so the card can show what each target said.
     pub(crate) fn set_last_error(&self, e: &LastError) -> Result<(), Error> {
-        self.write_json(LAST_ERROR, e)
+        let text = serde_json::to_string(e).expect("meta value serialises");
+        let per_target = format!("{LAST_ERROR}:{}", e.target);
+        self.db.write_blocking(|tx| {
+            meta_set(tx, LAST_ERROR, &text)?;
+            meta_set(tx, &per_target, &text)
+        })
+    }
+
+    /// The last error of one target (`primary`, `kit`, `fallback`, ...).
+    pub(crate) fn last_error_of(&self, target: &str) -> Result<Option<LastError>, Error> {
+        self.read_json(&format!("{LAST_ERROR}:{target}"))
     }
 
     pub(crate) fn last_delivery(&self) -> Result<Option<LastDelivery>, Error> {

@@ -8,7 +8,7 @@ import { escapeHtml as esc } from './format-text.js';
 export function kindRow(k, budget) {
   const share = k.bytes / budget;
   const pct = share < 0.01 ? '<1' : Math.round(share * 100);
-  const line = `${k.description ? `<span class="storage-kind__about">${esc(k.description)}</span>` : ''}${k.finished_automatically ? '<span class="storage-kind__self"><span class="kp-badge">Cleans itself</span> Finished rows are removed automatically.</span>' : ''}`;
+  const line = `${k.description ? `<span class="storage-kind__about">${esc(k.description)}</span>` : ''}${k.finished_automatically ? '<span class="storage-kind__self"><span class="kp-badge">Cleans itself</span> Finished entries are removed automatically.</span>' : ''}`;
   return `<tr data-kp-row-key="${esc(k.id)}">
       <td data-label="Kind"><span class="storage-kind"><strong class="storage-kind__name">${esc(k.label)}</strong>${line}</span></td>
       <td class="kp-numeric" data-label="Amount" data-kp-sort-value="${k.rows}">${count(k.rows, k)}</td>

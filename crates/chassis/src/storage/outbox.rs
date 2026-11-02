@@ -101,27 +101,54 @@ impl Outbox {
         })
     }
 
-    /// The oldest message whose retry time has come.
-    pub(crate) fn next_due(&self, now: i64) -> Result<Option<Waiting>, Error> {
-        use rusqlite::OptionalExtension;
+    /// The oldest message whose retry time has come AND whose kind
+    /// `deliverable` accepts. A row nothing can be sent to is skipped, not
+    /// returned, so it cannot hold up the rows behind it; it stays queued.
+    pub(crate) fn next_due(
+        &self,
+        now: i64,
+        deliverable: impl Fn(&str) -> bool,
+    ) -> Result<Option<Waiting>, Error> {
         self.db.read_blocking(|c| {
-            Ok(c.query_row(
+            let mut stmt = c.prepare(
                 "SELECT id, created_at, kind, body, attempts, dedup_key, dedup_window FROM kit_outbox \
-                 WHERE next_try_at <= ?1 ORDER BY id ASC LIMIT 1",
-                [now],
-                |r| {
-                    Ok(Waiting {
-                        id: r.get(0)?,
-                        created_at: r.get(1)?,
-                        kind: r.get(2)?,
-                        body: r.get(3)?,
-                        attempts: r.get(4)?,
-                        dedup_key: r.get(5)?,
-                        dedup_window: r.get(6)?,
-                    })
-                },
-            )
-            .optional()?)
+                 WHERE next_try_at <= ?1 ORDER BY id ASC",
+            )?;
+            let mut rows = stmt.query([now])?;
+            while let Some(r) = rows.next()? {
+                let kind: String = r.get(2)?;
+                if !deliverable(&kind) {
+                    continue;
+                }
+                return Ok(Some(Waiting {
+                    id: r.get(0)?,
+                    created_at: r.get(1)?,
+                    kind,
+                    body: r.get(3)?,
+                    attempts: r.get(4)?,
+                    dedup_key: r.get(5)?,
+                    dedup_window: r.get(6)?,
+                }));
+            }
+            Ok(None)
+        })
+    }
+
+    /// How many waiting messages `deliverable` refuses (any retry time).
+    pub(crate) fn count_undeliverable(
+        &self,
+        deliverable: impl Fn(&str) -> bool,
+    ) -> Result<u64, Error> {
+        self.db.read_blocking(|c| {
+            let mut stmt = c.prepare("SELECT kind, COUNT(*) FROM kit_outbox GROUP BY kind")?;
+            let mut rows = stmt.query([])?;
+            let mut n = 0u64;
+            while let Some(r) = rows.next()? {
+                if !deliverable(&r.get::<_, String>(0)?) {
+                    n += r.get::<_, i64>(1)?.max(0) as u64;
+                }
+            }
+            Ok(n)
         })
     }
 
@@ -168,10 +195,24 @@ impl Outbox {
         })
     }
 
-    /// The earliest retry time among the waiting messages.
-    pub(crate) fn earliest_retry(&self) -> Result<Option<i64>, Error> {
+    /// The earliest retry time among the waiting messages `deliverable`
+    /// accepts (a row with nowhere to go has no retry to wait for).
+    pub(crate) fn earliest_retry(
+        &self,
+        deliverable: impl Fn(&str) -> bool,
+    ) -> Result<Option<i64>, Error> {
         self.db.read_blocking(|c| {
-            Ok(c.query_row("SELECT MIN(next_try_at) FROM kit_outbox", [], |r| r.get(0))?)
+            let mut stmt =
+                c.prepare("SELECT kind, MIN(next_try_at) FROM kit_outbox GROUP BY kind")?;
+            let mut rows = stmt.query([])?;
+            let mut earliest: Option<i64> = None;
+            while let Some(r) = rows.next()? {
+                if deliverable(&r.get::<_, String>(0)?) {
+                    let t: i64 = r.get(1)?;
+                    earliest = Some(earliest.map_or(t, |e| e.min(t)));
+                }
+            }
+            Ok(earliest)
         })
     }
 }

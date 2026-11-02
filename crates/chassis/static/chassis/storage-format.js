@@ -15,7 +15,7 @@ export const size = (bytes) => {
 };
 // An exact count; a no-break space between thousands (2 418, 648 000).
 export const num = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-export const unitOf = (k) => k.unit || 'rows';
+export const unitOf = (k) => k.unit || 'items';
 const oneOf = (k) => (unitOf(k).endsWith('s') ? unitOf(k).slice(0, -1) : unitOf(k));
 export const count = (n, k) => `${num(n)} ${n === 1 ? oneOf(k) : unitOf(k)}`;
 export const when = (iso) => {

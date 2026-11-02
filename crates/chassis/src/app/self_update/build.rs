@@ -69,7 +69,7 @@ impl App {
     #[cfg(not(feature = "notify"))]
     fn update_event_sink(&self) -> EventSink {
         Arc::new(
-            |e: Event| tracing::info!(event = e.kind, version = %e.version, detail = %e.detail, "event"),
+            |e: Event| tracing::info!(event = e.kind, version = %e.version, detail_len = e.detail.len(), "event"),
         )
     }
 

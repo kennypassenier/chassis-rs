@@ -23,10 +23,13 @@ fn waiting_messages_survive_a_reopen_in_order() {
     let outbox = Outbox::new(open(dir.path()), 100);
     let counts = outbox.counts().unwrap();
     assert_eq!((counts.waiting, counts.oldest_at), (3, Some(1000)));
-    let first = outbox.next_due(5000).unwrap().unwrap();
+    let first = outbox.next_due(5000, |_| true).unwrap().unwrap();
     assert_eq!((first.body.as_str(), first.attempts), ("body 0", 0));
     outbox.delivered(first.id).unwrap();
-    assert_eq!(outbox.next_due(5000).unwrap().unwrap().body, "body 1");
+    assert_eq!(
+        outbox.next_due(5000, |_| true).unwrap().unwrap().body,
+        "body 1"
+    );
     assert_eq!(
         outbox.counts().unwrap().waiting,
         2,
@@ -46,7 +49,7 @@ fn past_the_cap_the_oldest_are_dropped_and_counted() {
     assert_eq!(outbox.counts().unwrap().waiting, 3);
     // m0 and m1 are gone; the newest three remain, oldest first.
     let mut seen = Vec::new();
-    while let Some(m) = outbox.next_due(100).unwrap() {
+    while let Some(m) = outbox.next_due(100, |_| true).unwrap() {
         seen.push(m.body.clone());
         outbox.delivered(m.id).unwrap();
     }
@@ -59,15 +62,15 @@ fn a_failed_message_waits_for_its_retry_time_and_counts_the_attempt() {
     let outbox = Outbox::new(open(dir.path()), 10);
     outbox.enqueue("k", "a", None, 1).unwrap();
     outbox.enqueue("k", "b", None, 2).unwrap();
-    let a = outbox.next_due(10).unwrap().unwrap();
+    let a = outbox.next_due(10, |_| true).unwrap().unwrap();
     outbox.failed(a.id, 500).unwrap();
     // "a" is not due before 500, so "b" is next.
-    assert_eq!(outbox.next_due(100).unwrap().unwrap().body, "b");
-    assert_eq!(outbox.earliest_retry().unwrap(), Some(0));
-    let again = outbox.next_due(500).unwrap().unwrap();
+    assert_eq!(outbox.next_due(100, |_| true).unwrap().unwrap().body, "b");
+    assert_eq!(outbox.earliest_retry(|_| true).unwrap(), Some(0));
+    let again = outbox.next_due(500, |_| true).unwrap().unwrap();
     assert_eq!((again.body.as_str(), again.attempts), ("a", 1));
     outbox.due_now().unwrap();
-    assert_eq!(outbox.next_due(0).unwrap().unwrap().body, "a");
+    assert_eq!(outbox.next_due(0, |_| true).unwrap().unwrap().body, "a");
 }
 
 #[test]
@@ -86,11 +89,11 @@ fn the_dedup_key_survives_the_outbox_reopening() {
         outbox.enqueue("plain", "b", None, 2).unwrap();
     }
     let outbox = Outbox::new(open(dir.path()), 10);
-    let a = outbox.next_due(10).unwrap().unwrap();
+    let a = outbox.next_due(10, |_| true).unwrap().unwrap();
     assert_eq!(a.dedup_key.as_deref(), Some("backup|disk vol"));
     assert_eq!(a.dedup_window.as_deref(), Some("6h"));
     outbox.delivered(a.id).unwrap();
-    let b = outbox.next_due(10).unwrap().unwrap();
+    let b = outbox.next_due(10, |_| true).unwrap().unwrap();
     assert_eq!((b.dedup_key, b.dedup_window), (None, None));
 }
 
@@ -112,7 +115,7 @@ fn a_body_with_title_and_url_comes_back_byte_for_byte_after_a_reopen() {
         .enqueue("task.due", &body, None, 1)
         .unwrap();
     let back = Outbox::new(open(dir.path()), 10)
-        .next_due(10)
+        .next_due(10, |_| true)
         .unwrap()
         .unwrap();
     assert_eq!(back.body, body);
@@ -121,4 +124,20 @@ fn a_body_with_title_and_url_comes_back_byte_for_byte_after_a_reopen() {
         (json["title"].as_str(), json["url"].as_str()),
         (Some("Water drinken"), Some("/tasks/42?a=1&b=2"))
     );
+}
+
+#[test]
+fn a_row_nothing_can_be_sent_to_is_skipped_but_stays_queued_and_counted() {
+    let dir = tempfile::tempdir().unwrap();
+    let outbox = Outbox::new(open(dir.path()), 10);
+    outbox.enqueue("task.due", "app", None, 1).unwrap();
+    outbox.enqueue("update.ok", "kit", None, 2).unwrap();
+    let kit_only = |kind: &str| kind.starts_with("update.");
+    let due = outbox.next_due(10, kit_only).unwrap().unwrap();
+    assert_eq!(due.body, "kit", "the app row at the head does not block it");
+    outbox.delivered(due.id).unwrap();
+    assert_eq!(outbox.next_due(10, kit_only).unwrap(), None);
+    assert_eq!(outbox.counts().unwrap().waiting, 1, "the skipped row stays");
+    assert_eq!(outbox.count_undeliverable(kit_only).unwrap(), 1);
+    assert_eq!(outbox.count_undeliverable(|_| true).unwrap(), 0);
 }

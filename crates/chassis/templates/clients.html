@@ -51,12 +51,13 @@
     </section>
     <section class="kp-card" data-kp-span="6" aria-labelledby="clients-what-title">
       <h2 class="kp-card__title" id="clients-what-title">What {{ vocab_article }} {{ vocab.singular }} is</h2>
-      <p class="kp-lede" data-kp-lede-measure="full">The same token never goes to two programs.</p>
-      {# The package's empty plate (js/state-plate.js draws the same markup). #}
-      <div class="kp-empty kp-stateplate kp-stateplate--empty" role="status" data-kp-art="nomatch">
-        <strong class="kp-stateplate__title">No {{ vocab.plural }} yet</strong>
-        <span class="kp-stateplate__text">{{ vocab_article_cap }} {{ vocab.singular }} is one program with its own token. Switch one off without touching the others.</span>
-      </div>
+      {# [fix-hsb-ux-4] One message, in plain text: the steps on the left are the empty state, so this card explains the word instead of announcing "none yet" a second time. No state plate and no ruled placeholder lines. #}
+      <p class="kp-lede" data-kp-lede-measure="full">{{ vocab_article_cap }} {{ vocab.singular }} is one program with its own token. The same token never goes to two programs.</p>
+      <dl class="kp-kv kp-kv--lines">
+        <div class="kp-kv__row"><dt>Its name</dt><dd>How you recognise it in the list and in the logs.</dd></div>
+        <div class="kp-kv__row"><dt>Its token</dt><dd>Made when you issue it and shown once, so keep a copy.</dd></div>
+        <div class="kp-kv__row"><dt>Its own switch</dt><dd>Revoke one {{ vocab.singular }} and the others keep working.</dd></div>
+      </dl>
     </section>
   </div>
   {% endif %}

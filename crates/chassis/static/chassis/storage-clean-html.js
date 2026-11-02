@@ -28,8 +28,8 @@ function filterControl(k, f, v) {
 
 const FILTER_NOTES = {
   choice: 'Leave it on Any to ignore it.',
-  flag: 'Off means every row counts.',
-  text: 'Part of the value is enough. Empty means every row counts.',
+  flag: 'Off means everything counts.',
+  text: 'Part of the value is enough. Empty means everything counts.',
 };
 
 function filtersCard(k, c) {
@@ -53,7 +53,7 @@ function filtersCard(k, c) {
         ? `<p class="kp-dialog__note storage-nofilters" data-kp-formgrid-span="all">${esc(k.label)} declares no other filter: only the date decides.</p>`
         : '';
   return `<section class="kp-card storage-clean__filters" aria-labelledby="storage-clean-h-filters">
-      <div class="storage-card-head"><h3 class="kp-dialog__heading" id="storage-clean-h-filters">1 · Choose what to remove</h3><p class="kp-lede" data-kp-lede-measure="full">Only rows that match every choice are counted. Leave a choice on Any to ignore it.</p></div>
+      <div class="storage-card-head"><h3 class="kp-dialog__heading" id="storage-clean-h-filters">1 · Choose what to remove</h3><p class="kp-lede" data-kp-lede-measure="full">Only what matches every choice is counted. Leave a choice on Any to ignore it.</p></div>
       <fieldset class="kp-formgrid storage-form" data-kp-formgrid-stack="auto"${locked ? ' disabled' : ''}><legend class="kp-sr-only">What to remove</legend>
         ${older}${rows}${none}
         <div class="kp-formgrid__row kp-formgrid__row--buttons"><div class="kp-formgrid__control"><div class="kp-formgrid__buttons"><button type="button" class="kp-button" id="storage-clean-reset" data-storage-reset>Reset choices</button><button type="button" class="kp-button kp-button--primary" id="storage-clean-preview" data-storage-preview>Preview</button></div></div></div>
@@ -91,7 +91,7 @@ function previewCard(k, c, cards) {
     body = `<div class="kp-kpis storage-prev__kpis" role="group" aria-label="What was removed" data-kp-kpis-columns="all 2">${figure('Removed', count(d.count, k), `from ${esc(k.label)}`)}${figure('Empty space in the file', size(d.free), 'until it is compacted')}</div>
         <div class="kp-attention storage-prev__note" data-storage-band><div class="kp-alert kp-alert--success kp-attention__item" role="status"><span class="kp-attention__icon" aria-hidden="true">✓</span><div class="kp-attention__text"><strong>${esc(count(d.count, k))} removed from ${esc(k.label)}</strong><span>The file keeps its size until you compact it, so the budget reading does not drop yet.</span><span><b>What now:</b> Compact the application data to give ${size(d.free)} back.</span></div><div class="kp-attention__actions"><button type="button" class="kp-button" data-storage-compact>Compact…</button></div></div></div>`;
   } else if (asked === 'ready' && p) {
-    body = `<div class="kp-kpis storage-prev__kpis" role="group" aria-label="What would be removed" data-kp-kpis-columns="all 4 2">${figure('To remove', num(p.rows), unitOf(k))}${figure('Frees about', size(p.bytes), 'inside the file')}${figure('Oldest', `<span class="storage-when">${p.oldest ? when(p.oldest) : '—'}</span>`, 'of the rows to go')}${figure('Newest', `<span class="storage-when">${p.newest ? when(p.newest) : '—'}</span>`, 'of the rows to go')}</div>${sampleTable(k, p, cards)}`;
+    body = `<div class="kp-kpis storage-prev__kpis" role="group" aria-label="What would be removed" data-kp-kpis-columns="all 4 2">${figure('To remove', num(p.rows), unitOf(k))}${figure('Frees about', size(p.bytes), 'inside the file')}${figure('Oldest', `<span class="storage-when">${p.oldest ? when(p.oldest) : '—'}</span>`, 'of what is removed')}${figure('Newest', `<span class="storage-when">${p.newest ? when(p.newest) : '—'}</span>`, 'of what is removed')}</div>${sampleTable(k, p, cards)}`;
   }
   const lede = done ? 'Done. This is what was removed.' : 'A read-only count. Nothing is deleted before you confirm.';
   return `<section class="kp-card storage-clean__preview" data-kp-state="${state}" data-storage-card="preview" data-storage-pstate="${asked}" aria-labelledby="storage-clean-h-prev">
@@ -116,7 +116,7 @@ function confirmBand(k, c) {
     ? c.preview === 'idle'
       ? 'Press Preview first: you see what would go before you decide.'
       : c.preview === 'loading'
-        ? 'Counting the rows…'
+        ? 'Counting…'
         : c.preview === 'error'
           ? 'The preview failed, so there is nothing to confirm yet.'
           : c.preview === 'invalid'

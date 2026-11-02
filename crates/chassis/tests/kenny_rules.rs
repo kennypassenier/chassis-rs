@@ -10,6 +10,8 @@ mod support;
 mod component_states;
 #[path = "kenny_rules/fixtures.rs"]
 mod fixtures;
+#[path = "kenny_rules/kit_choices.rs"]
+mod kit_choices;
 #[path = "kenny_rules/kit_page_fit.rs"]
 mod kit_page_fit;
 #[path = "kenny_rules/layout_and_shell.rs"]

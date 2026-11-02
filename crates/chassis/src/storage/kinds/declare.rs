@@ -19,7 +19,7 @@ impl DataKind {
             id: id.into(),
             label: label.into(),
             description: String::new(),
-            unit: "rows".into(),
+            unit: "items".into(),
             shape: Shape::Table {
                 table: String::new(),
                 time: None,
@@ -51,7 +51,7 @@ impl DataKind {
     }
 
     /// What this kind's rows are called in a count on the page, in the
-    /// plural: `"cells"`, `"samples"`. Default `"rows"`.
+    /// plural: `"cells"`, `"samples"`. Default `"items"`.
     pub fn unit(mut self, plural: &str) -> Self {
         self.unit = plural.into();
         self

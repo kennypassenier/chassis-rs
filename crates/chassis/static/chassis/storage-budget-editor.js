@@ -4,8 +4,8 @@
 // (`ctx.draft`, `ctx.formSignature`) and must never eat what is being typed.
 import { api } from './json-api.js';
 import { editHtml, fixedBy, levelFor, mbBytes, problemWith } from './storage-budget-form.js';
-import { figureOf, stackSpec, totals } from './storage-budget-html.js';
-import { levelBadge, size, num } from './storage-format.js';
+import { figureOf, legendSpec, stackSpec, totals } from './storage-budget-html.js';
+import { levelBadge, size } from './storage-format.js';
 
 export function createBudgetEditor(ctx) {
   const settingOf = () => ctx.data.budget.setting;
@@ -29,6 +29,8 @@ export function createBudgetEditor(ctx) {
     else kpi.removeAttribute('data-kp-tone');
     const bar = ctx.budgetCard.querySelector('[data-storage-stackbar]');
     if (bar) ctx.setStackbar(bar, stackSpec(t));
+    const legend = ctx.compactCard.querySelector('[data-storage-legend]');
+    if (legend) ctx.setStackbar(legend, legendSpec(t));
     ctx.budgetCard.querySelector('[data-storage-level]').innerHTML = levelBadge(level);
   }
 
@@ -36,7 +38,6 @@ export function createBudgetEditor(ctx) {
   function paintNotes(form, shown, bad) {
     const s = settingOf();
     const total = ctx.data.budget.total_bytes;
-    const pct = (b) => `${num(Math.round((total / mbBytes(b)) * 100))} %`;
     const note = (key, text, invalid) => {
       const el = form.querySelector(`[data-storage-note="${key}"]`);
       el.textContent = text;
@@ -45,7 +46,7 @@ export function createBudgetEditor(ctx) {
       if (invalid) form.querySelector(`[data-storage-field="${key}"]`).setAttribute('aria-invalid', 'true');
     };
     const badField = bad?.[0];
-    note('budget', badField === 'budget' ? bad[1] : `${size(total)} used of ${size(mbBytes(shown.budget))} (${pct(shown.budget)}).${s.budget_fixed ? ` ${fixedBy(s.budget_fixed)}` : ''}`, badField === 'budget');
+    note('budget', badField === 'budget' ? bad[1] : `${size(total)} used of ${size(mbBytes(shown.budget))}.${s.budget_fixed ? ` ${fixedBy(s.budget_fixed)}` : ''}`, badField === 'budget');
     note('warn', badField === 'warn' ? bad[1] : `Warns from ${size(mbBytes(shown.warn))}, ${Math.round((shown.warn / shown.budget) * 100)} % of the budget; ${size(Math.max(0, mbBytes(shown.warn) - total))} to go.${s.warn_fixed ? ` ${fixedBy(s.warn_fixed)}` : ''}`, badField === 'warn');
   }
 

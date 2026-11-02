@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::fixtures::{SERIAL, Seen, overview, receiver, refused, start, until};
 
 /// Wait until `seen` holds a body for `kind`, return the bodies for it.
-async fn bodies_of(seen: &Seen, kind: &str) -> Vec<String> {
+pub async fn bodies_of(seen: &Seen, kind: &str) -> Vec<String> {
     for _ in 0..150 {
         let found: Vec<String> = seen
             .lock()

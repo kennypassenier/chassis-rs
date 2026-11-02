@@ -11,5 +11,7 @@ mod delivery;
 mod fixtures;
 #[path = "notify_card/link_and_kit.rs"]
 mod link_and_kit;
+#[path = "notify_card/outbox_targets.rs"]
+mod outbox_targets;
 #[path = "notify_card/token.rs"]
 mod token;

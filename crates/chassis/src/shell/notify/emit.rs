@@ -61,7 +61,8 @@ impl Notifier {
         dedup: Option<Dedup>,
         link: Option<Link>,
     ) {
-        tracing::info!(event = kind, version, detail = %detail, "event");
+        // Never the detail text: apps put health data in it ([fix-notify-log-1]).
+        tracing::info!(event = kind, version, detail_len = detail.len(), "event");
         let event = Event {
             service: self.service.clone(),
             kind: kind.to_string(),

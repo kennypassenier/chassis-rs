@@ -66,6 +66,16 @@ fn epoch_rfc3339(secs: i64) -> String {
         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
+/// `{primary?, kit?, fallback?}`: what each target last said.
+fn last_errors_json(errors: &[crate::storage::notify_meta::LastError]) -> Value {
+    Value::Object(
+        errors
+            .iter()
+            .map(|e| (e.target.clone(), json!(e)))
+            .collect(),
+    )
+}
+
 fn view_json(v: View) -> Value {
     let both_locked = v.primary.locked() && v.fallback.locked();
     json!({
@@ -83,8 +93,11 @@ fn view_json(v: View) -> Value {
             "oldest_at": v.counts.oldest_at.map(epoch_rfc3339),
             "cap": v.cap,
             "dropped_total": v.dropped_total,
+            // Waiting messages that have no address to go to right now.
+            "no_target": v.no_target,
         },
         "last_error": v.last_error,
+        "last_errors": last_errors_json(&v.last_errors),
         "last_delivery": v.last_delivery,
     })
 }

@@ -39,9 +39,6 @@ impl Dashboard {
                 error => error,
                 remember_me_days => self.remember_me_days,
                 passkeys => self.passkeys_enabled && https,
-                // The login page says what the service is before anyone is in.
-                version => self.version,
-                started_at => self.started_at,
             },
         )
     }

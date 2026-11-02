@@ -162,3 +162,37 @@ async fn every_kit_page_has_a_help_drawer_with_words_for_that_page() {
     let (_, anon) = app.page("/login").await;
     assert!(!anon.contains("data-chassis-help-open"));
 }
+
+/// [fix-hsb-ux-2] A tab is about 78 px wide, so "Try a translation" was cut
+/// to "TRY A TRANSLA…". A page may carry a short label for the tab bar only:
+/// the tab uses it, the header and the palette keep the title.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_short_label_is_used_by_the_tab_bar_only() {
+    let spec = AppSpec {
+        name: "shortdemo",
+        version: "0.0.0",
+        ..Default::default()
+    };
+    let mut app = TestApp::start_with(spec, Router::new(), |app| {
+        app.page(
+            Page::new("translate", "Try a translation", "/translate").short_label("Translate"),
+        );
+    })
+    .await;
+    app.login().await;
+    let (_, html) = app.page("/status").await;
+    let from = html.find("id=\"chassis-tabbar\"").unwrap();
+    let tabbar = &html[from..from + html[from..].find("</nav>").unwrap()];
+    assert!(
+        tabbar.contains(">Translate<"),
+        "the tab uses the short label"
+    );
+    assert!(!tabbar.contains("Try a translation"), "{tabbar}");
+    let header = &html[..from];
+    assert!(
+        header.contains(">Try a translation<"),
+        "the header keeps the full title"
+    );
+    let (_, json) = app.page("/api/kit/pages").await;
+    assert!(json.contains(r#""short_label":"Translate""#), "{json}");
+}

@@ -173,3 +173,37 @@ fn logged_webhook_urls_keep_only_scheme_and_host() {
     );
     assert_eq!(redacted_url("garbage"), "<unparseable url>");
 }
+
+/// [fix-notify-log-1]: the log line of an event names the kind and version,
+/// never the detail text (apps put health data in it).
+#[test]
+fn the_event_log_line_never_carries_the_detail_text() {
+    #[derive(Clone, Default)]
+    struct Capture(Arc<Mutex<Vec<u8>>>);
+    impl std::io::Write for Capture {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let cap = Capture::default();
+    let writer = cap.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(move || writer.clone())
+        .with_ansi(false)
+        .finish();
+    tracing::subscriber::with_default(subscriber, || {
+        // Other tests ran this callsite with no subscriber and cached "off".
+        tracing::callsite::rebuild_interest_cache();
+        Notifier::logging_only("med").emit("dose.missed", "1.2.3", "metformin 500 mg skipped");
+    });
+    let logs = String::from_utf8(cap.0.lock().unwrap().clone()).unwrap();
+    assert!(
+        logs.contains("dose.missed") && logs.contains("1.2.3"),
+        "{logs}"
+    );
+    assert!(!logs.contains("metformin"), "the detail leaked: {logs}");
+}

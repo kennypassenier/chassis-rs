@@ -130,6 +130,10 @@ pub(crate) struct View {
     pub cap: usize,
     pub dropped_total: u64,
     pub last_error: Option<LastError>,
+    /// What each target last said, for the targets that failed.
+    pub last_errors: Vec<LastError>,
+    /// Waiting messages with no address to go to.
+    pub no_target: u64,
     pub last_delivery: Option<LastDelivery>,
     /// Whether a primary token is set, and the variable it comes from.
     pub token_set: bool,

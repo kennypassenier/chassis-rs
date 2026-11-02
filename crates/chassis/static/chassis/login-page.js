@@ -98,8 +98,10 @@ async function readServiceHealth(root) {
     try {
       const res = await fetch('/healthz', { headers: { accept: 'application/json' }, cache: 'no-store' });
       const body = await res.json();
-      if (body.status === 'ok') done('ok', 'The service is healthy');
-      else done('down', 'The service is degraded');
+      // Anyone can open this page, so it says only that the service answers:
+      // whether a part of it is failing is for the signed-in Status page.
+      if (body && typeof body.status === 'string') done('ok', 'The service is running');
+      else done('failed', 'The service did not answer');
     } catch (_) {
       done('failed', 'The service did not answer');
     }
