@@ -86,11 +86,36 @@ function isCacheableResponse(res) {
     return !control.includes('no-store') && !control.includes('private');
 }
 
+/**
+ * Whether the request is the logout. The worker does not answer it (the
+ * browser sends it), but it purges what a person could still read offline.
+ */
+function isLogoutRequest({ url, origin }) {
+    try {
+        const u = new URL(url);
+        return u.origin === origin && (u.pathname === '/logout' || u.pathname.startsWith('/logout/'));
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Whether a stored entry survives a logout: only the kit's own static files
+ * and the install files, which hold nothing of a login. Pages and the app's
+ * own files (a photo, an export) belong to the person who left.
+ */
+function survivesLogout(pathname) {
+    return ASSET_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
 /** The oldest keys beyond `max`, in the order the cache lists them. */
 function surplusKeys(keys, max = MAX_ENTRIES) {
     return keys.length > max ? keys.slice(0, keys.length - max) : [];
 }
 
 if (typeof module !== 'undefined') {
-    module.exports = { cacheNameFor, staleCaches, isCacheableRequest, isCacheableResponse, surplusKeys };
+    module.exports = {
+        cacheNameFor, staleCaches, isCacheableRequest, isCacheableResponse, surplusKeys,
+        isLogoutRequest, survivesLogout,
+    };
 }

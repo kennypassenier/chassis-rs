@@ -29,6 +29,16 @@ pub(super) async fn security_headers(req: Request, next: Next) -> Response {
     // dashboard form — login included — from Chrome. `same-origin` keeps
     // the referrer inside this host and still blanks it towards others.
     put(h, "referrer-policy", "same-origin");
+    // An answer in JSON is data for the caller that asked, often behind a
+    // login: no shared cache and no back-button copy keeps it. A handler
+    // that sets its own Cache-Control (static data files, `no-cache`) wins.
+    let json = h
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|ct| ct.starts_with("application/json"));
+    if json {
+        put(h, "cache-control", "no-store");
+    }
     res
 }
 

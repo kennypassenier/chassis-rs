@@ -110,9 +110,10 @@ docs/DASHBOARD.md, "The refresh control and the freshness line".
 
 ## Installable (PWA) (feat-webapp-4)
 
-A web app at the root is installable with no code of its own: the kit
-serves a manifest, icons and a service worker, and adds the tags to the
-pages. `WebApp::without_pwa()` opts out.
+A web app is installable with no code of its own, at the root or below it
+(see "Mounted below the root"): the kit serves a manifest, icons and a
+service worker, and adds the tags to the pages. `WebApp::without_pwa()` opts
+out.
 
 ```rust
 use chassis::shell::webapp::{Display, Pwa, WebApp};
@@ -130,38 +131,63 @@ app.webapp(WebApp::embedded(FILES).pwa(
 
 - **Routes (public, no login).** `/manifest.webmanifest`
   (`application/manifest+json`: `start_url` and `scope` `/`, the display
-  mode, colours, icons 192, 512 and a maskable 512), `/sw.js`
-  (`Cache-Control: no-cache`, scope `/`), `/pwa/icon-{180,192,512,maskable-512}.png`,
-  `/pwa/offline` and `/pwa/offline.js`. The browser fetches these without a
-  session, and a worker is installed before any login. Nothing else becomes
-  public; the app and its files still ask for the login.
+  mode, colours, icons 192, 512, a maskable 192 and 512 and a monochrome 512),
+  `/sw.js` (`Cache-Control: no-cache`, scope `/`),
+  `/pwa/icon-{180,192,512,maskable-192,maskable-512,monochrome-512}.png`,
+  `/pwa/icon.svg` (only when the web app ships an SVG there, else 404),
+  `/favicon.ico` (a 308 to `/pwa/icon-192.png`, unless the web app ships its
+  own `favicon.ico`, which is then served), `/pwa/offline` and
+  `/pwa/offline.js`. The files named by shortcut icons and screenshots (see
+  below) are public too, and nothing else is. The browser fetches these without a
+  session, and a worker is installed before any login. The app and its other
+  files still ask for the login.
 - **Tags.** Every HTML page gets `<link rel="manifest">`, `<meta
-  name="theme-color">` and an `apple-touch-icon` before `</head>`; a tag the
-  page already has is skipped. The kit's login page links the manifest too, so
+  name="theme-color">`, an `apple-touch-icon` and a tab icon
+  (`<link rel="icon" href="/pwa/icon-192.png">`, or `/pwa/icon.svg` ahead of
+  it when the web app ships one) before `</head>`; a tag the page already has
+  is skipped, so a page's own `rel="icon"` wins. The same tags and the
+  worker registration (`/static/chassis/pwa-boot.js`) are on every page
+  rendered through the kit layout (`render_project`, Clients, Storage and so
+  on), so do not add them again there. A page the project writes completely
+  itself (its own HTML, outside the kit layout) calls
+  `app.pwa_page_head()` and puts the result inside `<head>`; it returns
+  `None` when no web app is installable. The kit's login page links the manifest too, so
   an installed app can sign in. The worker is registered by
   `webapp-runtime.js`, so the CSP stays `script-src 'self'`, and only on a page
   that links the manifest.
 - **Own icons.** Put PNG files in the web app at `pwa/icon-180.png`,
-  `pwa/icon-192.png`, `pwa/icon-512.png` and `pwa/icon-maskable-512.png`
-  (the maskable one needs its artwork inside the central 60 %, the rest is
+  `pwa/icon-192.png`, `pwa/icon-512.png`, `pwa/icon-maskable-192.png`,
+  `pwa/icon-maskable-512.png` and `pwa/icon-monochrome-512.png` (the
+  monochrome one is the shape for themed launcher icons; the maskable ones need its artwork inside the central 60 %, the rest is
   cropped). Each file you supply replaces the generated one, independently;
   a file that is not a PNG is ignored. Without them the kit draws the brand's
-  first letter on the theme colour (generated at start, no image library).
-- **The worker never serves a stale page.** Network first for pages, scripts,
-  styles and other same-origin GETs: the cache is used only when the network
-  fails. Never handled: `/api`, `/login`, `/logout`, non-GET requests and range
-  requests. Never stored: anything but a plain 200 of this origin (no 303, no
-  opaque answer, nothing reached through a redirect such as the login page,
-  no event stream, no `Cache-Control: no-store`). The cache is named after the
-  kit's asset version and the web app's own build (a hash of its files), so
-  a release drops the old caches when its worker activates; at most 200 entries
-  are kept. An offline navigation without a stored copy shows a small offline
-  page that retries by itself.
+  first letter on the theme colour (the monochrome one on a transparent
+  ground; generated at start, no image library). An optional `pwa/icon.svg`
+  is listed in the manifest as a scalable icon and used as the tab icon.
+- **The worker never serves a stale page.** It handles only two kinds of
+  request, an allow-list: pages (a navigation, a document request or one that
+  accepts HTML) and static files (`/static/**`, `/pwa/**`, or a path ending
+  in js, mjs, css, map, woff2, ttf, png, svg, ico, jpg, jpeg, webp, gif or
+  webmanifest). Those go network first: the cache is used only when the
+  network fails. Everything else goes straight to the network untouched, so
+  the app's own data (for example `/data/tasks.json`) is never kept and never
+  shown stale offline. Never handled: `/api`, `/login`, `/logout`, non-GET and
+  range requests, and anything asking for `text/event-stream`. Never stored:
+  anything but a plain 200 of this origin (no 303, no opaque answer, nothing
+  reached through a redirect such as the login page, no event stream, no
+  `application/json`, no `Cache-Control: no-store` or `private`). The cache
+  is named after the kit's asset version and the web app's own build (a hash
+  of its files), so a release drops the old caches when its worker activates;
+  at most 200 entries are kept. An offline navigation without a stored copy
+  shows a small offline page that retries by itself.
 - **Updates.** The worker activates at once (`skipWaiting`, `clients.claim`)
   and tells open pages; a page that was already controlled reloads once per
   release (remembered in `sessionStorage`), so there is no reload loop.
-- **Conditions.** Only an app at the root (`.at("/x")` has no scope to claim)
-  and with the kit runtime (`without_kit_runtime()` also leaves the install
+  `Pwa::reload(Reload::Ask)` turns the automatic reload off: the page fires
+  `chassis-pwa-update` on `window` with `detail: { version, apply() }`, and
+  the app calls `apply()` at a moment it chooses (not while someone is
+  typing); `apply()` reloads once. `Reload::Auto` is the default.
+- **Conditions.** The web app has the kit runtime (`without_kit_runtime()` also leaves the install
   out, because the runtime registers the worker). Android offers the install
   only over HTTPS (or `localhost`): behind Traefik with a certificate that is
   the case; plain `http://` on a LAN address is not.
@@ -190,11 +216,70 @@ app.webapp(WebApp::embedded(FILES).pwa(
 query parameters; `ShareTarget::post(action)` as a form POST;
 `.params(title, text, url)` renames the three fields and `.files(field,
 &["image/*"])` also accepts files, which makes it a multipart POST. The
-action is the app's own route; the kit adds nothing behind it.
+action is the app's own route; the kit adds nothing behind it, with one
+exception: a GET share target changes data on a GET, and the login cookie
+rides a link from any website, so the kit answers 403 to a request for that
+path when `Sec-Fetch-Site` is present and is not `none` or `same-origin`, or,
+without that header, when the `Referer` names another host. A request with
+neither header (the share sheet of an installed app) passes. A POST share
+target is covered by the normal cross-site rule instead.
 
 The service worker never handles a request that asks for
 `text/event-stream`, so a live channel mounted anywhere stays a direct
 connection.
+
+### Mounted below the root
+
+A web app mounted with `.at("/app/hsb")` is installable too, and the whole
+service is then the installed app. The manifest, `/sw.js`, `/pwa/*` and
+`/favicon.ico` stay at the root with scope `/`, so the kit's pages and the
+project's own routes are inside the app. Icons, shortcut icons and
+screenshots are read from the web app's own files: `pwa/icon-192.png` in the
+mount's files serves `/pwa/icon-192.png`. The installed app opens on the
+mount (`/app/hsb/`); `Pwa::start_url("/")` picks another path of the app.
+`app.webapp(..)` may be called more than once, but only one of the web apps
+can be installable: with two the start and `--check` refuse and name the
+mounts (add `.without_pwa()` to all but one). Two web apps on the same mount
+path are refused as well.
+
+### More manifest members, icons and screenshots
+
+All optional, all written to the manifest only when set:
+
+```rust
+Pwa::new()
+    .categories(&["health", "lifestyle"])
+    .orientation(Orientation::Portrait)
+    .lang("nl").dir(Dir::Ltr)
+    .display_override(&[Display::Standalone, Display::MinimalUi])
+    .launch_handler(ClientMode::FocusExisting)
+    .start_url("/")
+    .reload(Reload::Ask)             // see "Updates" above
+    .shortcut(Shortcut::new("Water", "/water").icon("/img/water-96.png"))
+    .screenshot(Screenshot::new("/img/today.png", "1080x1920", FormFactor::Narrow)
+        .label("Today's habits"));
+```
+
+A shortcut icon is a 96x96 PNG file of the web app; a screenshot is a `.png`
+or `.webp` file of the web app with its size as `WxH`. Both are served
+outside the login (the launcher and the install prompt fetch them without a
+session); a missing file or the wrong image type is a 404, and no other path
+becomes public. A path with a scheme, a query, `#` or `..`, or a size that is
+not digits, refuses the start. `Pwa::screenshot` can be called more than once.
+
+The page script also keeps `<meta name="theme-color">` in step with the kit
+header's colour at start and on every `kp-theme-change` (installable pages
+only); the value in the HTML is only the first-paint colour.
+
+## Web Push (feature `push`)
+
+With the `push` feature (it implies `webapp`) an installable web app can send
+notifications to subscribed phones and browsers: `app.push().send(Push::new(..))`
+from the server, `window.chassisPush.state() | subscribe() | unsubscribe()`
+on the page (no UI of its own; it exists only on installable pages of a build
+with the feature). The service worker shows the notification and handles its
+buttons. Setup, the five `push_*` knobs, the routes and the limits are in
+docs/PUSH_DESIGN.md.
 
 ## Pages and the navigation (feat-pages-1)
 

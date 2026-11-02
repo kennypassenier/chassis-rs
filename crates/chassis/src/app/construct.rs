@@ -73,6 +73,7 @@ impl App {
             limits: core.limits,
             control: core.control,
             router,
+            shutdown: crate::shell::shutdown::ShutdownTrigger::new().0,
             api_router: Router::new(),
             dashboard_router: Router::new(),
             #[cfg(feature = "webapp")]
@@ -116,6 +117,8 @@ impl App {
             subsystems: Vec::new(),
             scrape_sources: Vec::new(),
             timeout_exempt: HashSet::new(),
+            body_limits: Vec::new(),
+            browser_features: Vec::new(),
             #[cfg(feature = "request-guard")]
             request_guards: Vec::new(),
             #[cfg(feature = "request-guard")]

@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
+use super::ece::MAX_PLAINTEXT;
 use crate::core::error::Error;
 
 /// Most action buttons one notification may carry. Browsers show fewer
@@ -135,7 +136,19 @@ impl Push {
                 doc[key] = json!(v);
             }
         }
-        Ok(doc.to_string().into_bytes())
+        let bytes = doc.to_string().into_bytes();
+        // Refused here, once, so an oversized notification is not recorded
+        // as a delivery failure on every subscription.
+        if bytes.len() > MAX_PLAINTEXT {
+            return Err(Error::invalid(
+                format!(
+                    "the push payload is {} bytes; at most {MAX_PLAINTEXT} fit in one message",
+                    bytes.len()
+                ),
+                "shorten the title or body, or leave out actions",
+            ));
+        }
+        Ok(bytes)
     }
 
     fn validate(&self) -> Result<(), Error> {

@@ -38,7 +38,7 @@ pub(crate) struct Checked {
     pub auth: String,
 }
 
-/// An endpoint must be an `https` URL with a host and no credentials: the
+/// An endpoint must be an `https` URL with a public host and no credentials: the
 /// message body is encrypted, but the endpoint itself is a capability, and
 /// a plain-text hop would leak it.
 pub fn check_endpoint(endpoint: &str) -> Result<(), Error> {
@@ -60,6 +60,9 @@ pub fn check_endpoint(endpoint: &str) -> Result<(), Error> {
     }
     if !url.username().is_empty() || url.password().is_some() {
         return Err(refuse("it carries credentials"));
+    }
+    if super::host::is_internal(&url) {
+        return Err(refuse("it points into a local network"));
     }
     Ok(())
 }
@@ -134,6 +137,37 @@ mod tests {
         }
         let long = format!("https://push.example/{}", "a".repeat(MAX_ENDPOINT_BYTES));
         assert!(check_endpoint(&long).is_err());
+    }
+
+    #[test]
+    fn endpoints_that_point_into_the_local_network_are_refused() {
+        for bad in [
+            "https://localhost/x",
+            "https://LOCALHOST./x",
+            "https://api.localhost/x",
+            "https://nas/x",
+            "https://127.0.0.1/x",
+            "https://2130706433/x",
+            "https://10.0.0.5:8443/x",
+            "https://192.168.1.1/x",
+            "https://172.16.0.1/x",
+            "https://169.254.169.254/latest/meta-data",
+            "https://100.64.0.1/x",
+            "https://0.0.0.0/x",
+            "https://[::1]/x",
+            "https://[fe80::1]/x",
+            "https://[fd00::1]/x",
+            "https://[::ffff:10.0.0.1]/x",
+        ] {
+            assert!(check_endpoint(bad).is_err(), "{bad:?}");
+        }
+        for good in [
+            "https://fcm.googleapis.com/fcm/send/abc",
+            "https://updates.push.services.mozilla.com/wpush/v2/x",
+            "https://8.8.8.8/x",
+        ] {
+            assert!(check_endpoint(good).is_ok(), "{good:?}");
+        }
     }
 
     #[test]

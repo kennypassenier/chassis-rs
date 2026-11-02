@@ -180,3 +180,71 @@ async fn the_error_page_renderer_sees_the_request_id_and_cookie() {
         "the context ends with the render"
     );
 }
+
+/// The cap also holds for a body that declares no length: the router sees
+/// the bytes cross the limit while the handler reads them.
+#[tokio::test]
+async fn body_limit_counts_streamed_bytes_and_picks_the_longest_prefix() {
+    let limits = BodyLimits::new(8, vec![("/in".into(), 64), ("/in/small".into(), 4)]).unwrap();
+    assert_eq!(limits.for_path("/x"), 8);
+    assert_eq!(limits.for_path("/in/a"), 64);
+    assert_eq!(limits.for_path("/in/small/a"), 4);
+    assert_eq!(limits.for_path("/ins"), 8, "whole segments only");
+
+    let app = Router::new()
+        .route(
+            "/in",
+            axum::routing::post(|b: axum::body::Bytes| async move { b.len().to_string() }),
+        )
+        .layer(middleware::from_fn_with_state(
+            limits,
+            body_limit::body_limit,
+        ));
+    // No content-length header: only the streamed count can refuse it.
+    let send = |n: usize| {
+        Request::builder()
+            .method("POST")
+            .uri("/in")
+            .body(Body::from(vec![b'x'; n]))
+            .unwrap()
+    };
+    let ok = app.clone().oneshot(send(40)).await.unwrap();
+    assert_eq!(ok.status(), StatusCode::OK);
+    let over = app.oneshot(send(65)).await.unwrap();
+    assert_eq!(over.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+/// [fix-no-store-1]: a JSON answer is `no-store` unless the handler chose.
+#[tokio::test]
+async fn json_answers_default_to_no_store() {
+    use axum::Json;
+    use axum::http::header::CACHE_CONTROL;
+    let app = Router::new()
+        .route("/j", get(|| async { Json(serde_json::json!({"a": 1})) }))
+        .route(
+            "/own",
+            get(|| async { ([(CACHE_CONTROL, "no-cache")], Json(serde_json::json!({}))) }),
+        )
+        .route("/text", get(|| async { "plain" }))
+        .layer(middleware::from_fn(security_headers));
+    let cc = |path: &'static str| {
+        let app = app.clone();
+        async move {
+            let res = app
+                .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            res.headers()
+                .get(CACHE_CONTROL)
+                .map(|v| v.to_str().unwrap().to_string())
+        }
+    };
+    println!("AFTER: /j cache-control = {:?}", cc("/j").await);
+    assert_eq!(cc("/j").await.as_deref(), Some("no-store"));
+    assert_eq!(
+        cc("/own").await.as_deref(),
+        Some("no-cache"),
+        "handler wins"
+    );
+    assert_eq!(cc("/text").await, None, "only JSON is defaulted");
+}

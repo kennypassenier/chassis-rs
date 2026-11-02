@@ -42,7 +42,7 @@ the outbox lives in the kit file that `dashboard` opens):
 | `notify_fallback_url` | none | Fallback target (a Home Assistant webhook address). |
 | `notify_outbox_max` | 5000 | Cap on unsent messages. |
 | `notify_kit_url` | none | Optional third target for the kit's own events (`KIT_EVENTS`). Configuration only (flag, `<P>_NOTIFY_KIT_URL`, config key); unset = they go to `notify_url`. |
-| `notify_token` | none | Secret. Client token for the primary target, sent as `Authorization: Bearer <token>`. Environment `<P>_NOTIFY_TOKEN` only. |
+| `notify_token` | none | Secret. Client token for the primary target (and the kit target), sent as `Authorization: Bearer <token>`. Environment `<P>_NOTIFY_TOKEN` only. |
 
 The existing `notify_timeout_secs`, `notify_retries`, `notify_backoff_base_ms`
 and `notify_backoff_cap_ms` also govern the channel's sends.
@@ -80,8 +80,8 @@ Bearer <client token>`, so a sender without a token gets 401 from the real
 hub. `notify_token` is a secret knob like the admin token: environment only
 (latch puts it there), a value in the config file is refused at start, no
 flag, `(secret)` in `--knobs`, `***` in `--print-config`. When set, the
-bearer header goes to the PRIMARY target only (normal delivery and the Test
-button). The fallback is a Home Assistant webhook whose address is its own
+bearer header goes to the hub targets, the primary and (when set) the kit
+target `notify_kit_url`, in normal delivery and in the Test button. The fallback is a Home Assistant webhook whose address is its own
 secret and never receives it. Held in `core::notify_token::NotifyToken`,
 whose `Debug` prints `***`, and set as a sensitive header value. Rule at
 start (a bad token refuses to start, naming `<P>_NOTIFY_TOKEN` and the
@@ -170,7 +170,7 @@ use is a deployment decision.
 
 **The Test message.** `POST /api/kit/notify/test` sends one message with
 `kind: "notify.test"` and a detail starting `TEST:` to EACH address that is
-set, one attempt each, and answers per target (`delivered`, `failed`,
+set (primary, fallback and the kit target), one attempt each, and answers per target (`delivered`, `failed`,
 `not_set`) with a sentence. Testing both is deliberate: the fallback is the
 one path normal operation never exercises. A test is never queued and does
 not change the last error. With no address set it answers 400 and the button

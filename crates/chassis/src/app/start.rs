@@ -120,6 +120,7 @@ impl App {
         Ok(Running {
             addr,
             stop: stop_tx,
+            shutdown: self.shutdown,
             task,
             shutdown_timeout: self.shutdown_timeout,
             flushes,

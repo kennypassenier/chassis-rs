@@ -11,6 +11,7 @@ impl Running {
     pub async fn stop(self) {
         let Running {
             stop,
+            shutdown,
             task,
             shutdown_timeout,
             flushes,
@@ -20,6 +21,9 @@ impl Running {
             storage_tasks,
             ..
         } = self;
+        // First, so a handler parked in a long poll returns now and the
+        // drain below does not wait out its budget.
+        shutdown.fire();
         #[cfg(feature = "storage")]
         for t in &storage_tasks {
             t.abort();

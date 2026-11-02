@@ -368,6 +368,7 @@ dependencies = [
  "governor",
  "hex",
  "http",
+ "http-body-util",
  "metrics",
  "metrics-exporter-prometheus",
  "minijinja",

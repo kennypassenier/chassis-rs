@@ -83,7 +83,9 @@ export function createRefreshBus({ target = null, clock = () => Date.now(), repo
     },
     /** Say the data on screen is as new as `date` (default: now); the freshness line follows. */
     markFresh(date = new Date(clock())) {
-      const ms = date instanceof Date ? date.getTime() : Number(date);
+      // A Date, epoch milliseconds or the ISO string a server sends; null,
+      // '' and anything that is no moment change nothing.
+      const ms = date instanceof Date ? date.getTime() : typeof date === 'string' && date.trim() !== '' ? Date.parse(date) : typeof date === 'number' ? date : NaN;
       if (!Number.isFinite(ms)) return;
       freshAt = ms;
       tickFresh = ms;

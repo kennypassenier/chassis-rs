@@ -27,3 +27,38 @@ fn secrets_need_both_or_neither_and_point_at_gen_secret() {
         "the remedy carries a pasteable candidate for a MALFORMED key"
     );
 }
+
+mod script_call {
+    use super::super::navigation::is_script_call;
+    use axum::http::HeaderMap;
+
+    fn h(pairs: &[(&'static str, &'static str)]) -> HeaderMap {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.parse().unwrap(), v.parse().unwrap()))
+            .collect()
+    }
+
+    #[test]
+    fn fetch_metadata_decides_and_a_navigation_keeps_the_redirect() {
+        assert!(is_script_call(&h(&[
+            ("sec-fetch-mode", "cors"),
+            ("sec-fetch-dest", "empty")
+        ])));
+        assert!(is_script_call(&h(&[("sec-fetch-dest", "empty")])));
+        assert!(!is_script_call(&h(&[
+            ("sec-fetch-mode", "navigate"),
+            ("sec-fetch-dest", "document")
+        ])));
+        assert!(is_script_call(&h(&[("accept", "application/json")])));
+        assert!(!is_script_call(&h(&[(
+            "accept",
+            "text/html,application/xhtml+xml,*/*;q=0.8"
+        )])));
+        assert!(
+            !is_script_call(&h(&[("accept", "*/*")])),
+            "plain clients keep the 303"
+        );
+        assert!(!is_script_call(&h(&[])));
+    }
+}

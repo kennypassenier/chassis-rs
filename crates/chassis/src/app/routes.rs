@@ -13,6 +13,14 @@ impl App {
         self
     }
 
+    /// A handle that resolves when the service begins to stop, at the START
+    /// of the drain. A handler that waits long (a long poll, a stream) selects
+    /// on it and returns early; otherwise graceful shutdown waits for it for
+    /// the whole shutdown timeout. Take it before `start`, clone it freely.
+    pub fn shutdown_signal(&self) -> crate::shell::shutdown::ShutdownSignal {
+        self.shutdown.signal()
+    }
+
     /// Routes only a logged-in admin may open (dashboard pages, L4).
     pub fn dashboard_routes(&mut self, router: Router) -> &mut Self {
         self.dashboard_router = self.dashboard_router.clone().merge(router);

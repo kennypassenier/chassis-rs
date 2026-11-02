@@ -104,7 +104,7 @@ impl App {
         }
         if self.limits.trusted_proxies.is_empty() && !self.listen.ip().is_loopback() {
             w.push(format!(
-                "trusted_proxies is empty while listening on {}: behind a reverse proxy every client shares the proxy's IP (one attacker's failed logins lock everyone out), cookies are never Secure and passkeys stay off. What now: set {prefix}_TRUSTED_PROXIES to the proxy's IP, or bind to 127.0.0.1 if no proxy is involved",
+                "trusted_proxies is empty while listening on {}: behind a reverse proxy every client shares the proxy's IP (one attacker's failed logins lock everyone out), the session cookie never gets `Secure` and passkeys stay off. What now: set {prefix}_TRUSTED_PROXIES to the proxy's IP, or bind to 127.0.0.1 if no proxy is involved",
                 self.listen
             ));
         }

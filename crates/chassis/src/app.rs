@@ -235,6 +235,7 @@ pub struct App {
     pub limits: Limits,
     pub control: Option<Control>,
     router: Router,
+    shutdown: crate::shell::shutdown::ShutdownTrigger,
     api_router: Router,
     dashboard_router: Router,
     /// feat-webapp-1: the project's own browser app, if it registered one.
@@ -292,6 +293,10 @@ pub struct App {
     subsystems: Vec<Arc<dyn Subsystem>>,
     scrape_sources: Vec<Arc<dyn ScrapeSource>>,
     timeout_exempt: HashSet<String>,
+    /// Raised request-body caps per path prefix ([`App::body_limit`]).
+    body_limits: Vec<(String, usize)>,
+    /// Browser features opted back in on the `Permissions-Policy`.
+    browser_features: Vec<String>,
     /// feat-guard-1: the project's checks in front of every route.
     #[cfg(feature = "request-guard")]
     request_guards: Vec<crate::shell::request_guard::RequestGuard>,
@@ -352,6 +357,7 @@ pub struct DashboardRegistry {
 pub struct Running {
     pub addr: SocketAddr,
     stop: oneshot::Sender<()>,
+    shutdown: crate::shell::shutdown::ShutdownTrigger,
     task: tokio::task::JoinHandle<()>,
     shutdown_timeout: Duration,
     flushes: Vec<Box<dyn FnOnce() + Send>>,

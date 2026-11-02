@@ -101,3 +101,40 @@ fn needs_project_config_is_true_only_for_a_start_and_a_check() {
         );
     }
 }
+
+/// [fix-sec-cookie-1]: a non-loopback listen address without a trusted
+/// proxy is said at `--check` and at start, naming the cookie and the knob;
+/// a loopback address and a configured proxy stay quiet.
+#[test]
+fn a_public_listen_address_without_trusted_proxies_is_warned_about() {
+    let dir = tempfile::tempdir().unwrap();
+    let warnings = |listen: &str, proxies: &str| {
+        // base_args carries a loopback --listen; drop that pair.
+        let mut args = secrets_env(dir.path());
+        let at = args.iter().position(|a| *a == "--listen").unwrap();
+        args.drain(at..at + 2);
+        args.extend(["--listen", listen]);
+        if !proxies.is_empty() {
+            args.extend(["--trusted-proxies", proxies]);
+        }
+        from_args_secret(spec(), argv(&args), Router::new())
+            .unwrap()
+            .startup_warnings()
+    };
+    let open = warnings("0.0.0.0:8080", "");
+    let hit: Vec<_> = open
+        .iter()
+        .filter(|w| w.contains("trusted_proxies"))
+        .collect();
+    assert_eq!(hit.len(), 1, "{open:?}");
+    assert!(hit[0].contains("Secure") && hit[0].contains("T_APP_TRUSTED_PROXIES"));
+    for quiet in [
+        warnings("127.0.0.1:8080", ""),
+        warnings("0.0.0.0:8080", "10.0.0.1"),
+    ] {
+        assert!(
+            !quiet.iter().any(|w| w.contains("trusted_proxies")),
+            "{quiet:?}"
+        );
+    }
+}

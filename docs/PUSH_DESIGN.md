@@ -56,7 +56,9 @@ cheap clone usable before `start` (like `App::notifier`); it connects when the
 dashboard mounts. `send` before that is an error, not a silent drop.
 
 **Subscriptions.** Endpoint unique; https only (a plain-http endpoint is
-refused, as are credentials in the URL); keys must be a P-256 point and a
+refused, as are credentials in the URL, loopback / private / link-local
+addresses, `localhost` and single-label names; a public name that resolves to
+a private address is not caught, there is no resolver hook); keys must be a P-256 point and a
 16-byte secret. Subscribing again renews in place and clears the error. A
 new endpoint past `push_max_subscriptions` is refused instead of evicting a
 working browser. A 404/410 from the push service deletes the subscription;

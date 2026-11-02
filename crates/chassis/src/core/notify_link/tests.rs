@@ -57,6 +57,9 @@ fn a_url_must_be_an_app_path_or_an_http_address() {
         "",
         "tasks/42",
         "//evil.example/x",
+        // A browser reads `\` as `/` in an http(s) address, so this is `//evil.example`.
+        "/\\evil.example/x",
+        "/a\\b",
         "javascript:alert(1)",
         "ftp://h/x",
         "/a b",

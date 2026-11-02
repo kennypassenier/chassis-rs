@@ -12,12 +12,15 @@
 //! points at `gen-secret` rather than printing a value into the journal
 //! (critic #12).
 
+mod admin_extractor;
 mod caller;
+mod cookie_origin;
 mod door_hint;
 #[cfg(test)]
 mod door_tests;
 mod limits;
 mod lookup;
+mod navigation;
 mod secrets;
 mod session;
 #[cfg(test)]
@@ -39,6 +42,7 @@ use crate::core::error::{Error, Kind};
 use crate::shell::guards::{Guards, IpLimit};
 use crate::shell::store::{Clients, SessionStore};
 
+pub use admin_extractor::RequireAdmin;
 use caller::bearer;
 pub(crate) use door_hint::DoorHint;
 pub(crate) use lookup::{identify_request, still_valid_now};
@@ -89,7 +93,8 @@ pub async fn still_valid(state: &AuthState, headers: &HeaderMap) -> bool {
 }
 
 /// Middleware for API routes: any authenticated caller passes and is
-/// attached as `Caller`; otherwise a JSON 401.
+/// attached as `Caller`; otherwise a JSON 401. A call authenticated by the
+/// session cookie (not a bearer) from another website is a JSON 403.
 pub async fn require_caller(
     State(state): State<AuthState>,
     mut req: Request<Body>,
@@ -98,6 +103,9 @@ pub async fn require_caller(
     let trusted = crate::shell::trusted::is_trusted(req.extensions());
     match identify_request(&state, trusted, req.headers()).await {
         Some(caller) => {
+            if let Some(refusal) = cookie_origin::refuse_cross_site(&state, req.headers()) {
+                return refusal;
+            }
             req.extensions_mut().insert(caller);
             next.run(req).await
         }
@@ -110,8 +118,9 @@ pub async fn require_caller(
     }
 }
 
-/// Middleware for dashboard routes: only Admin passes; a browser without
-/// a session is redirected to `/login` instead of getting a JSON 401.
+/// Middleware for dashboard routes: only Admin passes; a browser navigation
+/// without a session is redirected to `/login`, a script call (`fetch`: see
+/// `navigation`) gets a 401 JSON with the remedy.
 pub async fn require_admin(
     State(state): State<AuthState>,
     mut req: Request<Body>,
@@ -142,6 +151,14 @@ pub async fn require_admin(
             )
             .into_response()
         }
+        // A script call (fetch, XHR) must not follow a redirect into a 200
+        // login page; a navigation still lands on the form.
+        None if navigation::is_script_call(req.headers()) => Error::new(
+            Kind::Unauthorized,
+            "not logged in",
+            "log in on /login, then repeat the call",
+        )
+        .into_response(),
         None => Redirect::to("/login").into_response(),
     }
 }

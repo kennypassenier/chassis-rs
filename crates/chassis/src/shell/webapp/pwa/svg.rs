@@ -9,11 +9,47 @@ use super::super::Source;
 /// same with a leading slash).
 pub(super) const FILE: &str = "pwa/icon.svg";
 
-/// Whether `bytes` are SVG text: valid UTF-8 that contains an `<svg` tag.
-/// Anything else (an HTML error page, a PNG renamed) is not served as an
-/// image, so a browser never takes it for one.
+/// The policy of the public icon: a vector image needs nothing, and opened
+/// as a page (the URL is public) it must run no script whatever the app's
+/// own policy allows.
+pub(super) const CSP: &str = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+
+/// Whether `bytes` are an SVG document: valid UTF-8 whose root element is
+/// `<svg`, after an optional BOM, XML declaration, comments and doctype.
+/// Anything else (an HTML page that merely contains an inline `<svg`, a PNG
+/// renamed) is not served as an image, so a browser never takes it for one.
 pub(super) fn is_svg(bytes: &[u8]) -> bool {
-    std::str::from_utf8(bytes).is_ok_and(|t| t.to_ascii_lowercase().contains("<svg"))
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        return false;
+    };
+    let mut rest = text.trim_start_matches('\u{feff}').trim_start();
+    loop {
+        let skip = if rest.starts_with("<?") {
+            rest.find("?>").map(|i| i + 2)
+        } else if rest.starts_with("<!--") {
+            rest.find("-->").map(|i| i + 3)
+        } else if rest.starts_with("<!") {
+            doctype_end(rest)
+        } else {
+            break;
+        };
+        match skip {
+            Some(n) => rest = rest[n..].trim_start(),
+            None => return false,
+        }
+    }
+    rest.strip_prefix("<svg")
+        .and_then(|r| r.chars().next())
+        .is_some_and(|c| c.is_whitespace() || c == '>' || c == '/')
+}
+
+/// The end of a `<!DOCTYPE ...>` declaration, past an internal subset in `[...]`.
+fn doctype_end(s: &str) -> Option<usize> {
+    let close = s.find('>')?;
+    match s[..close].find('[') {
+        Some(_) => s.find("]>").map(|i| i + 2).or(Some(close + 1)),
+        None => Some(close + 1),
+    }
 }
 
 /// Whether the web app ships a usable `pwa/icon.svg`. Synchronous: it is

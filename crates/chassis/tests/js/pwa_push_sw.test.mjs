@@ -83,7 +83,7 @@ test('an open window is reused only when it shows the very page', () => {
     assert.equal(logic.pickClient([win('not a url')], '/', origin), null);
 });
 
-function worker({ fetchResult = { ok: true }, clients = [], maxActions = 2 } = {}) {
+function worker({ fetchResult = { type: 'basic', ok: true, status: 200 }, clients = [], maxActions = 2 } = {}) {
     const listeners = {};
     const log = { shown: [], fetched: [], opened: [], focused: [], closed: 0 };
     const self = {
@@ -133,6 +133,7 @@ test('an action button posts with the cookie, closes and does not open a window'
     assert.equal(url, '/api/habits/water/done');
     assert.equal(init.method, 'POST');
     assert.equal(init.credentials, 'same-origin');
+    assert.equal(init.redirect, 'manual', 'a redirect is never followed');
     assert.deepEqual(w.log.opened.concat(w.log.focused), []);
 });
 
@@ -141,6 +142,20 @@ test('a failed action post opens the app at the notification url instead of fail
         const w = worker({ fetchResult });
         await w.click('done', data);
         assert.deepEqual(w.log.opened, ['/habits/water']);
+    }
+});
+
+test('a redirect answer is a failure, never followed and never counted as success', async () => {
+    const answers = [
+        { type: 'opaqueredirect', ok: false, status: 0 },
+        { type: 'basic', ok: true, status: 302 },
+        { type: 'basic', ok: true, status: 0 },
+    ];
+    for (const fetchResult of answers) {
+        const w = worker({ fetchResult });
+        await w.click('done', data);
+        assert.equal(w.log.fetched[0].init.redirect, 'manual');
+        assert.deepEqual(w.log.opened, ['/habits/water'], JSON.stringify(fetchResult));
     }
 });
 

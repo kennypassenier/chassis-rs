@@ -42,7 +42,7 @@ pub(super) fn before_migration(
         )
     })?;
     tracing::info!(copy = %shown, from, "copy taken before the migration");
-    prune(path, keep)?;
+    prune(path, keep, from)?;
     Ok(dest)
 }
 
@@ -52,10 +52,23 @@ pub(super) fn snapshot_path(path: &Path, version: usize) -> PathBuf {
     path.with_file_name(format!("{stem}.pre-v{version}.db"))
 }
 
-/// Delete all but the newest `keep` copies of `path`, newest by version.
+/// The folder of `path`; a bare file name has the empty path as its parent,
+/// which means the current directory.
+fn folder_of(path: &Path) -> &Path {
+    match path.parent() {
+        Some(dir) if !dir.as_os_str().is_empty() => dir,
+        _ => Path::new("."),
+    }
+}
+
+/// Delete all but the newest `keep` copies of `path`, newest by version. The
+/// copy of version `fresh` was taken a moment ago for the migration that is
+/// about to run: it always stays (after a restore of an older backup it can
+/// have a lower number than leftovers of the newer line), and the other
+/// copies compete for the remaining `keep - 1` places.
 /// Every deletion is logged with its count; nothing goes silently.
-fn prune(path: &Path, keep: usize) -> Result<(), Error> {
-    let dir = path.parent().unwrap_or(Path::new("."));
+pub(super) fn prune(path: &Path, keep: usize, fresh: usize) -> Result<(), Error> {
+    let dir = folder_of(path);
     let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("db");
     let prefix = format!("{stem}.pre-v");
     let entries = std::fs::read_dir(dir).map_err(|e| {
@@ -73,14 +86,15 @@ fn prune(path: &Path, keep: usize) -> Result<(), Error> {
                 .strip_suffix(".db")?
                 .parse()
                 .ok()?;
-            Some((version, entry.path()))
+            (version != fresh).then(|| (version, entry.path()))
         })
         .collect();
-    if copies.len() <= keep {
+    let places = keep.saturating_sub(1);
+    if copies.len() <= places {
         return Ok(());
     }
     copies.sort_by_key(|(v, _)| *v);
-    let removed = copies.len() - keep;
+    let removed = copies.len() - places;
     for (_, old) in copies.iter().take(removed) {
         std::fs::remove_file(old).map_err(|e| {
             Error::dependency(
