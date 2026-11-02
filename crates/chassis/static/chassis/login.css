@@ -44,6 +44,15 @@
   align-content: start;
 }
 
+.kit-login__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-xs, 0.25rem) var(--kp-space-md, 1rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .kit-login__card > .kp-card__title { margin-block: 0 var(--kp-space-md, 1rem); }
 
 /* The or-line between the passkey and the token. */
