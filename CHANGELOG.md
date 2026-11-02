@@ -29,6 +29,15 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Added
 
+- **Extractor rejections answer in the kit's JSON shape**
+  (`[fix-rejection-json-1]`, Medicine Cabinet): a failed `Query`, `Json`,
+  `Form` or `Path` used to answer axum's text ("Failed to deserialize query
+  string: ..."); a layer now turns those into `{error, remedy}` with the same
+  400/415/422. A layer, not only a wrapper, because it covers every existing
+  handler without a code change; axum's rejection sentences are fixed and a
+  handler's own plain-text 400 is left alone. New public extractors
+  `ApiJson<T>`, `ApiQuery<T>`, `ApiPath<T>`, `ApiForm<T>` give the same
+  answer explicitly, so an app can drop its own copy.
 - **JSON answers default to `Cache-Control: no-store`** (`[fix-no-store-1]`,
   Medicine Cabinet audit): any `application/json` answer without its own
   `Cache-Control` (app API routes, dashboard and kit JSON) is no longer

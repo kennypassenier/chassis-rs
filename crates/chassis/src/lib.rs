@@ -42,6 +42,7 @@ pub use shell::dashboard::{
     Vocabulary, article_for,
 };
 pub use shell::health::{Subsystem, SubsystemStatus};
+pub use shell::http::extractors::{ApiForm, ApiJson, ApiPath, ApiQuery};
 pub use shell::metrics::{Counter, Gauge, ScrapeSource};
 pub use shell::shutdown::ShutdownSignal;
 #[cfg(feature = "self-update")]

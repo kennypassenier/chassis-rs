@@ -12,8 +12,14 @@
 mod access_log_line;
 mod error_page;
 mod error_response;
+pub mod extractors;
+#[cfg(test)]
+mod extractors_tests;
 mod hygiene;
 pub(crate) mod policy;
+mod rejections;
+#[cfg(test)]
+mod rejections_tests;
 
 // The dashboard's error page reads the request it renders for.
 #[cfg(any(feature = "dashboard", test))]
@@ -116,6 +122,9 @@ pub fn with_kit_layers(
             crate::shell::guards::untrusted_proxy_guard,
         ))
         .layer(RequestBodyLimitLayer::new(max_body_bytes))
+        // Extractor rejections become the kit's JSON error before the page
+        // layer (outside) looks at them.
+        .layer(middleware::from_fn(rejections::json_rejections))
         // Outside the limit layer, so its bare 413 passes through here.
         .layer(middleware::from_fn(json_413))
         // Outside every guard: their JSON refusals become pages for browsers.
