@@ -2,6 +2,8 @@
 // is held for the purge (at most `timeoutMs`), then sent; the worker also
 // deletes the chassis-data databases when it sees the /logout request.
 
+import { titled, wordsOf } from './data-errors.js';
+
 export const LOGOUT_PATH = '/logout';
 
 /** Whether a form action posts to the kit's logout. */
@@ -25,7 +27,7 @@ export async function purgeBeforeLogout(purge, timeoutMs, setTimer) {
 }
 
 export const LOGOUT_MESSAGES = {
-    title: 'Log out with unsent changes?',
+    logoutTitle: 'Log out with unsent changes?',
     body: (n) => `${n} ${n === 1 ? 'change has' : 'changes have'} not been sent yet and will be lost.`,
     accept: 'Log out anyway',
     stay: 'Stay',
@@ -41,10 +43,11 @@ export function logoutNeedsConfirm(unsent) {
  * `trigger`; `messages` may be a function, read when asked); resolves true on "Log out anyway", false on "Stay" / Escape.
  */
 export function askLogout({ confirm, trigger, unsent, messages = {} }) {
-    const text = { ...LOGOUT_MESSAGES, ...(typeof messages === 'function' ? messages() : messages) };
+    const given = wordsOf(messages);
+    const text = { ...LOGOUT_MESSAGES, ...given, logoutTitle: titled(given, 'logoutTitle', LOGOUT_MESSAGES.logoutTitle) };
     return new Promise((resolve) => {
         confirm(trigger, {
-            phrase: text.title,
+            phrase: text.logoutTitle,
             description: text.body(unsent),
             acceptLabel: text.accept,
             strings: { confirmCancel: text.stay },

@@ -3,7 +3,7 @@
 // open, and routes the buttons to drop() / resave(). Markup pieces live in
 // data-failed.js.
 
-import { wordsOf } from './data-errors.js';
+import { titled, wordsOf } from './data-errors.js';
 import { FAILED_MESSAGES, renderEmpty, renderEntry, reviewable } from './data-failed.js';
 
 function shell(doc, text, id) {
@@ -14,7 +14,7 @@ function shell(doc, text, id) {
         + '<button type="button" class="kp-icon-button kp-dialog__close" data-chassis-failed-act="close">×</button>'
         + '<p class="kp-drawer__desc"></p></header><div class="kp-drawer__body"></div>'
         + '<footer class="kp-drawer__foot"></footer>';
-    dialog.querySelector('.kp-dialog__title').textContent = text.title;
+    dialog.querySelector('.kp-dialog__title').textContent = text.failedTitle;
     dialog.querySelector('.kp-dialog__close').setAttribute('aria-label', text.close);
     dialog.querySelector('.kp-drawer__desc').textContent = text.intro;
     return dialog;
@@ -26,7 +26,10 @@ function shell(doc, text, id) {
  */
 export function createFailedView({ win, doc, kp, data, messages = {}, describe = null }) {
     // Read each time the drawer draws, so it follows the page language (fix-habits-data-7).
-    const wording = () => ({ ...FAILED_MESSAGES, ...wordsOf(messages) });
+    const wording = () => {
+        const given = wordsOf(messages);
+        return { ...FAILED_MESSAGES, ...given, failedTitle: titled(given, 'failedTitle', FAILED_MESSAGES.failedTitle) };
+    };
     let listening = false;
     let dialog = null;
     const body = () => dialog.querySelector('.kp-drawer__body');

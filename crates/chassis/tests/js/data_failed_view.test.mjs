@@ -94,3 +94,24 @@ test('the Why line takes the app\'s words, with the server\'s sentence as the se
     assert.equal(dds[1].textContent, 'Elders gewijzigd.');
     assert.equal(dds[1].children[0].textContent, 'this item was changed since you read it Read it again.');
 });
+
+test('the drawer and the logout dialog have their own headings; title stays the fallback for both (fix-habits-drawer-11)', async () => {
+    const { askLogout, LOGOUT_MESSAGES } = await import('../../static/chassis/data-logout.js');
+    const headingOf = async (messages) => {
+        const doc = fakeDoc();
+        const view = createFailedView({ win: { addEventListener() {}, removeEventListener() {} }, doc, kp: { openDialog: (d) => { d.open = true; } }, data: { queue: async () => [] }, messages });
+        await view.open();
+        return doc.body.children[0].querySelector('.kp-dialog__title').textContent;
+    };
+    const asked = async (messages) => {
+        let phrase;
+        await askLogout({ confirm: (t, o) => { phrase = o.phrase; o.onAccept(); }, trigger: null, unsent: 2, messages });
+        return phrase;
+    };
+    assert.equal(await headingOf({ failedTitle: 'Niet opgeslagen', logoutTitle: 'Uitloggen?', title: 'Oud' }), 'Niet opgeslagen');
+    assert.equal(await asked({ failedTitle: 'Niet opgeslagen', logoutTitle: 'Uitloggen?', title: 'Oud' }), 'Uitloggen?');
+    assert.equal(await headingOf({ title: 'Oud' }), 'Oud');
+    assert.equal(await asked(() => ({ title: 'Oud' })), 'Oud');
+    assert.equal(await headingOf({}), FAILED_MESSAGES.failedTitle);
+    assert.equal(await asked({}), LOGOUT_MESSAGES.logoutTitle);
+});

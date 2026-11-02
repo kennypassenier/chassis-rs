@@ -9,6 +9,9 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Fixed
 
+- **The drawer and the logout dialog have separate headings** [fix-habits-drawer-11] (Habits). `messages.failedTitle`
+  words the failed-edits drawer, `messages.logoutTitle` the logout question. `messages.title` still works as the
+  fallback for both, so existing apps keep their wording; the kit's English defaults apply when neither is given.
 - **The drawer's "Why" line speaks the app's language** [fix-habits-drawer-10] (Habits). The reason now comes from
   `messages`: `refusedReason(status, body)` first (return an empty string to pass), then `stale` (alias `reasonStale`)
   for 409 / 412, then `reasonOther`. The server's own `error` and `remedy` follow as a secondary line under it. When the

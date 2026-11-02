@@ -61,6 +61,10 @@ a language that is known only after `configure()`.
 `remedy` is the secondary line beneath. With none of these given, the server's sentence
 is the reason and the kit's English text appears only when the server said nothing.
 
+**Two headings** (fix-habits-drawer-11). `messages.failedTitle` is the drawer's heading and
+`messages.logoutTitle` the logout dialog's; `messages.title` is the fallback for both
+(compatibility), then the kit's English defaults.
+
 A write to an item path also reaches the **stored lists that hold the item**
 (fix-habits-data-3): the entry (found through `itemKey`) is replaced (PUT),
 merged (PATCH) or removed (DELETE) in every stored list of the item route's

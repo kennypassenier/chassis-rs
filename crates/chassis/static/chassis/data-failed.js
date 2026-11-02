@@ -9,7 +9,7 @@
 import { formatBrussels } from './format-text.js';
 
 export const FAILED_MESSAGES = {
-    title: 'Edits that were not saved',
+    failedTitle: 'Edits that were not saved',
     intro: 'The service refused these edits. Discard one to forget it, or save it again to send it over what is there now.',
     close: 'Close',
     discard: 'Discard',
