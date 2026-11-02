@@ -45,7 +45,10 @@ async fn supervised_update_swaps_and_a_second_run_touches_nothing() {
         "bin.prev is the old one"
     );
     assert!(!with_suffix(&bin, ".staging").exists());
-    assert!(!up.state_path().exists(), "supervised writes no state");
+    assert!(
+        up.pending_state().unwrap().is_none(),
+        "supervised writes no state"
+    );
     assert_eq!(
         copies.load(Ordering::SeqCst),
         1,
@@ -148,16 +151,15 @@ async fn hold_and_pending_state_block_an_install() {
     )
     .unwrap();
     std::fs::create_dir_all(dir.path().join("s")).unwrap();
-    write_state(
-        &up.state_path(),
-        &UpdateState {
+    up.store()
+        .unwrap()
+        .set_state(&UpdateState {
             from_version: "0.9.0".into(),
             to_version: "1.0.0".into(),
             previous_binary: "x".into(),
             attempts: 1,
-        },
-    )
-    .unwrap();
+        })
+        .unwrap();
     assert!(matches!(
         up.check_once().await.unwrap(),
         Outcome::Blocked { .. }

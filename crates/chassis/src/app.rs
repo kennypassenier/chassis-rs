@@ -51,6 +51,8 @@ mod knobs;
 mod limits;
 #[cfg(feature = "push")]
 pub(crate) use limits::parse_u64;
+#[cfg(any(feature = "dashboard", feature = "self-update"))]
+mod kit_handle;
 #[cfg(feature = "notify")]
 mod notify;
 #[cfg(feature = "dashboard")]
@@ -259,6 +261,10 @@ pub struct App {
     /// the pre-update copy snapshots (the kit's, the app's, registered ones).
     #[cfg(feature = "storage")]
     dbs: Vec<crate::storage::Db>,
+    /// The kit file, shared by the self-update decision and `open_stores`
+    /// (see `kit_handle`); empty until one of them opens it.
+    #[cfg(any(feature = "dashboard", feature = "self-update"))]
+    kit_handle: std::sync::Mutex<Option<crate::storage::Db>>,
     /// 3.11.0: the app database the project asked for, opened at start.
     #[cfg(feature = "storage")]
     app_db: Option<(crate::storage::AppDb, crate::storage::AppDbSpec)>,

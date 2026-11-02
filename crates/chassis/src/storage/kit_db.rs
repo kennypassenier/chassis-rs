@@ -28,13 +28,10 @@ mod clients;
 mod import;
 mod passkeys;
 mod rekey;
-mod schema;
 mod seal;
 mod sessions;
 #[cfg(test)]
 mod tests;
-
-pub(crate) use schema::{kit_file_name, kit_migrations, kit_schema_version};
 
 /// One passkey as the table keeps it; the credential is the serialised
 /// WebAuthn credential, sealed at rest.

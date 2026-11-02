@@ -6,6 +6,51 @@
 //! field) and is never touched by cleanup, vacuum or delete; `<name>.db`
 //! is the app's, opened through [`crate::App::app_db`]. The design and
 //! Kenny's decisions are in `docs/STORAGE_DESIGN.md`.
+//!
+//! # Moving a JSON file into the app database
+//!
+//! The kit keeps no data in loose JSON files, and neither should an app:
+//! data goes in the database, and only hand-edited configuration stays a
+//! file. An app that still has a JSON store moves it in once, with an import
+//! hook on its [`AppDbSpec`]. The hook runs after the migrations, in ONE
+//! transaction; an error or a count that does not match rolls everything
+//! back and the old file stays the truth until the next start retries.
+//! [`ImportContext::read_json`] reads the file (`Ok(None)` when it is
+//! absent) and a parse failure is an error naming the file.
+//!
+//! ```no_run
+//! use chassis::storage::{AppDbSpec, ImportReport, Migration};
+//! use serde::Deserialize;
+//!
+//! #[derive(Deserialize)]
+//! struct Note {
+//!     id: String,
+//!     text: String,
+//! }
+//!
+//! fn spec() -> AppDbSpec {
+//!     AppDbSpec::new(vec![Migration::sql(
+//!         "CREATE TABLE notes (id TEXT PRIMARY KEY, text TEXT NOT NULL) STRICT;",
+//!     )])
+//!     .with_import(|tx, ctx| {
+//!         let Some(notes) = ctx.read_json::<Vec<Note>>("notes.json")? else {
+//!             return Ok(ImportReport::default()); // fresh install: nothing to move
+//!         };
+//!         for n in &notes {
+//!             tx.execute(
+//!                 "INSERT INTO notes (id, text) VALUES (?1, ?2)",
+//!                 [&n.id, &n.text],
+//!             )?;
+//!         }
+//!         // Held, written, and the file to set aside as notes.json.migrated.
+//!         Ok(ImportReport::new(
+//!             notes.len() as u64,
+//!             notes.len() as u64,
+//!             vec![ctx.json_path("notes.json")],
+//!         ))
+//!     })
+//! }
+//! ```
 
 #[cfg(feature = "dashboard")]
 pub(crate) mod api;
@@ -14,6 +59,8 @@ mod db;
 mod kinds;
 #[cfg(feature = "dashboard")]
 mod kit_db;
+#[cfg(any(feature = "dashboard", feature = "self-update"))]
+mod kit_schema;
 #[cfg(all(feature = "dashboard", feature = "notify"))]
 pub(crate) mod notify_meta;
 #[cfg(feature = "dashboard")]
@@ -43,7 +90,9 @@ pub use kinds::{
 #[cfg(feature = "passkeys")]
 pub(crate) use kit_db::PasskeyRow;
 #[cfg(feature = "dashboard")]
-pub(crate) use kit_db::{ImportPlan, KitDb, kit_file_name, kit_migrations, kit_schema_version};
+pub(crate) use kit_db::{ImportPlan, KitDb};
+#[cfg(any(feature = "dashboard", feature = "self-update"))]
+pub(crate) use kit_schema::{kit_file_name, kit_migrations, kit_schema_version};
 
 /// Re-seal the sealed fields of the kit database at `path` from `old` to
 /// `new` in one transaction (what `<name> rekey` does beside the JSON files).
@@ -70,6 +119,13 @@ pub use runtime::{FileReport, Fixed, Level, Storage, StorageConfig, StorageRepor
 /// its own commit (3.12.0, homelab gap 140). A failed rename is a warning.
 pub fn mark_migrated(files: &[PathBuf]) {
     app_db::rename_migrated(files);
+}
+
+/// `x` becomes `x.imported`: the kit's own JSON files (the update state) once
+/// they are in the kit database.
+#[cfg(feature = "self-update")]
+pub(crate) fn rename_imported(files: &[PathBuf]) {
+    app_db::rename_with_suffix(files, "imported");
 }
 
 /// The sqlite crate the handles are built on, re-exported so a project

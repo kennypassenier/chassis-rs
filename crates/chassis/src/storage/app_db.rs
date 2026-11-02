@@ -284,6 +284,7 @@ pub struct CompactPreview {
 
 mod access;
 mod compact;
+mod context;
 mod import;
 mod lifecycle;
 mod operations;
@@ -293,3 +294,5 @@ mod tests;
 mod token;
 
 pub(crate) use import::rename_migrated;
+#[cfg(feature = "self-update")]
+pub(crate) use import::rename_with_suffix;

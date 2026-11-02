@@ -30,14 +30,14 @@ impl App {
     pub(super) fn open_stores(&mut self, loaded: &Loaded) -> Result<Stores, Error> {
         // 3.11.0: the sqlite files open (and migrate) before anything reads
         // or serves; a database newer than this build stops the start here.
-        #[cfg(all(feature = "storage", feature = "dashboard"))]
-        let kit_db = Some(crate::storage::Db::open(
-            &loaded
-                .state_dir
-                .join(crate::storage::kit_file_name(self.spec.name)),
-            &crate::storage::kit_migrations(),
-        )?);
-        #[cfg(all(feature = "storage", not(feature = "dashboard")))]
+        // A service with a dashboard or self-update has a kit file (the
+        // update state lives in it); otherwise there is none.
+        #[cfg(any(feature = "dashboard", feature = "self-update"))]
+        let kit_db = Some(self.kit_handle(loaded)?);
+        #[cfg(all(
+            feature = "storage",
+            not(any(feature = "dashboard", feature = "self-update"))
+        ))]
         let kit_db: Option<crate::storage::Db> = None;
         #[cfg(feature = "dashboard")]
         self.validate_browser_keys()?;

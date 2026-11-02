@@ -12,33 +12,17 @@
 //! This module is only storage. Validation of what a browser sends is
 //! `push/subscription.rs`; the sealing of the key is `push/mount.rs`.
 
-// Without the `push` feature only the schema step is used.
+// Without the `push` feature nothing here is used (the schema step lives
+// in `kit_schema`).
 #![cfg_attr(not(feature = "push"), allow(dead_code))]
 
 use rusqlite::OptionalExtension;
 
-use super::db::{Db, Migration, meta_get, meta_set};
+use super::db::{Db, meta_get, meta_set};
 use crate::core::error::Error;
 
 /// The `chassis_meta` row holding the sealed PKCS#8 of the VAPID key.
 const VAPID_ROW: &str = "push_vapid_key";
-
-/// The schema step. Part of `kit_migrations()` whether or not the `push`
-/// feature is compiled in, so every build agrees on the kit file's version.
-pub(crate) fn migration() -> Migration {
-    Migration::sql(
-        "CREATE TABLE kit_push_subscriptions (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            endpoint        TEXT NOT NULL UNIQUE,
-            p256dh          TEXT NOT NULL,
-            auth            TEXT NOT NULL,
-            created_at      INTEGER NOT NULL,
-            last_success_at INTEGER,
-            last_error      TEXT,
-            last_error_at   INTEGER
-         ) STRICT;",
-    )
-}
 
 /// One subscribed browser. `p256dh` and `auth` are base64url text.
 #[derive(Debug, Clone, PartialEq, Eq)]

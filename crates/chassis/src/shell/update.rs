@@ -12,7 +12,8 @@
 //!   already current, without touching anything. Never restarts, never
 //!   writes state: the supervisor preserved its own copy and rolls back
 //!   from outside (the homelab's contract).
-//! - **autonomous**: writes `update-state.json` first, then exits 0 so
+//! - **autonomous**: writes the update state (the kit database; formerly
+//!   `update-state.json`) first, then exits 0 so
 //!   `Restart=always` starts the new binary. On start,
 //!   `handle_pending_update` runs BEFORE the stores open (critic #2); the
 //!   second start of an unproven version restores `bin.prev`. Health for
@@ -22,7 +23,7 @@
 //! Ported from Almanac's `shell/update.rs`, which drilled this on CT 112.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use serde::Serialize;
@@ -41,9 +42,11 @@ use crate::shell::time::now_rfc3339;
 mod check;
 mod fetch;
 mod install;
+mod legacy;
 mod loops;
 mod paths;
 mod staging;
+mod store;
 #[cfg(test)]
 mod tests;
 
@@ -169,6 +172,9 @@ pub struct Updater {
     notify: EventSink,
     state_copy: Option<StateCopy>,
     last: Arc<Mutex<LastCheck>>,
+    /// The kit database's update tables, opened on first use unless the app
+    /// handed over its own handle with [`Updater::with_kit_db`].
+    store: OnceLock<store::UpdateStore>,
 }
 
 /// What the shell can see of a container, read once at startup.
@@ -215,6 +221,11 @@ pub fn verify_signature(
     Ok(sig)
 }
 
+/// Write the update state as the old `update-state.json`.
+#[deprecated(
+    since = "4.5.0",
+    note = "the update state lives in the kit database; this file is only imported once"
+)]
 pub fn write_state(path: &Path, state: &UpdateState) -> Result<(), Error> {
     let bytes = serde_json::to_vec_pretty(state).expect("state serialises");
     write_atomic(path, &bytes, "update state")
@@ -222,6 +233,10 @@ pub fn write_state(path: &Path, state: &UpdateState) -> Result<(), Error> {
 
 /// A corrupt state file reads as "no pending update" with a loud line
 /// rather than refusing to start (Almanac's rule).
+#[deprecated(
+    since = "4.5.0",
+    note = "the update state lives in the kit database; this file is only imported once"
+)]
 pub fn read_state(path: &Path) -> Option<UpdateState> {
     let bytes = std::fs::read(path).ok()?;
     match serde_json::from_slice(&bytes) {
@@ -233,6 +248,11 @@ pub fn read_state(path: &Path) -> Option<UpdateState> {
     }
 }
 
+/// Remove the old `update-state.json`.
+#[deprecated(
+    since = "4.5.0",
+    note = "the update state lives in the kit database; this file is only imported once"
+)]
 pub fn clear_state(path: &Path) {
     let _ = std::fs::remove_file(path);
 }

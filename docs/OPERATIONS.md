@@ -190,8 +190,7 @@ One root, `<P>_STATE_DIR` (default `/var/lib/<name>`). What lives there:
 | `<name>-kit.db` (+ `-wal`, `-shm`) | sqlite, 3.11.0: clients (token and field values sealed per field, XChaCha20-Poly1305 under `<P>_SECRET_KEY`), sessions (SHA-256 of the cookie), passkeys (credential sealed) | after the first start |
 | `<name>.db` (+ `-wal`, `-shm`) | the app's own database, when the service uses `App::app_db` | after the first start |
 | `clients.json.enc.migrated`, `sessions.json.enc.migrated`, `passkeys.json.enc.migrated` | what 3.10.0 and earlier kept in `*.json.enc`, renamed after the import into the kit database; still sealed, a backup; delete when no longer wanted | after the first start of 3.11.0 |
-| `update-state.json` | plaintext `{from_version, to_version, previous_binary, attempts}` | only while an autonomous update is on probation |
-| `update-skip.json` | plaintext list of versions this process installed and rolled back; never reinstalled (CF-3). Delete it to retry one on purpose | after the first autonomous rollback |
+| `update-state.json.imported`, `update-skip.json.imported` | what 4.4 and earlier kept as plaintext JSON for the self-update (the pending update, and the versions rolled back), renamed after the import into the kit database (tables `kit_update_state`, `kit_update_skipped`). Safe to delete | after the first start of 4.5 or later that had them |
 | `config.toml` | yours, optional | — |
 | `.chassis-probe`, `.<file>.tmp-<pid>` | transient: the write probe and atomic-write temp files | never at rest |
 
@@ -334,7 +333,7 @@ key until step 7):
 
 **Procedure C — the key is gone and no copy exists.** What is lost:
 every client token (re-issue each client), every browser session, every
-passkey. `update-state.json`, `update-skip.json` and the binary are unaffected.
+passkey. The update tables of the kit database and the binary are unaffected.
 
 1. `systemctl stop <name>`. Starting with a new key against the old
    files fails on purpose: `clients store cannot be decrypted with the
@@ -522,6 +521,6 @@ table.
 | Update refused with `is not https://` | LAN drill host on http without `update_allow_insecure` | SELF_UPDATE.md |
 | Update refused with `signature is for …` | `VERSION` and manifest from different releases, or a pre-chassis release without the `<repo> v<version>` comment | SELF_UPDATE.md step 6 |
 | `installed …` but the old version still serves | supervised never restarts; the supervisor must | SELF_UPDATE.md |
-| Update card says `newer available: …, but it was rolled back earlier and is skipped`; `update.held` every interval | that version crashed after an autonomous install and is on the skip list | SELF_UPDATE.md; `update-skip.json` |
+| Update card says `newer available: …, but it was rolled back earlier and is skipped`; `update.held` every interval | that version crashed after an autonomous install and is on the skip list | SELF_UPDATE.md; table `kit_update_skipped` in the kit database (delete the row to retry one on purpose) |
 | Last requests panel empty after a restart | captures are in memory by design (AR7) | DASHBOARD.md |
 | `notification not delivered after retries and fallback` | receiver down or wrong URL; the event is still in the log | §9 |

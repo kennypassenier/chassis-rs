@@ -88,6 +88,8 @@ impl App {
             backup_paths: Vec::new(),
             #[cfg(feature = "storage")]
             dbs: Vec::new(),
+            #[cfg(any(feature = "dashboard", feature = "self-update"))]
+            kit_handle: std::sync::Mutex::new(None),
             #[cfg(feature = "storage")]
             app_db: None,
             #[cfg(feature = "storage")]
