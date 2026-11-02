@@ -7,6 +7,18 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed
+
+- **Logging out warns about unsent offline edits on every page**
+  (`[fix-offline-logout-1]`). The guard used to exist only on pages that had
+  called `chassisData.configure()`, so the kit's own pages (Status, Clients,
+  Storage, the header's Log out) logged out without asking while the queue
+  held edits. It now reads the stored queue of every `chassis-data:*`
+  database of the origin, needs no configure, and is installed by the kit
+  pages and by the web-app runtime. With nothing unsent the logout stays
+  immediate; "Stay" now leaves the Log out button usable (the page's busy
+  state no longer runs for a held submit).
+
 ## [4.3.0] - 2026-11-02
 
 ### Fixed

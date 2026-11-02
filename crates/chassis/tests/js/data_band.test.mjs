@@ -74,10 +74,10 @@ test('submitting the logout form purges first, then sends it; other forms are le
     hookLogout({ win, doc, purge: async () => order.push('purge') });
     const other = { action: 'https://a.example/search', dataset: {}, submit: () => order.push('other') };
     let prevented = 0;
-    doc.fire('submit', undefined, { target: other, preventDefault: () => prevented++ });
+    doc.fire('submit', undefined, { target: other, preventDefault: () => prevented++, stopImmediatePropagation() {} });
     assert.equal(prevented, 0);
     const form = { action: 'https://a.example/logout', dataset: {}, submit: () => order.push('submit') };
-    doc.fire('submit', undefined, { target: form, preventDefault: () => prevented++ });
+    doc.fire('submit', undefined, { target: form, preventDefault: () => prevented++, stopImmediatePropagation() {} });
     await new Promise((r) => setTimeout(r, 20));
     assert.deepEqual([prevented, order], [1, ['purge', 'submit']]);
 });
@@ -114,7 +114,7 @@ test('logout: no unsent edits goes at once; unsent edits ask first, Stay keeps t
         hookLogout({ win, doc, purge: async () => order.push('purge'), unsent: () => 3, confirm });
         const form = { action: 'https://a.example/logout', dataset: {}, submit: () => order.push('submit') };
         let prevented = false;
-        listeners.submit({ target: form, preventDefault: () => (prevented = true) });
+        listeners.submit({ target: form, preventDefault: () => (prevented = true), stopImmediatePropagation() {} });
         await new Promise((r) => setTimeout(r, 20));
         assert.equal(prevented, true);
         assert.deepEqual(order, expected, answer);

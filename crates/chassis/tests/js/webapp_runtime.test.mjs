@@ -12,6 +12,9 @@ globalThis.window = { chassisRuntime: { marker: true } };
 const { installRuntime } = await import('../../static/chassis/webapp-runtime.js');
 delete globalThis.window;
 
+// A document as far as the runtime touches it at install: the logout guard listens for submits.
+const PAGE_DOC = () => ({ addEventListener() {} });
+
 function deps() {
     const calls = { attach: 0, remember: [], refresh: 0 };
     return {
@@ -27,8 +30,8 @@ function deps() {
 test('a second install on the same page does nothing', () => {
     const win = {};
     const { calls, deps: d } = deps();
-    const first = installRuntime(win, {}, d);
-    const second = installRuntime(win, {}, d);
+    const first = installRuntime(win, PAGE_DOC(), d);
+    const second = installRuntime(win, PAGE_DOC(), d);
     assert.equal(calls.attach, 1);
     assert.equal(calls.refresh, 1);
     assert.equal(first, second);
@@ -37,11 +40,11 @@ test('a second install on the same page does nothing', () => {
 
 test('remembered choices go through the database store only when it exists', () => {
     const none = deps();
-    installRuntime({}, {}, none.deps);
+    installRuntime({}, PAGE_DOC(), none.deps);
     assert.deepEqual(none.calls.remember, []);
     const storage = {};
     const some = deps();
-    installRuntime({ chassisPrefs: { storage } }, {}, some.deps);
+    installRuntime({ chassisPrefs: { storage } }, PAGE_DOC(), some.deps);
     assert.deepEqual(some.calls.remember, [{ storage }]);
 });
 
@@ -65,7 +68,7 @@ test('the core wires remember and refresh with the functions it is given', async
     };
     const storage = {};
     const win = { chassisPrefs: { storage } };
-    const rt = installRuntimeWith(kp, win, {}, d);
+    const rt = installRuntimeWith(kp, win, PAGE_DOC(), d);
     assert.deepEqual(seen.remember, [{ storage }]);
     assert.equal(seen.refreshKp, 'called');
     assert.equal(rt.effects, null, 'no attachEffects given: the effects are left to the app');

@@ -39,7 +39,8 @@ async fn put_dish(IfMatch(want): IfMatch, ...) -> Result<Revisioned<Dish>, Confl
 | `data-queue.js` | The write queue and its replay (ordering, stop rules, rebase). |
 | `data-client.js` | `createData`: get / put / patch / delete wired from the above; `fetch` is injected. |
 | `data-band.js` | Connection band (`data-kp-pending`, syncing) and the stale/conflict toast. The only file that touches the DOM, with `data-logout.js` and `data.js`. |
-| `data-logout.js` | Purges the copy and the queue when the logout form is submitted. |
+| `data-logout.js` | Purges the copy and the queue when the logout form is submitted, after asking when edits would be lost. |
+| `logout-guard.js`, `data-stored.js` | The guard on every page with a logout control: counts the queues of every `chassis-data:*` database of the origin (no `configure()` needed) and deletes them. Kit pages install it from `boot-kit.js`, app pages from `data.js`. |
 | `data.js` | `window.chassisData`; loaded by `webapp-runtime.js`. |
 | `shell/http/revision.rs`, `core/revision.rs` | Server: `IfMatch`, `Precondition`, `Revisioned<T>`, `Conflict`. |
 

@@ -38,10 +38,10 @@ export function logoutNeedsConfirm(unsent) {
 
 /**
  * Ask with the kit's confirm dialog (kp-themes `openConfirmation`, opened on
- * `trigger`); resolves true on "Log out anyway", false on "Stay" / Escape.
+ * `trigger`; `messages` may be a function, read when asked); resolves true on "Log out anyway", false on "Stay" / Escape.
  */
 export function askLogout({ confirm, trigger, unsent, messages = {} }) {
-    const text = { ...LOGOUT_MESSAGES, ...messages };
+    const text = { ...LOGOUT_MESSAGES, ...(typeof messages === 'function' ? messages() : messages) };
     return new Promise((resolve) => {
         confirm(trigger, {
             phrase: text.title,
@@ -69,6 +69,9 @@ export function hookLogout({ win, doc, purge, unsent = () => 0, confirm = null, 
         const form = event.target;
         if (!isLogoutAction(form?.action ?? '', win.location.href) || form.dataset?.chassisDataPurged) return;
         event.preventDefault();
+        // The page's own submit handlers (kp-themes' busy "Log out…" state) must not run
+        // for a form that may not be sent: after "Stay" the button would stay disabled.
+        event.stopImmediatePropagation();
         const trigger = event.submitter ?? form;
         Promise.resolve(unsent()).then(async (n) => {
             const ask = logoutNeedsConfirm(n) && confirm;

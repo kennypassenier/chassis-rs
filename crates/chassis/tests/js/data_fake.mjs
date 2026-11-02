@@ -53,3 +53,34 @@ export async function makeClient(svc, options = {}) {
     });
     return { data, events, timers, store, storage, svc };
 }
+
+/**
+ * A fake IndexedDB for the origin-wide scan: `dbs` maps a database name to
+ * its queue entries (or `null` for a database whose open fails). Records
+ * which names were opened, deleted, and whether any open passed a version.
+ */
+export function fakeIndexedDb(dbs) {
+    const log = { opened: [], deleted: [], versions: [] };
+    const request = (run) => {
+        const req = {};
+        queueMicrotask(() => { try { req.result = run(); req.onsuccess?.(); } catch (e) { req.error = e; req.onerror?.(); } });
+        return req;
+    };
+    return {
+        log,
+        databases: async () => Object.keys(dbs).map((name) => ({ name, version: 1 })),
+        open(name, version) {
+            log.opened.push(name); log.versions.push(version);
+            return request(() => {
+                if (dbs[name] === null) throw new Error('open failed');
+                const entries = dbs[name];
+                return {
+                    close() { log.closed = (log.closed ?? 0) + 1; },
+                    objectStoreNames: { contains: (n) => n === 'queue' && !entries.noQueue },
+                    transaction: () => ({ objectStore: () => ({ count: () => request(() => entries.length) }) }),
+                };
+            });
+        },
+        deleteDatabase(name) { log.deleted.push(name); return request(() => delete dbs[name]); },
+    };
+}
