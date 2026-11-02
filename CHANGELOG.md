@@ -9,6 +9,10 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Fixed
 
+- **Copies per query string are bounded per route** [fix-habits-data-6] (Habits). A route may be declared
+  `{ path: '/data/worklog', keep: 8 }`; the copies of that route that differ by query string (`?from=..&to=..`) are
+  limited to `keep`, the least recently used (kept or read offline) going first. Routes without `keep` use
+  `queryCopies` (default 8). The plain path is not counted, and the global size cap still applies.
 - **Toast, drawer and logout words follow the page language** [fix-habits-data-7] (Habits). `configure({ messages })`
   accepts a function returning the object; it is called each time the conflict, storage and band toasts are shown, the
   failed-edits drawer is drawn or opened, and the logout dialog is asked, so a language known only after the first read

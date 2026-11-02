@@ -30,6 +30,12 @@ helper for the app's own axum routes.
    not touch the copy again until the server answers. There is no `overwrite`
    policy.
 
+**Query-string copies are bounded** (fix-habits-data-6). Every query string keeps its
+own copy, so per route only the newest `keep` of them stay (`routes: [{ path, keep }]`,
+else `queryCopies`, default 8): LRU by last keep or offline read, order in memory and
+seeded from `savedAt` after a reload. The bare path does not count; the size cap
+still refuses copies on top of this.
+
 `configure({ messages })` is an object, or a function returning one (fix-habits-data-7);
 a function is called at show time (toasts, drawer, logout dialog), so the words follow
 a language that is known only after `configure()`.

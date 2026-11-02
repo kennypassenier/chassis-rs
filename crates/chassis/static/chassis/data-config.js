@@ -12,6 +12,7 @@ export const DEFAULTS = Object.freeze({
     retryMs: 30_000,
     onConflict: null,
     itemKey: 'id',
+    queryCopies: 8,
     messages: {},
 });
 
@@ -21,8 +22,10 @@ function fail(message, remedy) {
     return new Error(`chassisData: ${message}. ${remedy}`);
 }
 
-/** Compile `/api/dishes/:id` into `{ pattern, kind, test(path) }`. */
-export function compileRoute(pattern) {
+/** Compile `/api/dishes/:id` into `{ pattern, kind, keep, test(path) }`; `keep` is the route's own limit of query-string copies, or null. */
+export function compileRoute(declared) {
+    const { pattern, keep } = typeof declared === 'object' && declared !== null ? { pattern: declared.path, keep: declared.keep ?? null } : { pattern: declared, keep: null };
+    if (keep !== null) positive(keep, `keep of route ${pattern}`);
     if (typeof pattern !== 'string' || !pattern.startsWith('/') || pattern.includes('?')) {
         throw fail(`route ${JSON.stringify(pattern)} is not a path`, 'Use a path of this app such as "/api/dishes/:id".');
     }
@@ -32,7 +35,7 @@ export function compileRoute(pattern) {
         const got = path.split('/').slice(1);
         return got.length === parts.length && parts.every((p, i) => (PARAM.test(p) ? got[i] !== '' : p === got[i]));
     };
-    return { pattern, kind, test };
+    return { pattern, kind, keep, test };
 }
 
 function positive(value, key) {
@@ -62,6 +65,7 @@ export function normalize(options = {}) {
     }
     positive(merged.maxBytes, 'maxBytes');
     positive(merged.retryMs, 'retryMs');
+    positive(merged.queryCopies, 'queryCopies');
     const compiled = merged.routes.map(compileRoute);
     for (const route of compiled) route.child = route.kind === 'list' ? childRoute(compiled, route) : null;
     return { ...merged, compiled };
