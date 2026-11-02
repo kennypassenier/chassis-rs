@@ -183,3 +183,21 @@ test('the worker passes app data through untouched and keeps no copy', async () 
     await page.handle(request('/pwa/icon-192.png'));
     assert.equal(page.store.size, 3);
 });
+
+test('a logout drops every stored page and private file, and keeps the kit assets', async () => {
+    // hunt-pwa: the cache lives in browser storage past the session; offline
+    // after a logout it would show the last page of the person who left.
+    const w = worker({ network: () => res({ body: 'x' }) });
+    await w.handle(request('/tasks', 'navigate'));
+    await w.handle(request('/files/photo.jpg'));
+    await w.handle(request('/static/x.js'));
+    await w.handle(request('/pwa/icon-192.png'));
+    assert.equal(w.store.size, 4);
+    assert.equal(await w.handle(request('/logout', 'navigate', 'POST')), undefined, 'the browser still sends it');
+    assert.deepEqual([...w.store.keys()].sort(), [`${origin}/pwa/icon-192.png`, `${origin}/static/x.js`]);
+    assert.equal(logic.isLogoutRequest({ url: `${origin}/logout`, origin }), true);
+    assert.equal(logic.isLogoutRequest({ url: `${origin}/logout?x=1`, origin }), true);
+    assert.equal(logic.isLogoutRequest({ url: `${origin}/logout/`, origin }), true);
+    assert.equal(logic.isLogoutRequest({ url: `${origin}/logouts`, origin }), false);
+    assert.equal(logic.isLogoutRequest({ url: 'https://other.example/logout', origin }), false);
+});
