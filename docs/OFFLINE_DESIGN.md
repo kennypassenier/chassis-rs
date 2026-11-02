@@ -34,6 +34,7 @@ async fn put_dish(IfMatch(want): IfMatch, ...) -> Result<Revisioned<Dish>, Confl
 | `data-rev.js` | Pure: the revision of an answer (body field, else `ETag`), the `If-Match` value, rebasing queued writes after one succeeded. |
 | `data-policy.js` | Pure: what a status means (unreachable / conflict / rejected / auth / retry) and **the one conflict policy function**. |
 | `data-keep.js` | Pure: the per-device settings (all / per item), `shouldKeep`, the cap level. Loads and saves them in `localStorage`. |
+| `data-trim.js`, `data-trimmer.js` | Pure: list-to-item mapping and `storable` (what of an answer is kept); and the trim of the stored copy after a switch-off. |
 | `data-store.js` | IndexedDB behind a flat store interface (`reads`, `queue`). The only file that touches IndexedDB. |
 | `data-cache.js` | Reads copy with byte accounting and the cap. |
 | `data-queue.js` | The write queue and its replay (ordering, stop rules, rebase). |
@@ -51,8 +52,26 @@ async fn put_dish(IfMatch(want): IfMatch, ...) -> Result<Revisioned<Dish>, Confl
 path (a record `{path, data, rev, size, savedAt}`). No normalisation of lists
 into items: the app already has a list route and an item route, and Kitchen's
 adapter is just the route table. An "item" for the per-item toggle is a path
-matching an `:id` route. A list route is kept when "all" is on or at least one
-item is kept, so a kept dish can still be reached from its list.
+matching an `:id` route.
+
+**Trimmed keeping** (feat-offline-keep-1). With "keep everything" on, every
+answer is stored whole (`partial: false`). With it off, only kept items are
+stored, and a list answer is stored **trimmed** to the entries whose item is
+kept (`partial: true`), so the device does not hold every recipe because one is
+kept. A list route belongs to the item route one `/:param` below it
+(`/api/dishes` -> `/api/dishes/:id`); a list entry maps to its item path through
+the `itemKey` option (default `'id'`; a field name or `(entry) => key`). The
+answer may be an array or an object with an `items` array; any other shape, or a
+list without an item route, is not stored while "keep everything" is off, and
+nothing is stored at all while no item is kept. `keepItem(path, false)` removes
+that item's copy and its entry from stored lists; `keepAll(false)` trims every
+stored answer to the kept items (data-trimmer.js); `keepAll(true)` removes
+nothing and the next GET of a list stores the full answer. `get()` reports
+`partial` (offline reads of a trimmed list: `{offline: true, partial: true}`)
+so an app can say "only saved items are shown". `keepAll` / `keepItem` now
+return a promise (the trimming is awaited); `keepItem` still throws at once for
+a non-item path. Trimming only touches the `reads` store: queued writes are
+never dropped.
 
 **Writes queue behind each other.** On a network failure (fetch throws, or
 502/503/504) a write is queued with the `If-Match` it had (the revision of the

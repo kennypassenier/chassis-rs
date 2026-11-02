@@ -20,6 +20,15 @@ scaffold writes. A breaking change in either is a major and carries a
   view calls `preventDefault()` and the kit's stays shut. Texts can be
   replaced through `chassisData.configure({ messages })`.
 
+### Changed
+
+- **Offline keeping is trimmed** (`[feat-offline-keep-1]`). With `keepAll` off, a stored list answer now holds only the
+  entries of kept items (the new `itemKey` option, default `'id'`, maps an entry to its `:id` path) and item routes are
+  stored only for kept items, instead of the whole list once any item was kept. `keepItem(path, false)` removes the
+  item's copy and its list entry, `keepAll(false)` trims everything not kept, `keepAll(true)` stores full answers on the
+  next GET. `get()` now also returns `partial` (true for a trimmed list read offline). `keepAll` and `keepItem` return
+  promises; queued writes are never dropped by trimming. Design: `docs/OFFLINE_DESIGN.md`.
+
 ### Fixed
 
 - **Logging out warns about unsent offline edits on every page**

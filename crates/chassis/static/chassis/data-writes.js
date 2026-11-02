@@ -5,7 +5,7 @@
 import { checkPath, matchRoute } from './data-config.js';
 import { classify } from './data-policy.js';
 import { revOf } from './data-rev.js';
-import { shouldKeep } from './data-keep.js';
+import { storable } from './data-trim.js';
 import { send } from './data-send.js';
 import { fail, refusal } from './data-errors.js';
 
@@ -24,9 +24,8 @@ export function createWrites(ctx) {
         const route = matchRoute(config, entry.path);
         if (!route) return;
         if (entry.method === 'DELETE') return cache.forget(entry.path);
-        if (shouldKeep(ctx.settings(), route, entry.path) && body && typeof body === 'object') {
-            await cache.remember(entry.path, body, rev);
-        }
+        const keep = body && typeof body === 'object' ? storable(config, ctx.settings(), route, entry.path, body) : null;
+        if (keep) await cache.remember(entry.path, keep.data, rev, keep.partial);
     }
 
     /** What a queued edit does to the copy, so offline reads show it. */

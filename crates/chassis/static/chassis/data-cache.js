@@ -28,10 +28,12 @@ export async function createCache({ store, config, extraBytes = () => 0, onLevel
 
     return {
         usage,
+        /** The paths of the stored answers. */
+        paths: () => [...sizes.keys()],
         settle,
         read: (path) => store.getRead(path),
         /** Keep an answer. Returns false (and reports `full`) when it would pass the cap. */
-        async remember(path, data, rev) {
+        async remember(path, data, rev, partial = false) {
             const size = sizeOf(data);
             const room = config.maxBytes - readBytes() - extraBytes() + (sizes.get(path) ?? 0);
             if (size > room) {
@@ -39,18 +41,18 @@ export async function createCache({ store, config, extraBytes = () => 0, onLevel
                 onLevel({ ...usage(), level: 'full' });
                 return false;
             }
-            await store.putRead({ path, data, rev: rev ?? null, size, savedAt: now() });
+            await store.putRead({ path, data, rev: rev ?? null, partial, size, savedAt: now() });
             sizes.set(path, size);
             settle();
             return true;
         },
         /** Change the copy of `path` if there is one (a queued edit shows offline). */
-        async amend(path, change) {
+        async amend(path, change, extra = {}) {
             const had = await store.getRead(path);
             if (!had) return;
             const data = change(had.data);
             if (data === undefined) return this.forget(path);
-            await store.putRead({ ...had, data, size: sizeOf(data) });
+            await store.putRead({ ...had, ...extra, data, size: sizeOf(data) });
             sizes.set(path, sizeOf(data));
             settle();
         },

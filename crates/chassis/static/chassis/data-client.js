@@ -52,7 +52,6 @@ function createReplayer({ getQueue, config, setTimer, clearTimer }) {
 }
 
 export async function createData({ config, fetch, store, storage, emit = () => {}, setTimer, clearTimer, now }) {
-    const { current, api: settingsApi } = createSettings({ storage, config });
     let queue = null;
     let writes = null;
     const replayer = createReplayer({ getQueue: () => queue, config, setTimer, clearTimer });
@@ -61,6 +60,7 @@ export async function createData({ config, fetch, store, storage, emit = () => {
         extraBytes: () => queue?.bytes() ?? 0,
         onLevel: (detail) => emit('chassis-data-storage', detail),
     });
+    const { current, api: settingsApi } = createSettings({ storage, config, cache });
     queue = createQueue({
         store, send: (e) => send(fetch, e), field: config.rev, policy: config.onConflict,
         hooks: queueHooks(emit, replayer.schedule, () => writes),
