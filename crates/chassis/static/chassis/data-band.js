@@ -16,6 +16,8 @@ export const MESSAGES = {
     expired: 'You are logged out; edits will be sent after you log in.',
 };
 
+import { wordsOf } from './data-errors.js';
+
 const BAND = '[data-kp-connection]';
 /** The band state each way a replay can stop; `null` (all sent) is online. */
 const AFTER = { unreachable: 'offline', retry: 'refused', auth: 'refused', held: 'online' };
@@ -48,7 +50,8 @@ export function redrawBand(doc, kp, pending) {
 
 /** Wire the page's events to the band and the toasts; returns an unbind function. */
 export function bindBand({ win, doc, kp, data, messages = {}, view = null }) {
-    const text = { ...MESSAGES, ...messages };
+    // Read at show time, so a toast follows the language of the moment (fix-habits-data-7).
+    const words = () => ({ ...MESSAGES, ...wordsOf(messages) });
     let toastEl = null;
     const once = (words, options) => {
         if (!toastEl?.isConnected) toastEl = kp.toast(words, { live: 'assertive', sticky: true, ...options });
@@ -69,12 +72,17 @@ export function bindBand({ win, doc, kp, data, messages = {}, view = null }) {
         on(win, 'chassis-data-syncing', (e) => detail(e).syncing && paint(doc, kp, 'reconnecting', data.pending())),
         on(win, 'chassis-data-synced', (e) => {
             const state = AFTER[detail(e).stopped] ?? 'online';
+            const text = words();
             const why = { refused: text.refused, offline: undefined }[state];
             paint(doc, kp, state, data.pending(), detail(e).stopped === 'auth' ? text.expired : why);
         }),
-        on(win, 'chassis-data-conflict', (e) => once(detail(e).entry?.state === 'held' ? text.conflictHeld : text.conflict, { action: { label: text.review, onClick: () => review() } })),
+        on(win, 'chassis-data-conflict', (e) => {
+            const text = words();
+            once(detail(e).entry?.state === 'held' ? text.conflictHeld : text.conflict, { action: { label: text.review, onClick: () => review() } });
+        }),
         on(win, 'chassis-data-storage', (e) => {
             const { level, used, max } = detail(e);
+            const text = words();
             if (level === 'warn') once(text.nearCap(Math.round((used / max) * 100)), { sticky: false });
             if (level === 'full') once(text.full);
         }),

@@ -9,7 +9,7 @@
 import { formatBrussels } from './format-text.js';
 
 export const FAILED_MESSAGES = {
-    title: 'Edits that were not saved',
+    failedTitle: 'Edits that were not saved',
     intro: 'The service refused these edits. Discard one to forget it, or save it again to send it over what is there now.',
     close: 'Close',
     discard: 'Discard',
@@ -35,13 +35,45 @@ export const FAILED_MESSAGES = {
 /** The edits that need a person: refused (failed) or held; waiting ones are not. */
 export const reviewable = (queue) => queue.filter((e) => e.state === 'failed' || e.state === 'held');
 
-/** The server's reason for a refused edit, in its own words when it gave some. */
-export function reasonOf(entry, text) {
-    const body = entry.conflict?.body;
-    const said = body && typeof body === 'object' && typeof body.error === 'string' ? body.error.trim() : '';
-    if (said) return typeof body.remedy === 'string' && body.remedy.trim() ? `${said} ${body.remedy.trim()}` : said;
-    return entry.conflict?.status === 409 || entry.conflict?.status === 412 ? text.reasonStale : text.reasonOther;
+const STALE = [409, 412];
+const nonBlank = (v) => (typeof v === 'string' && v.trim() ? v.trim() : '');
+
+/** The server's own sentence for a refusal: its `error` and `remedy`. */
+function serverWords(body) {
+    if (!body || typeof body !== 'object') return '';
+    const said = nonBlank(body.error);
+    return said && nonBlank(body.remedy) ? `${said} ${nonBlank(body.remedy)}` : said;
 }
+
+/** The app's own reason, from `refusedReason(status, body)`, `stale` / `reasonStale` or `reasonOther`; '' when it gave none. */
+function ownReason(status, body, given) {
+    if (typeof given.refusedReason === 'function') {
+        try {
+            const said = nonBlank(given.refusedReason(status, body ?? null));
+            if (said) return said;
+        } catch (err) {
+            console.warn('chassisData: messages.refusedReason threw; the next wording is used.', err);
+        }
+    }
+    return nonBlank(STALE.includes(status) ? given.stale ?? given.reasonStale : given.reasonOther);
+}
+
+/**
+ * Why an edit was refused: `{ reason, detail }`. With the app's words
+ * (`given` = its `messages`) the reason is in them and the server's own
+ * sentence becomes the secondary `detail`; without, the server's sentence is
+ * the reason and the kit's English text only fills in when it said nothing.
+ */
+export function whyOf(entry, text, given = {}) {
+    const { status, body } = entry.conflict ?? {};
+    const server = serverWords(body);
+    const own = ownReason(status, body, given);
+    if (own) return { reason: own, detail: server && server !== own ? server : '' };
+    return { reason: server || (STALE.includes(status) ? text.reasonStale : text.reasonOther), detail: '' };
+}
+
+/** The reason line alone (see `whyOf`). */
+export const reasonOf = (entry, text, given = {}) => whyOf(entry, text, given).reason;
 
 function node(doc, tag, className, words) {
     const el = doc.createElement(tag);
@@ -58,29 +90,56 @@ function button(doc, label, className, act, id) {
     return el;
 }
 
-function fields(doc, entry, text) {
+/**
+ * What names a card: the app's `describe(entry) -> { title, detail? }` when it
+ * answers with a title, else the verb and the path. A throwing or empty
+ * describe falls back and says so on the console.
+ */
+export function labelOf(entry, text, describe = null) {
+    if (describe) {
+        try {
+            const label = describe(entry);
+            if (typeof label?.title === 'string' && label.title.trim()) {
+                return { title: label.title, detail: typeof label.detail === 'string' ? label.detail : '' };
+            }
+        } catch (err) {
+            console.warn('chassisData: describe() threw for a failed edit; its verb and path are shown.', err);
+        }
+    }
+    return { title: `${text.verbs[entry.method] ?? entry.method} ${entry.path}`, detail: '' };
+}
+
+function fields(doc, entry, text, given) {
     const list = node(doc, 'dl', 'kp-help__list');
+    const { reason, detail } = whyOf(entry, text, given);
     const rows = [
         [text.when, Number.isFinite(entry.at) ? formatBrussels(new Date(entry.at)) : ''],
-        [text.why, reasonOf(entry, text)],
+        [text.why, reason],
         [text.state, entry.state === 'held' ? text.stateHeld : text.stateFailed],
     ];
     for (const [term, value] of rows) list.append(node(doc, 'dt', '', term), node(doc, 'dd', '', value));
+    if (detail) { // the server's own sentence, under the reason
+        const why = list.children[3];
+        const more = node(doc, 'small', 'chassis-failed__detail', detail);
+        more.style.display = 'block';
+        why.append(more);
+    }
     return list;
 }
 
 /** One refused edit as a card: what it was, the facts, its two actions. */
-export function renderEntry(doc, entry, text) {
+export function renderEntry(doc, entry, text, describe = null, given = {}) {
     const card = node(doc, 'li', 'kp-card chassis-failed__item');
     card.dataset.chassisFailedItem = String(entry.id);
-    const verb = text.verbs[entry.method] ?? entry.method;
+    const label = labelOf(entry, text, describe);
     const head = node(doc, 'header', 'kp-card__header');
-    head.append(node(doc, 'h3', 'kp-card__title', `${verb} ${entry.path}`));
+    head.append(node(doc, 'h3', 'kp-card__title', label.title));
+    if (label.detail) head.append(node(doc, 'p', 'kp-card__subtitle', label.detail));
     // Two equal columns, so Discard and Save again line up from card to card.
     const actions = node(doc, 'div', 'kp-card__actions');
     actions.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:var(--kp-space-2);margin-block-start:var(--kp-space-3)';
     actions.append(button(doc, text.discard, '', 'discard', entry.id), button(doc, text.saveAgain, 'kp-button--primary', 'save', entry.id));
-    card.append(head, fields(doc, entry, text), actions);
+    card.append(head, fields(doc, entry, text, given), actions);
     return card;
 }
 

@@ -9,6 +9,7 @@ import { bindBand } from './data-band.js';
 import { normalize } from './data-config.js';
 import { createData } from './data-client.js';
 import { createFailedView } from './data-failed-view.js';
+import { wordsOf } from './data-errors.js';
 import { installLogoutGuard } from './logout-guard.js';
 import { memoryStore, openStore } from './data-store.js';
 
@@ -35,11 +36,12 @@ async function storeFor(win, name, deps) {
 /** The facade on `win`: methods wait for `configure()`, which may run once. */
 export function installData(win, doc, deps = {}, kp = null) {
     if (win.chassisData) return win.chassisData;
+    // The facade exists synchronously, before the app's module scripts: the server puts the runtime first in <head>.
     let ready = null;
     let words = {};
     // The logout guard needs no configure(): it reads the stored queues of
     // every chassis-data database, and adds the open client's own once there.
-    installLogoutGuard({ win, doc, confirm: kp?.openConfirmation, client: async () => (ready ? await ready : null), messages: () => words });
+    installLogoutGuard({ win, doc, confirm: kp?.openConfirmation, client: async () => (ready ? await ready : null), messages: () => wordsOf(words) });
     const configure = (options) => {
         if (ready) throw new Error('chassisData: configure() was already called on this page.');
         const config = normalize(options);
@@ -54,7 +56,7 @@ export function installData(win, doc, deps = {}, kp = null) {
                 clearTimer: (id) => win.clearTimeout(id),
                 now: () => Date.now(),
             });
-            const view = kp?.openDialog ? createFailedView({ win, doc, kp, data, messages: config.messages }) : null;
+            const view = kp?.openDialog ? createFailedView({ win, doc, kp, data, messages: config.messages, describe: config.describe }) : null;
             if (kp) bindBand({ win, doc, kp, data, messages: config.messages, view });
             win.addEventListener('online', () => data.retry());
             return { ...data, review: (trigger) => view?.open(trigger) };
@@ -69,5 +71,10 @@ export function installData(win, doc, deps = {}, kp = null) {
         };
     }
     win.chassisData = facade;
+    // For code that cannot rely on script order (a classic script, a late import):
+    // the promise settles with the facade, and the event fires once, at install (fix-habits-data-5).
+    win.chassisDataReady = Promise.resolve(facade);
+    // (a bare test window has no event machinery: nothing to announce there)
+    if (typeof win.dispatchEvent === 'function' && typeof win.CustomEvent === 'function') win.dispatchEvent(new win.CustomEvent('chassis-data-ready'));
     return facade;
 }
