@@ -36,6 +36,7 @@ async function storeFor(win, name, deps) {
 /** The facade on `win`: methods wait for `configure()`, which may run once. */
 export function installData(win, doc, deps = {}, kp = null) {
     if (win.chassisData) return win.chassisData;
+    // The facade exists synchronously, before the app's module scripts: the server puts the runtime first in <head>.
     let ready = null;
     let words = {};
     // The logout guard needs no configure(): it reads the stored queues of
@@ -70,5 +71,10 @@ export function installData(win, doc, deps = {}, kp = null) {
         };
     }
     win.chassisData = facade;
+    // For code that cannot rely on script order (a classic script, a late import):
+    // the promise settles with the facade, and the event fires once, at install (fix-habits-data-5).
+    win.chassisDataReady = Promise.resolve(facade);
+    // (a bare test window has no event machinery: nothing to announce there)
+    if (typeof win.dispatchEvent === 'function' && typeof win.CustomEvent === 'function') win.dispatchEvent(new win.CustomEvent('chassis-data-ready'));
     return facade;
 }

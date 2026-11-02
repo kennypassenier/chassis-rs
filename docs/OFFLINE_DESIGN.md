@@ -30,6 +30,11 @@ helper for the app's own axum routes.
    not touch the copy again until the server answers. There is no `overwrite`
    policy.
 
+**`chassisData` is there before the app's modules** (fix-habits-data-5). The runtime
+tag is injected right after `<head>` (both variants), so it executes before the
+app's own module scripts; `window.chassisDataReady` and the `chassis-data-ready`
+event serve code that does not follow script order.
+
 **Query-string copies are bounded** (fix-habits-data-6). Every query string keeps its
 own copy, so per route only the newest `keep` of them stay (`routes: [{ path, keep }]`,
 else `queryCopies`, default 8): LRU by last keep or offline read, order in memory and

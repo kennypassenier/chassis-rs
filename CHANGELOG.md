@@ -9,6 +9,10 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Fixed
 
+- **`window.chassisData` exists before the app's modules run** [fix-habits-data-5] (Habits). The server now puts the
+  runtime tag (either variant) right after the `<head>` opening instead of before `</head>`, so module scripts of the
+  app, which run in document order, find `window.chassisData`. `window.chassisDataReady` (a promise of the facade) and
+  the `chassis-data-ready` window event are there for code that cannot rely on order. PWA tags still go before `</head>`.
 - **Copies per query string are bounded per route** [fix-habits-data-6] (Habits). A route may be declared
   `{ path: '/data/worklog', keep: 8 }`; the copies of that route that differ by query string (`?from=..&to=..`) are
   limited to `keep`, the least recently used (kept or read offline) going first. Routes without `keep` use

@@ -21,7 +21,7 @@ fn count(haystack: &str) -> usize {
 }
 
 #[tokio::test]
-async fn html_gets_the_tag_once_before_the_head_end() {
+async fn html_gets_the_tag_once_right_after_the_head_opening() {
     let r = WebApp::embedded(FILES).without_pwa().router().unwrap();
     let res = get_path(&r, "/", &[]).await;
     let len: usize = res.headers()["content-length"]
@@ -32,8 +32,10 @@ async fn html_gets_the_tag_once_before_the_head_end() {
     let html = body(res).await;
     assert_eq!(len, html.len(), "content-length follows the injected bytes");
     assert_eq!(count(&html), 1);
+    // First in the head, so window.chassisData exists before the app's module
+    // scripts run (fix-habits-data-5).
     assert!(html.contains(&format!(
-        "{}</head>",
+        "<head>{}<title>",
         inject::runtime_tag_for(inject::Runtime::Bundle)
     )));
     // The SPA fallback is the same page.
@@ -117,7 +119,7 @@ async fn kp_modules_injects_the_modules_runtime_only() {
         .unwrap();
     let html = body(get_path(&r, "/", &[]).await).await;
     let tag = inject::runtime_tag_for(inject::Runtime::Modules);
-    assert!(html.contains(&format!("{tag}</head>")));
+    assert!(html.contains(&format!("<head>{tag}<title>")));
     assert!(html.contains("webapp-runtime-modules.js?v="));
     assert!(!html.contains("webapp-runtime.js"), "never both variants");
 }
@@ -139,4 +141,18 @@ async fn a_page_with_either_variant_is_left_alone_in_modules_mode() {
         .unwrap();
     let html = body(get_path(&r, "/own.html", &[]).await).await;
     assert_eq!(html.as_bytes(), HAS_TAG);
+}
+
+#[test]
+fn the_runtime_precedes_the_apps_own_module_scripts() {
+    let page: &'static [u8] =
+        b"<html><HEAD lang=x><script type=\"module\" src=\"/main.js\"></script></HEAD><body></body></html>";
+    let out = inject::with_head_tags(page.into(), Some(inject::Runtime::Bundle), None);
+    let html = String::from_utf8(out.into_owned()).unwrap();
+    assert!(html.find("webapp-runtime.js").unwrap() < html.find("/main.js").unwrap());
+    // `<header>` is not a head.
+    let page: &'static [u8] = b"<html><body><header>h</header></body></html>";
+    let out = inject::with_head_tags(page.into(), Some(inject::Runtime::Bundle), None);
+    let html = String::from_utf8(out.into_owned()).unwrap();
+    assert!(html.find("webapp-runtime.js").unwrap() > html.find("</header>").unwrap());
 }
