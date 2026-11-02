@@ -13,6 +13,7 @@
 //! (critic #12).
 
 mod caller;
+mod cookie_origin;
 mod door_hint;
 #[cfg(test)]
 mod door_tests;
@@ -90,7 +91,8 @@ pub async fn still_valid(state: &AuthState, headers: &HeaderMap) -> bool {
 }
 
 /// Middleware for API routes: any authenticated caller passes and is
-/// attached as `Caller`; otherwise a JSON 401.
+/// attached as `Caller`; otherwise a JSON 401. A call authenticated by the
+/// session cookie (not a bearer) from another website is a JSON 403.
 pub async fn require_caller(
     State(state): State<AuthState>,
     mut req: Request<Body>,
@@ -99,6 +101,9 @@ pub async fn require_caller(
     let trusted = crate::shell::trusted::is_trusted(req.extensions());
     match identify_request(&state, trusted, req.headers()).await {
         Some(caller) => {
+            if let Some(refusal) = cookie_origin::refuse_cross_site(&state, req.headers()) {
+                return refusal;
+            }
             req.extensions_mut().insert(caller);
             next.run(req).await
         }

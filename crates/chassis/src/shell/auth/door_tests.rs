@@ -92,3 +92,75 @@ async fn a_bearer_without_any_hint_keeps_the_original_remedy() {
     let (_, body) = call(Some("Bearer nope"), None).await;
     assert!(body.contains("or log in on /login"));
 }
+
+/// Call a guarded route with a valid session cookie or bearer plus extra headers.
+async fn call_with(credential: (&str, String), extra: &[(&str, &str)]) -> (StatusCode, String) {
+    let state = auth_state();
+    let value = match credential.0 {
+        "cookie" => {
+            let id = "session-for-test";
+            state.sessions.state.write().await.create(
+                id,
+                crate::shell::time::now_epoch(),
+                state.session_ttl_secs,
+                false,
+            );
+            format!("{}={id}", state.cookie_name())
+        }
+        _ => credential.1,
+    };
+    let name = if credential.0 == "cookie" {
+        header::COOKIE
+    } else {
+        header::AUTHORIZATION
+    };
+    let app = Router::new()
+        .route("/api/x", get(|| async { "ok" }))
+        .layer(from_fn_with_state(state, require_caller));
+    let mut req = Request::builder()
+        .uri("/api/x")
+        .header(header::HOST, "kyu.example")
+        .header(name, value);
+    for (k, v) in extra {
+        req = req.header(*k, *v);
+    }
+    let mut req = req.body(Body::empty()).unwrap();
+    req.extensions_mut().insert(ConnectInfo(
+        "127.0.0.1:9".parse::<std::net::SocketAddr>().unwrap(),
+    ));
+    let res = tower::ServiceExt::oneshot(app, req).await.unwrap();
+    let status = res.status();
+    let bytes = axum::body::to_bytes(res.into_body(), 1 << 16)
+        .await
+        .unwrap();
+    (status, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+/// [fix-api-csrf-1]: a cross-site GET carrying the session cookie is refused;
+/// the same call with a bearer, or from this site, passes.
+#[tokio::test]
+async fn a_cross_site_cookie_call_is_refused_but_bearer_and_same_site_pass() {
+    let cookie = || ("cookie", String::new());
+    let (status, body) = call_with(cookie(), &[("sec-fetch-site", "cross-site")]).await;
+    println!("AFTER (cross-site cookie GET): {status} {body}");
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(body.contains("\"error\"") && body.contains("\"remedy\""));
+    let (s, _) = call_with(cookie(), &[("referer", "https://evil.example/x")]).await;
+    assert_eq!(
+        s,
+        StatusCode::FORBIDDEN,
+        "foreign Referer without Sec-Fetch-Site"
+    );
+    for ok in [
+        vec![("sec-fetch-site", "same-origin")],
+        vec![("sec-fetch-site", "none")],
+        vec![("referer", "https://kyu.example/ui")],
+        vec![],
+    ] {
+        let (s, _) = call_with(cookie(), &ok).await;
+        assert_eq!(s, StatusCode::OK, "{ok:?}");
+    }
+    let bearer = ("bearer", "Bearer a-long-enough-login-token".to_string());
+    let (s, _) = call_with(bearer, &[("sec-fetch-site", "cross-site")]).await;
+    assert_eq!(s, StatusCode::OK, "bearer calls are unaffected");
+}

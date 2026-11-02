@@ -29,6 +29,13 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Added
 
+- **API calls authenticated by the session cookie must be same-site**
+  (`[fix-api-csrf-1]`, kyu): the cookie is `Lax`, so `GET /t/{t}/next?as=x`
+  on an `api_routes` route could be triggered by a link on another website.
+  A call with no bearer whose `Sec-Fetch-Site` is not `same-origin`/`none`
+  (or, without it, whose `Referer` names another host) is now a 403 JSON
+  `{error, remedy}`. Bearer-token calls are unaffected. The rule is shared
+  with the GET share target (`guards::cross_site`).
 - **`App::shutdown_signal()`** (`[fix-shutdown-signal-1]`, kyu): a cloneable
   `ShutdownSignal` that resolves at the START of the drain. A handler that
   waits long (kyu's `GET /t/{topic}/next?wait=300`) selects on
