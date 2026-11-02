@@ -121,3 +121,46 @@ async fn the_app_and_its_live_channel_sit_behind_the_login() {
     .await;
     assert!(ended.is_ok(), "the stream ended after logout");
 }
+
+#[tokio::test]
+async fn a_logged_out_fetch_gets_a_401_json_and_a_navigation_the_redirect() {
+    let app = TestApp::start_with(spec(), Router::new(), |app| {
+        app.webapp(WebApp::embedded(FILES));
+    })
+    .await;
+    let get = |headers: &[(&'static str, &'static str)]| {
+        let mut r = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap()
+            .get(app.url("/data/snapshot"));
+        for (k, v) in headers {
+            r = r.header(*k, *v);
+        }
+        r.send()
+    };
+    let fetch = get(&[
+        ("sec-fetch-mode", "same-origin"),
+        ("sec-fetch-dest", "empty"),
+        ("accept", "*/*"),
+    ])
+    .await
+    .unwrap();
+    assert_eq!(fetch.status(), 401);
+    let json: serde_json::Value = fetch.json().await.unwrap();
+    assert!(
+        json["error"].is_string() && json["remedy"].as_str().unwrap().contains("/login"),
+        "{json}"
+    );
+    let json_accept = get(&[("accept", "application/json")]).await.unwrap();
+    assert_eq!(json_accept.status(), 401, "old browser, JSON Accept");
+    let nav = get(&[
+        ("sec-fetch-mode", "navigate"),
+        ("sec-fetch-dest", "document"),
+        ("accept", "text/html,application/xhtml+xml"),
+    ])
+    .await
+    .unwrap();
+    assert_eq!(nav.status(), 303);
+    assert_eq!(nav.headers()["location"], "/login");
+}

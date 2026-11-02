@@ -36,6 +36,7 @@ mod paths;
 mod pwa;
 mod router;
 mod serving;
+pub(crate) mod share_guard;
 mod validate;
 
 use std::path::PathBuf;
@@ -180,5 +181,7 @@ mod pwa_screenshots_tests;
 mod pwa_tests;
 #[cfg(test)]
 mod runtime_tests;
+#[cfg(test)]
+mod share_guard_tests;
 #[cfg(test)]
 mod tests;

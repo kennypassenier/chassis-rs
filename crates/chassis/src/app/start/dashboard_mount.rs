@@ -109,9 +109,15 @@ impl App {
             Some(w) => (w.pwa_router(&brand), w.pwa_page_head()),
             None => (None, None),
         };
+        let share_path = apps
+            .iter()
+            .find_map(|w| w.get_share_path().map(String::from));
         let mut merged = std::mem::take(&mut self.dashboard_router);
         for w in apps {
             merged = merged.merge(w.router()?);
+        }
+        if let Some(path) = share_path {
+            merged = crate::shell::webapp::share_guard::apply(merged, path);
         }
         Ok((merged, routes, head))
     }

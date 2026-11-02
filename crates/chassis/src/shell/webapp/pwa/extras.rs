@@ -86,6 +86,15 @@ pub struct ShareTarget {
 impl ShareTarget {
     /// A GET to `action` (a path in the app) with the shared title, text and
     /// link as the query parameters `title`, `text` and `url`.
+    ///
+    /// A GET carries the session cookie on a top-level navigation from any
+    /// website, so a route that writes on this GET could be triggered by a
+    /// link on another site. The kit therefore refuses, with a 403, a request
+    /// to `action` whose `Sec-Fetch-Site` is not `none` or `same-origin`, or
+    /// (without that header) whose `Referer` names another host; an installed
+    /// app's share sheet sends neither header. The route still must not trust
+    /// the query beyond what it validates. Use [`ShareTarget::post`] for the
+    /// kit's regular CSRF rule.
     pub fn get(action: &str) -> Self {
         ShareTarget {
             action: action.into(),
@@ -118,6 +127,11 @@ impl ShareTarget {
         self.post = true;
         self.files = Some((field.into(), accept.iter().map(|a| a.to_string()).collect()));
         self
+    }
+
+    /// The path of a GET share target; `None` for a POST one.
+    pub(super) fn get_action(&self) -> Option<&str> {
+        (!self.post).then_some(self.action.as_str())
     }
 
     fn json(&self) -> Value {
