@@ -42,11 +42,12 @@ pub async fn receiver(status: u16, duplicate: bool) -> (String, Seen) {
 }
 
 /// A port that refuses at once.
+/// An address that refuses every connection. Port 1 is privileged, so no
+/// test can bind it; a port taken and dropped could be picked up by a
+/// parallel test's receiver and then take the message (seen at the 4.2.0
+/// release gate: "delivered via primary").
 pub fn refused() -> String {
-    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let port = l.local_addr().unwrap().port();
-    drop(l);
-    format!("http://127.0.0.1:{port}/t/ops")
+    "http://127.0.0.1:1/t/ops".to_string()
 }
 
 pub fn spec(name: &'static str) -> AppSpec {
