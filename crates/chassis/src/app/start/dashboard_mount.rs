@@ -31,6 +31,15 @@ impl App {
         #[cfg(not(feature = "webapp"))]
         let webapp_at_root = false;
         self.validate_pages(webapp_at_root)?;
+        // fix-push-meta-1: the pages carry the push marker only where the
+        // push routes will be mounted (same decision as `push::mount`).
+        #[cfg(feature = "push")]
+        {
+            let open = crate::app_dashboard::is_open(&self.spec, loaded)?;
+            let has_db = stores.storage.kit_db().is_some();
+            let on = crate::push::mount::will_mount(open, has_db);
+            self.webapp.iter_mut().for_each(|w| w.set_push_marker(on));
+        }
         let (dashboard_router, pwa_routes, pwa_head) = self.dashboard_with_webapp()?;
         crate::app_dashboard::mount_with(
             crate::app_dashboard::MountInput {

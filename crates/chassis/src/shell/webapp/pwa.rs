@@ -64,6 +64,10 @@ pub struct Pwa {
     pub(super) share_target: Option<ShareTarget>,
     pub(super) screenshots: Vec<Screenshot>,
     fields: fields::Fields,
+    /// fix-push-meta-1: whether pages carry the `chassis-push` marker; on
+    /// until the mount finds push is not mounted.
+    #[cfg(feature = "push")]
+    pub(super) push_marker: bool,
 }
 
 impl Default for Pwa {
@@ -86,6 +90,8 @@ impl Pwa {
             share_target: None,
             screenshots: Vec::new(),
             fields: fields::Fields::default(),
+            #[cfg(feature = "push")]
+            push_marker: true,
         }
     }
 
@@ -221,6 +227,15 @@ impl super::WebApp {
     /// registered one (the kit guards it against cross-site navigations).
     pub(crate) fn get_share_path(&self) -> Option<&str> {
         self.installable()?.share_target.as_ref()?.get_action()
+    }
+
+    /// fix-push-meta-1: drop (or restore) the `chassis-push` marker; the
+    /// dashboard mount turns it off where push is not mounted.
+    #[cfg(feature = "push")]
+    pub(crate) fn set_push_marker(&mut self, on: bool) {
+        if let Some(p) = self.pwa.as_mut() {
+            p.push_marker = on;
+        }
     }
 
     /// Whether the install settings are on (the web app opted in and has

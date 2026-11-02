@@ -182,6 +182,20 @@ async fn an_apps_own_favicon_ico_is_served_instead_of_the_redirect() {
     assert_eq!(get_path(&public(), "/favicon.ico", &[]).await.status(), 308);
 }
 
+/// fix-push-meta-1: where push is not mounted the marker is left out, so
+/// `window.chassisPush` does not exist to fail at subscribe().
+#[cfg(feature = "push")]
+#[tokio::test]
+async fn the_push_marker_is_left_out_where_push_is_not_mounted() {
+    let mut app = WebApp::embedded(FILES);
+    app.set_push_marker(false);
+    let page = body(get_path(&app.clone().router().unwrap(), "/", &[]).await).await;
+    assert!(!page.contains("chassis-push"), "{page}");
+    assert!(!app.pwa_head_html().unwrap().contains("chassis-push"));
+    app.set_push_marker(true);
+    assert!(app.pwa_head_html().unwrap().contains("chassis-push"));
+}
+
 #[cfg(feature = "push")]
 #[tokio::test]
 async fn an_installable_page_carries_the_push_marker_once() {

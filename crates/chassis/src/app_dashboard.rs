@@ -113,6 +113,13 @@ fn passkeys_wanted(open: bool, disabled: &[String]) -> bool {
     cfg!(feature = "passkeys") && !open && !disabled.iter().any(|d| d == "passkeys")
 }
 
+/// Whether the dashboard will run open (no login), decided as `mount_with`
+/// does; for the parts that must know before the mount.
+#[cfg(feature = "push")]
+pub(crate) fn is_open(spec: &AppSpec, loaded: &Loaded) -> Result<bool, Error> {
+    Ok(door::Door::resolve(spec, loaded, &spec.prefix())?.open)
+}
+
 pub(crate) async fn mount_with(
     input: MountInput<'_>,
     mut extra: MountExtra,

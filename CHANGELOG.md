@@ -262,6 +262,19 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Fixed
 
+- **Push: the page marker only where push is mounted** `[fix-push-meta-1]`.
+  Every installable page of a `push` build carried
+  `<meta name="chassis-push">`, also when the dashboard runs open (no login,
+  so no push routes), and `window.chassisPush.subscribe()` then failed. The
+  marker is now written only where the push routes are mounted; the mount
+  and the marker share one decision (`push::mount::will_mount`). A page
+  from `App::pwa_page_head()` called before start cannot know and keeps it.
+- **Push: a redirect is never an accepted action** `[fix-push-redirect-1]`.
+  The worker's notification-button POST followed redirects, so a route that
+  redirected counted as success and a cross-origin redirect would have been
+  visited. It now posts with `redirect: 'manual'` and treats a redirect as a
+  failure: the app opens at the notification's url, as on any other failure.
+
 - **A notification link cannot name another host with a backslash**
   (`[fix-hunt-core-1]`): `Link::new` refused `//host` but accepted `/\host`,
   which a browser reads as `//host`. A backslash in an app-path link is now

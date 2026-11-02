@@ -75,10 +75,12 @@ impl Pwa {
         // habits-push-1: tells the page script (push.js) that the server
         // has Web Push; `window.chassisPush` exists only where this is.
         #[cfg(feature = "push")]
-        tags.push(HeadTag {
-            key: "name=chassis-push",
-            html: "<meta name=\"chassis-push\" content=\"/api/kit/push\">".to_string(),
-        });
+        if self.push_marker {
+            tags.push(HeadTag {
+                key: "name=chassis-push",
+                html: "<meta name=\"chassis-push\" content=\"/api/kit/push\">".to_string(),
+            });
+        }
         tags
     }
 
