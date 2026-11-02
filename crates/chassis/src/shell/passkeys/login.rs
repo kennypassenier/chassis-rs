@@ -10,7 +10,7 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use webauthn_rs::prelude::*;
 
-use super::{LoginFinish, PasskeyState, Pending, StartResponse, webauthn_error};
+use super::{LoginFinishNext, PasskeyState, Pending, StartResponse, webauthn_error};
 use crate::core::error::{Error, Kind};
 use crate::shell::guards::is_https;
 use crate::shell::time::{now_epoch, now_rfc3339, random_hex};
@@ -49,7 +49,7 @@ pub(super) async fn finish(
     State(s): State<PasskeyState>,
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
-    Json(body): Json<LoginFinish>,
+    Json(body): Json<LoginFinishNext>,
 ) -> Result<Response, Error> {
     let Some(Pending::Login(auth)) = s.take_pending(&body.ceremony) else {
         return Err(Error::invalid(
@@ -57,6 +57,7 @@ pub(super) async fn finish(
             "press the passkey button again",
         ));
     };
+    let next = crate::shell::auth::next::destination(body.next.as_deref());
     let result = s
         .webauthn
         .finish_passkey_authentication(&body.credential, &auth)
@@ -89,5 +90,5 @@ pub(super) async fn finish(
     cookie.set_path("/");
     cookie.set_secure(is_https(peer, &headers, &s.auth.guards.trusted_proxies));
     tracing::info!("passkey login");
-    Ok((CookieJar::new().add(cookie), Redirect::to("/")).into_response())
+    Ok((CookieJar::new().add(cookie), Redirect::to(&next)).into_response())
 }

@@ -76,7 +76,12 @@ async fn an_unlisted_peer_still_logs_in() {
         .send()
         .await
         .unwrap();
-    assert_eq!(r.headers()["location"], "/login", "{}", r.status());
+    assert_eq!(
+        r.headers()["location"],
+        "/login?next=%2Fapi%2Fkit%2Fclients",
+        "{}",
+        r.status()
+    );
     app.shutdown().await;
 }
 
