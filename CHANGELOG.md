@@ -214,6 +214,13 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Fixed
 
+- **The API door's 401 remedy speaks to the program that got it**
+  (habits, `[fix-door-1]`): a request that carried an `Authorization`
+  header with an unknown token (a rotated or mistyped one) now gets
+  "send the token issued for this source on the Sources page (/clients),
+  as Authorization: Bearer <token>", in the app's own vocabulary and clients
+  page label. A request with no header keeps the old remedy. The `error`
+  text and the 401 status are unchanged.
 - **Kit pages register the service worker** (almanac, `[fix-pwa-boot-1]`):
   `/`, Clients, Storage and every page rendered through the kit layout
   carried the manifest but not the script that registers the worker, so a

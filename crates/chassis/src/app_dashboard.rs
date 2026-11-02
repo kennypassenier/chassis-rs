@@ -13,7 +13,7 @@ use axum::middleware::from_fn_with_state;
 use crate::app::{AppSpec, DashboardRegistry, Limits};
 use crate::core::crypto::Key;
 use crate::core::error::Error;
-use crate::shell::auth::{AuthState, login_limit, require_admin, require_caller};
+use crate::shell::auth::{AuthState, DoorHint, login_limit, require_admin, require_caller};
 use crate::shell::captures::capture_requests;
 use crate::shell::clients_api::TestRoute;
 use crate::shell::config_load::Loaded;
@@ -221,7 +221,13 @@ pub(crate) async fn mount_with(
             token_limit,
             crate::shell::auth::token_rate_limit,
         ))
-        .layer(from_fn_with_state(auth, require_caller));
+        .layer(from_fn_with_state(auth, require_caller))
+        // Outside `require_caller`, so its 401 can name this app's vocabulary.
+        .layer(axum::Extension(DoorHint::new(
+            &built.dash.vocab.singular,
+            &built.dash.clients_label,
+            "/clients",
+        )));
 
     #[allow(unused_mut)]
     let mut all = kit
