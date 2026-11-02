@@ -29,6 +29,11 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Added
 
+- **`App::shutdown_signal()`** (`[fix-shutdown-signal-1]`, kyu): a cloneable
+  `ShutdownSignal` that resolves at the START of the drain. A handler that
+  waits long (kyu's `GET /t/{topic}/next?wait=300`) selects on
+  `signal.wait()` and returns early; before, it held every restart for the
+  whole shutdown timeout.
 - **Browser-policy headers on every answer** (`[fix-sec-headers-1]`, Habits
   security review): `Cross-Origin-Opener-Policy: same-origin`; a
   `Permissions-Policy` that turns off `accelerometer`, `camera`,

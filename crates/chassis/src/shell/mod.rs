@@ -45,6 +45,7 @@ pub mod passkeys;
 pub mod release_verify;
 #[cfg(feature = "request-guard")]
 pub mod request_guard;
+pub mod shutdown;
 pub mod store;
 pub mod time;
 #[cfg(feature = "dashboard")]

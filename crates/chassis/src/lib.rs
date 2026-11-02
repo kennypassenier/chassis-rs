@@ -43,6 +43,7 @@ pub use shell::dashboard::{
 };
 pub use shell::health::{Subsystem, SubsystemStatus};
 pub use shell::metrics::{Counter, Gauge, ScrapeSource};
+pub use shell::shutdown::ShutdownSignal;
 #[cfg(feature = "self-update")]
 pub use shell::update::Event as UpdateEvent;
 

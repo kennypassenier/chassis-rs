@@ -235,6 +235,7 @@ pub struct App {
     pub limits: Limits,
     pub control: Option<Control>,
     router: Router,
+    shutdown: crate::shell::shutdown::ShutdownTrigger,
     api_router: Router,
     dashboard_router: Router,
     /// feat-webapp-1: the project's own browser app, if it registered one.
@@ -354,6 +355,7 @@ pub struct DashboardRegistry {
 pub struct Running {
     pub addr: SocketAddr,
     stop: oneshot::Sender<()>,
+    shutdown: crate::shell::shutdown::ShutdownTrigger,
     task: tokio::task::JoinHandle<()>,
     shutdown_timeout: Duration,
     flushes: Vec<Box<dyn FnOnce() + Send>>,
