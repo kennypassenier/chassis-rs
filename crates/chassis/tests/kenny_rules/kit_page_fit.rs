@@ -90,3 +90,74 @@ fn the_clean_up_dialog_is_sized_to_its_content() {
         "a minimum height on the preview or the confirm band is back: {clean}"
     );
 }
+
+/// [fix-hsb-ux-1..6] Faults found in the HTTPSwitchboard pass; each rule
+/// fails if its fix is undone.
+#[test]
+fn the_connection_banner_and_the_tab_labels_keep_their_geometry() {
+    let css = kit_file("static/chassis/shell.css");
+    for rule in [
+        ".kp-connection__band { align-items: start; }",
+        ".kp-connection__body { align-self: stretch; align-content: start; }",
+        "min-inline-size: 7.5rem;",
+        ".chassis-tabbar .kp-tabbar__tab { align-content: start; }",
+        "-webkit-line-clamp: 2;",
+    ] {
+        assert!(css.contains(rule), "shell.css lost: {rule}");
+    }
+}
+
+#[test]
+fn the_storage_page_uses_plain_words_and_lets_its_rows_stand_at_their_own_height() {
+    let css = kit_file("static/chassis/storage.css");
+    assert!(
+        css.contains(".storage-compact-card .kp-kv { align-content: start; }"),
+        "the compact card's facts must not stretch to the card"
+    );
+    assert!(
+        !css.contains("max-inline-size: 18rem"),
+        "a cap on the kind's column squeezes its description"
+    );
+    let mut all = String::new();
+    for part in [
+        "storage-budget-html.js",
+        "storage-compact-card.js",
+        "storage-compact-html.js",
+        "storage-clean-html.js",
+        "storage-dialog.js",
+        "storage-kinds.js",
+        "storage-format.js",
+        "storage-budget-editor.js",
+    ] {
+        all.push_str(&kit_file(&format!("static/chassis/{part}")));
+    }
+    for word in [
+        "SQLite",
+        "write log",
+        "(${pct",
+        "deleted rows",
+        "Counting the rows",
+        "every row",
+    ] {
+        assert!(!all.contains(word), "internal wording is back: {word}");
+    }
+}
+
+#[test]
+fn the_empty_clients_page_says_it_once_and_the_login_tells_nothing_about_health() {
+    let html = kit_file("templates/clients.html");
+    assert!(
+        !html.contains("kp-stateplate"),
+        "the 'none yet' plate repeats what the steps already say"
+    );
+    let login = kit_file("templates/login.html");
+    assert!(
+        !login.contains("· version") && !login.contains("· up"),
+        "a separator character can start a line when the row wraps"
+    );
+    let js = kit_file("static/chassis/login-page.js");
+    assert!(
+        !js.contains("is degraded") && !js.contains("is healthy"),
+        "an anonymous visitor does not learn what is failing"
+    );
+}
