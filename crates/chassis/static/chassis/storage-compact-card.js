@@ -14,9 +14,9 @@ export function compactHtml(t, data) {
     : data.paused
       ? 'Writes are paused for a backup. Compacting can start again in a minute.'
       : none
-        ? 'Nothing to give back yet: deleted rows leave empty space to reclaim.'
+        ? 'Nothing to give back yet: the file has no empty space to give back.'
         : 'Writes pause for a few seconds. It never runs by itself.';
-  const note = none ? 'The file has no empty space' : 'Empty space deleted rows left behind';
+  const note = none ? 'The file has no empty space' : 'Empty space that deleted data left behind';
   return `<div class="storage-compact-card">
       <div class="kp-kpis" role="group" aria-label="Space that can be given back" data-kp-kpis-columns="all 1"><div class="kp-kpi"><span class="kp-kpi__label">Can be given back</span><span class="kp-kpi__value">${size(t.free)}</span><span class="kp-kpi__trend">${note}</span></div></div>
       <dl class="kp-kv kp-kv--lines"><div class="kp-kv__row"><dt>File now</dt><dd>${size(t.app)}</dd></div><div class="kp-kv__row"><dt>After compacting</dt><dd>about ${size(t.app - t.free)}</dd></div><div class="kp-kv__row"><dt>Last compacted</dt><dd>${data.last_compacted_at ? when(data.last_compacted_at) : 'never'}</dd></div></dl>

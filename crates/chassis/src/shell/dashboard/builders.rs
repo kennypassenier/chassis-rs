@@ -120,6 +120,7 @@ impl Dashboard {
                         serde_json::json!({
                             "id": p.id, "title": p.title, "path": p.path, "group": p.group,
                             "hint": p.hint, "secondary": p.secondary,
+                            "short_label": p.short_label,
                         })
                     })
                     .collect::<Vec<_>>(),

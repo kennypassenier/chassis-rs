@@ -49,6 +49,9 @@ pub struct Page {
     /// Stable name, unique per service (`"overview"`, `"status"`).
     pub id: String,
     pub title: String,
+    /// The word on the phone's tab bar when the title is too long for a
+    /// 78 px tab ([`Page::short_label`]); everywhere else the title is used.
+    pub short_label: Option<String>,
     /// Where it lives, starting with `/`.
     pub path: String,
     /// An optional heading the page sorts under in a grouped navigation.
@@ -79,6 +82,7 @@ impl Page {
         Page {
             id: id.to_string(),
             title: title.to_string(),
+            short_label: None,
             path: path.to_string(),
             group: None,
             order: 0,
@@ -116,6 +120,16 @@ impl Page {
 
     pub fn title(mut self, title: &str) -> Page {
         self.title = title.to_string();
+        self
+    }
+
+    /// A shorter name for the phone's tab bar only (the header, the palette
+    /// and the More drawer keep the title): a tab is about 78 px wide, so a
+    /// title with a long word ("Try a translation") needs a word that fits,
+    /// such as "Translate". Labels wrap to two lines first; use this only
+    /// when one word is still too wide.
+    pub fn short_label(mut self, label: &str) -> Page {
+        self.short_label = Some(label.to_string());
         self
     }
 

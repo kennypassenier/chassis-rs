@@ -42,12 +42,14 @@ export function attentionBand(t, data) {
 
 // The big figure: its tone, its value and the words under it.
 export function figureOf(t) {
-  const pct = Math.round(t.share * 100);
+  // One place says the share of the budget: here, in the figure's line. A share
+  // under a whole percent says so instead of "0 %".
+  const pct = t.share > 0 && t.share < 0.01 ? 'under 1' : Math.round(t.share * 100);
   const left = t.budget - t.total;
   return {
     tone: t.level === 'over' ? 'destructive' : t.level === 'warn' ? 'warning' : '',
     value: `${size(t.total)}<small>of ${size(t.budget)}</small>`,
-    trend: t.level === 'over' ? `${size(-left)} over the budget of ${size(t.budget)}` : `${size(left)} left; ${pct} % of the budget of ${size(t.budget)}`,
+    trend: t.level === 'over' ? `${size(-left)} over the budget of ${size(t.budget)}` : `${size(left)} left; ${pct} % used`,
   };
 }
 
@@ -63,7 +65,7 @@ export function budgetHtml(t) {
       <div class="storage-files" role="group" aria-label="The three parts of the storage">
         ${row('Application data', size(t.app), `Everything this service stores. Cleaned up here, kind by kind${t.free ? `; ${size(t.free)} of it is empty space` : ''}.`)}
         ${row('Sign-in data', size(t.kit), 'Used for sign-in, never cleaned up here.', '<span class="kp-badge">Read-only</span>')}
-        ${row('Pending writes', size(t.wal), 'The write log; SQLite folds it into the data by itself and keeps it at most about 1 MB.')}
+        ${row('Pending writes', size(t.wal), 'Changes saved but not yet merged into the data. The service merges them by itself and keeps them under about 1 MB.')}
       </div>
       <div class="storage-budget__edit" data-storage-budget-edit></div></div>`;
 }

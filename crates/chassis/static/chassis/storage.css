@@ -46,6 +46,10 @@
   block-size: 100%;
 }
 .storage-compact-card .kp-kpis { margin: 0; }
+/* [fix-hsb-ux-3] The facts stand under the figure at their own height. The
+   card is as tall as its neighbour, and a stretched list spread its rows
+   ~100 px apart; only the button keeps the bottom edge. */
+.storage-compact-card .kp-kv { align-content: start; }
 .storage-compact-card__act {
   display: grid;
   align-content: end;
@@ -55,7 +59,12 @@
 .storage-compact-card__act p { margin: 0; }
 
 /* The kinds: the name, what it is, and the note that it cleans itself, in one cell of its own. */
-.storage-kind { display: grid; gap: var(--kp-space-2xs, 0.125rem); max-inline-size: 18rem; }
+/* [fix-hsb-ux-3] The kind's own column is the one that takes the room: its
+   words wrap on the column, not on a cap of 18rem. The dates stand as day over
+   time and the share bar is a fixed run, so the other columns hold only what
+   they need. */
+.storage-kind { display: grid; gap: var(--kp-space-2xs, 0.125rem); }
+.storage-kinds td.kp-timestamp { white-space: normal; font-size: var(--kp-text-sm, 0.8125rem); }
 .storage-kind__about,
 .storage-kind__self { color: var(--muted-foreground); }
 .storage-kind__self { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kp-space-xs, 0.25rem); }
@@ -69,7 +78,7 @@
   grid-template-columns: minmax(3rem, 1fr) 5ch;
   align-items: center;
   gap: var(--kp-space-sm, 0.5rem);
-  min-inline-size: 6.5rem;
+  min-inline-size: 0;
 }
 .storage-share__n { text-align: end; font-variant-numeric: tabular-nums; }
 .storage-when { font-size: var(--kp-text-md, 1rem); }
@@ -229,3 +238,8 @@
   .storage-dialog .kp-dialog__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .storage-dialog .kp-dialog__actions > :only-child { grid-column: 1 / -1; }
 }
+
+/* [fix-hsb-ux-3] The notes under the cards and the budget fields use the
+   kit's normal small size (kp-themes' own notes are a step smaller, 12 px, and
+   read as fine print next to 16 px body text). */
+.storage-card :is(.kp-dialog__note, .kp-formgrid__value) { font-size: var(--kp-text-sm, 0.8125rem); }

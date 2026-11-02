@@ -201,6 +201,15 @@ fn secondary_pages_are_recorded_and_the_kits_housekeeping_pages_are_secondary() 
 }
 
 #[test]
+fn a_page_may_carry_a_short_label_for_the_tab_bar_and_keeps_its_title() {
+    let page = Page::new("translate", "Try a translation", "/translate");
+    assert_eq!(page.short_label, None, "no short label unless asked for");
+    let page = page.short_label("Translate");
+    assert_eq!(page.short_label.as_deref(), Some("Translate"));
+    assert_eq!(page.title, "Try a translation", "the title is untouched");
+}
+
+#[test]
 fn every_kit_page_carries_its_own_help_and_a_project_can_replace_it() {
     let mut r = registry(Vec::new());
     r.kit_edits

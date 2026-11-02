@@ -365,6 +365,34 @@ These are the steps that pick up the unreleased fixes:
 - **Notifications**: a failed write of a message's retry time is no longer
   ignored; it is logged once, shown on the card and the loop backs off instead
   of resending in a tight loop. `[fix-outbox-3]`
+
+- **Faults from the HTTPSwitchboard Firefox pass** (measured at 1280 and
+  390 px):
+  - The connection banner keeps one footprint in every state
+    (`[fix-hsb-ux-1]`): the words start at the band's top and Retry now keeps
+    a 7.5 rem slot, so the title no longer moves between 25, 14 and 13 px
+    when the state changes.
+  - Phone tab labels wrap to two lines instead of ending in an ellipsis, and
+    the icons stay on one line (`[fix-hsb-ux-2]`). A single word still wider
+    than a tab takes the new `Page::short_label("Translate")`, used by the tab
+    bar only (also in `GET /api/kit/pages`).
+  - Storage (`[fix-hsb-ux-3]`): "Give back empty space" lists its facts at
+    their own height (they were 104 px apart); the kind column takes the
+    spare room (a description was squeezed to 140 px over 7 lines); plain
+    words instead of "SQLite folds it into the data", "write log" and "rows"
+    (the default unit of a kind is now "items"); the share of the budget is
+    said once, never as "0 %" twice; the notes use the kit's small size (13
+    px, not 12 px).
+  - The empty Senders page says it once: the "No clients yet" plate with its
+    ruled placeholder lines is gone, and the right card explains what a client
+    is (`[fix-hsb-ux-4]`).
+  - The login page tells a visitor who is not signed in only that the service
+    runs or does not answer, never "degraded", and its version and start time
+    are list items without separator characters, so no line starts with a "·"
+    (`[fix-hsb-ux-6]`).
+  - Status, Senders and Storage fill the 80 % container (1024 of 1280 px) as a
+    page of the web app does; this was fixed on main by `[ux-chassis-1]` and
+    is measured again here (`[fix-hsb-ux-5]`).
 - **A notification link cannot name another host with a backslash**
   (`[fix-hunt-core-1]`): `Link::new` refused `//host` but accepted `/\host`,
   which a browser reads as `//host`. A backslash in an app-path link is now

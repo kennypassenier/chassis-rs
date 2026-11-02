@@ -36,9 +36,9 @@ export function createDialogHost(ctx) {
     const set = ctx.setCardState;
     for (const el of scope.querySelectorAll('[data-storage-card="preview"]')) {
       const asked = el.dataset.storagePstate;
-      if (asked === 'loading') set(el, 'loading', { words: 'Counting the rows…' });
+      if (asked === 'loading') set(el, 'loading', { words: 'Counting…' });
       else if (asked === 'idle') set(el, 'empty', { title: 'Nothing to preview yet', text: 'Choose what to remove, then press Preview. Nothing is deleted by looking.' });
-      else if (asked === 'empty') set(el, 'empty', { title: 'Nothing matches', text: 'No row fits these choices, so there is nothing to delete. Change the date or a choice and preview again.' });
+      else if (asked === 'empty') set(el, 'empty', { title: 'Nothing matches', text: 'Nothing fits these choices, so there is nothing to delete. Change the date or a choice and preview again.' });
       else if (asked === 'invalid') set(el, 'empty', { title: 'That is not a date', text: 'Type the day as dd/mm/yyyy, for example 30/06/2026, then press Preview.' });
       else if (asked === 'error') set(el, 'error', { title: 'The preview could not be made', text: ctx.dialog?.state.error || 'The service did not answer.', action: 'Try again' });
     }
