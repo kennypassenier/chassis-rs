@@ -54,13 +54,16 @@ export function targetsHtml(d) {
 export function factsHtml(d) {
   const o = d.outbox;
   const waiting = o.waiting;
+  const stuck = o.no_target ?? 0;
   const trend = waiting === 0
     ? 'No messages waiting'
-    : `Oldest since ${when(o.oldest_at)}; ${d.active ? 'they go out as soon as a target takes them' : 'no address is set, so they wait'}`;
+    : `Oldest since ${when(o.oldest_at)}; ${d.active ? 'they go out as soon as a target takes them' : 'no address is set, so they wait'}${stuck > 0 && d.active ? `. ${num(stuck)} of them ${stuck === 1 ? 'has' : 'have'} no address to go to (the primary or fallback address is not set), so ${stuck === 1 ? 'it waits' : 'they wait'} for one` : ''}`;
   const kept = `At most ${num(o.cap)} are kept; past that the oldest are dropped${o.dropped_total ? ` (${num(o.dropped_total)} so far)` : ''}.`;
-  const err = d.last_error;
-  const errorHtml = err
-    ? `<div class="kp-alert kp-alert--destructive" role="alert"><span class="kp-attention__icon" aria-hidden="true">!</span><div class="kp-attention__text"><strong>Last error</strong><span>${esc(err.message)}</span><time class="notify-card__when" datetime="${esc(err.at)}">${when(err.at)}</time></div></div>`
+  // One line per target that failed (primary, kit, fallback); older servers send only last_error.
+  const errs = Object.values(d.last_errors ?? {});
+  const shown = errs.length ? errs : (d.last_error ? [d.last_error] : []);
+  const errorHtml = shown.length
+    ? shown.map((err) => `<div class="kp-alert kp-alert--destructive" role="alert"><span class="kp-attention__icon" aria-hidden="true">!</span><div class="kp-attention__text"><strong>Last error (${esc(err.target)})</strong><span>${esc(err.message)}</span><time class="notify-card__when" datetime="${esc(err.at)}">${when(err.at)}</time></div></div>`).join('')
     : '<div class="kp-empty kp-stateplate kp-stateplate--empty" role="status"><strong class="kp-stateplate__title">No error recorded</strong><span class="kp-stateplate__text">The last error appears here with its time.</span></div>';
   // Only whether a token is set, never its value; the server sends no value.
   const tok = d.token ?? { set: false, env: '' };

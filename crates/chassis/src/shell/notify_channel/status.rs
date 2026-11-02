@@ -81,6 +81,14 @@ impl Channel {
             cap: self.inner.cfg.outbox_cap,
             dropped_total: meta.dropped_total()?,
             last_error: meta.last_error()?,
+            last_errors: [Which::Primary, Which::Kit, Which::Fallback]
+                .into_iter()
+                .filter_map(|w| meta.last_error_of(w.as_str()).transpose())
+                .collect::<Result<_, _>>()?,
+            no_target: self
+                .inner
+                .outbox
+                .count_undeliverable(|kind| self.active_for(kind))?,
             last_delivery: meta.last_delivery()?,
             token_set: self.inner.auth.token.is_some(),
             token_env: self.inner.auth.env_name.clone(),

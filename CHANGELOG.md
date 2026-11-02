@@ -251,6 +251,21 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Fixed
 
+- **Notifications**: the log line of an emitted event no longer prints the
+  `detail` text (apps put health data in it); it names the kind, the version
+  and the detail's length. `[fix-notify-log-1]`
+- **Notifications**: a waiting message with no target (an app event after the
+  primary address was cleared while `notify_kit_url` is set) no longer blocks
+  the deliverable messages behind it; it stays queued, is counted as
+  `outbox.no_target` and the Status card says so. `[fix-outbox-1]`
+- **Notifications**: a failure is recorded for the target that failed
+  (`primary`, `kit` or `fallback`; `last_errors` in `GET /api/kit/notify`),
+  and the "just failed" memory that removes retries is kept per target, so a
+  dead kit target no longer takes the primary's retries away.
+  `[fix-outbox-2]`
+- **Notifications**: a failed write of a message's retry time is no longer
+  ignored; it is logged once, shown on the card and the loop backs off instead
+  of resending in a tight loop. `[fix-outbox-3]`
 - **A notification link cannot name another host with a backslash**
   (`[fix-hunt-core-1]`): `Link::new` refused `//host` but accepted `/\host`,
   which a browser reads as `//host`. A backslash in an app-path link is now
