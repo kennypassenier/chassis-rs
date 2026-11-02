@@ -82,7 +82,7 @@ pub(super) async fn serve(
     // The runtime script goes into HTML before the ETag is computed over the
     // served bytes, so the tag and the validator always agree.
     let body = if content_type(&served).starts_with("text/html") {
-        with_head_tags(body, app.kit_runtime, app.page_tags().as_deref())
+        with_head_tags(body, app.runtime_variant(), app.page_tags().as_deref())
     } else {
         body
     };

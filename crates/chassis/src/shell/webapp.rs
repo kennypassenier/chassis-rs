@@ -87,6 +87,9 @@ pub struct WebApp {
     csp: String,
     /// Whether the file server adds the kit's runtime script to HTML pages.
     kit_runtime: bool,
+    /// Whether the app imports kp-themes' per-module entries: the injected
+    /// runtime is then `webapp-runtime-modules.js` instead of the bundle one.
+    kp_modules: bool,
     /// feat-webapp-4: the install settings; `None` after `without_pwa()`.
     pwa: Option<Pwa>,
 }
@@ -101,6 +104,7 @@ impl WebApp {
             source: Source::Embedded(files),
             csp: DEFAULT_CSP.to_string(),
             kit_runtime: true,
+            kp_modules: false,
             pwa: Some(Pwa::new()),
         }
     }
@@ -113,6 +117,7 @@ impl WebApp {
             source: Source::Dir(dir.into()),
             csp: DEFAULT_CSP.to_string(),
             kit_runtime: true,
+            kp_modules: false,
             pwa: Some(Pwa::new()),
         }
     }
@@ -137,6 +142,28 @@ impl WebApp {
     pub fn without_kit_runtime(mut self) -> Self {
         self.kit_runtime = false;
         self
+    }
+
+    /// The app imports kp-themes' per-module entries (`/static/kp/dist/js/<entry>.js`)
+    /// instead of the one-file bundle, so the injected runtime must import the
+    /// entries too: the page then holds one copy of kp-themes' state, and the
+    /// remembered choices sync to the login and the refresh control keeps the
+    /// app's strings. The runtime does not attach the effects, dialogs or theme
+    /// pickers in this mode: the app's `auto.js` already does. Without this call
+    /// the runtime imports the bundle, exactly as before.
+    pub fn kp_modules(mut self) -> Self {
+        self.kp_modules = true;
+        self
+    }
+
+    /// The runtime variant the file server injects; `None` after
+    /// `without_kit_runtime()`.
+    pub(super) fn runtime_variant(&self) -> Option<inject::Runtime> {
+        self.kit_runtime.then_some(if self.kp_modules {
+            inject::Runtime::Modules
+        } else {
+            inject::Runtime::Bundle
+        })
     }
 
     /// Change how the app installs (feat-webapp-4): its name, display mode

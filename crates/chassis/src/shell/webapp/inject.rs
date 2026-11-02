@@ -6,29 +6,49 @@ use std::borrow::Cow;
 
 use super::pwa::HeadTag;
 
-/// The file name that marks "this page already loads the runtime".
-const RUNTIME_FILE: &str = "webapp-runtime.js";
+/// Which kp-themes delivery the injected runtime imports.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Runtime {
+    /// The one-file bundle (the default).
+    Bundle,
+    /// The per-module entries under `kp/dist/js/` (`WebApp::kp_modules`).
+    Modules,
+}
+
+impl Runtime {
+    fn file(self) -> &'static str {
+        match self {
+            Runtime::Bundle => "webapp-runtime.js",
+            Runtime::Modules => "webapp-runtime-modules.js",
+        }
+    }
+}
+
+/// The file names that mark "this page already loads the runtime": either
+/// variant counts, so a page never gets both.
+const RUNTIME_FILES: [&str; 2] = ["webapp-runtime.js", "webapp-runtime-modules.js"];
 
 /// The tag for the runtime module. The path is absolute (`/static/...`), so
 /// it resolves the same for an app mounted at a sub-path; `?v=` is the
 /// kit's asset version, so the URL is cached for a year and changes with
 /// any kit asset (and with it the page's ETag).
-pub(super) fn runtime_tag() -> String {
+pub(super) fn runtime_tag_for(runtime: Runtime) -> String {
     format!(
-        "<script type=\"module\" src=\"/static/chassis/{RUNTIME_FILE}?v={}\"></script>",
+        "<script type=\"module\" src=\"/static/chassis/{}?v={}\"></script>",
+        runtime.file(),
         crate::shell::assets::asset_version()
     )
 }
 
 /// `html` with the tags the server owns added: the runtime script when
-/// `runtime` is on and the PWA tags that are given. Each goes before
+/// `runtime` is `Some` and the PWA tags that are given. Each goes before
 /// `</head>`, else before `</body>`, else at the end. A tag the page already
 /// carries (the runtime file named, `rel="manifest"`, a `theme-color` meta,
 /// an `apple-touch-icon`) is skipped, so each is there exactly once, and a
 /// page that needs nothing is returned as it is (borrowed).
 pub(super) fn with_head_tags(
     html: Cow<'static, [u8]>,
-    runtime: bool,
+    runtime: Option<Runtime>,
     pwa: Option<&[HeadTag]>,
 ) -> Cow<'static, [u8]> {
     let lower = html.to_ascii_lowercase();
@@ -39,8 +59,11 @@ pub(super) fn with_head_tags(
         .filter(|b| *b != b'"' && *b != b'\'')
         .collect();
     let mut tags = String::new();
-    if runtime && find(&lower, RUNTIME_FILE.as_bytes()).is_none() {
-        tags.push_str(&runtime_tag());
+    let has_runtime = RUNTIME_FILES
+        .iter()
+        .any(|f| find(&lower, f.as_bytes()).is_some());
+    if let Some(runtime) = runtime.filter(|_| !has_runtime) {
+        tags.push_str(&runtime_tag_for(runtime));
     }
     for tag in pwa.unwrap_or_default() {
         if !tag

@@ -83,6 +83,19 @@ demand specific markup, so a page that wants them still calls them.
   (`window.chassisRuntime = { effects }` reaches the effects handle).
 - `.without_kit_runtime()` opts out, for an app that runs the
   runtime itself.
+- **Which kp-themes delivery.** By default the runtime imports the one-file
+  bundle (`kp/dist/kp-themes.min.js`), so it shares state with an app that
+  imports the bundle. An app that imports the per-module entries
+  (`/static/kp/dist/js/<entry>.js`) calls `.kp_modules()`: the server then
+  injects `/static/chassis/webapp-runtime-modules.js`, which imports only the
+  entries it needs (`remember.js`, `freshness.js`, `auto-refresh.js`), so the
+  page holds one copy of kp-themes' state: the remembered choices sync to the
+  login and the refresh control uses the strings the app set with
+  `setStrings`. In this mode the runtime does not attach the effects, dialogs
+  or theme pickers: the app's `auto.js` entry already does, and a second
+  attach would double them. Both variants wire through the same core
+  (`webapp-runtime-core.js`); a page that names either runtime file is left
+  alone.
 
 ## The refresh control for a web app's pages (ux-chassis-10)
 
