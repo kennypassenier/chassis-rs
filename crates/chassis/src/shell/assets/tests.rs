@@ -4,6 +4,7 @@ use super::*;
 use sha2::{Digest, Sha256};
 
 #[cfg(feature = "dashboard")]
+mod chunks;
 mod gzip;
 mod one_source;
 mod static_tree;

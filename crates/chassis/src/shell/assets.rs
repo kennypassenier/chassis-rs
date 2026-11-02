@@ -122,7 +122,7 @@ pub async fn serve(Path(name): Path<String>, RawQuery(query): RawQuery) -> Respo
 /// `GET /static/{name}` with revalidation (fix-13). The layout links every
 /// asset with `?v=<content hash>`, so those URLs may be cached for a year.
 /// A URL without it — a font reached from inside fonts.css, a project's app
-/// importing `/static/kp/js/…` — gets `no-cache` and a strong `ETag`, and an
+/// importing `/static/kp/js/…`, an entry of the split bundle — gets `no-cache` and a strong `ETag`, and an
 /// unchanged file answers 304: a kp-themes bump reaches an open tab at its
 /// next reload, where the old one-day cache kept the old files for a day.
 pub async fn serve_conditional(
@@ -130,7 +130,9 @@ pub async fn serve_conditional(
     RawQuery(query): RawQuery,
     headers: HeaderMap,
 ) -> Response {
-    let versioned = query.as_deref().is_some_and(|q| q.contains("v="));
+    // A chunk of the split module folder is named after its content hash, so
+    // its URL never changes meaning: cached for a year without a `?v=`.
+    let versioned = query.as_deref().is_some_and(|q| q.contains("v=")) || is_hashed_chunk(&name);
     let Some((_, ct, body)) = all_assets().find(|(n, _, _)| *n == name) else {
         return (StatusCode::NOT_FOUND, "no such asset").into_response();
     };
@@ -157,6 +159,13 @@ pub async fn serve_conditional(
         h.insert(header::ETAG, v);
     }
     res
+}
+
+/// `kp/dist/js/chunk-<hash>.js`: the content-hashed chunks of the split
+/// bundle. The entries (`auto.js`, `core.js`, ...) and the maps are not.
+pub(crate) fn is_hashed_chunk(name: &str) -> bool {
+    name.strip_prefix("kp/dist/js/chunk-")
+        .is_some_and(|rest| rest.ends_with(".js") && !rest.contains('/'))
 }
 
 /// Whether the request's `If-None-Match` names `etag` (the strong form the
