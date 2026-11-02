@@ -238,6 +238,24 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Fixed
 
+- **A GET share target is no longer forgeable from another site**
+  (habits, `[fix-sec-share-1]`): `ShareTarget::get(path)` writes on GET by
+  design, and the `Lax` session cookie rides a top-level navigation from any
+  website, so a link elsewhere could trigger it. The kit now answers 403 to a
+  request for that path whose `Sec-Fetch-Site` is present and not
+  `none`/`same-origin`, or, without that header, whose `Referer` names another
+  host. A request with neither header (an installed app's share sheet) passes.
+  A POST share target already goes through the CSRF rule. Documented on
+  `ShareTarget::get`.
+- **A logged-out `fetch` gets a 401 JSON, not a redirect into the login page**
+  (habits, `[fix-json-401-1]`): a dashboard route used to answer every
+  logged-out request with a 303 to `/login`, which `fetch` follows into a 200
+  HTML page. A script call (`Sec-Fetch-Mode` other than `navigate`,
+  `Sec-Fetch-Dest: empty`, or without those headers an `Accept` that lists
+  types but neither `text/html` nor `*/*`) now gets 401
+  `{"error":"not logged in","remedy":"log in on /login, then repeat the call"}`.
+  Navigations and header-less clients keep the 303.
+
 - **The API door's 401 remedy speaks to the program that got it**
   (habits, `[fix-door-1]`): a request that carried an `Authorization`
   header with an unknown token (a rotated or mistyped one) now gets

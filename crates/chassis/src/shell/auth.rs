@@ -18,6 +18,7 @@ mod door_hint;
 mod door_tests;
 mod limits;
 mod lookup;
+mod navigation;
 mod secrets;
 mod session;
 #[cfg(test)]
@@ -110,8 +111,9 @@ pub async fn require_caller(
     }
 }
 
-/// Middleware for dashboard routes: only Admin passes; a browser without
-/// a session is redirected to `/login` instead of getting a JSON 401.
+/// Middleware for dashboard routes: only Admin passes; a browser navigation
+/// without a session is redirected to `/login`, a script call (`fetch`: see
+/// `navigation`) gets a 401 JSON with the remedy.
 pub async fn require_admin(
     State(state): State<AuthState>,
     mut req: Request<Body>,
@@ -142,6 +144,14 @@ pub async fn require_admin(
             )
             .into_response()
         }
+        // A script call (fetch, XHR) must not follow a redirect into a 200
+        // login page; a navigation still lands on the form.
+        None if navigation::is_script_call(req.headers()) => Error::new(
+            Kind::Unauthorized,
+            "not logged in",
+            "log in on /login, then repeat the call",
+        )
+        .into_response(),
         None => Redirect::to("/login").into_response(),
     }
 }

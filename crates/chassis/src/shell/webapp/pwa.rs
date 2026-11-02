@@ -217,6 +217,12 @@ impl super::WebApp {
         })
     }
 
+    /// The path of the GET share target, when this app is installable and
+    /// registered one (the kit guards it against cross-site navigations).
+    pub(crate) fn get_share_path(&self) -> Option<&str> {
+        self.installable()?.share_target.as_ref()?.get_action()
+    }
+
     /// Whether the install settings are on (the web app opted in and has
     /// the kit runtime); at most one web app of a service may be.
     pub(crate) fn is_installable(&self) -> bool {
