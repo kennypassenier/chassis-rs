@@ -71,6 +71,7 @@ mod stop;
 #[cfg(feature = "storage")]
 mod storage_open;
 mod storage_setup;
+#[cfg(feature = "storage")]
 mod sync_setup;
 #[cfg(test)]
 mod tests;
