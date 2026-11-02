@@ -7,6 +7,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-11-02
+
 ### Migration
 
 No source-breaking change (check-api: a minor), but several answers change
