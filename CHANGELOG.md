@@ -9,6 +9,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Fixed
 
+- **`If-Match: *` is sent bare** [fix-habits-data-8] (Habits). `rev: '*'` was sent as `"*"`, which the kit's own
+  `Precondition::parse` refuses with 400; only real revisions are quoted now.
 - **A write to an item reaches the stored lists that hold it** [fix-habits-data-3] (Habits). `put` / `patch` / `delete`
   (and a `post` with `optimistic` on an item path) now change the entry in every stored list copy that contains the item,
   found through `itemKey`, so an offline reload shows the edit. On success or refusal the server's version replaces the
