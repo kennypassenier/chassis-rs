@@ -29,6 +29,19 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Added
 
+- **Browser-policy headers on every answer** (`[fix-sec-headers-1]`, Habits
+  security review): `Cross-Origin-Opener-Policy: same-origin`; a
+  `Permissions-Policy` that turns off `accelerometer`, `camera`,
+  `display-capture`, `geolocation`, `gyroscope`, `magnetometer`, `microphone`,
+  `midi`, `payment` and `usb` (nothing a kit page uses: Web Push, the share
+  target, the service worker, clipboard and passkeys are not affected); and
+  `Strict-Transport-Security: max-age=31536000` (no `includeSubDomains`, no
+  `preload`) only when a trusted proxy reports HTTPS, the rule the session
+  cookie uses. They cover the kit's pages, the API, the web app's files and
+  the PWA routes. `app.allow_browser_feature("camera")` sends
+  `camera=(self)` instead of the deny; a name that is not lowercase letters
+  and `-` is refused at start.
+
 - **A title and a link on a notification** (`[notify-link-1]`, Habits integration
   test): `Notifier::emit_linked(kind, version, detail, Link)` and
   `emit_linked_keyed(.., link, dedup)`. `Link::new(Some("Water drinken"),
@@ -237,6 +250,13 @@ No breaking change; these are the steps that pick up the unreleased fixes.
   other destructive action, where it is true.
 
 ### Fixed
+
+- **A listen address that is not loopback, with no trusted proxy**
+  (`[fix-sec-cookie-1]`): the start-time warning and the `--check` warning
+  already existed; they now say plainly that the session cookie never gets
+  `Secure` and name `<PREFIX>_TRUSTED_PROXIES`, and a test pins them (fires for
+  `0.0.0.0`, silent for `127.0.0.1` or with a proxy). Cookie behaviour is
+  unchanged.
 
 - **The API door's 401 remedy speaks to the program that got it**
   (habits, `[fix-door-1]`): a request that carried an `Authorization`
