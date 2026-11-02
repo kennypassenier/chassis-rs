@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::config::expand;
 use crate::core::error::Error;
+use crate::core::notify_link::{Link, Wire, body_json};
 
 /// The kit's own events. Projects add their own names freely (they are
 /// strings on the wire); these are the ones the kit emits.
@@ -37,6 +38,12 @@ pub const KIT_EVENTS: &[&str] = &[
     "health.degraded",
     "health.recovered",
 ];
+
+/// Whether the kit itself emits `kind` (one of [`KIT_EVENTS`]); everything
+/// else is an event of the app. Decides which target gets the event.
+pub fn is_kit_event(kind: &str) -> bool {
+    KIT_EVENTS.contains(&kind)
+}
 
 /// One thing that happened.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -148,21 +155,28 @@ impl Webhook {
 
     /// The request body for `event`: the template, or the event as JSON.
     pub fn render_body(&self, event: &Event) -> Result<String, Error> {
-        match &self.body {
-            None => Ok(serde_json::to_string(event).expect("event serialises")),
-            Some(tpl) => {
-                let mut env = minijinja::Environment::new();
-                env.add_template("body", tpl).map_err(|e| {
-                    Error::config(
-                        format!("webhook body template does not parse: {e}"),
-                        "fix the template in the config file",
-                    )
-                })?;
-                env.get_template("body")
-                    .and_then(|t| t.render(minijinja::Value::from_serialize(event)))
-                    .map_err(|e| Error::config(format!("webhook body template failed: {e}"), "fix the template; the event fields are service, kind, at, version, detail"))
-            }
-        }
+        self.render_body_linked(event, None)
+    }
+
+    /// [`Webhook::render_body`] for an event with a title and link. The
+    /// default body gains `"title"` and `"url"` (only those that are set);
+    /// a custom template sees them as the variables `title` and `url`, which
+    /// are left out of the context when unset, so `{% if url %}` works.
+    pub fn render_body_linked(&self, event: &Event, link: Option<&Link>) -> Result<String, Error> {
+        let Some(tpl) = &self.body else {
+            return Ok(body_json(event, link));
+        };
+        let mut env = minijinja::Environment::new();
+        env.add_template("body", tpl).map_err(|e| {
+            Error::config(
+                format!("webhook body template does not parse: {e}"),
+                "fix the template in the config file",
+            )
+        })?;
+        let ctx = minijinja::Value::from_serialize(Wire::new(event, link));
+        env.get_template("body")
+            .and_then(|t| t.render(ctx))
+            .map_err(|e| Error::config(format!("webhook body template failed: {e}"), "fix the template; the event fields are service, kind, at, version, detail, and title and url when the app set them"))
     }
 }
 

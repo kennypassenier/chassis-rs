@@ -95,7 +95,7 @@ async fn next_message(ch: &Channel, now: i64) -> Next {
         blocking(move || o.next_due(now)).await
     };
     match due {
-        Ok(Some(m)) if ch.active() => Next::Message(m),
+        Ok(Some(m)) if ch.active_for(&m.kind) => Next::Message(m),
         // Messages wait, nothing to send them to.
         Ok(Some(_)) => Next::Wait(Duration::from_secs(60)),
         Ok(None) => {

@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use tokio::sync::Notify;
 
-use crate::core::notify_target::{Fixed, KEY_FALLBACK, KEY_PRIMARY, Target};
+use crate::core::notify_target::{Fixed, KEY_FALLBACK, KEY_KIT, KEY_PRIMARY, Target};
 use crate::core::notify_token::NotifyToken;
 use crate::shell::notify::NotifyConfig;
 use crate::storage::notify_meta::{LastDelivery, LastError, NotifyMeta};
@@ -26,6 +26,9 @@ use crate::storage::outbox::{Counts, Outbox};
 pub(crate) enum Which {
     Primary,
     Fallback,
+    /// Where the kit's own events go first, when `notify_kit_url` is set.
+    /// It is not one of the two editable targets ([`Which::BOTH`]).
+    Kit,
 }
 
 impl Which {
@@ -33,17 +36,30 @@ impl Which {
         match self {
             Which::Primary => "primary",
             Which::Fallback => "fallback",
+            Which::Kit => "kit",
         }
     }
 
+    /// The slot in the two-element arrays of the editable targets.
     fn index(self) -> usize {
-        self as usize
+        match self {
+            Which::Primary => 0,
+            Which::Fallback => 1,
+            Which::Kit => unreachable!("the kit target has no editable slot"),
+        }
+    }
+
+    /// The hub-style targets (a kyu topic): they get the bearer token and
+    /// are the ones a dead hub is remembered for. The fallback is neither.
+    pub(crate) fn is_hub(self) -> bool {
+        self != Which::Fallback
     }
 
     pub(crate) fn key(self) -> &'static str {
         match self {
             Which::Primary => KEY_PRIMARY,
             Which::Fallback => KEY_FALLBACK,
+            Which::Kit => KEY_KIT,
         }
     }
 
@@ -92,6 +108,8 @@ struct Inner {
     fixed: [Option<Fixed>; 2],
     code: [Option<String>; 2],
     resolved: Mutex<[Target; 2]>,
+    /// `notify_kit_url`: configuration only, so it is fixed at start.
+    kit: Target,
     wake: Notify,
 }
 
@@ -104,6 +122,8 @@ pub(crate) struct Channel {
 pub(crate) struct View {
     pub primary: Target,
     pub fallback: Target,
+    /// The kit-events target; `None` when `notify_kit_url` is not set.
+    pub kit: Option<Target>,
     pub saved: [bool; 2],
     pub code: [Option<String>; 2],
     pub counts: Counts,
@@ -139,6 +159,9 @@ impl Channel {
     }
 
     pub(crate) fn target(&self, which: Which) -> Target {
+        if which == Which::Kit {
+            return self.inner.kit.clone();
+        }
         self.inner.resolved.lock().expect("targets lock")[which.index()].clone()
     }
 
@@ -150,7 +173,39 @@ impl Channel {
             .collect()
     }
 
+    /// Anything at all to send to (the Test button's question).
     pub(crate) fn active(&self) -> bool {
-        !self.targets().is_empty()
+        !self.targets().is_empty() || self.inner.kit.value.is_some()
+    }
+
+    /// The kit target, when `notify_kit_url` is set.
+    pub(crate) fn kit_target(&self) -> Option<Target> {
+        self.inner
+            .kit
+            .value
+            .is_some()
+            .then(|| self.inner.kit.clone())
+    }
+
+    /// The addresses for one message, in the order they are asked. A kit
+    /// event goes to the kit target when one is set, then to the fallback;
+    /// everything else (and a kit event without a kit target) goes to the
+    /// primary, then the fallback.
+    pub(crate) fn targets_for(&self, kind: &str) -> Vec<(Which, String)> {
+        let kit = crate::core::notify::is_kit_event(kind)
+            .then(|| self.inner.kit.value.clone())
+            .flatten();
+        let Some(kit) = kit else {
+            return self.targets();
+        };
+        let fallback = self.target(Which::Fallback).value;
+        std::iter::once((Which::Kit, kit))
+            .chain(fallback.map(|v| (Which::Fallback, v)))
+            .collect()
+    }
+
+    /// Whether a message of this kind has anywhere to go.
+    pub(crate) fn active_for(&self, kind: &str) -> bool {
+        !self.targets_for(kind).is_empty()
     }
 }
