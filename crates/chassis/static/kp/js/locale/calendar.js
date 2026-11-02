@@ -1,6 +1,7 @@
 // The month and weekday names a calendar shows, in the locale it is drawn for [gap-11].
 
 import { resolveLocale } from './resolve.js';
+import { getLanguageDictionary } from '../strings/runtime.js';
 
 /** @typedef {{ months: string[], weekdays: string[], monthsShort?: string[] }} NameSet */
 
@@ -61,26 +62,36 @@ function fromIntl(resolved, english, options, date, count) {
  *
  * @param {NameSet} dictionary the strings in force; weekdays Monday first
  * @param {NameSet} defaults the package's own dictionary, to tell a consumer's names from it
+ * A page in Dutch makes the dictionary Dutch without a consumer saying so
+ * [habits-1101]; names that are the language dictionary's own are not a
+ * consumer's words, so an English picker on that page still reads English.
+ *
  * @param {string | undefined} [locale]
+ * @param {Partial<NameSet>} [language] the dictionary of the page's language, to tell it from a consumer's names
  * @returns {{ months: string[], monthsShort: string[], weekdays: string[] }} weekdays Sunday first, the way Date#getDay counts
  */
-export function calendarNames(dictionary, defaults, locale) {
+export function calendarNames(dictionary, defaults, locale, language = getLanguageDictionary()) {
     const resolved = resolveLocale(locale);
     const english = isEnglish(resolved);
     const intl = (/** @type {Intl.DateTimeFormatOptions} */ options, /** @type {(i: number) => Date} */ date, /** @type {number} */ count) =>
         fromIntl(resolved, english, options, date, count);
-    const ownMonths = same(dictionary.months, defaults.months);
-    const months = (ownMonths ? intl({ month: 'long' }, (i) => new Date(PROBE_YEAR, i, 1), MONTHS_IN_YEAR) : null) ?? dictionary.months;
+    /** Whether the names are the package's or the page language's own, not a consumer's. @param {string[]} names @param {string[]} base @param {string[] | undefined} lang */
+    const isStock = (names, base, lang) => same(names, base) || (lang !== undefined && same(names, lang));
+    const stockMonths = isStock(dictionary.months, defaults.months, language.months);
+    // An English locale under a page whose dictionary is not English reads the package's English, not that dictionary.
+    const pick = (/** @type {'months' | 'weekdays'} */ key, stock = isStock(dictionary[key], defaults[key], language[key])) =>
+        english && stock ? defaults[key] : dictionary[key];
+    const months = (stockMonths ? intl({ month: 'long' }, (i) => new Date(PROBE_YEAR, i, 1), MONTHS_IN_YEAR) : null) ?? pick('months');
     // Short names a consumer set win; full names they set, with no short ones, come next; then Intl's, then the dictionary's.
     const shortDefaults = defaults.monthsShort;
-    const ownShort = shortDefaults !== undefined && same(dictionary.monthsShort ?? shortDefaults, shortDefaults);
-    const monthsShort = !ownShort
+    const stockShort = shortDefaults !== undefined && isStock(dictionary.monthsShort ?? shortDefaults, shortDefaults, language.monthsShort);
+    const monthsShort = !stockShort
         ? (dictionary.monthsShort ?? months)
-        : !ownMonths
+        : !stockMonths
           ? dictionary.months
           : (intl({ month: 'short' }, (i) => new Date(PROBE_YEAR, i, 1), MONTHS_IN_YEAR) ?? shortDefaults ?? months);
-    const sundayFirst = SUNDAY_FIRST.map((i) => dictionary.weekdays[i] ?? '');
-    const weekdays =
-        (same(dictionary.weekdays, defaults.weekdays) ? intl({ weekday: 'short' }, (i) => new Date(PROBE_YEAR, 0, SUNDAY_PROBE + i), DAYS_IN_WEEK) : null) ?? sundayFirst;
+    const stockWeekdays = isStock(dictionary.weekdays, defaults.weekdays, language.weekdays);
+    const sundayFirst = SUNDAY_FIRST.map((i) => pick('weekdays', stockWeekdays)[i] ?? '');
+    const weekdays = (stockWeekdays ? intl({ weekday: 'short' }, (i) => new Date(PROBE_YEAR, 0, SUNDAY_PROBE + i), DAYS_IN_WEEK) : null) ?? sundayFirst;
     return { months, monthsShort, weekdays };
 }

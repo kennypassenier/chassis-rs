@@ -30,6 +30,15 @@ let fromApp = {};
  */
 const dictionaries = new Map();
 
+/** Loads running now, one per tag. @type {Map<string, {source: DictionarySource, promise: Promise<void>}>} */
+const loading = new Map();
+
+/** The loader that failed last, per tag; a failed loader is kept and tried again on the next follow. @type {Map<string, DictionarySource>} */
+const failed = new Map();
+
+/** The dictionary object the current strings were laid out from, if any. @type {Partial<Strings> | undefined} */
+let published;
+
 /** A language chosen with `setLanguage()`; it wins over the root's attributes. @type {string | null} */
 let chosen = null;
 
@@ -66,56 +75,104 @@ export function setStrings(next) {
  * @returns {Strings}
  */
 function publish() {
-    const source = dictionaries.get(language);
-    const dictionary = typeof source === 'object' ? source : {};
-    current = Object.freeze({ ...DEFAULT_STRINGS, ...dictionary, ...fromApp });
+    current = Object.freeze({ ...DEFAULT_STRINGS, ...published, ...fromApp });
     if (typeof document !== 'undefined') applyStringProperties(document.documentElement, current);
     return current;
 }
 
+/** @param {unknown} tag @returns {string} lowercase, `_` as `-`, empty when absent */
+const normaliseTag = (tag) => String(tag ?? '').trim().toLowerCase().replace(/_/g, '-');
+
 /**
  * The language tag the page asks for: `setLanguage()`, else `data-kp-lang`
- * on the root, else its `lang`, matched to a registered dictionary by the
- * whole tag first (`nl-be`) and its first part next (`nl`).
+ * on the root, else its `lang`; an empty one counts as absent. Matched to a
+ * registered dictionary by the whole tag first (`nl-be`), then by ever
+ * shorter prefixes (`zh-hant-tw`, `zh-hant`, `zh`); `nl_BE` reads as `nl-be`.
  *
  * @returns {string} a registered tag, or `en`
  */
 function wantedLanguage() {
     const root = typeof document === 'undefined' ? null : document.documentElement;
-    const asked = (chosen ?? root?.getAttribute('data-kp-lang') ?? root?.getAttribute('lang') ?? 'en').trim().toLowerCase();
-    if (dictionaries.has(asked)) return asked;
-    const primary = asked.split('-')[0] ?? '';
-    return dictionaries.has(primary) ? primary : 'en';
+    const asked = [chosen, root?.getAttribute('data-kp-lang'), root?.getAttribute('lang')].map(normaliseTag).find((tag) => tag !== '') ?? 'en';
+    const parts = asked.split('-');
+    while (parts.length > 0) {
+        const tag = parts.join('-');
+        if (dictionaries.has(tag)) return tag;
+        parts.pop();
+    }
+    return 'en';
+}
+
+/**
+ * Load a dictionary once at a time per tag. A loader that throws or rejects
+ * is kept and marked failed (the next follow retries it); the result is
+ * stored only while the tag still holds this very loader.
+ *
+ * @param {string} tag
+ * @param {() => Promise<Partial<Strings>>} source
+ * @returns {Promise<void>} never rejects
+ */
+function load(tag, source) {
+    const running = loading.get(tag);
+    if (running?.source === source) return running.promise;
+    const promise = Promise.resolve()
+        .then(source)
+        .then((loaded) => {
+            if (dictionaries.get(tag) === source) dictionaries.set(tag, Object.freeze({ ...loaded }));
+        })
+        .catch((error) => {
+            failed.set(tag, source);
+            console.error(`kp-themes: the "${tag}" dictionary could not be loaded; the strings stay in English.`, error);
+        })
+        .finally(() => {
+            if (loading.get(tag)?.source === source) loading.delete(tag);
+        });
+    loading.set(tag, { source, promise });
+    return promise;
+}
+
+/**
+ * Publish the dictionary of `wanted`, and tell the page when the language
+ * or the active dictionary object changed; do nothing when neither did.
+ *
+ * @param {string} wanted
+ * @param {DictionarySource | undefined} source
+ */
+function settle(wanted, source) {
+    const dictionary = typeof source === 'object' ? source : undefined;
+    const moved = wanted !== language;
+    if (!moved && dictionary === published) return;
+    const swapped = dictionary !== published;
+    language = wanted;
+    published = dictionary;
+    publish();
+    if (moved || swapped) announce();
 }
 
 /**
  * Follow the page's language: load its dictionary when it is a loader, then
  * publish. A load that finishes after the page moved on is dropped.
  *
+ * @param {boolean} [retry] false right after a load, so a failed one is not tried again at once
  * @returns {Promise<void>}
  */
-function follow() {
+function follow(retry = true) {
     const wanted = wantedLanguage();
     const source = dictionaries.get(wanted);
-    if (typeof source !== 'function') {
-        const moved = wanted !== language;
-        language = wanted;
-        publish();
-        if (moved) announce();
+    if (typeof source === 'function' && retry && failed.get(wanted) === source) failed.delete(wanted);
+    if (typeof source !== 'function' || failed.get(wanted) === source) {
+        settle(typeof source === 'function' ? 'en' : wanted, typeof source === 'function' ? undefined : source);
         ready = Promise.resolve();
         return ready;
     }
-    ready = source().then(
-        (loaded) => {
-            dictionaries.set(wanted, Object.freeze({ ...loaded }));
-            if (wantedLanguage() === wanted) follow();
-        },
-        (error) => {
-            dictionaries.delete(wanted);
-            console.error(`kp-themes: the "${wanted}" dictionary could not be loaded; the strings stay in English.`, error);
-            follow();
-        },
-    );
+    ready = load(wanted, source)
+        .then(() => (wantedLanguage() === wanted ? follow(false) : undefined))
+        .catch((error) => {
+            failed.set(wanted, source);
+            if (dictionaries.get(wanted) !== source) dictionaries.set(wanted, source);
+            console.error(`kp-themes: the "${wanted}" dictionary could not be applied; the strings stay in English.`, error);
+            return follow(false);
+        });
     return ready;
 }
 
@@ -143,7 +200,7 @@ function watchRoot() {
  * @returns {Promise<void>} settles once the strings follow the page again
  */
 export function registerDictionary(tag, source) {
-    dictionaries.set(tag.trim().toLowerCase(), typeof source === 'function' ? source : Object.freeze({ ...source }));
+    dictionaries.set(normaliseTag(tag), typeof source === 'function' ? source : Object.freeze({ ...source }));
     watchRoot();
     return follow();
 }
@@ -156,7 +213,7 @@ export function registerDictionary(tag, source) {
  * @returns {Promise<void>} settles once the strings speak it
  */
 export function setLanguage(tag) {
-    chosen = tag === null ? null : tag.trim();
+    chosen = tag === null ? null : String(tag);
     watchRoot();
     return follow();
 }
@@ -208,6 +265,11 @@ export function stringProperties(strings = current) {
  */
 export function applyStringProperties(root, strings = current) {
     for (const [name, value] of Object.entries(stringProperties(strings))) root.style.setProperty(name, value);
+}
+
+/** @returns {Partial<Strings>} the dictionary of the language in use, without the app's own words; empty for English [habits-1101] */
+export function getLanguageDictionary() {
+    return published ?? {};
 }
 
 /** @returns {Strings} the strings as they stand */

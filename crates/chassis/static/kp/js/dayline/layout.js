@@ -69,8 +69,8 @@ export function placeItems(items, { startHour, step, rowsTotal }) {
         const clock = toMinutes(item.start);
         if (clock === null || item.allDay) continue;
         const at = dayMinute(clock, startHour);
-        const row = Math.round(at / step);
-        if (row >= rowsTotal) continue;
+        if (at / step >= rowsTotal) continue;
+        const row = Math.min(rowsTotal - 1, Math.round(at / step));
         const minutes = Math.max(1, Math.round(item.minutes ?? step));
         const rows = Math.min(rowsTotal - row, Math.max(minRows, Math.round(minutes / step)));
         placed.push({ item, at, minutes, row, rows, lane: 0, lanes: 1 });

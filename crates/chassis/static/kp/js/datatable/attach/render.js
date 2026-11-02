@@ -136,7 +136,9 @@ export class TableRender {
     /** The pager: the page-size choice, Back, the page and Next. @param {HTMLElement} pager @param {ReturnType<typeof getStrings>} s @param {number} pages @param {number} count */
     writePager(pager, s, pages, count) {
         const { model } = this.t;
-        pager.hidden = !this.pagerUseful(pages, count);
+        // While an answer is awaited the count is not known yet (a server table draws 0 rows first): the pager stays as it was
+        // rather than hiding for a count of 0 and arriving when the answer comes, which is not news on a page's first render [ux-1101].
+        if (model.state !== 'loading') pager.hidden = !this.pagerUseful(pages, count);
         pager.textContent = '';
         if (this.t.layoutSetup.sizeLabel !== null) pager.append(this.t.layoutSetup.sizeLabel);
         pager.append(this.pagerButton(s.previous, model.page > 0, () => (model.page -= 1), 'back'));

@@ -11,7 +11,7 @@ export const ANCHOR_CLASS = 'kp-context-menu';
 /** Elements that cannot hold the menu as a child; it stands after them instead. */
 export const NO_CHILD = 'input, textarea, select, img, ul, ol, dl, table, thead, tbody, tfoot, tr, [data-kp-reorder]';
 /** Where a long press keeps its own meaning (typing, dragging; a day timeline's block or source lifts on it [parts-1102 r2]), so it opens no menu. */
-export const OWN_PRESS = 'input, textarea, select, [contenteditable=""], [contenteditable="true"], [data-kp-handle], [data-kp-dayline-movable], .kp-dayline__item';
+export const OWN_PRESS = 'input, textarea, select, [contenteditable=""], [contenteditable="true"], [data-kp-handle], [data-kp-dayline-source], .kp-dayline__item';
 /** How far a finger may wander before a press counts as a scroll instead [px]. */
 export const PRESS_SLOP_PX = 10;
 /** A `contextmenu` event this soon after a key opened the menu is the key's own echo, not a second request [ms]. */

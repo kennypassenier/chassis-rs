@@ -55,19 +55,23 @@ export const onTopLayer = (tooltip) => tooltip.hasAttribute(TOOLTIP_LAYER_ATTR) 
 
 /**
  * Put a promoted tooltip on the top layer (after its `hidden` was cleared). A tooltip that cannot be shown there (it left
- * the document between the timer and now, or the browser refuses) is said in the console and drawn in the anchor's layer
- * instead, so the reason is never lost.
+ * the document between the timer and now, or the browser refuses) is said in the console and hidden again: it stays a
+ * promoted popover, so the next hover tries the top layer once more, and it can never stay on screen drawn in the anchor's
+ * layer with the control believing it is closed [ovfix-1102 #1].
  *
  * @param {HTMLElement} tooltip
+ * @returns {boolean} whether the tooltip is on the top layer now (a tooltip that was not promoted is not, and is left as it is)
  */
 export function showLayer(tooltip) {
-    if (!tooltip.hasAttribute(TOOLTIP_LAYER_ATTR) || tooltip.matches(':popover-open')) return;
+    if (!tooltip.hasAttribute(TOOLTIP_LAYER_ATTR)) return false;
+    if (tooltip.matches(':popover-open')) return true;
     try {
         tooltip.showPopover();
+        return true;
     } catch (error) {
-        console.warn('kp-themes tooltip: could not put the tooltip on the top layer; it is drawn in its anchor instead.', tooltip, error);
-        tooltip.removeAttribute('popover');
-        tooltip.removeAttribute(TOOLTIP_LAYER_ATTR);
+        console.warn('kp-themes tooltip: could not put the tooltip on the top layer; it stays hidden and the next hover tries again.', tooltip, error);
+        tooltip.hidden = true;
+        return false;
     }
 }
 

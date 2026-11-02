@@ -140,7 +140,8 @@ class TooltipControl extends Controller {
         } else if (this.going || this.shown() === open) return;
         else if (open) {
             tooltip.hidden = false;
-            showLayer(tooltip);
+            // Refused by the top layer: showLayer() hid it again, and nothing opened, so nothing is announced.
+            if (this.promoted && !showLayer(tooltip)) return;
         } else this.leave();
         this.host.dispatchEvent(new CustomEvent(TOOLTIP_EVENT, { bubbles: true, detail: { open, tooltip } }));
     }

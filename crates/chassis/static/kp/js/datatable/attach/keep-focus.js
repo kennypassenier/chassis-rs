@@ -8,8 +8,12 @@
 // after the focus left the row draws the fresh data as usual. A row whose key is no longer in the data goes, and the focus
 // moves to the same cell of the row that took its place, so it never falls to <body>.
 //
+// Rows that share a key are told apart by their place among them. A focus inside an expanded detail row is remembered by its
+// owner row: the detail is drawn again by the refresh, so the focus goes to the first control of the fresh owner row, never to <body>.
+//
 // Off by default (the fresh row wins, as before), read at every refresh, so the attribute can be set or taken away at any time.
 import { ROW_KEPT_EVENT } from '../events.js';
+import { DETAIL } from '../selectors.js';
 
 /** The wrapper attribute that turns the keeping on. */
 export const KEEP_FOCUSED_ROW = 'data-kp-keep-focused-row';
@@ -17,7 +21,11 @@ export const KEEP_FOCUSED_ROW = 'data-kp-keep-focused-row';
 const FOCUSABLE = 'input:not([type="hidden"]):not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])';
 
 /** @typedef {import('./controller.js').DataTableControl} DataTableControl */
-/** @typedef {{ row: HTMLTableRowElement, element: HTMLElement, key: string, at: number, cell: number }} KeepMemo */
+/**
+ * What the focus was in: the row (the owner row, when the focus was in an expanded detail row), its key, which of the rows
+ * that share the key it was (`twin`), the visible slot it had on the page and the cell the control sat in.
+ * @typedef {{ row: HTMLTableRowElement, element: HTMLElement, key: string, twin: number, detail: boolean, at: number, cell: number }} KeepMemo
+ */
 
 export class TableKeepFocus {
     /** @param {DataTableControl} t */
@@ -43,16 +51,38 @@ export class TableKeepFocus {
         return this.t.wrap.hasAttribute(KEEP_FOCUSED_ROW);
     }
 
+    /** The row the focus is in, or for a focus in an expanded detail row, the row that owns the detail. @param {Element | null} from */
+    ownerOf(from) {
+        const { model, body } = this.t;
+        let row = /** @type {HTMLTableRowElement | null} */ (from?.closest('tr') ?? null);
+        if (row === null || row.parentElement !== body) return { row: null, detail: false };
+        if (model.isRow(row)) return { row, detail: false };
+        if (!row.matches(DETAIL)) return { row: null, detail: false };
+        while (row !== null && !model.isRow(row)) row = /** @type {HTMLTableRowElement | null} */ (row.previousElementSibling);
+        return { row, detail: row !== null };
+    }
+
+    /** The rows of the body that carry `key`, in body order. @param {string} key */
+    twins(key) {
+        const { body, model, columns } = this.t;
+        return [...body.rows].filter((row) => model.isRow(row) && columns.keyOf(row) === key);
+    }
+
+    /** Where a row stands among the rows the page shows now. @param {HTMLTableRowElement} row */
+    slotOf(row) {
+        return this.t.model.pageRows.filter((r) => !r.hidden || r === row).indexOf(row);
+    }
+
     /** Note the row the focus went into, when it is one of the table's rows and has a key. @param {FocusEvent} event */
     onFocusIn(event) {
-        const { model, columns, body } = this.t;
+        const { columns } = this.t;
         const element = event.target instanceof HTMLElement ? event.target : null;
-        const row = /** @type {HTMLTableRowElement | null} */ (element?.closest('tr') ?? null);
-        const key = row !== null && row.parentElement === body && model.isRow(row) ? columns.keyOf(row) : '';
+        const { row, detail } = this.ownerOf(element);
+        const key = row !== null ? columns.keyOf(row) : '';
         const cell = element?.closest('td, th');
         this.memo =
             element !== null && row !== null && key !== ''
-                ? { row, element, key, at: model.pageRows.indexOf(row), cell: cell instanceof HTMLTableCellElement ? cell.cellIndex : 0 }
+                ? { row, element, key, twin: this.twins(key).indexOf(row), detail, at: this.slotOf(row), cell: !detail && cell instanceof HTMLTableCellElement ? cell.cellIndex : 0 }
                 : null;
     }
 
@@ -72,7 +102,7 @@ export class TableKeepFocus {
     /**
      * Before the rows are read again: put the focused row back in the place of its fresh copy. Returns the control to give the
      * focus back to, the neighbour's slot when the row left the data, or null when there is nothing to keep.
-     * @returns {{ element: HTMLElement } | { neighbour: { at: number, cell: number } } | null}
+     * @returns {{ element: HTMLElement } | { neighbour: { at: number, cell: number, key: string } } | null}
      */
     restore() {
         const memo = this.memo;
@@ -80,11 +110,15 @@ export class TableKeepFocus {
         const active = document.activeElement;
         // Something else took the focus in the meantime: that is where the reader is now.
         if (active !== null && active !== document.body && active !== memo.element) return this.forget();
-        const { body, model, columns, wrap } = this.t;
-        const fresh = [...body.rows].find((row) => model.isRow(row) && columns.keyOf(row) === memo.key);
-        if (fresh === undefined) {
+        const { model, wrap } = this.t;
+        // A page that sorted or filtered since the focus went in moved the row's slot: read it again from the page's rows.
+        const at = model.pageRows.includes(memo.row) ? this.slotOf(memo.row) : memo.at;
+        const twins = this.twins(memo.key);
+        const fresh = twins[Math.min(memo.twin, twins.length - 1)];
+        // A focus in a detail row cannot be kept (the refresh draws the details again): it goes to the fresh owner row.
+        if (fresh === undefined || memo.detail) {
             this.memo = null;
-            return { neighbour: { at: memo.at, cell: memo.cell } };
+            return { neighbour: { at, cell: memo.cell, key: fresh === undefined ? '' : memo.key } };
         }
         fresh.replaceWith(memo.row);
         // It stands where its fresh copy stood: the order the page rendered is the body's order, not the old row's first place.
@@ -103,12 +137,13 @@ export class TableKeepFocus {
     /**
      * The focused row left the data: the focus goes to the same cell of the row now in its place on the page (the last row when
      * it was the last), so it stays in the table instead of falling to <body>.
-     * @param {{ at: number, cell: number }} slot
+     * @param {{ at: number, cell: number, key: string }} slot `key` is set when the row is still in the data and only its detail went
      */
     focusNeighbour(slot) {
-        const rows = this.t.model.pageRows.filter((row) => !row.hidden);
+        const { model, columns } = this.t;
+        const rows = model.pageRows.filter((row) => !row.hidden);
         if (rows.length === 0 || slot.at < 0) return;
-        const row = rows[Math.min(slot.at, rows.length - 1)];
+        const row = (slot.key !== '' ? rows.find((r) => columns.keyOf(r) === slot.key) : undefined) ?? rows[Math.min(slot.at, rows.length - 1)];
         const cell = row.cells[slot.cell] ?? null;
         const target = /** @type {HTMLElement | null} */ (cell?.querySelector(FOCUSABLE) ?? row.querySelector(FOCUSABLE));
         target?.focus({ preventScroll: true });

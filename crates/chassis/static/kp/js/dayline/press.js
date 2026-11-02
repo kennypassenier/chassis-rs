@@ -7,7 +7,7 @@
 //                                            the item after holding still for the hold time and then follows, while a finger that
 //                                            moves sooner is a scroll and is let go at once, so the page and the box still scroll
 //
-// While a finger holds an item, scrolling is held back through `holdScroll` (a listener that is not passive, put on the parts
+// While a finger holds an item, scrolling is held back through `holdScroll` (one listener per document that is not passive, there
 // beforehand, because a browser decides at the touch's start whether it may wait for one), and the long press's own menu is
 // swallowed. Escape or a cancelled pointer puts the drag back; the click a drag's release makes is swallowed.
 
@@ -25,35 +25,56 @@ import { DRAG_THRESHOLD_PX, TOUCH_SLOP_PX } from './constants.js';
  * @property {() => void} [lift] a finger held still long enough: the item is lifted and the next move drags it
  */
 
-/** Whether a finger is holding a lifted item now, so the touch listeners hold the scroll back. */
-let holding = false;
+/** The presses whose finger is holding a lifted item now, per document, so the one touch listener holds the scroll back. @type {WeakMap<Document, Set<object>>} */
+const HOLDS = new WeakMap();
 
-/** Hold back the scroll of a touch that lifted an item. Put on an element before any touch starts on it. @param {EventTarget} el */
-export function holdScroll(el) {
+/** @param {Document} doc */
+function holdsOf(doc) {
+    let set = HOLDS.get(doc);
+    if (!set) HOLDS.set(doc, (set = new Set()));
+    return set;
+}
+
+/** Hold back the scroll of a touch that lifted an item: the document's one non-passive touchmove, put there before any touch
+ * starts. Returns what removes it. @param {Document} doc */
+export function holdScroll(doc) {
     const stop = (/** @type {Event} */ e) => {
-        if (holding && e.cancelable) e.preventDefault();
+        if (holdsOf(doc).size && e.cancelable) e.preventDefault();
     };
-    el.addEventListener('touchmove', stop, { passive: false });
-    return () => el.removeEventListener('touchmove', stop);
+    doc.addEventListener('touchmove', stop, { passive: false });
+    return () => doc.removeEventListener('touchmove', stop);
 }
 
 /** Swallow the click a drag's release makes (it lands on what was pressed), once; a browser that makes none (the pointer was
- * captured) leaves it to the next press or a moment later to stand down, so that press's own click is never eaten. @param {Document} doc */
-function swallowClick(doc) {
+ * captured) leaves it to the next press or a moment later to stand down, so that press's own click is never eaten. With `afterUp`
+ * (Escape while the pointer is still down) the click is not expected before the release, so the swallower arms on the next
+ * pointerup and its moment starts there. @param {Document} doc @param {boolean} [afterUp] */
+function swallowClick(doc, afterUp = false) {
     const win = doc.defaultView;
     if (!win) return;
+    let timer = /** @type {ReturnType<typeof setTimeout> | undefined} */ (undefined);
     const eat = (/** @type {Event} */ e) => {
         e.preventDefault();
         e.stopPropagation();
         done();
     };
     const done = () => {
+        clearTimeout(timer);
         win.removeEventListener('click', eat, true);
         win.removeEventListener('pointerdown', done, true);
+        win.removeEventListener('pointerup', arm, true);
+        win.removeEventListener('pointercancel', done, true);
     };
-    win.addEventListener('click', eat, true);
+    const arm = () => {
+        win.removeEventListener('pointerup', arm, true);
+        win.removeEventListener('pointercancel', done, true);
+        win.addEventListener('click', eat, true);
+        timer = setTimeout(done, 400);
+    };
     win.addEventListener('pointerdown', done, true);
-    setTimeout(done, 400);
+    if (!afterUp) return void arm();
+    win.addEventListener('pointerup', arm, true);
+    win.addEventListener('pointercancel', done, true);
 }
 
 /**
@@ -64,12 +85,14 @@ function swallowClick(doc) {
 export function followPress(down, h) {
     const doc = /** @type {Document} */ (/** @type {Node} */ (down.target).ownerDocument);
     const finger = down.pointerType === 'touch';
+    const token = {};
+    const hold = (/** @type {boolean} */ on) => void (on ? holdsOf(doc).add(token) : holdsOf(doc).delete(token));
     /** @type {'pending' | 'lifted' | 'dragging'} */
     let phase = 'pending';
     let timer = /** @type {ReturnType<typeof setTimeout> | undefined} */ (undefined);
     const off = () => {
         clearTimeout(timer);
-        holding = false;
+        hold(false);
         doc.removeEventListener('pointermove', onMove);
         doc.removeEventListener('pointerup', onUp);
         doc.removeEventListener('pointercancel', onCancel);
@@ -79,7 +102,7 @@ export function followPress(down, h) {
     const begin = (/** @type {PointerEvent} */ e) => {
         if (!h.start(e)) return void off();
         phase = 'dragging';
-        holding = finger;
+        hold(finger);
         try {
             h.capture.setPointerCapture(down.pointerId);
         } catch {
@@ -116,7 +139,7 @@ export function followPress(down, h) {
         e.stopPropagation();
         off();
         h.end('back', null);
-        swallowClick(doc);
+        swallowClick(doc, true);
     };
     const onMenu = (/** @type {Event} */ e) => {
         if (!finger) return;
@@ -132,7 +155,7 @@ export function followPress(down, h) {
         timer = setTimeout(() => {
             if (phase !== 'pending') return;
             phase = 'lifted';
-            holding = true;
+            hold(true);
             h.lift?.();
         }, h.holdMs);
     }

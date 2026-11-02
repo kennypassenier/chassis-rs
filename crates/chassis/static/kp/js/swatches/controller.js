@@ -121,6 +121,7 @@ export class SwatchesControl extends Controller {
     pick(value, source) {
         const swatch = this.swatches.find((one) => one.value === value);
         if (!swatch) return;
+        if (value === this.current) return void this.buttonOf(value)?.focus();
         this.current = value;
         this.paint();
         this.buttonOf(value)?.focus();

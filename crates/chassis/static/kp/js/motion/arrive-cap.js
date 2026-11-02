@@ -22,14 +22,23 @@ export function arriveMaxOf(el, fallback) {
 }
 
 /**
- * The arrivals one batch may still play, per region: every region under its own closest cap, counted apart.
+ * The arrivals one batch may still play, per region: every region under its own closest cap, counted apart. A node that is
+ * no longer connected (added and removed in the same batch) spends nothing, and an element is counted once however many
+ * records of the batch name it (unhidden and added), so neither starves a real arrival [ovfix-1102 #5].
+ *
+ * The budget belongs to ONE batch of records: a note streamed in many callbacks gets its cap in each, by design (the cap
+ * limits what plays in one frame, not what plays in total).
  * @param {number} fallback the cap where no region says another
  * @returns {(el: Element) => boolean} whether `el` may arrive; each yes uses one of its region's arrivals
  */
 export function arriveBudget(fallback) {
     /** @type {Map<Element | null, number>} */
     const left = new Map();
+    /** @type {WeakSet<Element>} */
+    const counted = new WeakSet();
     return (el) => {
+        if (!el.isConnected || counted.has(el)) return false;
+        counted.add(el);
         const region = el.closest(`[${ARRIVE_MAX_ATTRIBUTE}]`);
         const rest = left.get(region) ?? arriveMaxOf(el, fallback);
         left.set(region, rest - 1);

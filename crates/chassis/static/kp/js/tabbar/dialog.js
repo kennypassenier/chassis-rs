@@ -32,6 +32,17 @@ export class TabbarDialog {
         bar.listen(dialog, 'close', () => this.sync());
     }
 
+    /** The tab the bar drew anew takes over this wiring; the old tab left the bar and gets its marks taken back. @param {HTMLElement} tab */
+    retarget(tab) {
+        this.release();
+        this.tab = tab;
+        this.marked = false;
+        tab.setAttribute('aria-haspopup', 'dialog');
+        tab.setAttribute('aria-controls', this.dialog.id);
+        this.dialog.setAttribute('data-kp-tabbar-drawer', '');
+        this.sync();
+    }
+
     /** Take the marks this tab and its dialog got off again. */
     release() {
         const { tab, dialog } = this;

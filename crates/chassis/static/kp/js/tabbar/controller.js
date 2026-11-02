@@ -16,8 +16,8 @@ export class TabbarController extends Controller {
 
     connect() {
         if (!this.view) return;
-        /** The More tabs wired so far, so a redraw wires only a tab that is new. @type {WeakSet<HTMLElement>} */
-        this.wired = new WeakSet();
+        /** The dialogs wired so far, so a redraw wires a dialog once: a tab drawn anew takes over the dialog's wiring. @type {WeakMap<HTMLDialogElement, TabbarDialog>} */
+        this.wired = new WeakMap();
         this.publishHeight();
         this.fitLabels();
         this.wireDialogs();
@@ -50,15 +50,22 @@ export class TabbarController extends Controller {
         this.own(() => root.style.removeProperty(TABBAR_HEIGHT_PROPERTY));
     }
 
-    /** A tab that opens a dialog: say so, and follow the dialog. A tab already wired is left as it is. */
+    /**
+     * A tab that opens a dialog: say so, and follow the dialog. The wiring is keyed on the dialog: a redraw that replaces the
+     * tab but keeps the dialog hands the one wiring to the new tab (no second click handler, observer or close timer), and a
+     * tab already wired is left as it is.
+     */
     wireDialogs() {
         for (const el of this.host.querySelectorAll('.kp-tabbar__tab[data-kp-dialog]')) {
             const tab = /** @type {HTMLElement} */ (el);
-            if (this.wired.has(tab)) continue;
             const dialog = this.doc.getElementById(tab.dataset.kpDialog ?? '');
             if (!(dialog instanceof HTMLDialogElement)) continue;
-            this.wired.add(tab);
-            new TabbarDialog(this, tab, dialog).connect();
+            const wiring = this.wired.get(dialog);
+            if (wiring === undefined) {
+                const fresh = new TabbarDialog(this, tab, dialog);
+                this.wired.set(dialog, fresh);
+                fresh.connect();
+            } else if (wiring.tab !== tab && !this.host.contains(wiring.tab)) wiring.retarget(tab);
         }
     }
 

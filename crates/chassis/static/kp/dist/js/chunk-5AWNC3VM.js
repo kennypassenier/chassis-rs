@@ -1,0 +1,2 @@
+import{a as f}from"./chunk-4C666HHU.js";var b={};f(b,{watchOptions:()=>l});function l(n,a,c){let r=n.ownerDocument.defaultView;if(r===null||typeof r.MutationObserver!="function")return()=>{};let u=new r.MutationObserver(s=>{let o=new Map;for(let t of s){let e=t.attributeName;e!==null&&!o.has(e)&&o.set(e,t.oldValue)}let i=[...o].filter(([t,e])=>n.getAttribute(t)!==e).map(([t])=>t);i.length>0&&c(i)});return u.observe(n,{attributes:!0,attributeOldValue:!0,attributeFilter:[...a]}),()=>u.disconnect()}export{l as a,b};
+//# sourceMappingURL=chunk-5AWNC3VM.js.map

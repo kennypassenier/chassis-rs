@@ -3,15 +3,15 @@
 // moves (js/dayline/move.js), the drops from a list beside it (js/dayline/drop.js) and the states (js/dayline/states.js).
 
 import { Controller } from '../controller.js';
+import { say } from '../live-say.js';
 import { watchOptions } from '../live-options.js';
 import { getStrings } from '../strings.js';
 import {
     DAYLINE_CHANGE_EVENT, DAYLINE_OPEN_EVENT, HOLD_ATTRIBUTE, HOURS_ATTRIBUTE, NOW_ATTRIBUTE, NOW_TICK_MS, NOW_VIEW_SHARE, START_ATTRIBUTE, STEP_ATTRIBUTE,
 } from './constants.js';
-import { markSources, wireDrop } from './drop.js';
+import { wireDrop } from './drop.js';
 import { clockAt, dayMinute, holdOf, intIn, placeItems, stepOf, toMinutes } from './layout.js';
 import { KeyWalk, dragFrom } from './move.js';
-import { holdScroll } from './press.js';
 import { allDayItems, buildBlock, buildFrame, hourParts, placeNow, spanOf } from './render.js';
 import { drawBusy, drawPlate } from './states.js';
 
@@ -34,6 +34,8 @@ export class DaylineControl extends Controller {
         this.st = { host, frame: this.parts.frame, scroll: this.parts.scroll, plate: this.parts.plate, state: 'ready', words: '', text: '', drawn: false, busy: null };
         /** Whether the person has scrolled or worked in the box: from then on it is never scrolled for them. */
         this.touched = false;
+        /** The sentence the status line was given last, so a finished move does not say its final step a second time. */
+        this.lastSaid = '';
         this.clock = typeof options.now === 'function' ? options.now : () => Date.now();
         this.walk = new KeyWalk(this.mover());
     }
@@ -46,7 +48,6 @@ export class DaylineControl extends Controller {
         p.scroll.setAttribute('aria-label', host.getAttribute('aria-label') ?? getStrings().daylineLabel);
         host.replaceChildren(p.allDay, p.frame, p.status);
         this.listen(p.grid, 'pointerdown', (e) => dragFrom(/** @type {PointerEvent} */ (e), this.mover()));
-        this.own(holdScroll(p.grid));
         this.listen(p.grid, 'keydown', (e) => this.walk.onKey(/** @type {KeyboardEvent} */ (e)));
         this.listen(p.grid, 'click', (e) => this.open(/** @type {MouseEvent} */ (e)));
         this.own(watchOptions(host, [START_ATTRIBUTE, STEP_ATTRIBUTE, HOURS_ATTRIBUTE, NOW_ATTRIBUTE, HOLD_ATTRIBUTE], () => this.draw()));
@@ -125,13 +126,13 @@ export class DaylineControl extends Controller {
         this.paintStates();
     }
 
-    /** Draw the grid, the blocks, the strip and the now line; the focused handle keeps the focus. */
+    /** Draw the grid, the blocks, the strip and the now line; the focused handle or body button keeps the focus, without scrolling. */
     draw() {
         const g = this.grid();
         const p = this.parts;
         const doc = this.host.ownerDocument;
         const s = getStrings();
-        const focused = doc.activeElement?.closest('.kp-dayline__handle')?.closest('[data-kp-dayline-id]')?.getAttribute('data-kp-dayline-id');
+        const focused = this.focusedPart();
         p.grid.style.setProperty('--kp-dayline-rows', String(g.rowsTotal));
         p.grid.style.setProperty('--kp-dayline-per-hour', String(g.perHour));
         const placed = placeItems(this.items, g);
@@ -140,12 +141,19 @@ export class DaylineControl extends Controller {
         p.allDay.hidden = this.allDay === null;
         p.allDayName.textContent = s.daylineAllDay;
         p.allDayList.replaceChildren(...allDayItems(doc, this.allDay ?? [], s));
-        markSources(this.host);
         this.paintNow();
         this.paintStates();
-        if (focused) /** @type {HTMLElement | null} */ (p.grid.querySelector(`[data-kp-dayline-id="${CSS.escape(focused)}"] .kp-dayline__handle`))?.focus();
+        if (focused) /** @type {HTMLElement | null} */ (p.grid.querySelector(`[data-kp-dayline-id="${CSS.escape(focused.id)}"] .${focused.part}`))?.focus({ preventScroll: true });
         this.reveal();
         this.st.drawn = true;
+    }
+
+    /** The block part that holds the focus (its handle or its body button), to give it back after a draw. @returns {{ id: string, part: string } | null} */
+    focusedPart() {
+        const active = this.host.ownerDocument.activeElement;
+        const id = active && this.parts.grid.contains(active) ? active.closest('[data-kp-dayline-id]')?.getAttribute('data-kp-dayline-id') : null;
+        const part = ['kp-dayline__handle', 'kp-dayline__body'].find((name) => active?.classList.contains(name));
+        return id && part ? { id, part } : null;
     }
 
     paintStates() {
@@ -196,7 +204,8 @@ export class DaylineControl extends Controller {
         const item = this.items.find((one) => one.id === p.item.id);
         if (item) item.start = start;
         this.draw();
-        this.say(getStrings().daylineMoved(p.item.label, start));
+        const words = getStrings().daylineMoved(p.item.label, start);
+        if (this.lastSaid !== words) this.say(words);
         this.host.dispatchEvent(new CustomEvent(DAYLINE_CHANGE_EVENT, { bubbles: true, detail: { id: p.item.id, start, from, source } }));
     }
 
@@ -216,8 +225,7 @@ export class DaylineControl extends Controller {
 
     /** Write a sentence to the status line, cleared first so the same sentence twice is still heard. @param {string} text */
     say(text) {
-        const { status } = this.parts;
-        status.textContent = '';
-        requestAnimationFrame(() => (status.textContent = text));
+        this.lastSaid = text;
+        say(this.parts.status, text);
     }
 }

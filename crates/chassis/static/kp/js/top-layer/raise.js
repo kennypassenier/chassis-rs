@@ -8,11 +8,13 @@ import { clearBlockSide, placeBlockSide } from './side.js';
 class OverlayRaise extends Controller {
     /**
      * @param {HTMLElement} host the overlay, already visible (not `hidden`)
-     * @param {{ place: (element: HTMLElement) => void }} options place puts it in window coordinates
+     * @param {{ place: (element: HTMLElement) => void, anchor?: Element }} options place puts it in window coordinates;
+     *   anchor is the control the overlay hangs on: the overlay is lowered by itself when that control leaves the document
      */
     constructor(host, options) {
         super(host, options);
         this.place = options.place;
+        this.anchor = options.anchor ?? null;
     }
 
     connect() {
@@ -34,11 +36,16 @@ class OverlayRaise extends Controller {
         // changes height while open, and the side it fits on can change with it.
         // Placing writes the same size back, so this settles after one call.
         if (typeof ResizeObserver === 'function') this.observe(new ResizeObserver(follow)).observe(element);
+        // The browser closes a popover that leaves the document; the toggle that says so is the cue to check the anchor.
+        if (this.anchor) this.listen(element, 'toggle', follow);
     }
 
     follow() {
         if (this.destroyed) return;
         const element = this.host;
+        // The control it hangs on was removed while it was open (the browser already closed the popover): lower it, which
+        // releases the window listeners and the observer, rather than place a disconnected control at 0,0 [ovfix-1102 #7].
+        if (this.anchor && !this.anchor.isConnected) return this.destroy();
         // Moved in the document (a page that re-parents its sections, the review dialog's stage) the browser takes a
         // popover out of the top layer without a word; while the overlay is still meant to be showing, it is put back.
         if (element.isConnected && !element.hidden && !element.matches(':popover-open')) element.showPopover();
@@ -51,15 +58,16 @@ class OverlayRaise extends Controller {
  *
  * @param {HTMLElement} element the overlay, already visible (not `hidden`)
  * @param {(element: HTMLElement) => void} place puts it in window coordinates; called now and on every scroll and resize
+ * @param {{ anchor?: Element }} [options] `anchor`: the control it hangs on; when that leaves the document the overlay is lowered by itself
  * @returns {() => void} lower — takes it out of the top layer, stops following, and removes what raising wrote
  */
-export function raiseOverlay(element, place) {
+export function raiseOverlay(element, place, { anchor } = {}) {
     if (typeof element.showPopover !== 'function' || !element.isConnected) {
         place(element);
         return () => {};
     }
     // Built directly, not keyed on the element: a second raise of one overlay lowers on its own, as it always did.
-    const raise = new OverlayRaise(element, { place });
+    const raise = new OverlayRaise(element, { place, anchor });
     try {
         raise.connect();
     } catch (error) {

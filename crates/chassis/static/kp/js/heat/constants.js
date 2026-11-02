@@ -16,6 +16,10 @@ export const MATRIX_PICK_EVENT = 'kp-matrix-pick';
 export const HEAT_RETRY_EVENT = 'kp-heat-retry';
 /** Fired on a matrix (either view), bubbling, when the Retry of its failed state is pressed [state-plates-1019]. */
 export const MATRIX_RETRY_EVENT = 'kp-matrix-retry';
+/** Fired on a heat grid when the list of one row's days opens (`open: true`) or closes [heatstates-1102]. */
+export const HEAT_DAYS_EVENT = 'kp-heat-days';
+/** The grid's option for that list: `auto` (default), `always` or `off` [heatstates-1102]. */
+export const HEAT_DAYS_ATTRIBUTE = 'data-kp-heat-days';
 /** Fired on a matrix when the lit headers change. */
 export const MATRIX_LIGHT_EVENT = 'kp-matrix-light';
 

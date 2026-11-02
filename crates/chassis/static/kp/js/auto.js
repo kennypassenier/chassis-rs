@@ -46,6 +46,9 @@ import { AutoLoader } from './auto/loader.js';
 import { applyStoredCalm } from './calm.js';
 import { languageReady, registerDictionary } from './strings/runtime.js';
 
+/** The longest `auto.js` waits for a dictionary before it attaches the parts anyway, in ms. */
+const LANGUAGE_WAIT_MS = 3000;
+
 export { NEEDS } from './auto/needs.js';
 
 /**
@@ -100,8 +103,22 @@ if (typeof document !== 'undefined') {
             // No location (a non-browser document): nothing to read.
         }
     }
+    /** Wait for the strings, but never so long that a stalled or failing dictionary keeps the parts from attaching. @returns {Promise<void>} */
+    const waitForLanguage = () =>
+        new Promise((resolve) => {
+            const timer = setTimeout(() => {
+                console.warn(`kp-themes: the language did not settle within ${LANGUAGE_WAIT_MS} ms; attaching with the strings as they stand.`);
+                resolve();
+            }, LANGUAGE_WAIT_MS);
+            languageReady()
+                .catch((error) => console.error('kp-themes: the language failed to settle; attaching with the strings as they stand.', error))
+                .then(() => {
+                    clearTimeout(timer);
+                    resolve();
+                });
+        });
     const start = () => {
-        void languageReady().then(attachEverything);
+        void waitForLanguage().then(attachEverything);
     };
     const attachEverything = () => {
         const attached = attachAll();

@@ -71,12 +71,19 @@ export function finish(g, lifted) {
     return lifted && g.armed ? g.action : null;
 }
 
-/** Drop the one click the browser sends after a swipe's lift, and only that one. @param {HTMLElement} row */
+/** Drop the one click the browser sends after a swipe's lift, and only that one. A browser that sends none (a touch drag past the
+ * slop, a cancel) leaves the eater to the next press on the row or a moment later, so a real tap is never eaten. @param {HTMLElement} row */
 function swallowNextClick(row) {
     const stop = (/** @type {Event} */ e) => {
         e.preventDefault();
         e.stopPropagation();
     };
+    const done = () => {
+        clearTimeout(timer);
+        row.removeEventListener('click', stop, { capture: true });
+        row.removeEventListener('pointerdown', done, { capture: true });
+    };
+    const timer = setTimeout(done, CLICK_GUARD_MS);
     row.addEventListener('click', stop, { capture: true, once: true });
-    setTimeout(() => row.removeEventListener('click', stop, { capture: true }), CLICK_GUARD_MS);
+    row.addEventListener('pointerdown', done, { capture: true });
 }

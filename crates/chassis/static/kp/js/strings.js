@@ -47,6 +47,7 @@ export {
     stringProperties,
     applyStringProperties,
     getStrings,
+    getLanguageDictionary,
     resolveStrings,
     registerDictionary,
     setLanguage,

@@ -99,6 +99,7 @@ export function setHeat(el, spec, options) {
     el.setAttribute('data-kp-heat', '');
     el.setAttribute('role', 'grid');
     if (spec.label && !el.hasAttribute('aria-label')) el.setAttribute('aria-label', spec.label);
+    if (spec.days) el.setAttribute('data-kp-heat-days', spec.days);
     el.setAttribute('data-kp-state', state);
     el.toggleAttribute('aria-busy', loading);
     if (loading) el.setAttribute('aria-busy', 'true');
@@ -174,6 +175,8 @@ export function setHeat(el, spec, options) {
                 'data-col-key': col.key,
                 'aria-label': cell?.aria && !(calm && tone === 'quiet') ? cell.aria : `${row.label}, ${col.label}${said ? `: ${said}` : ''}`,
             });
+            // What the cell says, for its row's list of days [heatstates-1102].
+            if (said) button.setAttribute('data-kp-said', said);
             if (tone === 'level') button.style.setProperty('--kp-heat-level', unit(cell?.level));
             if (summary && cell?.share != null) button.style.setProperty('--kp-heat-share', unit(cell.share));
             if (summary) button.setAttribute('data-kp-share', '');

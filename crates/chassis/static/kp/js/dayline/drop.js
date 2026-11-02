@@ -6,7 +6,8 @@
 // go anywhere else, or Escape, and nothing happens. A press on the source's own controls (its check box, its menu, a field) stays
 // theirs. A keyboard reaches the same through the page's own "Set a time".
 //
-// One listener per document serves every day timeline in it, so a press lifts one copy however many days could take it.
+// One pointerdown and one touchmove listener per document serve every day timeline in it, so a press lifts one copy however many
+// days could take it; both go with the last day.
 
 import { DAYLINE_DROP_EVENT, SOURCE_ATTRIBUTE, SOURCE_FOR_ATTRIBUTE, SOURCE_LABEL_ATTRIBUTE, SOURCE_OWN_PRESS } from './constants.js';
 import { edgeScroller } from './edge-scroll.js';
@@ -29,8 +30,6 @@ import { liftCopy } from './ghost.js';
 
 /** @type {WeakMap<Document, { days: Set<DropHost>, off: () => void }>} */
 const PER_DOCUMENT = new WeakMap();
-/** The sources that already hold a touch's scroll back. @type {WeakSet<Element>} */
-const HELD = new WeakSet();
 
 /** Whether a source may be dropped on this day, and the day can take one now. @param {Element} source @param {DropHost} d */
 const takes = (source, d) => {
@@ -38,17 +37,6 @@ const takes = (source, d) => {
     const state = d.host.dataset.kpState;
     return (!only || only === d.host.id) && state !== 'loading' && state !== 'error' && d.host.isConnected;
 };
-
-/** Mark every source in the document that may land here, so a touch on it can hold its scroll back. @param {HTMLElement} host */
-export function markSources(host) {
-    for (const source of host.ownerDocument.querySelectorAll(`[${SOURCE_ATTRIBUTE}]`)) {
-        source.setAttribute('data-kp-dayline-movable', '');
-        if (!HELD.has(source)) {
-            HELD.add(source);
-            holdScroll(source);
-        }
-    }
-}
 
 /** The row under a point. @param {number} y @param {DropHost} d */
 function rowAt(y, d) {
@@ -149,7 +137,9 @@ export function wireDrop(d) {
             dragSource(e, source, days);
         };
         doc.addEventListener('pointerdown', press);
-        shared = { days, off: () => doc.removeEventListener('pointerdown', press) };
+        // One non-passive touchmove for the document holds the scroll of every lifted block and source, drawn before or after.
+        const unhold = holdScroll(doc);
+        shared = { days, off: () => (doc.removeEventListener('pointerdown', press), unhold()) };
         PER_DOCUMENT.set(doc, shared);
     }
     shared.days.add(d);

@@ -6,6 +6,7 @@ import { Controller } from '../controller.js';
 import { getStrings } from '../strings.js';
 import { END_ATTRIBUTE, OWN_CONTROLS, POINTERS_ATTRIBUTE, ROW_OFF_ATTRIBUTE, START_ATTRIBUTE, SWIPE_EVENT, TONES } from './constants.js';
 import { begin, finish, moveTo } from './gesture.js';
+import { say } from '../live-say.js';
 
 /** @typedef {import('./constants.js').SwipeAction} SwipeAction */
 
@@ -38,6 +39,8 @@ export class SwipeControl extends Controller {
         /** @type {import('./gesture.js').Gesture | null} */
         let g = null;
         this.listen(list, 'pointerdown', (e) => {
+            // A second finger is not a press of its own: it must not replace (and so lose) the live gesture.
+            if (!(/** @type {PointerEvent} */ (e).isPrimary)) return;
             g = this.start(/** @type {PointerEvent} */ (e));
         });
         this.listen(list, 'pointermove', (e) => {
@@ -74,8 +77,8 @@ export class SwipeControl extends Controller {
 
     /** @param {HTMLElement} row @param {SwipeAction} action */
     fire(row, action) {
-        const live = this.host.ownerDocument.querySelector('[data-kp-swipe-status]') ?? this.makeLive();
-        live.textContent = getStrings().swipeSaid(nameOf(row), action.label);
+        const live = /** @type {HTMLElement} */ (this.host.ownerDocument.querySelector('[data-kp-swipe-status]') ?? this.makeLive());
+        say(live, getStrings().swipeSaid(nameOf(row), action.label));
         row.dispatchEvent(new CustomEvent(SWIPE_EVENT, { bubbles: true, detail: { key: keyOf(row), action: action.key, row } }));
     }
 

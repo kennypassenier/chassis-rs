@@ -102,7 +102,7 @@ export class KeyWalk {
  */
 export function dragFrom(down, host) {
     const hit = grabbed(down.target, host);
-    if (!hit || (down.pointerType === 'mouse' && down.button !== 0)) return;
+    if (!hit || !down.isPrimary || (down.pointerType === 'mouse' && down.button !== 0)) return;
     if (hit.onHandle) down.preventDefault();
     const { p, block } = hit;
     const rowPx = host.grid.getBoundingClientRect().height / host.rowsTotal();

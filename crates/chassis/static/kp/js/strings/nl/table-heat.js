@@ -45,6 +45,8 @@ export const NL_TABLE_HEAT = {
     heatKeysPick: 'een kolom kiezen',
     heatKeysDrop: 'de keuze loslaten',
     heatKeysPage: 'eerder of later',
+    heatDaysLabel: (row, days) => `${row}: ${days} ${days === 1 ? 'dag' : 'dagen'}`,
+    heatDaysHint: 'Kies een dag om hem in het raster te markeren.',
     heatPagerLabel: 'Een andere periode tonen',
     heatEarlier: 'Eerder',
     heatToday: 'Vandaag',

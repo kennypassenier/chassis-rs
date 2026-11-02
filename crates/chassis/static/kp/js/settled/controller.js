@@ -3,6 +3,7 @@
 // settles while the list is wired is said once in a polite line ("Buy milk: Deleted").
 
 import { Controller } from '../controller.js';
+import { say } from '../live-say.js';
 import { getStrings } from '../strings.js';
 import { SETTLED, SETTLED_ATTRIBUTE, SETTLED_EVENT, WORD_CLASS } from './constants.js';
 
@@ -13,12 +14,34 @@ export const nameOf = (row) =>
     row.querySelector('.kp-checklist__label, .kp-task-row__title')?.textContent?.trim() ??
     getStrings().settledNameless;
 
+/** Where the focus goes when its row turns inert: the nearest row that is not settled (after, else before), else the list. @param {HTMLElement} row */
+function handOffFocus(row) {
+    if (!row.contains(row.ownerDocument.activeElement)) return;
+    const open = (/** @type {Element | null} */ el) => (el instanceof HTMLElement && !el.hasAttribute(SETTLED_ATTRIBUTE) ? el : null);
+    let next = row.nextElementSibling;
+    while (next && !open(next)) next = next.nextElementSibling;
+    let prev = row.previousElementSibling;
+    while (prev && !open(prev)) prev = prev.previousElementSibling;
+    const target = open(next) ?? open(prev) ?? row.parentElement;
+    if (!target) return;
+    const inner = target.querySelector('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    const to = inner instanceof HTMLElement ? inner : target;
+    if (to === target && to.tabIndex < 0) to.tabIndex = -1;
+    to.focus({ preventScroll: true });
+}
+
 /**
  * Settle one row: it keeps the height it has now, turns inert, and shows its word. Again with another word changes the word.
  * @param {HTMLElement} row @param {string} word
  */
 export function dress(row, word) {
-    if (!row.style.getPropertyValue('--kp-settled-height')) row.style.setProperty('--kp-settled-height', `${row.getBoundingClientRect().height}px`);
+    // A row settled while its list was hidden measures 0: that is no height to keep, so the next dress measures again.
+    if (!Number.parseFloat(row.style.getPropertyValue('--kp-settled-height'))) {
+        const height = row.getBoundingClientRect().height;
+        if (height > 0) row.style.setProperty('--kp-settled-height', `${height}px`);
+        else row.style.removeProperty('--kp-settled-height');
+    }
+    handOffFocus(row);
     row.inert = true;
     let mark = /** @type {HTMLElement | null} */ (row.querySelector(`:scope > .${WORD_CLASS}`));
     if (!mark) {
@@ -41,12 +64,16 @@ export class SettledList extends Controller {
         const list = this.host;
         for (const row of /** @type {NodeListOf<HTMLElement>} */ (list.querySelectorAll(SETTLED))) dress(row, row.getAttribute(SETTLED_ATTRIBUTE) ?? '');
         const watch = this.observe(new MutationObserver((records) => this.onChange(records)));
-        watch.observe(list, { subtree: true, attributes: true, attributeFilter: [SETTLED_ATTRIBUTE], attributeOldValue: true });
+        watch.observe(list, { subtree: true, childList: true, attributes: true, attributeFilter: [SETTLED_ATTRIBUTE], attributeOldValue: true });
     }
 
     /** @param {MutationRecord[]} records */
     onChange(records) {
         for (const record of records) {
+            if (record.type === 'childList') {
+                this.dressAdded(record.addedNodes);
+                continue;
+            }
             const row = /** @type {HTMLElement} */ (record.target);
             const word = row.getAttribute(SETTLED_ATTRIBUTE);
             if (word === null) {
@@ -58,10 +85,19 @@ export class SettledList extends Controller {
         }
     }
 
+    /** Rows put into the list already carrying the attribute (the page drew the list again): dressed, not announced. @param {NodeList} added */
+    dressAdded(added) {
+        for (const node of added) {
+            if (!(node instanceof HTMLElement)) continue;
+            const rows = node.matches(SETTLED) ? [node] : [];
+            for (const row of [...rows, ...node.querySelectorAll(SETTLED)]) dress(/** @type {HTMLElement} */ (row), row.getAttribute(SETTLED_ATTRIBUTE) ?? '');
+        }
+    }
+
     /** Say the row settled, and tell the page. @param {HTMLElement} row @param {string} word */
     said(row, word) {
         const live = this.live();
-        live.textContent = getStrings().settledSaid(nameOf(row), word);
+        say(live, getStrings().settledSaid(nameOf(row), word));
         row.dispatchEvent(new CustomEvent(SETTLED_EVENT, { bubbles: true, detail: { key: row.dataset.kpRowKey ?? row.dataset.kpItem ?? row.id, word } }));
     }
 

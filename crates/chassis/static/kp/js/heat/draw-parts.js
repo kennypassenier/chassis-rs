@@ -40,7 +40,7 @@ export function drawStatePlate(el, spec, state) {
 
 /**
  * The axis row: the column names, every `every`th of the unmarked ones, the last always.
- * @param {Document} doc @param {readonly { key: string, label: string, minor?: boolean }[]} columns
+ * @param {Document} doc @param {readonly { key: string, label: string, minor?: boolean, full?: string }[]} columns
  * @param {{ every: number, picked: string | null, loading: boolean }} options
  */
 export function drawAxis(doc, columns, { every, picked, loading }) {
@@ -66,6 +66,8 @@ export function drawAxis(doc, columns, { every, picked, loading }) {
     const before = open[open.length - 2];
     if (every > 1 && before !== undefined && before === open[open.length - 1] - 1) named.delete(before);
     const made = columns.map((c, i) => column(c.key, loading && !c.label ? '' : c.label, c.minor ?? !named.has(i)));
+    // The column's whole name, for a row's list of days (js/heat/days-list.js) [heatstates-1102].
+    columns.forEach((c, i) => c.full && made[i].setAttribute('data-kp-full', c.full));
     placeAxis(made);
     heads.append(...made);
     axis.append(heads);

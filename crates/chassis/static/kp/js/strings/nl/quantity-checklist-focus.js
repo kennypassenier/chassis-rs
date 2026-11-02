@@ -1,11 +1,19 @@
 // The Dutch words of the quantity, the checklist, the kitchen timers, the step-by-step view and the wheel [habits-1101].
 /** @typedef {import('../types.js').Strings} Strings */
 
-/** Dutch puts the verb last: "3 eieren toevoegen", with a capital where the line starts. @param {string} head @param {string} verb @returns {string} */
+/**
+ * Dutch puts the verb last: "3 eieren toevoegen". The verb and the unit come
+ * as the app wrote them (a unit like "kWh" or a verb like "Print PDF" keeps
+ * its letters); only the first letter of the verb gives way to the head, and
+ * a line that starts with the verb gets its capital back.
+ *
+ * @param {string} head @param {string} verb @returns {string}
+ */
 const verbLast = (head, verb) => {
     const before = String(head).trim();
-    const line = before === '' ? String(verb) : `${before} ${String(verb).toLowerCase()}`;
-    return line.charAt(0).toUpperCase() + line.slice(1);
+    const word = String(verb);
+    if (before === '') return word.charAt(0).toUpperCase() + word.slice(1);
+    return `${before} ${word.charAt(0).toLowerCase()}${word.slice(1)}`;
 };
 
 /** @type {Partial<Strings>} */

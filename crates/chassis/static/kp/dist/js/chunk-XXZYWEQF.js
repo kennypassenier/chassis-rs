@@ -1,3 +1,0 @@
-/* @kp-soft/themes v12.1.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
-var e="[data-kp-option]",s="kp-listbox-highlight",a="kp-listbox-choose",o='[data-kp-disabled], [aria-disabled="true"]';var l="kp-listbox";function r(t){return{...t,loop:t.loop??!0,optionSelector:t.optionSelector??e,disabledSelector:t.disabledSelector??o,hoverHighlights:t.hoverHighlights??!0,scrollIntoView:t.scrollIntoView??{block:"nearest"},activeClass:t.activeClass??"is-active",typeahead:t.typeahead??!1,typeaheadMs:t.typeaheadMs??500,dismissOnEscape:t.dismissOnEscape??!0,events:t.events??!0}}export{e as a,s as b,a as c,l as d,r as e};
-//# sourceMappingURL=chunk-XXZYWEQF.js.map

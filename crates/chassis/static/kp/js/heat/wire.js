@@ -1,12 +1,13 @@
 // Wires the heat grids of a page: one controller per grid for its pointer, keys, focus and calm legend.
-import { Controller, attachAll } from '../controller.js';
+import { Controller, attachAll, controllerOf } from '../controller.js';
 import { attachHoverCards } from '../hovercard.js';
 import { HEAT, HEAT_CELL, HEAT_PAGE_EVENT, HEAT_PICK_EVENT, HEAT_ROW_EVENT } from './constants.js';
+import { HeatDays, opensDays } from './days.js';
 import { cellGrid, placeStop } from './draw.js';
 import { LIT, STOPS } from './grid-state.js';
 import { syncCalmLegend } from './legend.js';
 import { PAGING, heatOffset, setHeatPaging } from './paging.js';
-import { setHeatPick, setHeatRows } from './pick.js';
+import { pressCell, setHeatPick, setHeatRows } from './pick.js';
 
 /**
  * The cell of the grid an event happened in, if any.
@@ -32,6 +33,15 @@ export function followFocus(grid, event, selector) {
 
 /** One heat grid; its tab stop and lit rows stay in the STOPS and LIT registries the setters share. */
 export class HeatGrid extends Controller {
+    /** @param {HTMLElement} host @param {Record<string, unknown>} [options] */
+    constructor(host, options) {
+        super(host, options);
+        /** The row's list of days [heatstates-1102]. */
+        this.days = new HeatDays(host);
+        /** The pointer of the press in progress: `touch`, `mouse`, `pen`, or '' (the keys). */
+        this.pointer = '';
+    }
+
     connect() {
         const el = this.host;
         // Watched before the listeners are added, so destroy() removes the listeners first and the watch last, as before.
@@ -39,6 +49,8 @@ export class HeatGrid extends Controller {
         syncCalmLegend(el);
         const legendWatch = this.observe(new MutationObserver(() => syncCalmLegend(el)));
         legendWatch.observe(el, { attributes: true, attributeFilter: ['data-kp-tones', 'data-kp-legend'] });
+        this.own(() => this.days.close(false));
+        this.listen(el, 'pointerdown', (event) => (this.pointer = /** @type {PointerEvent} */ (event).pointerType || ''));
         this.listen(el, 'click', (event) => this.onClick(event));
         this.listen(el, 'keydown', (event) => this.onKey(/** @type {KeyboardEvent} */ (event)));
         this.listen(el, 'focusin', (event) => followFocus(el, /** @type {FocusEvent} */ (event), HEAT_CELL));
@@ -50,19 +62,24 @@ export class HeatGrid extends Controller {
         }
     }
 
-    /** A row label lights its row; a cell picks its column. @param {Event} event */
+    /**
+     * A row label lights its row; a cell picks its column; a tap on a row whose cells are too small for a finger opens that row's
+     * days instead (js/heat/days.js) [heatstates-1102].
+     * @param {Event} event
+     */
     onClick(event) {
         const el = this.host;
         const target = /** @type {Element} */ (event.target);
+        // A click the keys made (detail 0) has no pointer, whatever pressed last.
+        const pointer = /** @type {MouseEvent} */ (event).detail === 0 ? '' : this.pointer;
+        this.pointer = '';
         const label = /** @type {HTMLElement | null} */ (target.closest('.kp-heat__label-button'));
         if (label && el.contains(label)) return this.pressLabel(label);
         const cell = /** @type {HTMLElement | null} */ (target.closest(HEAT_CELL));
+        const row = /** @type {HTMLElement | null} */ (target.closest('.kp-heat__row:not(.kp-heat__axis)'));
+        if (row && el.contains(row) && opensDays(el, row, pointer)) return this.days.open(row, cell && el.contains(cell) ? cell : null);
         if (!cell || !el.contains(cell) || cell.hasAttribute('aria-disabled')) return;
-        STOPS.set(el, { r: Number(cell.dataset.r), c: Number(cell.dataset.c) });
-        const key = cell.dataset.colKey ?? '';
-        const already = el.getAttribute('data-kp-heat-picked') === key;
-        if (!el.hasAttribute('data-kp-heat-owned')) setHeatPick(el, already ? null : key);
-        el.dispatchEvent(new CustomEvent(HEAT_PICK_EVENT, { bubbles: true, detail: { rowKey: cell.dataset.rowKey, colKey: key, cell, picked: !already } }));
+        pressCell(el, cell);
     }
 
     /** @param {HTMLElement} label */
@@ -163,4 +180,24 @@ export function attachHeats(root = document) {
     const doc = root instanceof Document ? root : /** @type {Element} */ (root).ownerDocument;
     attachHoverCards(doc);
     return attachAll(root, HEAT, HeatGrid);
+}
+
+/**
+ * Open the list of one row's days from the page (an app's own "Days" button, a review page's opened state) [heatstates-1102]: the
+ * day of `colKey` takes the focus, else the picked one, else the newest. A grid that is not wired, or has no such row, opens nothing.
+ * @param {HTMLElement} el the grid @param {string} rowKey @param {string} [colKey]
+ * @returns {boolean} whether it opened
+ */
+export function openHeatDays(el, rowKey, colKey) {
+    const grid = controllerOf(el, HeatGrid);
+    const row = [...el.querySelectorAll('.kp-heat__row:not(.kp-heat__axis)')].find((r) => r instanceof HTMLElement && r.dataset.rowKey === rowKey);
+    if (!grid || !(row instanceof HTMLElement) || !row.querySelector(HEAT_CELL)) return false;
+    const cell = [.../** @type {NodeListOf<HTMLElement>} */ (row.querySelectorAll(HEAT_CELL))].find((c) => c.dataset.colKey === colKey) ?? null;
+    grid.days.open(row, cell);
+    return true;
+}
+
+/** Close a grid's list of days, the focus left where it is. @param {HTMLElement} el */
+export function closeHeatDays(el) {
+    controllerOf(el, HeatGrid)?.days.close(false);
 }

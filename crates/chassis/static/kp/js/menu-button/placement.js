@@ -1,6 +1,7 @@
 // Where a menu goes: the edges it must clear, the clip, the raise and lower and the placing.
 import { layoutRect, raiseOverlay } from '../top-layer.js';
 import { MENU_GUTTER } from './constants.js';
+import { formsStackingContext } from './stacking.js';
 /** @typedef {import('./types.js').Covered} Covered */
 /** @typedef {import('./types.js').Edges} Edges */
 /** @typedef {import('./types.js').MenuState} MenuState */
@@ -75,21 +76,20 @@ function clipped(wrapper, view) {
 
 /**
  * Whether a container round the menu button holds it in a layer of its own
- * (a positioned box with a z-index, or a sticky or fixed one), so that a
+ * (a positioned box with a z-index, a sticky or fixed one, or any box that
+ * forms a stacking context: see js/menu-button/stacking.js), so that a
  * later box on the same or a higher layer paints over the open menu
- * whatever the menu's own z-index [parts-1102 r2l]. Two bars stacked: every
- * `.kp-nav-wrap` is `z-index: 30`, and the second bar covered the first
- * bar's More menu at 1280 px (2 of 6 entries out of reach, measured in
- * Firefox with elementFromPoint).
+ * whatever the menu's own z-index [parts-1102 r2l, ovfix2-1102]. Two bars
+ * stacked: every `.kp-nav-wrap` is `z-index: 30`, and the second bar
+ * covered the first bar's More menu at 1280 px (2 of 6 entries out of
+ * reach, measured in Firefox with elementFromPoint).
  * @param {Element} wrapper
  * @param {Window} view
  */
 function layered(wrapper, view) {
     const top = view.document.body;
     for (let el = wrapper.parentElement; el && el !== top; el = el.parentElement) {
-        const style = view.getComputedStyle(el);
-        if (style.position === 'sticky' || style.position === 'fixed') return true;
-        if (style.position !== 'static' && style.zIndex !== 'auto') return true;
+        if (formsStackingContext(view.getComputedStyle(el), el.parentElement ? view.getComputedStyle(el.parentElement) : null)) return true;
     }
     return false;
 }
@@ -116,7 +116,7 @@ export function raiseMenu(s, view) {
         menu.style.setProperty('right', 'auto');
         menu.style.setProperty('bottom', 'auto');
         menu.style.setProperty('width', `${box.width}px`);
-    });
+    }, { anchor: s.button });
 }
 
 /** @param {MenuState} s */
