@@ -7,6 +7,13 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed
+
+- **A write to an item reaches the stored lists that hold it** [fix-habits-data-3] (Habits). `put` / `patch` / `delete`
+  (and a `post` with `optimistic` on an item path) now change the entry in every stored list copy that contains the item,
+  found through `itemKey`, so an offline reload shows the edit. On success or refusal the server's version replaces the
+  entry (server-wins); a refused edit rolls it back. Only existing entries change; a write never adds one.
+
 ## [4.4.0] - 2026-11-02
 
 ### Added

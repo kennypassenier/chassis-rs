@@ -30,6 +30,12 @@ helper for the app's own axum routes.
    not touch the copy again until the server answers. There is no `overwrite`
    policy.
 
+A write to an item path also reaches the **stored lists that hold the item**
+(fix-habits-data-3): the entry (found through `itemKey`) is replaced (PUT),
+merged (PATCH) or removed (DELETE) in every stored list of the item route's
+parent, and the server's answer replaces it on success or refusal. List entries
+are assumed to have the shape of the item. A write never adds an entry.
+
 Optimistic copies (a queued write amending the stored copy, `post`'s
 `opts.optimistic`) are therefore only a preview: rolled back to the server's
 version on refusal, replaced by its answer on success.
