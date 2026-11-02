@@ -96,3 +96,12 @@ test('post accepts rev, rejects custom headers', async () => {
     assert.equal(svc.calls.at(-1).headers['if-match'], '"4"');
     await assert.rejects(data.post(FREEZER, {}, { headers: { x: 1 } }), /custom headers/);
 });
+
+test('rev "*" is sent as a bare If-Match, a real revision stays quoted (fix-habits-data-8)', async () => {
+    const svc = fakeService({ [D1]: { id: 1, name: 'Soup', rev: 3 } });
+    const { data } = await makeClient(svc);
+    await data.put(D1, { id: 1, name: 'A' }, { rev: '*' }).catch(() => {}); // the fake service has no wildcard: only the header is asserted
+    assert.equal(svc.calls.at(-1).headers['if-match'], '*');
+    await data.put(D1, { id: 1, name: 'B' }, { rev: '4' });
+    assert.equal(svc.calls.at(-1).headers['if-match'], '"4"');
+});

@@ -7,6 +7,32 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed
+
+- **`get(path, { from })` takes over an answer the app already has** [fix-habits-data-4] (Habits). A
+  `<link rel="preload" as="fetch">` cannot be reached by `get()` (it sends `no-store`), so the app hands over the
+  response of its own early `fetch(path, { credentials: 'same-origin' })`, or a promise of it. A good answer for the
+  same URL is used as the first read (stored like any online answer, no second download); an answer for another URL,
+  a refusal or a failed fetch is reported and the service is asked as usual.
+- **`window.chassisData` exists before the app's modules run** [fix-habits-data-5] (Habits). The server now puts the
+  runtime tag (either variant) right after the `<head>` opening instead of before `</head>`, so module scripts of the
+  app, which run in document order, find `window.chassisData`. `window.chassisDataReady` (a promise of the facade) and
+  the `chassis-data-ready` window event are there for code that cannot rely on order. PWA tags still go before `</head>`.
+- **Copies per query string are bounded per route** [fix-habits-data-6] (Habits). A route may be declared
+  `{ path: '/data/worklog', keep: 8 }`; the copies of that route that differ by query string (`?from=..&to=..`) are
+  limited to `keep`, the least recently used (kept or read offline) going first. Routes without `keep` use
+  `queryCopies` (default 8). The plain path is not counted, and the global size cap still applies.
+- **Toast, drawer and logout words follow the page language** [fix-habits-data-7] (Habits). `configure({ messages })`
+  accepts a function returning the object; it is called each time the conflict, storage and band toasts are shown, the
+  failed-edits drawer is drawn or opened, and the logout dialog is asked, so a language known only after the first read
+  applies. An object still works.
+- **`If-Match: *` is sent bare** [fix-habits-data-8] (Habits). `rev: '*'` was sent as `"*"`, which the kit's own
+  `Precondition::parse` refuses with 400; only real revisions are quoted now.
+- **A write to an item reaches the stored lists that hold it** [fix-habits-data-3] (Habits). `put` / `patch` / `delete`
+  (and a `post` with `optimistic` on an item path) now change the entry in every stored list copy that contains the item,
+  found through `itemKey`, so an offline reload shows the edit. On success or refusal the server's version replaces the
+  entry (server-wins); a refused edit rolls it back. Only existing entries change; a write never adds one.
+
 ## [4.4.0] - 2026-11-02
 
 ### Added

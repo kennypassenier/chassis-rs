@@ -12,9 +12,37 @@ import { fail, refusal } from './data-errors.js';
 export function createReads(ctx) {
     const { config, cache, fetch } = ctx;
 
-    async function get(path) {
+    /**
+     * The answer the app already holds (`options.from`: a Response, or a promise of one, e.g. a
+     * fetch started early in the page head). Used only when it is a good answer for the same
+     * URL; otherwise null and the normal request goes out. Never silent about a mismatch.
+     */
+    async function seeded(path, from) {
+        let res = null;
+        try {
+            res = await from;
+        } catch (err) {
+            console.warn(`chassisData: the early answer for ${path} failed (${err?.message}); asking the service.`);
+            return null;
+        }
+        if (!res || typeof res.json !== 'function') return null;
+        if (res.url) {
+            const url = new URL(res.url, 'http://x');
+            if (`${url.pathname}${url.search}` !== path) {
+                console.warn(`chassisData: the early answer is for ${res.url}, not ${path}; asking the service.`);
+                return null;
+            }
+        }
+        if (classify(res.status) !== 'ok' || res.bodyUsed) return null;
+        const body = await res.json().catch(() => null);
+        return { status: res.status, body, etag: res.headers?.get?.('etag') ?? null };
+    }
+
+    /** `options.from`: an answer the app already has for `path`, used instead of the first request. */
+    async function get(path, options = {}) {
         checkPath(path);
-        const outcome = await send(fetch, { method: 'GET', path });
+        const early = options.from === undefined ? null : await seeded(path, options.from);
+        const outcome = early ?? (await send(fetch, { method: 'GET', path }));
         const route = matchRoute(config, path);
         const kind = classify(outcome.status);
         if (kind === 'ok') return answered(path, route, outcome);

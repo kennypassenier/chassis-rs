@@ -30,6 +30,33 @@ helper for the app's own axum routes.
    not touch the copy again until the server answers. There is no `overwrite`
    policy.
 
+**Early answers** (fix-habits-data-4). `get(path, { from })`: `from` is a Response (or a
+promise of one) the app started in the page head. The kit does not read the browser's
+preload cache (its own requests are `no-store`, so the browser's cache never poses as a
+live answer); the app passes the response it already awaited. Same URL and a 2xx only;
+anything else is warned about and ignored. The answer then follows the normal read path.
+
+**`chassisData` is there before the app's modules** (fix-habits-data-5). The runtime
+tag is injected right after `<head>` (both variants), so it executes before the
+app's own module scripts; `window.chassisDataReady` and the `chassis-data-ready`
+event serve code that does not follow script order.
+
+**Query-string copies are bounded** (fix-habits-data-6). Every query string keeps its
+own copy, so per route only the newest `keep` of them stay (`routes: [{ path, keep }]`,
+else `queryCopies`, default 8): LRU by last keep or offline read, order in memory and
+seeded from `savedAt` after a reload. The bare path does not count; the size cap
+still refuses copies on top of this.
+
+`configure({ messages })` is an object, or a function returning one (fix-habits-data-7);
+a function is called at show time (toasts, drawer, logout dialog), so the words follow
+a language that is known only after `configure()`.
+
+A write to an item path also reaches the **stored lists that hold the item**
+(fix-habits-data-3): the entry (found through `itemKey`) is replaced (PUT),
+merged (PATCH) or removed (DELETE) in every stored list of the item route's
+parent, and the server's answer replaces it on success or refusal. List entries
+are assumed to have the shape of the item. A write never adds an entry.
+
 Optimistic copies (a queued write amending the stored copy, `post`'s
 `opts.optimistic`) are therefore only a preview: rolled back to the server's
 version on refusal, replaced by its answer on success.
