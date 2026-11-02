@@ -16,17 +16,20 @@
 // detach-and-reattach cannot rebind them — instead the page attaches once
 // more, the first time a caret theme becomes active after load. Bound
 // fields stay bound; whether the cell is painted is the register's call.
-// This works because every register is already in dist/kp-themes.css: the
-// knob is readable the moment the theme attribute changes (D2).
-
-import { attachEffects } from '../kp/dist/kp-themes.min.js';
+// The knob is readable the moment the theme attribute changes: with the split
+// delivery a held theme change lands (and fires kp-theme-change) only once its
+// register has loaded, so the register that answers the knob is there.
+//
+// This file imports no kp-themes module: the kit's own pages call it with
+// `attachEffects` from dist/js/ and a project's web app with the one from the
+// one-file bundle, so each page holds one copy of kp-themes' state.
 
 /**
- * Attach the effects to `doc` and watch for a caret theme.
- * `attach` is injectable so a test can count the attachments.
+ * Attach the effects to `doc` and watch for a caret theme. `attach` is the
+ * caller's `attachEffects` (and a test's counter).
  * Returns `{ current() }`: the most recent effects handle.
  */
-export function attachKitEffects(doc = document, attach = attachEffects) {
+export function attachKitEffects(doc, attach) {
     const caretTheme = () =>
         getComputedStyle(doc.documentElement).getPropertyValue('--kp-caret').trim() === 'block';
     let effects = attach(doc);

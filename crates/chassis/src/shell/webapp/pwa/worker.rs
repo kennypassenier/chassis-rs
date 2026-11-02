@@ -35,12 +35,16 @@ pub(super) fn sw_source(kit_version: &str, app_version: &str) -> String {
 
 /// The page shown instead of a page that cannot be fetched.
 pub(super) fn offline_page(kit_version: &str, theme_color: &str) -> String {
+    // A fixed page in the default theme: the base stylesheet (fonts included)
+    // and that one theme's register, not the whole bundle.
+    use crate::shell::assets::{BASE_STYLESHEET as base, DEFAULT_THEME as theme, REGISTER_PATTERN};
+    let register = REGISTER_PATTERN.replace("{theme}", theme);
     format!(
-        "<!doctype html>\n<html lang=\"en\" data-theme=\"formal\"><head><meta charset=\"utf-8\">\n\
+        "<!doctype html>\n<html lang=\"en\" data-theme=\"{theme}\"><head><meta charset=\"utf-8\">\n\
 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
 <meta name=\"theme-color\" content=\"{theme_color}\"><title>Offline</title>\n\
-<link rel=\"stylesheet\" href=\"/static/kp/css/fonts.css?v={kit_version}\">\n\
-<link rel=\"stylesheet\" href=\"/static/kp/dist/kp-themes.css?v={kit_version}\">\n\
+<link rel=\"stylesheet\" href=\"{base}?v={kit_version}\">\n\
+<link rel=\"stylesheet\" href=\"{register}?v={kit_version}\" data-kp-register=\"{theme}\">\n\
 <style>body{{margin:0;min-height:100vh;display:grid;place-items:center}}\
 div.wrap{{max-width:28rem;width:100%;padding:16px;box-sizing:border-box}}</style></head><body>\n\
 <div class=\"wrap\"><main class=\"kp-card\"><h1 class=\"kp-card__title\">You are offline</h1>\n\

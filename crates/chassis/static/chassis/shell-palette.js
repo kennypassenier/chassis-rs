@@ -4,7 +4,7 @@
 // The pieces live in shell-palette-keys / -options / -clients and share one
 // `ctx` object (the page facts and the palette's handle).
 
-import { attachNavFolds, attachPalettes, palette as paletteOf, attachShortcuts, attachTabbars, attachDialogs } from '../kp/dist/kp-themes.min.js';
+import { attachNavFolds, attachPalettes, palette as paletteOf, attachShortcuts, attachTabbars, attachDialogs } from '../kp/dist/js/index.js';
 import { $ } from './shell-dom.js';
 import { createClientCommands } from './shell-palette-clients.js';
 import { registerKeys } from './shell-palette-keys.js';

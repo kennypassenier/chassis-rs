@@ -2,7 +2,7 @@
 // the time.
 // Split out of shell.js by responsibility; the page runs exactly as before.
 
-import { attachArt, attachPatterns } from '../kp/dist/kp-themes.min.js';
+import { attachArt, attachPatterns } from '../kp/dist/js/index.js';
 import { $$ } from './shell-dom.js';
 
 // Returns nothing; `joined` collects the names of the kp modules attached here.

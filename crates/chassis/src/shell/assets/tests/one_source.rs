@@ -1,6 +1,9 @@
-//! kp-themes 12 is served as one bundle: no chassis-owned JavaScript may
-//! still import the module tree (a page with both would hold the controller
-//! registry, strings and theme registry twice). The gzip side is in `gzip`.
+//! kp-themes 12 is served as one bundle (and, since 12.2, as the split
+//! folder `dist/js/`): no chassis-owned JavaScript may import the loose module
+//! tree (a page with both would hold the controller registry, strings and
+//! theme registry twice), and the kit's pages import the split folder, never
+//! the one-file bundle (two copies of the theme state on one page). The gzip
+//! side is in `gzip`.
 
 use super::*;
 
@@ -36,6 +39,36 @@ fn chassis_javascript_imports_kp_themes_from_the_bundle_only() {
         }
     }
     assert!(seen > 20, "the kit's own scripts were found ({seen})");
+}
+
+/// The chassis files that deliberately stay on the one-file bundle: the
+/// web-app runtime, which is injected into pages of a project's web app that
+/// import the bundle themselves.
+const BUNDLE_USERS: &[&str] = &["chassis/webapp-runtime.js"];
+
+#[test]
+fn kit_pages_import_the_split_folder_not_the_bundle() {
+    for (name, body) in chassis_owned_js() {
+        let code = body.lines().filter(|l| !l.trim_start().starts_with("//"));
+        let imports_bundle = code.clone().any(|l| l.contains("kp/dist/kp-themes.min.js"));
+        assert_eq!(
+            imports_bundle,
+            BUNDLE_USERS.contains(&name),
+            "{name}: import dist/js/index.js (or core.js, lazy-register.js), not the bundle; \
+             only {BUNDLE_USERS:?} stay on it"
+        );
+    }
+}
+
+#[test]
+fn the_split_entries_are_in_the_core_table() {
+    for entry in ["auto.js", "core.js", "lazy-register.js", "index.js"] {
+        let name = format!("kp/dist/js/{entry}");
+        assert!(
+            ASSETS.iter().any(|(n, _, _)| *n == name),
+            "the kit pages need {name} without the webapp feature"
+        );
+    }
 }
 
 #[test]

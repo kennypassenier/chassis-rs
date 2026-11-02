@@ -15,15 +15,20 @@
     (Status has "s"): the chord is `g` and this letter. -#}
 {%- set chords = {"storage": "o"} -%}
 <!doctype html>
-<html lang="en" data-theme="formal">
+<html lang="en" data-theme="{{ default_theme }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}{{ app_name }}{% endblock %}</title>
-<script src="/static/theme-boot.js?v={{ assets }}"></script>
-<link rel="stylesheet" href="/static/kp/css/fonts.css?v={{ assets }}">
-<link rel="stylesheet" href="/static/kp/dist/kp-themes.css?v={{ assets }}">
+{#- kp-themes split delivery: the base stylesheet first, then the no-flash
+    script BELOW it (the cascade layer order is fixed by whichever stylesheet
+    states it first). theme-boot.js writes the worn theme's register link from
+    the data attributes: it stays an external file, so the CSP keeps
+    script-src 'self'. -#}
+<link rel="stylesheet" href="{{ base_stylesheet|safe }}?v={{ assets }}">
+<script src="/static/theme-boot.js?v={{ assets }}" data-register-pattern="{{ register_pattern|safe }}" data-themes="{{ theme_names }}" data-fallback="{{ default_theme }}"></script>
 <link rel="stylesheet" href="/static/chassis.css?v={{ assets }}">
+<script type="module" src="{{ split_entry|safe }}?v={{ assets }}"></script>
 <script type="module" src="/static/chassis.js?v={{ assets }}"></script>
 {{ pwa_head|default('')|safe }}
 {% block head %}{% endblock %}

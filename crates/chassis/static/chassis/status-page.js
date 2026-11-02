@@ -33,7 +33,7 @@ if (statusRoot) {
 async function buildContext(root) {
   // Every part comes from kp-themes' one bundle; the name only says which part
   // the call site wants.
-  const kp = (_part) => import('../kp/dist/kp-themes.min.js');
+  const kp = (_part) => import('../kp/dist/js/index.js');
   const { restoreRemembered, attachRemembered } = await kp('remember');
   restoreRemembered(root);
   attachRemembered(root);

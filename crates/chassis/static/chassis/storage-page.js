@@ -41,7 +41,7 @@ if (storageRoot) {
 async function buildContext(root) {
   // Every part comes from kp-themes' one bundle; the name only says which part
   // the call site wants.
-  const kp = (_part) => import('../kp/dist/kp-themes.min.js');
+  const kp = (_part) => import('../kp/dist/js/index.js');
   const [stackbar, cardState, datatable, flash, overlays] = await Promise.all([kp('stackbar'), kp('card-state'), kp('datatable'), kp('flash'), kp('overlays')]);
   const card = (key) => root.querySelector(`[data-storage-card="${key}"]`);
   const kindsCard = card('kinds');

@@ -85,3 +85,64 @@ fn no_flash_snippet_matches_the_vendored_contract() {
     );
     assert!(!layout.contains("bunny.net"), "fonts are vendored (S8)");
 }
+
+/// kp-themes split delivery: the head links the base stylesheet, THEN the
+/// no-flash script (it writes the register below the base, so the cascade
+/// layers are stated by the base), then the module entry. The script stays an
+/// external file configured through its tag, and every theme the registry
+/// lists has the register file the pattern names.
+#[test]
+fn the_head_carries_the_base_then_the_boot_script_then_the_entry() {
+    use crate::shell::assets::{ASSETS, REGISTER_PATTERN};
+    let layout = include_str!("../../../../templates/layout.html");
+    let at = |needle: &str| {
+        layout
+            .find(needle)
+            .unwrap_or_else(|| panic!("layout lacks {needle}"))
+    };
+    assert!(at("{{ base_stylesheet|safe }}") < at("/static/theme-boot.js"));
+    assert!(at("/static/theme-boot.js") < at("/static/chassis.css"));
+    assert!(at("{{ split_entry|safe }}") < at("/static/chassis.js"));
+    for attr in ["data-register-pattern=", "data-themes=", "data-fallback="] {
+        let tag_start = at("/static/theme-boot.js");
+        assert!(
+            layout[tag_start..].find(attr).is_some_and(|i| i < 250),
+            "{attr}"
+        );
+    }
+    assert!(!layout.contains("kp-themes.css") && !layout.contains("fonts.css"));
+    assert!(REGISTER_PATTERN.contains("{theme}"));
+    for theme in crate::shell::dashboard::themes() {
+        let file = REGISTER_PATTERN
+            .replace("{theme}", &theme.name)
+            .replace("/static/", "");
+        assert!(
+            ASSETS.iter().any(|(n, _, _)| *n == file),
+            "{} has no register {file}",
+            theme.name
+        );
+    }
+}
+
+/// theme-boot.js spells the register attribute as a literal; it is
+/// kp-themes' `REGISTER_ATTRIBUTE`, and `attachLazyRegisters` finds the link
+/// the boot script wrote by it.
+#[test]
+fn the_boot_script_writes_the_register_attribute_lazy_register_adopts() {
+    let boot = include_str!("../../../../static/theme-boot.js");
+    let values = include_str!("../../../../static/kp/js/lazy-register/values.js");
+    let attribute = values
+        .lines()
+        .find(|l| l.contains("REGISTER_ATTRIBUTE ="))
+        .and_then(|l| l.split('\'').nth(1))
+        .expect("REGISTER_ATTRIBUTE in the vendored values.js");
+    assert!(boot.contains(&format!("{attribute}=")), "{attribute}");
+    assert!(
+        boot.contains("blocking=\"render\""),
+        "the link blocks the first paint"
+    );
+    assert!(
+        boot.contains("document.currentScript"),
+        "configured by its own tag"
+    );
+}

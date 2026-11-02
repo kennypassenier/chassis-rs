@@ -5,7 +5,7 @@
 // because the window is narrow, the link moves into THIS menu, so a header
 // never has two "More" controls (the fold's own item is hidden in CSS).
 
-import { attachMenuButtons, attachDialogs, setMenu } from '../kp/dist/kp-themes.min.js';
+import { attachMenuButtons, attachDialogs, setMenu } from '../kp/dist/js/index.js';
 import { $, $$ } from './shell-dom.js';
 
 // What the server drew into the menu, as the groups setMenu takes.

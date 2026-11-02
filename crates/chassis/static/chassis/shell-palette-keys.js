@@ -2,7 +2,7 @@
 // commands a page offers on the Clients page, and the registration of both
 // with the shortcuts sheet. Split out of shell-palette.js so the chords can be
 // read apart from the palette's DOM.
-import { registerShortcuts, setStrings } from '../kp/dist/kp-themes.min.js';
+import { registerShortcuts, setStrings } from '../kp/dist/js/index.js';
 import { $, $$ } from './shell-dom.js';
 
 // Chords: "g" and the first letter of each page, in registry order;

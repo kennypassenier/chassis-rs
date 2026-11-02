@@ -19,7 +19,7 @@ if (root) startClientPage(root);
 
 async function startClientPage(page) {
   // One bundle serves every part; the page imports it once.
-  const kp = await import('../kp/dist/kp-themes.min.js');
+  const kp = await import('../kp/dist/js/index.js');
   const ctx = { page, kp, id: page.dataset.clientId, name: page.dataset.clientName };
   ctx.requests = createRequests(ctx);
   ctx.requests.attach();

@@ -3,7 +3,7 @@
 // Split out of chassis.js by responsibility; the page runs exactly as
 // before.
 
-import { attachForms } from '../kp/dist/kp-themes.min.js';
+import { attachForms } from '../kp/dist/js/index.js';
 import { $ } from './shell-dom.js';
 import { attachErrorPage } from './shell-error-page.js';
 import { attachPalette } from './shell-palette.js';

@@ -22,7 +22,7 @@ if (root) start(root).catch((error) => console.error('chassis notifications card
 async function start(card) {
   // Every part comes from kp-themes' one bundle; the name only says which part
   // the call site wants.
-  const kp = (_part) => import('./kp/dist/kp-themes.min.js');
+  const kp = (_part) => import('./kp/dist/js/index.js');
   const [{ setCardState }, flash, forms, kpi] = await Promise.all([kp('card-state'), kp('flash'), kp('forms'), kp('kpi')]);
   const { runFlashButton, attachFlashButtons } = flash;
 

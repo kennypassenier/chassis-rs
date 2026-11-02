@@ -12,8 +12,18 @@
 // removed terminal (to `nostromo`), phantom (to `dark`), light (and with it
 // shade-light, to `formal`) and grotesk (to `brutalism`), the nearest of the
 // twelve themes left by kp-themes' MIGRATION.md.
-// The themes' registers need no loading step: dist/kp-themes.css carries
-// them all, each scoped to its theme (D2, 2026-09-09).
+//
+// kp-themes split delivery [kpsplit-3]: the page links the base stylesheet
+// and each theme's register is a file of its own. The worn theme's register
+// is written HERE, before first paint, as a parser-inserted <link> (a link
+// added by a module arrives after the first paint, and the page would flash
+// in tokens with no register). This script sits BELOW the base stylesheet in
+// the head, so the register lands in the cascade layer the base states first.
+// What it needs comes from the server through the tag's data attributes
+// (data-register-pattern with `{theme}` in it, data-themes, data-fallback),
+// so nothing here is configuration and the CSP keeps script-src 'self'.
+// Switching themes later is kp-themes' attachLazyRegisters (boot-kit.js),
+// which adopts the link written here.
 (function () {
     var renamed = { topo: "forest", tazhib: "dark", lapis: "dark", "shade-dark": "dark", "shade-light": "formal", light: "formal", terminal: "nostromo", phantom: "dark", grotesk: "brutalism", nishiki: "formal", academia: "formal", mono: "formal", ticker: "formal", woodblock: "formal" };
     try {
@@ -24,4 +34,19 @@
         }
         if (stored) document.documentElement.setAttribute("data-theme", stored);
     } catch (e) {}
+    writeRegister(document.currentScript, document.documentElement);
+
+    // The register link for the theme `root` wears; an unknown name (a stored
+    // name from a newer deployment) asks for the fallback's register instead
+    // of a file that is not there. `tag` is this script's own element.
+    function writeRegister(tag, root) {
+        var pattern = tag && tag.getAttribute("data-register-pattern");
+        if (!pattern) return;
+        var names = (tag.getAttribute("data-themes") || "").split(",");
+        var name = root.getAttribute("data-theme");
+        if (names.indexOf(name) < 0) name = tag.getAttribute("data-fallback") || "";
+        var href = pattern.replace("{theme}", name).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+        // data-kp-register is kp-themes' REGISTER_ATTRIBUTE; a test pins it.
+        document.write('<link rel="stylesheet" href="' + href + '" data-kp-register="' + name + '" blocking="render">');
+    }
 })();
