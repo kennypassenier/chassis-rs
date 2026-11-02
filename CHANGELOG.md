@@ -29,6 +29,10 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Added
 
+- **JSON answers default to `Cache-Control: no-store`** (`[fix-no-store-1]`,
+  Medicine Cabinet audit): any `application/json` answer without its own
+  `Cache-Control` (app API routes, dashboard and kit JSON) is no longer
+  cacheable by a shared cache or kept for the back button.
 - **`RequireAdmin` extractor** (`[feat-require-admin-1]`, kyu): a handler on
   an `api_routes` route takes `RequireAdmin` to admit only `Caller::Admin`; a
   client token gets a 403 JSON `{error, remedy}`.

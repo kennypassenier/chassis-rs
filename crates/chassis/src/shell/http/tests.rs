@@ -180,3 +180,38 @@ async fn the_error_page_renderer_sees_the_request_id_and_cookie() {
         "the context ends with the render"
     );
 }
+
+/// [fix-no-store-1]: a JSON answer is `no-store` unless the handler chose.
+#[tokio::test]
+async fn json_answers_default_to_no_store() {
+    use axum::Json;
+    use axum::http::header::CACHE_CONTROL;
+    let app = Router::new()
+        .route("/j", get(|| async { Json(serde_json::json!({"a": 1})) }))
+        .route(
+            "/own",
+            get(|| async { ([(CACHE_CONTROL, "no-cache")], Json(serde_json::json!({}))) }),
+        )
+        .route("/text", get(|| async { "plain" }))
+        .layer(middleware::from_fn(security_headers));
+    let cc = |path: &'static str| {
+        let app = app.clone();
+        async move {
+            let res = app
+                .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            res.headers()
+                .get(CACHE_CONTROL)
+                .map(|v| v.to_str().unwrap().to_string())
+        }
+    };
+    println!("AFTER: /j cache-control = {:?}", cc("/j").await);
+    assert_eq!(cc("/j").await.as_deref(), Some("no-store"));
+    assert_eq!(
+        cc("/own").await.as_deref(),
+        Some("no-cache"),
+        "handler wins"
+    );
+    assert_eq!(cc("/text").await, None, "only JSON is defaulted");
+}
