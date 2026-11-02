@@ -24,7 +24,7 @@ export const FAILED_MESSAGES = {
     stateHeld: 'Waiting for you; later edits wait too',
     reasonStale: 'This item was changed somewhere else after you started editing.',
     reasonOther: 'The service did not accept this edit.',
-    verbs: { PUT: 'Change', PATCH: 'Change', DELETE: 'Delete' },
+    verbs: { POST: 'Add', PUT: 'Change', PATCH: 'Change', DELETE: 'Delete' },
     confirmTitle: (n) => `Discard ${n === 1 ? 'this edit' : `all ${n} edits`}?`,
     confirmBody: 'They are removed from this device and cannot be sent later.',
     confirmAccept: 'Discard',

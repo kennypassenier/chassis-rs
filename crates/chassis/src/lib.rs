@@ -43,6 +43,7 @@ pub use shell::dashboard::{
 };
 pub use shell::health::{Subsystem, SubsystemStatus};
 pub use shell::http::extractors::{ApiForm, ApiJson, ApiPath, ApiQuery};
+pub use shell::http::idempotency::IdempotencyKey;
 pub use shell::http::revision::{Conflict, IfMatch, Revisioned};
 pub use shell::metrics::{Counter, Gauge, ScrapeSource};
 pub use shell::shutdown::ShutdownSignal;

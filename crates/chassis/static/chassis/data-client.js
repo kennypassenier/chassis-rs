@@ -51,7 +51,7 @@ function createReplayer({ getQueue, config, setTimer, clearTimer }) {
     return { kick, schedule };
 }
 
-export async function createData({ config, fetch, store, storage, emit = () => {}, setTimer, clearTimer, now }) {
+export async function createData({ config, fetch, store, storage, emit = () => {}, setTimer, clearTimer, now, uuid = () => globalThis.crypto.randomUUID() }) {
     let queue = null;
     let writes = null;
     const replayer = createReplayer({ getQueue: () => queue, config, setTimer, clearTimer });
@@ -66,7 +66,7 @@ export async function createData({ config, fetch, store, storage, emit = () => {
         hooks: queueHooks(emit, replayer.schedule, () => writes),
     });
     await queue.load();
-    const ctx = { config, cache, fetch, now, settings: current, queue: () => queue, kick: replayer.kick };
+    const ctx = { config, cache, fetch, now, uuid, settings: current, queue: () => queue, kick: replayer.kick };
     writes = createWrites(ctx);
     const { afterWrite: _ignored, ...writeApi } = writes;
     replayer.schedule();

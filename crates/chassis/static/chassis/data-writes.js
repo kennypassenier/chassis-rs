@@ -17,12 +17,13 @@ function checkOptions(options) {
 
 /** `ctx` = { config, cache, fetch, now, settings, queue: () => queue, kick }. */
 export function createWrites(ctx) {
-    const { config, cache, fetch, now } = ctx;
+    const { config, cache, fetch, now, uuid } = ctx;
 
     /** After a send went through: the copy follows the service's answer. */
     async function afterWrite(entry, rev, body) {
         const route = matchRoute(config, entry.path);
         if (!route) return;
+        if (entry.method === 'POST') return; // the answer to a POST is not the copy of its path
         if (entry.method === 'DELETE') return cache.forget(entry.path);
         const keep = body && typeof body === 'object' ? storable(config, ctx.settings(), route, entry.path, body) : null;
         if (keep) await cache.remember(entry.path, keep.data, rev, keep.partial);
@@ -41,12 +42,20 @@ export function createWrites(ctx) {
         return { ok: true, queued: false, status: outcome.status, data: outcome.body, rev };
     }
 
+    /** A POST has no revision of its own (unless `rev` is given); its key is made once, here. */
+    async function entryFor(method, path, body, options) {
+        if (method === 'POST') {
+            return { method, path, body, ifMatch: options.rev !== undefined ? String(options.rev) : null, key: uuid(), at: now() };
+        }
+        const held = await cache.read(path);
+        const ifMatch = options.rev !== undefined ? String(options.rev) : (held?.rev ?? null);
+        return { method, path, body, ifMatch, at: now() };
+    }
+
     async function write(method, path, body, options = {}) {
         checkOptions(options);
         checkPath(path);
-        const held = await cache.read(path);
-        const ifMatch = options.rev !== undefined ? String(options.rev) : (held?.rev ?? null);
-        const entry = { method, path, body, ifMatch, at: now() };
+        const entry = await entryFor(method, path, body, options);
         const queue = ctx.queue();
         if (queue.pending() === 0) {
             const outcome = await send(fetch, entry);
@@ -55,7 +64,8 @@ export function createWrites(ctx) {
             if (kind !== 'unreachable') throw refusal(outcome);
         }
         await queue.add(entry);
-        await optimistic(method, path, body);
+        if (method !== 'POST') await optimistic(method, path, body);
+        else if (typeof options.optimistic === 'function') await cache.amend(path, options.optimistic);
         ctx.kick();
         return { ok: true, queued: true, status: 0, data: null, rev: null };
     }
@@ -64,6 +74,7 @@ export function createWrites(ctx) {
         afterWrite,
         put: (path, body, options) => write('PUT', path, body, options),
         patch: (path, body, options) => write('PATCH', path, body, options),
+        post: (path, body, options) => write('POST', path, body, options),
         delete: (path, options) => write('DELETE', path, undefined, options),
     };
 }

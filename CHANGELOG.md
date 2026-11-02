@@ -9,6 +9,11 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **`chassisData.post(path, body, opts?)` and `IdempotencyKey`** [feat-offline-post-1] (Kitchen's freezer card). A POST
+  queued offline replays in order with the other writes and carries a UUID `Idempotency-Key` made at enqueue time and
+  kept across replays; a refused replay goes to the failed list like any edit. No `If-Match` unless `opts.rev`; the copy
+  is amended only through `opts.optimistic(copy)`. Server: the opt-in `IdempotencyKey` extractor (UUID, 400 in the kit
+  shape); the app records the key with its write in one transaction (no kit store). Design: `docs/OFFLINE_DESIGN.md`.
 - **A kit view for refused offline edits** (`[feat-offline-failed-view-1]`).
   The conflict toast's "Review" action (and any element carrying
   `data-chassis-review`, or `chassisData.review()`) opens a kit drawer built

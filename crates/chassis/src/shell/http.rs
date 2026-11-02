@@ -17,6 +17,9 @@ pub mod extractors;
 #[cfg(test)]
 mod extractors_tests;
 mod hygiene;
+pub mod idempotency;
+#[cfg(test)]
+mod idempotency_tests;
 pub(crate) mod policy;
 mod rejections;
 #[cfg(test)]

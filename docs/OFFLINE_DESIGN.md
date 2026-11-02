@@ -82,6 +82,26 @@ for the same path that carried the old revision are rebased to the new one: they
 are the same person's follow-up edits, not stale saves. An optimistic local
 update (put / patch / delete of the copy) makes offline reads show the edit.
 
+**`post(path, body, opts?)`** (feat-offline-post-1, Kenny: "Kit krijgt post()", for
+Kitchen's freezer "take 1"). Online it POSTs as usual. On a network failure or
+while the queue is not empty it joins the queue like the other writes, in order.
+Its entry carries `key`, a UUID made at enqueue time by `crypto.randomUUID()`
+and kept for the entry's whole life, sent as `Idempotency-Key` on the first
+try and on every replay (the entry is stored with the key, so a reload keeps
+it too). No `If-Match` unless `opts.rev` is given. A refused replay (409/4xx)
+takes the same road as PUT/PATCH/DELETE: failed list, review drawer ("Add"),
+`onConflict` policy, `resave` (same key). The local copy of `path` is **not**
+amended for a POST, because the kit cannot know what an action does to it;
+`opts.optimistic(copy)` returns the new copy and is applied once at enqueue
+(the function itself is never stored). The answer of a POST is never stored as
+the copy of its path. Server: `IdempotencyKey` (next to `IfMatch`) is an
+optional-header extractor, a UUID or 400 in the kit's shape. **Chosen: the
+extractor only, no kit store.** Answering a repeated key with the first result
+is exact only when the key is recorded in the same transaction as the write,
+which only the app's database can do (pattern in the module docs of
+`shell/http/idempotency.rs`); a kit-side bounded store would be a second place
+that can disagree with the data. Additions only: a minor.
+
 **409 on replay: skip and continue** (Kenny, form offline-conflict, "Overslaan",
 2026-11-02). The refused edit moves to the **failed list**: it stays in the same
 persisted queue store with `state: 'failed'` and the server's answer, it is
