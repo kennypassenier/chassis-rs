@@ -251,6 +251,24 @@ No breaking change; these are the steps that pick up the unreleased fixes.
 
 ### Fixed
 
+- **A notification link cannot name another host with a backslash**
+  (`[fix-hunt-core-1]`): `Link::new` refused `//host` but accepted `/\host`,
+  which a browser reads as `//host`. A backslash in an app-path link is now
+  refused.
+- **The in-flight cap cannot be skipped by a file extension**
+  (`[fix-hunt-core-2]`): a GET to `/api/report.svg` or `/api/data.js` counted
+  as a static file and ran past the cap. Nothing under `/api/` is a static
+  file now.
+- **Pre-migration copies: a bare file name works and the fresh copy is
+  never the one pruned** (`[fix-hunt-core-3]`): `pre_migration_snapshots` on
+  a path without a folder (`app.db`) failed the start with "cannot list ",
+  and after a restore of an older backup the copy just taken (a lower version
+  than leftovers) could be pruned at once. The folder is now `.` and the
+  fresh copy always stays.
+- **`chassisRefresh.markFresh` takes what a server sends**
+  (`[fix-hunt-core-4]`): an ISO string was dropped silently and `null` set
+  the freshness line to 1970. Dates, epoch milliseconds and ISO strings are
+  read; anything else changes nothing.
 - **A GET share target is no longer forgeable from another site**
   (habits, `[fix-sec-share-1]`): `ShareTarget::get(path)` writes on GET by
   design, and the `Lax` session cookie rides a top-level navigation from any

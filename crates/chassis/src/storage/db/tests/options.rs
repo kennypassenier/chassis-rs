@@ -134,3 +134,30 @@ fn a_passing_probe_keeps_a_real_write_failure_and_its_age() {
     assert_eq!(why, "disk full");
     assert!(age < std::time::Duration::from_secs(5), "{age:?}");
 }
+
+/// A bare file name has the empty path as its parent; pruning must read that
+/// as the current directory and not fail the start. (Reading the directory
+/// is the point, so the test runs the prune itself and changes no global
+/// state: nothing named `bare.pre-v*` lives in the crate folder.)
+#[test]
+fn a_bare_file_name_has_a_folder_to_prune_in() {
+    super::super::snapshot::prune(std::path::Path::new("bare.db"), 1, 2)
+        .expect("a bare file name means the current directory");
+}
+
+/// After a restore of an older backup the copy just taken has a LOWER
+/// version than leftovers from the newer line; pruning by version alone
+/// would delete the one copy this migration's way back depends on.
+#[test]
+fn the_copy_just_taken_is_never_the_one_pruned() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("a.db");
+    let opts = DbOptions::new().pre_migration_snapshots(1);
+    std::fs::write(dir.path().join("a.pre-v7.db"), b"older line").unwrap();
+    drop(Db::open_with(&path, &steps(2), &opts).unwrap());
+    drop(Db::open_with(&path, &steps(3), &opts).unwrap());
+    assert!(
+        dir.path().join("a.pre-v2.db").exists(),
+        "the fresh copy must survive"
+    );
+}

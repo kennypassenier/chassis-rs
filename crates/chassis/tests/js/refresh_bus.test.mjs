@@ -134,3 +134,18 @@ test('the freshness line never falls back to "not updated yet" once the page was
   assert.deepEqual(state.done, [false]);
   assert.equal(state.agoSet.at(-1), 5_000); // a failed first read keeps it too
 });
+
+// An app hands over what its server said: an ISO string or epoch milliseconds,
+// not only a Date. A string used to be dropped silently (Number(iso) is NaN)
+// and null counted as 1970, so "56 years ago" stood on the page.
+test('markFresh takes an ISO string and milliseconds, and ignores null and nonsense', () => {
+  const { api } = createRefreshBus({ clock: () => 9_000 });
+  api.markFresh('2026-11-02T08:00:00Z');
+  assert.equal(api.freshAt(), Date.parse('2026-11-02T08:00:00Z'));
+  api.markFresh(12_345);
+  assert.equal(api.freshAt(), 12_345);
+  api.markFresh(null);
+  api.markFresh('not a time');
+  api.markFresh('');
+  assert.equal(api.freshAt(), 12_345, 'a value that is no moment changes nothing');
+});

@@ -58,6 +58,13 @@ fn check_target(raw: &str) -> Result<String, Error> {
                 "the link contains a space or a control character".into(),
             ));
         }
+        // A browser reads `\` in an http(s) address as `/`, so `/\host` would
+        // open another host just as `//host` does.
+        if url.contains('\\') {
+            return Err(refuse(format!(
+                "the link `{url}` contains a backslash, which a browser reads as `/`; use /path or a full http(s) address"
+            )));
+        }
         return Ok(url.to_string());
     }
     check_url(url).map_err(|e| {
