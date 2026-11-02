@@ -21,6 +21,9 @@ pub(crate) mod policy;
 mod rejections;
 #[cfg(test)]
 mod rejections_tests;
+pub mod revision;
+#[cfg(test)]
+mod revision_tests;
 
 // The dashboard's error page reads the request it renders for.
 #[cfg(any(feature = "dashboard", test))]
