@@ -7,6 +7,18 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+
+- **The local database, browser side** [feat-localdb-client-1]. `configure({ db: true })` adds
+  `chassisData.db.collection(name)`: `get`, `all`, `where(index).equals / between / startsWith`,
+  `sortBy`, `limit`, `count`, `watch`, `create` (client UUID), `put`, `patch`, `delete`, `keep`, `sync`.
+  Records live in IndexedDB `chassis-db:<app>`, pulled from `GET /api/sync/<collection>?since=` (pages,
+  tombstones, 410 = full resync, schema-hash drop and rebuild) at start, on reconnect, focus, visibility,
+  live-channel hints and every 5 minutes (`db.pullMs`). Queued writes are an overlay marked
+  `pending: true`; a failed edit leaves the view. Writes reuse chassisData's queue, failed list, band and
+  logout guard; the 50 MB cap counts both databases; logout and the worker delete `chassis-db:*` too.
+  See docs/LOCAL_DB_DESIGN.md ("Client contract, as built"). Round: [kp11].
+
 ### Fixed
 
 - **The drawer and the logout dialog have separate headings** [fix-habits-drawer-11] (Habits). `messages.failedTitle`

@@ -204,6 +204,7 @@ test('a logout drops every stored page and private file, and keeps the kit asset
 
 test('the worker deletes only the offline app data databases at logout', () => {
     assert.equal(logic.isAppDataDb('chassis-data:kitchen'), true);
+    assert.equal(logic.isAppDataDb('chassis-db:kitchen'), true);
     assert.equal(logic.isAppDataDb('other-db'), false);
     assert.equal(logic.isAppDataDb(undefined), false);
 });

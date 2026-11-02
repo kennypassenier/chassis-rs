@@ -1,6 +1,7 @@
 // Offline app data (feat-offline-1): the configuration an app hands to
 // `chassisData.configure()`, validated once, and the route table. Pure.
 
+import { normalizeDb } from './db-config.js';
 import { childRoute } from './data-trim.js';
 
 export const DEFAULTS = Object.freeze({
@@ -15,6 +16,7 @@ export const DEFAULTS = Object.freeze({
     queryCopies: 8,
     messages: {},
     describe: null,
+    db: null,
 });
 
 const PARAM = /^:[A-Za-z_][A-Za-z0-9_]*$/;
@@ -52,7 +54,7 @@ export function normalize(options = {}) {
     if (typeof merged.name !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(merged.name)) {
         throw fail('name must be 1-40 letters, digits, "-" or "_"', 'It names the IndexedDB database of this app.');
     }
-    if (!Array.isArray(merged.routes) || merged.routes.length === 0) {
+    if (!Array.isArray(merged.routes) || (merged.routes.length === 0 && !merged.db)) {
         throw fail('routes is empty', 'List the item and list routes of the app, e.g. ["/api/dishes", "/api/dishes/:id"].');
     }
     if (merged.onConflict !== null && typeof merged.onConflict !== 'function') {
@@ -70,6 +72,7 @@ export function normalize(options = {}) {
     positive(merged.maxBytes, 'maxBytes');
     positive(merged.retryMs, 'retryMs');
     positive(merged.queryCopies, 'queryCopies');
+    merged.db = normalizeDb(merged.db);
     const compiled = merged.routes.map(compileRoute);
     for (const route of compiled) route.child = route.kind === 'list' ? childRoute(compiled, route) : null;
     return { ...merged, compiled };
