@@ -110,7 +110,9 @@ export function createWrites(ctx) {
     /** A POST has no revision of its own (unless `rev` is given); its key is made once, here. */
     async function entryFor(method, path, body, options) {
         if (method === 'POST') {
-            return { method, path, body, ifMatch: options.rev !== undefined ? String(options.rev) : null, key: uuid(), at: now() };
+            const entry = { method, path, body, ifMatch: options.rev !== undefined ? String(options.rev) : null, key: uuid(), at: now() };
+            if (typeof options.collection === 'string') entry.collection = options.collection; // stored: the local db overlays this POST as a create of that collection
+            return entry;
         }
         const held = await cache.read(path);
         const ifMatch = options.rev !== undefined ? String(options.rev) : (held?.rev ?? null);

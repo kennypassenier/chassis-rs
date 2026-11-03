@@ -7,7 +7,7 @@
 
 import { fail } from './data-errors.js';
 
-export const DB_DEFAULTS = Object.freeze({ syncUrl: '/api/sync', pullMs: 5 * 60 * 1000, pageLimit: null, live: null });
+export const DB_DEFAULTS = Object.freeze({ syncUrl: '/api/sync', pullMs: 5 * 60 * 1000, pageLimit: null, live: null, overlay: null });
 
 /** Prefix of the temporary key a queued create of a server-keyed collection shows under. */
 export const LOCAL_PREFIX = 'local:';
@@ -15,6 +15,16 @@ export const isLocalKey = (key) => typeof key === 'string' && key.startsWith(LOC
 
 const NAME = /^[a-z][a-z0-9_]{0,39}$/;
 const PARAM = /^:[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** `db.overlay`: `{ collection: (record, entry) => record }`, validated; always an object. */
+function overlaysOf(raw) {
+    if (raw === undefined || raw === null) return {};
+    if (typeof raw !== 'object' || Array.isArray(raw)) throw fail('db.overlay must be an object of functions, one per collection', { remedy: 'For example { tasks: (record, entry) => record }.' });
+    for (const [name, fn] of Object.entries(raw)) {
+        if (typeof fn !== 'function') throw fail(`db.overlay.${name} must be a function (record, entry) => record`);
+    }
+    return raw;
+}
 
 /** The `db` option of `configure()` (`true` = all defaults), validated. */
 export function normalizeDb(option) {
@@ -26,6 +36,7 @@ export function normalizeDb(option) {
     if (!(merged.pullMs > 0)) throw fail('db.pullMs must be a number above zero (milliseconds)');
     if (merged.pageLimit !== null && !(merged.pageLimit >= 1)) throw fail('db.pageLimit must be 1 or more');
     merged.syncUrl = merged.syncUrl.replace(/\/$/, '');
+    merged.overlay = overlaysOf(merged.overlay);
     return merged;
 }
 

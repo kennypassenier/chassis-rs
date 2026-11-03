@@ -31,6 +31,10 @@ export function createDb(deps) {
         room: () => Math.max(0, data.usage().max - data.usage().used),
         keeps: (name, key) => keeper.keeps(name, key),
     });
+    const overlays = options.overlay ?? {};
+    for (const name of Object.keys(overlays)) {
+        if (!defs[name]) warn(`chassisData.db: db.overlay names collection ${JSON.stringify(name)}, which the manifest does not declare (${names.join(', ') || 'none'}); it is ignored.`);
+    }
     const collections = new Map();
     const pullNames = (list) => puller.pullAll(list ?? names);
 
@@ -46,7 +50,7 @@ export function createDb(deps) {
             const def = defs[name];
             if (!def) throw fail(`there is no collection ${JSON.stringify(name)} in the manifest.`, { remedy: `Declared: ${names.join(', ') || 'none'}.` });
             if (!collections.has(name)) {
-                collections.set(name, createCollection({ def, store, data, hub, keeper, puller, settings, uuid: deps.uuid }));
+                collections.set(name, createCollection({ def, store, data, hub, keeper, puller, settings, uuid: deps.uuid, overlayFn: overlays[name] }));
             }
             return collections.get(name);
         },

@@ -32,7 +32,7 @@ function actionOf(def, entry, actions) {
 
 /** One queued entry as `{ key, change, name? }` for this collection, or null when it is not about it. */
 function effectOf(def, entry, actions) {
-    if (entry.method === 'POST' && isListPath(def, entry.path)) {
+    if (entry.method === 'POST' && (isListPath(def, entry.path) || entry.collection === def.name)) {
         const key = createKey(def, entry);
         return key === null ? null : { key, change: 'create' };
     }
@@ -53,12 +53,31 @@ function transformed(actions, name, base, body, collection) {
 }
 
 /**
+ * The app's overlay function applied to one entry: `next` is the record to show,
+ * `null` hides it, `undefined` means "use the default merge" (no function, or it
+ * threw or answered something that is no record; a throw is reported).
+ */
+function customized(custom, base, entry, collection) {
+    if (!custom) return undefined;
+    try {
+        const next = custom(base === null ? null : { ...base }, entry);
+        if (next === null || (next && typeof next === 'object' && !Array.isArray(next))) return next;
+        console.warn(`chassisData.db: the overlay function of ${collection} answered neither a record nor null; the default merge is used.`);
+    } catch (err) {
+        console.warn(`chassisData.db: the overlay function of ${collection} threw; the default merge is used.`, err);
+    }
+    return undefined;
+}
+
+/**
  * Map key -> `{ deleted: true }` or `{ data }` for the waiting (not failed)
  * entries of `def`. `baseOf(key)` answers the stored item's data (or null),
  * needed only to change an item the queue has not made itself. `actions` maps
  * an action name to `(record, body) => record` (`null` hides the record).
+ * `custom` (optional, `db.overlay[collection]`) replaces the default merge of
+ * creates, PUTs and PATCHes: `(record | null, entry) => record | null`.
  */
-export async function buildOverlay(entries, def, baseOf, actions = new Map()) {
+export async function buildOverlay(entries, def, baseOf, actions = new Map(), custom = null) {
     const overlay = new Map();
     const current = async (key) => {
         const had = overlay.get(key);
@@ -70,15 +89,20 @@ export async function buildOverlay(entries, def, baseOf, actions = new Map()) {
         if (!effect || effect.change === null) continue;
         const { key, change } = effect;
         const shown = (data) => overlay.set(key, { data: { ...data, [def.key]: key } });
+        const lay = (base, merged) => {
+            const next = change === 'action' ? undefined : customized(custom, base, entry, def.name);
+            if (next === null) overlay.set(key, { deleted: true });
+            else shown(next === undefined ? merged : next);
+        };
         if (change === 'delete') {
             overlay.set(key, { deleted: true });
         } else if (change === 'create') {
-            shown(entry.body);
+            lay(null, entry.body);
         } else {
             const base = await current(key);
-            if (change === 'put') shown({ ...base, ...entry.body }); // a partial PUT must not hide the fields it leaves out
+            if (change === 'put') lay(base, { ...base, ...entry.body }); // a partial PUT must not hide the fields it leaves out
             else if (!base) continue;
-            else if (change === 'patch') shown({ ...base, ...entry.body });
+            else if (change === 'patch') lay(base, { ...base, ...entry.body });
             else {
                 const next = transformed(actions, effect.name, base, entry.body, def.name);
                 if (next === null) overlay.set(key, { deleted: true });

@@ -342,6 +342,20 @@ Readings of the points the decisions leave open; the server half must match:
   warned about and ignored). `collection.act(key, name, body)` queues that POST (If-Match = the
   stored rev). The queue stores only the entry; the overlay looks the transform up by name at
   read time, in queue order with the other edits.
+- **Create through another route** (`[fix-db-habits-1]`): `create(item, { path })` POSTs to `path`
+  (a path of the app) instead of `routes.list`. The queued entry carries `collection: "<name>"`
+  (stored with it, so it survives a restart), which makes the overlay treat that POST as a pending
+  create of the collection, exactly like one to the list route (client or server keys). The
+  manifest declares no extra create routes; the app names the route per call.
+- **Overlay function** (`[fix-db-habits-2]`): `configure({ db: { overlay: { tasks: (record, entry) =>
+  record } } })`. Per collection; it lays one queued create (`record` is `null`), PUT or PATCH over
+  the record, in queue order, replacing the default merge. `entry` is the queue entry (`method`,
+  `path`, `body`). `null` hides the record; a throw or a non-record answer is warned about and the
+  default merge is used. Deletes stay a delete; item actions keep their registered transforms
+  (`collection.action`), the function is not called for them. A name the manifest lacks is warned.
+- **`opts.rev`** (`[fix-db-habits-3]`): `patch(key, fields, { rev })`, `put(key, item, { rev })`,
+  `delete(key, { rev })` and `act(key, name, body, { rev })` send that rev as If-Match instead of the
+  stored record's, for a write right after a write through a non-collection route.
 - **Cached routes** (data-lists.js, for apps on chassisData without the db): `composites:
   [{ path: '/data/snapshot', lists: { tasks: '/data/tasks/:id' } }]` (both paths also in
   `routes`) makes an item write amend `snapshot.tasks`; a queued POST to a list route whose
