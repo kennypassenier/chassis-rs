@@ -24,6 +24,7 @@ impl WebApp {
                 "mount it at the root (the default) or elsewhere, e.g. `/app`; the kit's routes are /status, /login, /logout, /static, /api, /clients, /passkeys, /healthz, /readyz and /metrics",
             ));
         }
+        self.warn_unmapped_csp();
         if let Some(p) = &self.pwa {
             p.validate()?;
         }
@@ -46,6 +47,23 @@ impl WebApp {
             }
         }
         Ok(())
+    }
+}
+
+impl WebApp {
+    /// A policy without `script-src 'self'` cannot carry the kp-themes import
+    /// map's hash, so this app's pages stay unmapped: an import of a split
+    /// entry (`/static/kp/dist/js/<entry>.js`) then loads the split modules,
+    /// and an import of the bundle loads a second runtime next to them. Said
+    /// once at start; the policy is the app's own choice, so not an error.
+    fn warn_unmapped_csp(&self) {
+        if !crate::shell::assets::kp_map::csp_accepts_map(&self.csp) {
+            tracing::warn!(
+                mount = self.mount.as_str(),
+                "web app: the policy has no `script-src 'self'`, so the kp-themes import map is not injected; \
+                 import either the bundle or the split entries, never both, or add `script-src 'self'`"
+            );
+        }
     }
 }
 

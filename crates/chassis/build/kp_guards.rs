@@ -81,3 +81,36 @@ pub fn check_split_folder(files: &[String], closure: &BTreeSet<String>) -> Resul
     }
     Ok(())
 }
+
+/// Prefix of the generated facades (kp-themes 12.6): one file per split entry
+/// that re-exports exactly that entry's names from the one-file bundle. The
+/// import map the kit puts on a page sends every `dist/js/<entry>.js` import
+/// to the facade of the same name, so the page holds one runtime.
+pub const BUNDLE_FACADE_PREFIX: &str = "kp/dist/bundle/";
+
+/// The one split entry without a facade: `index.js` re-exports everything,
+/// which is what the bundle is; the map sends it to the bundle itself.
+pub const NO_FACADE: &str = "index.js";
+
+/// Every unhashed split entry (bar [`NO_FACADE`]) has a facade, and the boot
+/// entry's facade exists: a vendoring that forgets them is a build error here,
+/// not a 404 behind the import map.
+pub fn check_bundle_facades(files: &[String]) -> Result<(), String> {
+    for f in files {
+        let Some(name) = f.strip_prefix(SPLIT_JS_PREFIX) else {
+            continue;
+        };
+        let entry = name.ends_with(".js") && !name.starts_with("chunk-") && !name.contains('/');
+        let facade = format!("{BUNDLE_FACADE_PREFIX}{name}");
+        if entry && name != NO_FACADE && !files.contains(&facade) {
+            return Err(format!(
+                "{f} has no facade {facade}; vendor dist/bundle whole"
+            ));
+        }
+    }
+    require_files(
+        files,
+        &[&format!("{BUNDLE_FACADE_PREFIX}auto.js")],
+        "the boot facade",
+    )
+}

@@ -102,7 +102,7 @@ pub(super) fn with_head_tags(
 
 /// The position just after the `<head ...>` opening tag, or `None` (no head,
 /// or a `<header>` and the like, which only starts with the same letters).
-fn head_open_end(lower: &[u8]) -> Option<usize> {
+pub(super) fn head_open_end(lower: &[u8]) -> Option<usize> {
     let at = find(lower, b"<head")?;
     let after = *lower.get(at + 5)?;
     if after != b'>' && !after.is_ascii_whitespace() {
@@ -113,6 +113,6 @@ fn head_open_end(lower: &[u8]) -> Option<usize> {
 }
 
 /// The first position of `needle` in `hay`.
-fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
+pub(super) fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
     hay.windows(needle.len()).position(|w| w == needle)
 }

@@ -40,7 +40,12 @@ async fn serves_the_index_the_files_and_their_types() {
     assert_eq!(res.status(), 200);
     assert_eq!(res.headers()["content-type"], "text/html; charset=utf-8");
     assert_eq!(res.headers()["cache-control"], "no-cache");
-    assert_eq!(res.headers()["content-security-policy"], DEFAULT_CSP);
+    // The default policy plus the hash of the inline kp-themes import map.
+    let csp = res.headers()["content-security-policy"].to_str().unwrap();
+    assert_eq!(
+        crate::shell::assets::kp_map::csp_with_hash(DEFAULT_CSP).as_deref(),
+        Some(csp)
+    );
     assert!(body(res).await.contains("<title>app</title>"));
     let res = get_path(&r, "/app/js/main.js", &[]).await;
     assert_eq!(

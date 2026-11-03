@@ -16,6 +16,18 @@ const FILES: &[(&str, &[u8])] = &[
     ("js/main.js", b"export const x = 'webapp-runtime.js';"),
 ];
 
+/// `page` as the server sends it with the kp-themes import map: right after
+/// the `<head>` opening, ahead of everything else (see `import_map`).
+fn mapped(page: &[u8]) -> Vec<u8> {
+    let at = inject::head_open_end(&page.to_ascii_lowercase()).expect("a head");
+    [
+        &page[..at],
+        crate::shell::assets::kp_map::tag().as_bytes(),
+        &page[at..],
+    ]
+    .concat()
+}
+
 fn count(haystack: &str) -> usize {
     haystack.matches("webapp-runtime.js").count()
 }
@@ -35,7 +47,8 @@ async fn html_gets_the_tag_once_right_after_the_head_opening() {
     // First in the head, so window.chassisData exists before the app's module
     // scripts run (fix-habits-data-5).
     assert!(html.contains(&format!(
-        "<head>{}<title>",
+        "<head>{}{}<title>",
+        crate::shell::assets::kp_map::tag(),
         inject::runtime_tag_for(inject::Runtime::Bundle)
     )));
     // The SPA fallback is the same page.
@@ -55,7 +68,7 @@ async fn html_gets_the_tag_once_right_after_the_head_opening() {
 async fn a_page_that_loads_the_runtime_itself_is_left_alone() {
     let r = WebApp::embedded(FILES).without_pwa().router().unwrap();
     let html = body(get_path(&r, "/own.html", &[]).await).await;
-    assert_eq!(html.as_bytes(), HAS_TAG);
+    assert_eq!(html.as_bytes(), mapped(HAS_TAG));
     assert_eq!(count(&html), 1);
 }
 
@@ -84,13 +97,13 @@ async fn the_etag_follows_the_injected_bytes_and_304_works() {
 }
 
 #[tokio::test]
-async fn the_opt_out_serves_the_raw_bytes() {
+async fn the_opt_out_serves_the_page_with_only_the_import_map_added() {
     let r = WebApp::embedded(FILES)
         .without_kit_runtime()
         .router()
         .unwrap();
     let res = get_path(&r, "/", &[]).await;
-    assert_eq!(body(res).await.as_bytes(), HEAD_PAGE);
+    assert_eq!(body(res).await.as_bytes(), mapped(HEAD_PAGE));
 }
 
 #[tokio::test]
@@ -119,7 +132,10 @@ async fn kp_modules_injects_the_modules_runtime_only() {
         .unwrap();
     let html = body(get_path(&r, "/", &[]).await).await;
     let tag = inject::runtime_tag_for(inject::Runtime::Modules);
-    assert!(html.contains(&format!("<head>{tag}<title>")));
+    assert!(html.contains(&format!(
+        "<head>{}{tag}<title>",
+        crate::shell::assets::kp_map::tag()
+    )));
     assert!(html.contains("webapp-runtime-modules.js?v="));
     assert!(!html.contains("webapp-runtime.js"), "never both variants");
 }
@@ -140,7 +156,7 @@ async fn a_page_with_either_variant_is_left_alone_in_modules_mode() {
         .router()
         .unwrap();
     let html = body(get_path(&r, "/own.html", &[]).await).await;
-    assert_eq!(html.as_bytes(), HAS_TAG);
+    assert_eq!(html.as_bytes(), mapped(HAS_TAG));
 }
 
 #[test]

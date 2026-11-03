@@ -31,7 +31,10 @@ pub(super) fn build(
     // theme's register link before first paint (see the layout's head).
     env.add_global("register_pattern", REGISTER_PATTERN);
     env.add_global("base_stylesheet", BASE_STYLESHEET);
-    env.add_global("split_entry", SPLIT_ENTRY);
+    // Option A: the import map goes before the first module script, and the
+    // boot entry is its facade (an import map does not rewrite `<script src>`).
+    env.add_global("kp_import_map", crate::shell::assets::kp_map::tag());
+    env.add_global("kp_entry", BOOT_ENTRY);
     env.add_global("default_theme", DEFAULT_THEME);
     env.add_global(
         "theme_names",

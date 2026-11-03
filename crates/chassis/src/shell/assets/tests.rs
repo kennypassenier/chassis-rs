@@ -6,6 +6,7 @@ use sha2::{Digest, Sha256};
 #[cfg(feature = "dashboard")]
 mod chunks;
 mod gzip;
+mod import_map;
 mod one_source;
 mod source_maps;
 mod static_tree;
@@ -26,14 +27,6 @@ fn vendored_kp_themes_match_the_manifest() {
         let (hash, name) = line.split_once("  ").expect("sha256sum line");
         let key = format!("kp/{name}");
         let actual = match all_assets().find(|(n, _, _)| *n == key) {
-            // The bundle's URL serves the facade (fix-kp-mix-1): the vendored
-            // file on disk is what must match the release.
-            Some(_) if key == "kp/dist/kp-themes.min.js" => {
-                embedded += 1;
-                hex::encode(Sha256::digest(
-                    std::fs::read(root.join(name)).expect("bundle on disk"),
-                ))
-            }
             Some((_, _, body)) => {
                 embedded += 1;
                 hex::encode(Sha256::digest(body))
@@ -233,25 +226,4 @@ async fn serve_sets_immutable_cache_and_404s_unknown() {
             .status(),
         StatusCode::NOT_FOUND
     );
-}
-
-/// fix-kp-mix-1 (HTTPSwitchboard, Almanac on 4.4.0+): a project script that
-/// imports the bundle on a kit page must share the split modules the page
-/// already runs; two copies of kp-themes froze Firefox. The bundle's URL is a
-/// facade over `dist/js/`, and every name it re-exports exists there.
-#[test]
-fn the_bundle_url_serves_the_split_modules_not_a_second_copy() {
-    let (_, ct, body) = all_assets()
-        .find(|(n, _, _)| *n == "kp/dist/kp-themes.min.js")
-        .expect("bundle URL served");
-    let text = std::str::from_utf8(body).unwrap();
-    assert!(ct.starts_with("text/javascript"), "{ct}");
-    assert!(text.contains("import './js/auto.js?v="), "{text}");
-    assert!(text.contains("export * from './js/index.js?v="), "{text}");
-    for target in ["kp/dist/js/auto.js", "kp/dist/js/index.js"] {
-        assert!(
-            all_assets().any(|(n, _, _)| *n == target),
-            "{target} served"
-        );
-    }
 }

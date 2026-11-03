@@ -23,7 +23,7 @@ use serde::Serialize;
 
 use crate::core::error::Error;
 use crate::shell::assets::{
-    BASE_STYLESHEET, DEFAULT_THEME, KP_THEMES_VERSION, REGISTER_PATTERN, SPLIT_ENTRY, asset_version,
+    BASE_STYLESHEET, BOOT_ENTRY, DEFAULT_THEME, KP_THEMES_VERSION, REGISTER_PATTERN, asset_version,
 };
 use crate::shell::auth::{AuthState, LoginForm, LoginOutcome, login};
 use crate::shell::client_list;

@@ -1,6 +1,7 @@
 //! The chunks of kp-themes' split module folder are named after their
 //! content hash, so they are cached for a year with or without a `?v=`; the
-//! entries (which keep their names) and everything else keep revalidating.
+//! entries (which keep their names), the bundle facades and the bundle itself
+//! (unversioned URL) and everything else keep revalidating.
 
 use super::*;
 
@@ -27,13 +28,16 @@ async fn a_chunk_is_immutable_even_without_the_version_query() {
 }
 
 #[tokio::test]
-async fn entries_maps_and_the_loose_modules_still_revalidate() {
+async fn entries_facades_the_bundle_and_maps_still_revalidate() {
     for name in [
         "kp/dist/js/auto.js",
         "kp/dist/js/core.js",
         "kp/dist/js/lazy-register.js",
         "kp/dist/js/overlays.js",
         "kp/dist/js/index.js",
+        "kp/dist/bundle/auto.js",
+        "kp/dist/bundle/overlays.js",
+        "kp/dist/kp-themes.min.js",
         "kp/dist/kp-themes-base.min.css",
         "kp/dist/css/formal-register.min.css",
     ] {
