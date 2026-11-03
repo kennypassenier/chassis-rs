@@ -21,6 +21,12 @@
 // same `chassis-pwa-update` event as a new release and the app's prompt
 // reloads through `detail.apply()`.
 //
+// Navigating away rejects the page's in-flight imports too (Firefox:
+// "error loading dynamically imported module" on unload). Those are not stale
+// chunks, and reloading then cancels the navigation the user just asked for
+// (every later page.goto hung). So a rejection that arrives while the page is
+// being left, or within SETTLE_MS of it, never reloads.
+//
 // A loop is impossible: a reload is allowed at most once per COOLDOWN_MS per
 // tab (sessionStorage), so a chunk that is really broken fails visibly.
 
@@ -29,6 +35,9 @@ export const COOLDOWN_MS = 60_000;
 export const UPDATE_EVENT = 'chassis-pwa-update';
 export const STALE_VERSION = 'stale-chunk';
 const STATE = '__chassisStaleImportGuard';
+/** How long a cancelled-able beforeunload counts as "leaving"; also the reload delay. */
+export const SETTLE_MS = 250;
+export const LEAVE_MS = 5000;
 
 // What browsers say when a dynamic import cannot be fetched: Chrome "Failed
 // to fetch dynamically imported module", Firefox "error loading dynamically
@@ -69,9 +78,9 @@ function askToReload(win, state, store, reason) {
     win.dispatchEvent(new Event(UPDATE_EVENT, { detail: { version: STALE_VERSION, apply } }));
 }
 
-/** What to do about a failed dynamic import: reload once, or ask in `ask` mode. */
-function onFailedImport(win, state, reason) {
-    if (!isFailedImport(reason)) return;
+/** Reload once, or ask in `ask` mode; nothing while the page is being left. */
+function reloadOrAsk(win, state, reason) {
+    if (state.leaving.now()) return;
     const store = tabStore(win);
     if (!store) {
         // Blocked storage: no cooldown can be kept, so do not reload.
@@ -85,6 +94,16 @@ function onFailedImport(win, state, reason) {
     win.location.reload();
 }
 
+/** What to do about a failed dynamic import: wait SETTLE_MS for a navigation to show, then act. */
+function onFailedImport(win, state, reason) {
+    if (!isFailedImport(reason) || state.leaving.now()) return;
+    if (typeof win.setTimeout === 'function') {
+        win.setTimeout(() => reloadOrAsk(win, state, reason), SETTLE_MS);
+    } else {
+        reloadOrAsk(win, state, reason);
+    }
+}
+
 /**
  * Watch for failed lazy imports; safe to call more than once. A later call
  * may switch on `{ ask: true }` (pwa-register.js knows the mode, boot-kit.js
@@ -93,11 +112,12 @@ function onFailedImport(win, state, reason) {
 export function guardStaleImports(win, { ask = false } = {}) {
     const known = win[STATE];
     if (known) {
-        known.ask ||= ask;
+        if (typeof known === 'object') known.ask ||= ask;
         return;
     }
     if (typeof win.addEventListener !== 'function') return;
-    const state = { ask, asked: false, handle: (reason) => onFailedImport(win, state, reason) };
+    const state = { ask, asked: false, leaving: trackLeaving(win) };
+    state.handle = (reason) => onFailedImport(win, state, reason);
     win[STATE] = state;
     win.addEventListener('unhandledrejection', (event) => state.handle(event.reason));
 }
@@ -108,7 +128,20 @@ export function guardStaleImports(win, { ask = false } = {}) {
  */
 export function guardImport(promise, win = globalThis) {
     return promise.catch((reason) => {
-        win[STATE]?.handle(reason);
+        win[STATE]?.handle?.(reason);
         throw reason;
     });
+}
+
+/** Whether the page is being left: beforeunload (may be cancelled) or pagehide. */
+function trackLeaving(win) {
+    let until = 0;
+    let gone = false;
+    win.addEventListener('beforeunload', () => {
+        until = Date.now() + LEAVE_MS;
+    });
+    win.addEventListener('pagehide', () => {
+        gone = true;
+    });
+    return { now: () => gone || Date.now() < until };
 }

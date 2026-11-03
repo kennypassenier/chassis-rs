@@ -11,7 +11,9 @@ const fakeWin = (store = new Map()) => {
         events: [],
         dispatchEvent(e) { this.events.push(e); return true; },
         CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail; } },
-        addEventListener(type, f) { if (type === 'unhandledrejection') handler = f; },
+        handlers: {},
+        addEventListener(type, f) { if (type === 'unhandledrejection') handler = f; this.handlers[type] = f; },
+        setTimeout: (f) => f(),
         location: { reload() { win.reloads += 1; } },
         fire: (reason) => handler({ reason }),
         store,
@@ -88,4 +90,37 @@ test('an import whose caller catches the failure still reaches the guard, and st
     await assert.rejects(guardImport(Promise.reject(new Error('boom')), win), /boom/);
     assert.equal(win.reloads, 1);
     assert.equal(await guardImport(Promise.resolve(7), win), 7);
+});
+
+test('a rejection while the page is being left never reloads (it would cancel the navigation)', () => {
+    win = fakeWin();
+    guardStaleImports(win);
+    win.handlers.beforeunload();
+    win.fire(new TypeError('error loading dynamically imported module'));
+    assert.equal(win.reloads, 0);
+    assert.equal(win.store.get(RELOAD_KEY), undefined);
+    win = fakeWin();
+    guardStaleImports(win);
+    win.handlers.pagehide();
+    win.fire(new TypeError('error loading dynamically imported module'));
+    assert.equal(win.reloads, 0);
+});
+
+test('a navigation that starts during the settle delay also cancels the reload', () => {
+    win = fakeWin();
+    let later;
+    win.setTimeout = (f) => { later = f; };
+    guardStaleImports(win);
+    win.fire(new TypeError('error loading dynamically imported module'));
+    win.handlers.pagehide();
+    later();
+    assert.equal(win.reloads, 0);
+});
+
+test('a caught import cancelled by leaving the page does not reload either', async () => {
+    win = fakeWin();
+    guardStaleImports(win);
+    win.handlers.pagehide();
+    await assert.rejects(guardImport(Promise.reject(failed()), win), TypeError);
+    assert.equal(win.reloads, 0);
 });
