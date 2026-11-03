@@ -7,6 +7,12 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [4.7.0] - 2026-11-04
+
+Kenny's release-470 form: "Uitbrengen"; kp-shape "Eén bestand"; tabbar "Max 4
+plus More"; dense-touch "Later"; read-through: the apps build a bundled read
+themselves if they want one (chassis-rs only bundles what several apps use).
+
 ### Changed (Kenny's release-470 form)
 - **tabbar "Max 4 plus More":** on a phone the tab bar shows at most four
   primary pages beside More (`PHONE_TABS`); the fifth and later are in the
