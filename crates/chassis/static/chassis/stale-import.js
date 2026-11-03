@@ -145,3 +145,16 @@ function trackLeaving(win) {
     });
     return { now: () => gone || Date.now() < until };
 }
+
+/**
+ * Report a page's start failure, unless the page is being left: leaving
+ * cancels the page's in-flight imports and fetches, and that is not a fault
+ * (the Status page logged "error loading dynamically imported module …
+ * version-delta.js" on every navigation away). Without the guard installed
+ * it always reports.
+ */
+export function reportUnlessLeaving(label, error, win = globalThis) {
+    const state = win[STATE];
+    if (state && typeof state === 'object' && state.leaving?.now()) return;
+    console.error(label, error);
+}

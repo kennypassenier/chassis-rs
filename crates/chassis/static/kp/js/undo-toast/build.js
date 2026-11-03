@@ -2,6 +2,7 @@
 
 import { UNDO_MS } from '../patterns.js';
 import { getStrings } from '../strings.js';
+import { keyName } from './stack.js';
 import { MS_PER_SECOND, UNDO_MAX } from './values.js';
 
 /**
@@ -63,7 +64,7 @@ function buildRing(doc) {
  * @param {Document} doc @param {string} text @param {ReturnType<typeof readSettings>} settings
  * @returns {{ body: HTMLElement, ring: HTMLElement | null, secs: HTMLElement | null, words: HTMLElement, said: HTMLElement }}
  */
-export function buildBody(doc, text, { ms, clock, seconds }) {
+export function buildBody(doc, text, { ms, clock, seconds, key }) {
     const strings = getStrings();
     const body = doc.createElement('span');
     body.className = 'kp-undo';
@@ -75,7 +76,7 @@ export function buildBody(doc, text, { ms, clock, seconds }) {
     words.textContent = text;
     const said = doc.createElement('span');
     said.className = 'kp-sr-only';
-    said.textContent = ms > 0 ? strings.undoToastAnnounce(text, seconds) : text;
+    said.textContent = ms > 0 ? strings.undoToastAnnounce(text, seconds, key ? keyName(key) : undefined) : text;
     body.append(words, said);
     /** @type {HTMLElement | null} */
     let secs = null;

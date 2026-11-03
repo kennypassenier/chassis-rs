@@ -39,6 +39,8 @@
 // Events (bubbling, on the root):
 //   kp-quantity-change   { value, previous, source: 'button' | 'key' | 'typed' }
 //
+// setQuantityUnit(root, unit, unitOne) changes the unit after attach.
+//
 // Every word it adds is in js/strings.js. Nothing runs on import.
 //
 // Each control is one QuantityControl (js/quantity/controller.js, on js/controller.js); the parts, and the pure number helpers, are listed in js/README.md.
@@ -48,12 +50,12 @@ import { QUANTITY } from './quantity/values.js';
 import { QuantityControl } from './quantity/controller.js';
 import { rulesOf, settleQuantity } from './quantity/math.js';
 import { paint } from './quantity/paint.js';
-import { inputOf } from './quantity/read.js';
+import { getQuantity, inputOf } from './quantity/read.js';
 import { isHtmlElement } from './realm.js';
 
 export { QUANTITY, QUANTITY_EVENT, HOLD_DELAY, HOLD_SLOW, HOLD_FAST } from './quantity/values.js';
+export { getQuantity };
 export { decimalsOf, formatQuantity, parseQuantity, settleQuantity } from './quantity/math.js';
-export { getQuantity } from './quantity/read.js';
 
 /** @typedef {{ min: number, max: number, step: number, decimals: number, locale: string }} QuantityRules */
 
@@ -66,6 +68,20 @@ export function setQuantity(root, value) {
     if (!isHtmlElement(root)) return;
     // A field the person is typing in keeps its text; it is normalised when they commit [stepper1102].
     paint(root, settleQuantity(value, rulesOf(root)), document.activeElement === inputOf(root));
+}
+
+/**
+ * Change the unit after the number (`data-kp-quantity-unit`, and `-unit-one` for exactly 1) once the control is attached: a page whose unit
+ * follows something else (the medicine picked) needs no rebuild. The value stays; the unit's width and the spin button's words follow;
+ * `unitOne` omitted or empty clears the singular. [mc-34]
+ * @param {Element} root @param {string} unit @param {string} [unitOne]
+ */
+export function setQuantityUnit(root, unit, unitOne = '') {
+    if (!isHtmlElement(root)) return;
+    root.setAttribute('data-kp-quantity-unit', unit);
+    if (unitOne) root.setAttribute('data-kp-quantity-unit-one', unitOne);
+    else root.removeAttribute('data-kp-quantity-unit-one');
+    paint(root, getQuantity(root), document.activeElement === inputOf(root));
 }
 
 /**

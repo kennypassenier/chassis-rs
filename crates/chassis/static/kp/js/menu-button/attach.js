@@ -8,6 +8,19 @@ import { MenuButtonControl } from './controller.js';
 /** What reaches a menu button first: a pointer, the focus, a key, a click. */
 const LATE_EVENTS = ['pointerdown', 'focusin', 'keydown', 'click'];
 
+/** The options each root was attached with, so a wiring that happens first (the page-level auto wiring, a focus) still gets the page's `decorate`. @type {WeakMap<ParentNode, MenuButtonOptions>} */
+const registered = new WeakMap();
+
+/** One wrapper wired with the options its root registered; a wrapper wired earlier without them joins them now. @param {HTMLElement} wrapper @param {ParentNode} root @param {MenuButtonOptions} options */
+function wireWith(wrapper, root, options) {
+    const { decorate, strings } = { ...registered.get(root), ...options };
+    const control = controllerOf(wrapper, MenuButtonControl);
+    if (!control) return attachOne(wrapper, MenuButtonControl, { decorate, strings });
+    const state = /** @type {MenuButtonControl} */ (control).state;
+    if (state && ((decorate && state.decorate !== decorate) || (strings && state.strings !== strings))) control.join(state, { decorate, strings });
+    return undefined;
+}
+
 /**
  * Wire every menu button under `root`: the button opens and closes the menu,
  * and the menu answers the keys of a menu (APG menu button). A disabled
@@ -20,7 +33,8 @@ const LATE_EVENTS = ['pointerdown', 'focusin', 'keydown', 'click'];
  */
 export function attachMenuButtons(root = document, { decorate, strings } = {}) {
     const wrappers = /** @type {HTMLElement[]} */ ([...root.querySelectorAll(MENU_BUTTON)]);
-    const wire = (/** @type {HTMLElement} */ wrapper) => (controllerOf(wrapper, MenuButtonControl) ? undefined : attachOne(wrapper, MenuButtonControl, { decorate, strings }));
+    if (decorate || strings) registered.set(root, { ...registered.get(root), ...(decorate && { decorate }), ...(strings && { strings }) });
+    const wire = (/** @type {HTMLElement} */ wrapper) => wireWith(wrapper, root, {});
     const made = wrappers.map(wire);
     // Capture, so the button's own listener exists before the event reaches the button.
     const late = (/** @type {Event} */ event) => {

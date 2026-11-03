@@ -2,7 +2,7 @@
 
 import { setMenu } from '../menu-button.js';
 import { ANNOUNCE_DELAY_MS, UNSAVED_CHANGE_EVENT } from './config.js';
-import { buildEntry, paintSaveButton } from './parts.js';
+import { buildEntry, paintSaveButton, setText } from './parts.js';
 
 /** @typedef {import('./controller.js').UnsavedController} UnsavedController */
 /** @typedef {import('./config.js').UnsavedChange} UnsavedChange */
@@ -33,8 +33,8 @@ function paintState(ctl, n, dirty) {
     bar.dataset.kpState = state;
     none.hidden = dirty;
     chip.hidden = !dirty;
-    chip.textContent = s.unsavedCount(n);
-    headTitle.textContent = s.unsavedCount(n);
+    setText(chip, s.unsavedCount(n));
+    setText(headTitle, s.unsavedCount(n));
 }
 
 /** Save, Discard and More: words, disabled reasons and the More menu. @param {UnsavedController} ctl @param {number} n @param {boolean} dirty */

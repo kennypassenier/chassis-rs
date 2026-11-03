@@ -43,6 +43,8 @@ export class ChangeKeeper {
     keep() {
         if (!this.keepOn) return;
         const { settings, tracker } = this.ctl;
+        // Nothing tracked yet (a page that draws its groups after the bar attached): the stored values stay [homelab 88].
+        if (tracker.baseline.size === 0) return;
         try {
             const kept = /** @type {Record<string, string>} */ ({});
             for (const [c, was] of tracker.baseline) {

@@ -7,6 +7,19 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed (kp-themes 12.4.0)
+- kp-themes 12.4.0 vendored (1740 files checked against its SHA256SUMS): no
+  style attribute in any kp markup, so kit pages run under `style-src 'self'`.
+  Measured in Firefox on the inbox example (login, Status, Storage, Clients,
+  the theme menu; 1280 and 390 px): 0 CSP violations, 0 console errors.
+
+### Fixed
+- Leaving the Status page logged "error loading dynamically imported module
+  … version-delta.js": the navigation cancels the page's in-flight imports.
+  The Status, Storage and Notifications start-up errors are no longer
+  reported while the page is being left (`reportUnlessLeaving`); this was the
+  `version-delta.js` sighting first noted at 4.2.0.
+
 ### Changed (no inline styles, 2026-11-03)
 - Inline styles never happen (Kenny, absolute): no `style` attribute in
   markup, none built into an HTML string, no `<style>` block. The kit's own

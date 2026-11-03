@@ -1,8 +1,10 @@
-// What a waiting part is made of: its kind, and the caterpillar's pieces for each kind, as markup measured from the part's box.
+// What a waiting part is made of: its kind, and the caterpillar's pieces for each kind, as pieces measured from the part's box.
 
 import { PIECE_CARRIERS, SHAPE } from './values.js';
 
-/** @typedef {{ html: string, q: number }} PieceDraw */
+/** @typedef {Record<string, string>} PieceCss  custom properties and left/top, set through CSSOM [csp-1103] */
+/** @typedef {{ cls: string, css: PieceCss }} Piece */
+/** @typedef {{ pieces: Piece[], q: number, orbit?: boolean }} PieceDraw */
 /** @typedef {{ W: number, H: number, foot: number, rtl: boolean, at: (x: number, w?: number) => number }} PieceBox */
 
 /** @param {number} v */
@@ -48,10 +50,12 @@ function boxOf(el) {
 
 /** A spinner: a pom-pom caterpillar round a small day sticker. @returns {PieceDraw} */
 function spinner() {
-    const pom = (/** @type {number} */ k, /** @type {string} */ lag, face = false) =>
-        `<i class="${face ? 'kp-pieces__head' : 'kp-pieces__pom'}" style="--k: ${k}; --lag: ${lag}"></i>`;
-    const poms = SHAPE.spinnerLags.map((l, k) => pom(k, `${l}em`)).join('');
-    return { html: `<span class="kp-pieces__orbit">${poms}${pom(SHAPE.spinnerLags.length, '0em', true)}</span>`, q: 0 };
+    const pom = (/** @type {number} */ k, /** @type {string} */ lag, face = false) => ({
+        cls: face ? 'kp-pieces__head' : 'kp-pieces__pom',
+        css: { '--k': `${k}`, '--lag': lag },
+    });
+    const poms = SHAPE.spinnerLags.map((l, k) => pom(k, `${l}em`));
+    return { pieces: [...poms, pom(SHAPE.spinnerLags.length, '0em', true)], q: 0, orbit: true };
 }
 
 /**
@@ -68,13 +72,17 @@ function row(el, { W, H, at }) {
     // A grid's row ends at the grid's own edge: its head and feelers stay inside it.
     const reserve = el.classList.contains('kp-heat__cells') ? h * SHAPE.gridReserve : 0;
     const n = Math.max(SHAPE.minCount, Math.floor((w - h * SHAPE.rowHeadRoom - reserve) / step));
-    let html = '';
+    /** @type {Piece[]} */
+    const pieces = [];
     for (let k = 0; k < n; k++)
-        html += `<i class="kp-pieces__bead" style="left: ${px(at(inset + k * step, h))}; top: ${px(inset)}; --s: ${px(h)}; --k: ${k}"></i>`;
+        pieces.push({ cls: 'kp-pieces__bead', css: { left: px(at(inset + k * step, h)), top: px(inset), '--s': px(h), '--k': `${k}` } });
     const head = h * SHAPE.rowHead;
     const left = px(at(inset + n * step - h * SHAPE.rowHeadBack, head * SHAPE.rowHeadSpan));
-    html += `<i class="kp-pieces__head kp-pieces__head--line" style="left: ${left}; top: ${px(inset - h * SHAPE.rowHeadRaise)}; --s: ${px(head)}; --k: ${n}"></i>`;
-    return { html, q: h };
+    pieces.push({
+        cls: 'kp-pieces__head kp-pieces__head--line',
+        css: { left, top: px(inset - h * SHAPE.rowHeadRaise), '--s': px(head), '--k': `${n}` },
+    });
+    return { pieces, q: h };
 }
 
 /**
@@ -86,11 +94,19 @@ function day(el, { W, H, foot, at }) {
     const q = SHAPE.unit;
     const cx = W / 2;
     const spread = q * SHAPE.dayLegSpread;
-    let html = `<i class="kp-pieces__leg" style="left: ${px(cx - spread)}; top: ${px(foot)}"></i><i class="kp-pieces__leg kp-pieces__leg--b" style="left: ${px(cx + spread)}; top: ${px(foot)}"></i>`;
+    /** @type {Piece[]} */
+    const pieces = [
+        { cls: 'kp-pieces__leg', css: { left: px(cx - spread), top: px(foot) } },
+        { cls: 'kp-pieces__leg kp-pieces__leg--b', css: { left: px(cx + spread), top: px(foot) } },
+    ];
     const next = el.closest('td, [role="gridcell"]')?.nextElementSibling?.querySelector('.kp-calendar__day');
     const last = !next || kindOf(next) !== 'day';
-    if (last) html += `<i class="kp-pieces__head kp-pieces__head--day" style="left: ${px(at(W + q * SHAPE.dayHeadOut, q * SHAPE.dayHeadSpan))}; top: ${px(H / 2)}"></i>`;
-    return { html, q };
+    if (last)
+        pieces.push({
+            cls: 'kp-pieces__head kp-pieces__head--day',
+            css: { left: px(at(W + q * SHAPE.dayHeadOut, q * SHAPE.dayHeadSpan)), top: px(H / 2) },
+        });
+    return { pieces, q };
 }
 
 /**
@@ -103,12 +119,13 @@ function plate(el, { W, foot, rtl, at }) {
     const r = cornerOf(el);
     const reach = W - 2 * r;
     const n = Math.max(SHAPE.minCount, Math.floor(reach / (q * SHAPE.plateLegSpan)));
-    let html = '';
+    /** @type {Piece[]} */
+    const pieces = [];
     for (let k = 0; k < n; k++)
-        html += `<i class="kp-pieces__leg" style="left: ${px(at(r + ((k + 0.5) * reach) / n))}; top: ${px(foot)}; --k: ${k}"></i>`;
+        pieces.push({ cls: 'kp-pieces__leg', css: { left: px(at(r + ((k + 0.5) * reach) / n)), top: px(foot), '--k': `${k}` } });
     const inset = r * SHAPE.plateHeadInset;
-    html += `<i class="kp-pieces__head kp-pieces__head--lead" style="left: ${px(rtl ? inset : W - inset)}; top: ${px(inset)}"></i>`;
-    return { html, q };
+    pieces.push({ cls: 'kp-pieces__head kp-pieces__head--lead', css: { left: px(rtl ? inset : W - inset), top: px(inset) } });
+    return { pieces, q };
 }
 
 /**

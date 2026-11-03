@@ -31,6 +31,24 @@ function staggerDay(el) {
 }
 
 /**
+ * The pieces as elements, their geometry set through CSSOM: a `style` attribute in markup is blocked by `style-src 'self'` [csp-1103].
+ * @param {Document} doc @param {import('./draw.js').Piece[]} pieces @param {boolean | undefined} orbit
+ * @returns {Node}
+ */
+function buildPieces(doc, pieces, orbit) {
+    const out = doc.createDocumentFragment();
+    const holder = orbit ? out.appendChild(doc.createElement('span')) : out;
+    if (orbit) /** @type {HTMLElement} */ (holder).className = 'kp-pieces__orbit';
+    for (const { cls, css } of pieces) {
+        const piece = doc.createElement('i');
+        piece.className = cls;
+        for (const [name, value] of Object.entries(css)) piece.style.setProperty(name, value);
+        holder.appendChild(piece);
+    }
+    return out;
+}
+
+/**
  * Give a part the pieces its theme names, measured now; a part whose theme
  * names none, or that no longer waits, loses any it had.
  * @param {HTMLElement} el
@@ -47,11 +65,11 @@ export function dress(el) {
     const size = `${name} ${kind} ${el.clientWidth}x${el.clientHeight}`;
     if (measured.get(el) === size && el.querySelector(':scope > .kp-pieces')) return true;
     for (const old of el.querySelectorAll(':scope > .kp-pieces')) old.remove();
-    const { html, q } = draw(el, kind);
+    const { pieces, q, orbit } = draw(el, kind);
     const box = document.createElement('span');
     box.className = `kp-pieces kp-pieces--${kind}`;
     box.setAttribute('aria-hidden', 'true');
-    box.innerHTML = html;
+    box.append(buildPieces(el.ownerDocument, pieces, orbit));
     el.append(box);
     if (q) el.style.setProperty('--kp-pieces-q', px(q));
     if (kind === 'day') staggerDay(el);

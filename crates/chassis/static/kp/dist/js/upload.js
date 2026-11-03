@@ -1,2 +1,2 @@
-/* @kp-soft/themes v12.3.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
-import{a,b,c,d,e,f,g,h,i}from"./chunk-IG3QLVVB.js";import"./chunk-LJVG4ITM.js";import"./chunk-YVI4GE7H.js";import"./chunk-RMUSFKWU.js";import"./chunk-XAUG53M6.js";import"./chunk-K4TM2OLZ.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{b as FILE_EVENT,c as REJECT_EVENT,d as REMOVE_EVENT,a as acceptsFile,i as attachUploads,f as setDone,g as setError,e as setProgress,h as upload};
+/* @kp-soft/themes v12.4.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d,e,f,g,h,i}from"./chunk-5H4LUOXM.js";import"./chunk-VD5IKONL.js";import"./chunk-XLBSQKOS.js";import"./chunk-RMUSFKWU.js";import"./chunk-DEF6DN2C.js";import"./chunk-OTO6WQUO.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{b as FILE_EVENT,c as REJECT_EVENT,d as REMOVE_EVENT,a as acceptsFile,i as attachUploads,f as setDone,g as setError,e as setProgress,h as upload};

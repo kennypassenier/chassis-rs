@@ -12,12 +12,13 @@
 //   notify-save, notify-reset, notify-test   the three buttons
 //   notify-state, notify-test-result         the status line and the test result
 
+import { reportUnlessLeaving } from './chassis/stale-import.js';
 import { api } from './chassis/json-api.js';
 import { escapeHtml as esc } from './chassis/format-text.js';
 import { factsHtml, targetsHtml, testHtml, testResult } from './chassis/notify-card-markup.js';
 
 const root = document.querySelector('[data-notify-card]');
-if (root) start(root).catch((error) => console.error('chassis notifications card', error));
+if (root) start(root).catch((error) => reportUnlessLeaving('chassis notifications card', error));
 
 async function start(card) {
   // Each part is its own entry under dist/js/ (kp-themes 12.2): the name is the

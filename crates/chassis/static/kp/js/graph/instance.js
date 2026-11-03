@@ -37,7 +37,11 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 /** @param {Document} doc @param {string} tag @param {Record<string, string | number>} [attrs] @returns {SVGElement} */
 export const svgEl = (doc, tag, attrs = {}) => {
     const el = /** @type {SVGElement} */ (doc.createElementNS(SVG_NS, tag));
-    for (const [name, value] of Object.entries(attrs)) el.setAttribute(name, String(value));
+    // `style` goes through CSSOM: a parsed or setAttribute'd style attribute is blocked by `style-src 'self'` [csp-1103].
+    for (const [name, value] of Object.entries(attrs)) {
+        if (name === 'style') el.style.cssText = String(value);
+        else el.setAttribute(name, String(value));
+    }
     return el;
 };
 /**

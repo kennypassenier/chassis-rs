@@ -10,7 +10,7 @@ import { wireRefresh } from './status-refresh-wiring.js';
 import { createReread } from './status-reread.js';
 import { createSections } from './status-sections.js';
 import { createSettle } from './status-settle.js';
-import { guardImport } from './stale-import.js';
+import { guardImport, reportUnlessLeaving } from './stale-import.js';
 
 /* ======================================================================
    status (kit-kp11)
@@ -23,7 +23,7 @@ import { guardImport } from './stale-import.js';
    ====================================================================== */
 const statusRoot = document.querySelector('[data-chassis-status]');
 if (statusRoot) {
-  startStatus(statusRoot).catch((error) => console.error('chassis status page', error));
+  startStatus(statusRoot).catch((error) => reportUnlessLeaving('chassis status page', error));
 }
 
 // The page's shared context: the kp modules it uses, its root and its

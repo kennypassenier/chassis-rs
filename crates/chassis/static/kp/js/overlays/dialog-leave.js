@@ -3,7 +3,7 @@
 // While a guarded dialog is open with a changed form, the browser's own `beforeunload` prompt stands for a reload, a closed
 // tab or a followed link, and a history move (the Back button) is held: the move is undone, the package's confirmation asks
 // "Discard your changes?", and Discard replays the move. Opt-in exactly as the guard is (`data-kp-dialog-guard` on the
-// dialog); a page without one pays nothing. The cancelable `kp-dialog-guard-leave` `{ dialog, delta }` fires on the dialog
+// dialog, or `data-kp-region-guard` on a page's editor box, js/overlays/region-guard.js); a page without one pays nothing. The cancelable `kp-dialog-guard-leave` `{ dialog, delta }` fires on the dialog
 // first, for an app whose router asks itself (`event.preventDefault()` leaves the move to it).
 //
 // The size of a move comes from the Navigation API where the browser has it (`currententrychange`: -1 for Back, 1 for
@@ -14,8 +14,8 @@ export const DIALOG_LEAVE_EVENT = 'kp-dialog-guard-leave';
 
 /**
  * Start the leave guard.
- * @param {() => HTMLDialogElement | null} held the open guarded dialog whose form changed, if any
- * @param {(dialog: HTMLDialogElement, go: () => void) => void} ask asks the package's question, runs `go` on Discard
+ * @param {() => HTMLElement | null} held the open guarded dialog or visible guarded region whose form changed, if any
+ * @param {(box: HTMLElement, go: () => void) => void} ask asks the package's question, runs `go` on Discard
  * @returns {() => void} detach
  */
 export function attachDialogLeave(held, ask) {
@@ -42,15 +42,15 @@ export function attachDialogLeave(held, ask) {
             event.stopImmediatePropagation();
             return;
         }
-        const dialog = replaying ? null : held();
+        const box = replaying ? null : held();
         replaying = false;
-        if (!dialog) return;
+        if (!box) return;
         const delta = lastDelta || -1;
-        if (!dialog.dispatchEvent(new CustomEvent(DIALOG_LEAVE_EVENT, { bubbles: true, cancelable: true, detail: { dialog, delta } }))) return;
+        if (!box.dispatchEvent(new CustomEvent(DIALOG_LEAVE_EVENT, { bubbles: true, cancelable: true, detail: { dialog: box, region: box, delta } }))) return;
         event.stopImmediatePropagation();
         undoing = true;
         window.history.go(-delta);
-        ask(dialog, () => {
+        ask(box, () => {
             replaying = true;
             window.history.go(delta);
         });

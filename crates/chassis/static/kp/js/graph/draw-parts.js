@@ -37,7 +37,7 @@ export function drawEdges(doc, data, at, base) {
             'data-kp-kind': e.kind,
             'data-kp-style': kind?.style ?? 'solid',
         });
-        if (kind?.colour) path.setAttribute('style', `--kp-graph-edge-colour: ${kind.colour}`);
+        if (kind?.colour) path.style.setProperty('--kp-graph-edge-colour', kind.colour);
         const title = svgEl(doc, 'title');
         title.textContent = `${name(e.from)} → ${name(e.to)}: ${e.detail || kind?.label || e.kind}`;
         path.append(title);
@@ -59,7 +59,7 @@ export function drawEdges(doc, data, at, base) {
                 'data-kp-style': kind?.style ?? 'solid',
                 'aria-hidden': 'true',
             });
-            if (kind?.colour) head.setAttribute('style', `--kp-graph-edge-colour: ${kind.colour}`);
+            if (kind?.colour) head.style.setProperty('--kp-graph-edge-colour', kind.colour);
             edges.append(head);
         }
     });
@@ -97,7 +97,7 @@ export function drawNodes(g, world, { data, at, base, hub, wraps }) {
             'aria-pressed': String(g.selected.has(id)),
             'aria-label': `${n.label}, ${n.description}`,
         });
-        if (!n.external) node.setAttribute('style', `--kp-graph-hue: ${n.hue ?? Math.round((sorted.indexOf(n) / Math.max(1, sorted.length)) * 360)}`);
+        if (!n.external) node.style.setProperty('--kp-graph-hue', String(n.hue ?? Math.round((sorted.indexOf(n) / Math.max(1, sorted.length)) * 360)));
         // A colour of the page's own is the node's colour in every theme and every mode.
         if (n.colour) /** @type {SVGElement} */ (node).style.setProperty('--kp-graph-node-colour', n.colour);
         const title = svgEl(doc, 'title');
@@ -148,7 +148,7 @@ export function drawLegend(g, doc, data) {
             button.setAttribute('aria-pressed', String(!g.hidden.has(k.kind)));
             const sample = svgEl(doc, 'svg', { class: 'kp-graph__sample', viewBox: '0 0 24 8', 'aria-hidden': 'true' });
             const line = svgEl(doc, 'line', { x1: 1, y1: 4, x2: 23, y2: 4, 'data-kp-style': k.style });
-            line.setAttribute('style', `--kp-graph-edge-colour: ${k.colour}`);
+            line.style.setProperty('--kp-graph-edge-colour', k.colour);
             sample.append(line);
             button.append(sample, make(doc, 'span', '', k.label));
             li.append(button);

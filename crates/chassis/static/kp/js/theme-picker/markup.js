@@ -81,7 +81,7 @@ export function themeMenuMarkup({
     return (
         `<span class="${classes}">` +
         (trigger === 'label' ? labelTrigger(safeId, label, current, themes, labels) : iconTrigger(safeId, safeLabel, icon)) +
-        `<div popover="auto" id="${safeId}" class="kp-popover" style="position-anchor: --${safeId}">` +
+        `<div popover="auto" id="${safeId}" class="kp-popover">` +
         `<ul class="kp-menu" data-kp-theme-picker aria-label="${safeLabel}">${themeOptionsMarkup({ themes, labels, grouped, groupLabels })}</ul>` +
         `</div></span>`
     );
@@ -89,7 +89,7 @@ export function themeMenuMarkup({
 
 /** The icon button. @param {string} safeId @param {string} safeLabel @param {string} icon */
 function iconTrigger(safeId, safeLabel, icon) {
-    return `<button type="button" class="kp-icon-button" popovertarget="${safeId}" aria-label="${safeLabel}" style="anchor-name: --${safeId}">${icon}</button>`;
+    return `<button type="button" class="kp-icon-button" popovertarget="${safeId}" aria-label="${safeLabel}">${icon}</button>`;
 }
 
 /**
@@ -103,7 +103,7 @@ function labelTrigger(safeId, label, current, themes = THEMES, labels = {}) {
     const name = record ? (labels[record.name] ?? record.label) : '';
     return (
         `<button type="button" class="kp-button" data-kp-theme-trigger="label" data-kp-theme-label="${escapeHtml(label)}" popovertarget="${safeId}" ` +
-        `aria-label="${escapeHtml(`${label}: ${name}`)}" style="anchor-name: --${safeId}">` +
+        `aria-label="${escapeHtml(`${label}: ${name}`)}">` +
         `<span class="kp-theme-menu__current">${escapeHtml(name)}</span><span aria-hidden="true">▾</span></button>`
     );
 }

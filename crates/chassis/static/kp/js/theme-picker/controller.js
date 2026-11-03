@@ -18,9 +18,24 @@ function nameTrigger(picker, theme) {
     trigger.setAttribute('aria-label', `${trigger.dataset.kpThemeLabel ?? ''}: ${name}`);
 }
 
+/**
+ * Name the menu's trigger and tie its popover to that name through CSSOM, which a `style-src 'self'` policy allows
+ * and a parsed `style` attribute in the markup would not [csp-1103].
+ * @param {Element} picker
+ */
+function anchorMenu(picker) {
+    const popover = picker.closest('[popover]');
+    if (!(popover instanceof HTMLElement) || !popover.id) return;
+    const trigger = popover.closest('.kp-theme-menu')?.querySelector(`[popovertarget="${CSS.escape(popover.id)}"]`);
+    if (!(trigger instanceof HTMLElement)) return;
+    trigger.style.setProperty('anchor-name', `--${popover.id}`);
+    popover.style.setProperty('position-anchor', `--${popover.id}`);
+}
+
 export class ThemePicker extends PickerPreview {
     connect() {
         const picker = this.host;
+        anchorMenu(picker);
         picker.dataset.kpThemeAttached = '1';
         // Registered first, so it runs last on detach: the mark and the selection marks go after everything else.
         this.own(() => {

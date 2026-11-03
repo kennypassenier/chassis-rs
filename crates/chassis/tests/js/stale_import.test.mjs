@@ -124,3 +124,20 @@ test('a caught import cancelled by leaving the page does not reload either', asy
     await assert.rejects(guardImport(Promise.reject(failed()), win), TypeError);
     assert.equal(win.reloads, 0);
 });
+
+test('a page start failure while the page is being left is not reported', async () => {
+    const { reportUnlessLeaving } = await import('../../static/chassis/stale-import.js');
+    win = fakeWin();
+    guardStaleImports(win);
+    const seen = [];
+    const orig = console.error;
+    console.error = (...a) => seen.push(a);
+    try {
+        reportUnlessLeaving('chassis status page', failed(), win);
+        win.handlers.pagehide();
+        reportUnlessLeaving('chassis status page', failed(), win);
+    } finally {
+        console.error = orig;
+    }
+    assert.equal(seen.length, 1, 'reported before leaving, quiet while leaving');
+});

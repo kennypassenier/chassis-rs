@@ -45,6 +45,7 @@ import { restoreRemembered } from './remember.js';
 import { AutoLoader } from './auto/loader.js';
 import { applyStoredCalm } from './calm.js';
 import { languageReady, registerDictionary } from './strings/runtime.js';
+import { claimBoot } from './boot-guard.js';
 
 /** The longest `auto.js` waits for a dictionary before it attaches the parts anyway, in ms. */
 const LANGUAGE_WAIT_MS = 3000;
@@ -75,7 +76,8 @@ export function attachAll(root = document) {
     return new AutoLoader(root).start();
 }
 
-if (typeof document !== 'undefined') {
+// A second copy of this boot on one page refuses, with one console error [dupe-1103]; the exports above stay usable.
+if (typeof document !== 'undefined' && claimBoot(import.meta.url)) {
     applyStoredTheme();
     // Calm mode is kept per device and goes back on the root before the first frame [kpadopt5].
     applyStoredCalm();

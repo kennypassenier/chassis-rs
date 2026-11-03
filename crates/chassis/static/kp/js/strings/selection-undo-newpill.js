@@ -20,7 +20,7 @@
  * @property {string} selectionCleared  Said when the selection is cleared [kpadopt5]
  * @property {string} undoToastUndo  The Undo button of an undo toast (js/undo-toast.js) [kpadopt5]
  * @property {(key: string) => string} undoToastKeyTitle  Its tooltip, naming the key [kpadopt5]
- * @property {(text: string, seconds: number) => string} undoToastAnnounce  Said once when the toast opens, "Deleted. Undo available for 6 seconds" [kpadopt5]
+ * @property {(text: string, seconds: number, key?: string) => string} undoToastAnnounce  Said once when the toast opens, "Deleted. Undo available for 6 seconds, press Ctrl+Z" (the sentence's own full stop is not doubled) [kpadopt5]
  * @property {(seconds: number) => string} undoToastClock  The text clock, "5 s" [kpadopt5]
  * @property {string} undoToastRestored  The toast's line after an undo [kpadopt5]
  * @property {string} undoToastSaving  The toast's line while the commit is on its way [kpadopt5]
@@ -91,7 +91,7 @@ export const SELECTION_UNDO_NEWPILL_STRINGS = {
     selectionCleared: 'Selection cleared',
     undoToastUndo: 'Undo',
     undoToastKeyTitle: (key) => `Undo (${key})`,
-    undoToastAnnounce: (text, seconds) => `${text}. Undo available for ${seconds} seconds`,
+    undoToastAnnounce: (text, seconds, key) => `${text.replace(/\.\s*$/, '')}. Undo available for ${seconds} seconds${key ? `, press ${key}` : ''}`,
     undoToastClock: (seconds) => `${seconds} s`,
     undoToastRestored: 'Restored',
     undoToastSaving: 'Saving…',

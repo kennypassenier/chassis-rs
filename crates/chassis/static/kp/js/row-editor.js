@@ -17,8 +17,8 @@
 //   </div>
 //
 // What it writes when the markup leaves it out: the head row (the first row's `data-label`s), the remove button in each row, the add
-// button, the status line and, with no row held, the package's empty plate. `{n}` in the template is a number that is never reused, so
-// ids and names stay unique. Options (attributes on the host, each with a default):
+// button, the status line and, with no row held, the package's empty plate. `{n}` in the template (and in a row the markup holds, by its
+// place) is a number that is never reused, so ids, names and accessible names (`data-kp-label="Time of dose {n}"`) stay unique. Options (attributes on the host, each with a default):
 //   data-kp-rows-min      the fewest rows            0   (at the fewest, removing is off and the line says why)
 //   data-kp-rows-max      the most rows              none (at the most, adding is off and the line says why)
 //   data-kp-rows-unit     "time,times": the words    from the dictionary ("row,rows")
@@ -76,6 +76,8 @@ export class RowEditor extends Controller {
     connect() {
         this.serial = this.rows().length;
         this.ensureParts();
+        // A row the markup already holds takes its number in `{n}` too (a label "Time of dose {n}"), as a row from the template does [mc-a11y-36].
+        this.rows().forEach((row, at) => numberRow(row, at + 1));
         this.listen(this.host, 'click', (event) => this.onClick(event));
         // The fewest, the most and the unit are options that can change at runtime, like the other options.
         this.observe(new MutationObserver(() => this.sync())).observe(this.host, {

@@ -6,7 +6,7 @@ import { createDialogHost } from './storage-dialog.js';
 import { wireDialogClicks, wireStaleness } from './storage-dialog-events.js';
 import { partsAttacher } from './storage-parts.js';
 import { createRefresh } from './storage-refresh.js';
-import { guardImport } from './stale-import.js';
+import { guardImport, reportUnlessLeaving } from './stale-import.js';
 
 /* ======================================================================
    storage (kit-storage, 3.11.0)
@@ -32,7 +32,7 @@ import { guardImport } from './stale-import.js';
    ====================================================================== */
 const storageRoot = document.querySelector('[data-chassis-storage]');
 if (storageRoot) {
-  startStorage(storageRoot).catch((error) => console.error('chassis storage page', error));
+  startStorage(storageRoot).catch((error) => reportUnlessLeaving('chassis storage page', error));
 }
 
 // The page's shared context: the kp modules it uses, its cards, and the

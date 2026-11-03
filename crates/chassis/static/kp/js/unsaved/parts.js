@@ -81,21 +81,30 @@ export function buildParts(doc, s, id) {
     return { ...buildBar(doc, s, id), problem, live, ...buildPanel(doc, s, id) };
 }
 
+/** Set a node's text only when it differs, so a press that lands mid-update keeps its node. @param {Node} node @param {string} text */
+export function setText(node, text) {
+    if (node.textContent !== text) node.textContent = text;
+}
+
 /**
- * The Save button's content: its words, and the spinner layer while the page saves.
+ * The Save button's content: its words, and the spinner layer while the page saves. The nodes stay, only their text and
+ * the spinner layer change, so the press that blurred a field (mousedown) still ends on the same node (click) [medicine-cabinet 31].
  * @param {Document} doc @param {HTMLElement} save @param {string} label @param {boolean} saving
  */
 export function paintSaveButton(doc, save, label, saving) {
-    save.replaceChildren();
-    const text = make(doc, 'span', 'kp-button__text');
-    text.textContent = label;
-    save.append(text);
-    if (saving) {
-        const layer = make(doc, 'span', 'kp-button__busy');
-        layer.setAttribute('aria-hidden', 'true');
-        layer.append(make(doc, 'span', 'kp-spinner'));
-        save.append(layer);
+    let text = save.querySelector(':scope > .kp-button__text');
+    if (!text) {
+        text = make(doc, 'span', 'kp-button__text');
+        save.prepend(text);
     }
+    setText(text, label);
+    const layer = save.querySelector(':scope > .kp-button__busy');
+    if (saving && !layer) {
+        const added = make(doc, 'span', 'kp-button__busy');
+        added.setAttribute('aria-hidden', 'true');
+        added.append(make(doc, 'span', 'kp-spinner'));
+        save.append(added);
+    } else if (!saving && layer) layer.remove();
     save.toggleAttribute('data-kp-busy', saving);
     save.toggleAttribute('aria-busy', saving);
 }

@@ -10,19 +10,16 @@
 // `kp-dialog-close-request`), a motion-shadowed `dialog.close()`, and a beside drawer's Escape. A close with any other
 // value (`save`, `accept`) goes through. The question is the package's confirmation, so `data-kp-dialog-stack="replace"`
 // puts it in the dialog's place. `requestDialogClose(dialog)` is the way out for a page's own button. A reload and the
-// Back button are held too while the form is changed (js/overlays/dialog-leave.js).
-import { openConfirmation } from '../components/confirm-dialog.js';
-import { getStrings } from '../strings.js';
-import { readValue } from '../unsaved/values.js';
-import { widgetOf } from '../unsaved/widgets.js';
+// Back button are held too while the form is changed (js/overlays/dialog-leave.js). An editor that is not a dialog opts in
+// with `data-kp-region-guard` (js/overlays/region-guard.js), which this guard's listeners serve.
 import { DIALOG_CLOSE_REQUEST_EVENT } from './constants.js';
 import { attachDialogLeave } from './dialog-leave.js';
+import { openDiscardQuestion } from './discard-question.js';
+import { readForm } from './guard-fields.js';
+import { REGION_LISTENERS, heldRegion, regionLeave } from './region-guard.js';
 
 /** A dialog that guards its form. */
 export const DIALOG_GUARD = 'dialog[data-kp-dialog-guard]:not([data-kp-dialog-guard="off"])';
-/** What the guard reads: the form controls and the package's pressed controls (a switch, a segmented chip). */
-const FIELDS =
-    'input:not([type="hidden"], [type="button"], [type="submit"], [type="reset"], [type="file"]), select, textarea, [role="switch"], [role="checkbox"], [role="radio"], [contenteditable="true"]';
 /** The return values that are a way out; any other is an answer (save, accept) and closes without a question. */
 const WAYS_OUT = new Set(['', 'cancel']);
 
@@ -33,40 +30,15 @@ const asking = new WeakSet();
 /** Dialogs Discard let go of, until they close. @type {WeakSet<HTMLDialogElement>} */
 const released = new WeakSet();
 
-/** One control's value. @param {Element} control */
-function valueOf(control) {
-    if (control instanceof HTMLSelectElement && control.multiple) return [...control.selectedOptions].map((o) => o.value).join('\n');
-    if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement) return readValue(control);
-    if (control.matches('[contenteditable="true"]')) return control.textContent ?? '';
-    if (control.matches('[role]') && !widgetOf(control)) return control.getAttribute('aria-checked') ?? control.getAttribute('aria-pressed') ?? '';
-    return readValue(/** @type {HTMLInputElement} */ (control));
-}
-
-/** Everything the dialog's form holds, in document order, as one string. @param {HTMLDialogElement} dialog */
-function read(dialog) {
-    /** @type {Set<Element>} */
-    const seen = new Set();
-    /** @type {string[]} */
-    const out = [];
-    for (const el of dialog.querySelectorAll(FIELDS)) {
-        if (el.closest('[data-kp-untracked], .kp-confirm--inline')) continue;
-        const control = widgetOf(el) ?? el;
-        if (seen.has(control)) continue;
-        seen.add(control);
-        out.push(valueOf(control));
-    }
-    return JSON.stringify(out);
-}
-
 /** Whether the guarded dialog's form changed since just before its first edit. @param {HTMLDialogElement} dialog */
 export function dialogChanged(dialog) {
     const was = before.get(dialog);
-    return was !== undefined && was !== read(dialog);
+    return was !== undefined && was !== readForm(dialog);
 }
 
 /** The form counts as saved as it stands now: a close asks nothing until it changes again. @param {HTMLDialogElement} dialog */
 export function markDialogSaved(dialog) {
-    before.set(dialog, read(dialog));
+    before.set(dialog, readForm(dialog));
 }
 
 /** Forget the dialog's edits and its Discard: the next edit starts a new count (a beside drawer that moved to another row). @param {HTMLDialogElement} dialog */
@@ -89,14 +61,9 @@ function anchorIn(dialog) {
 
 /** Ask "Discard your changes?"; Discard lets the dialog go and runs `go`. @param {HTMLDialogElement} dialog @param {() => void} go @param {Element | null} [from] */
 function ask(dialog, go, from) {
-    const s = getStrings();
     asking.add(dialog);
     const anchor = from instanceof HTMLElement && from.getClientRects().length > 0 ? from : anchorIn(dialog);
-    const opened = openConfirmation(anchor, {
-        phrase: s.dialogGuardTitle,
-        description: s.dialogGuardText,
-        acceptLabel: s.dialogGuardDiscard,
-        strings: { confirmCancel: s.dialogGuardKeep },
+    const opened = openDiscardQuestion(anchor, {
         onAccept: () => {
             asking.delete(dialog);
             released.add(dialog);
@@ -130,7 +97,7 @@ export function requestDialogClose(dialog, value, from = null) {
 /** The first edit inside a guarded dialog: note what it held just before. @param {Event} event */
 function onEdit(event) {
     const dialog = event.target instanceof Element ? event.target.closest(DIALOG_GUARD) : null;
-    if (dialog instanceof HTMLDialogElement && dialog.open && !before.has(dialog)) before.set(dialog, read(dialog));
+    if (dialog instanceof HTMLDialogElement && dialog.open && !before.has(dialog)) before.set(dialog, readForm(dialog));
 }
 
 /** Escape or a backdrop press on a guarded dialog. @param {Event} event */
@@ -194,15 +161,18 @@ function heldDialog() {
  */
 export function attachDialogGuards() {
     if (attached++ === 0) {
-        for (const [type, listener] of LISTENERS) window.addEventListener(type, listener, true);
-        stopLeave = attachDialogLeave(heldDialog, (dialog, go) => void whenDialogFree(dialog, go));
+        for (const [type, listener] of [...LISTENERS, ...REGION_LISTENERS]) window.addEventListener(type, listener, true);
+        stopLeave = attachDialogLeave(
+            () => heldDialog() ?? heldRegion(),
+            (box, go) => (box instanceof HTMLDialogElement ? void whenDialogFree(box, go) : regionLeave(/** @type {HTMLElement} */ (box), go)),
+        );
     }
     let done = false;
     return () => {
         if (done) return;
         done = true;
         if (--attached > 0) return;
-        for (const [type, listener] of LISTENERS) window.removeEventListener(type, listener, true);
+        for (const [type, listener] of [...LISTENERS, ...REGION_LISTENERS]) window.removeEventListener(type, listener, true);
         stopLeave?.();
         stopLeave = null;
     };

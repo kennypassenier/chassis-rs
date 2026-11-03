@@ -83,7 +83,9 @@ function menuEntry(doc, item) {
     el.title = item.disabled ?? item.hint ?? '';
     if (item.value) el.dataset.kpValue = item.value;
     for (const [name, value] of Object.entries(item.attrs ?? {})) {
-        if (value == null) el.removeAttribute(name);
+        // A style attribute is refused under CSP style-src 'self'; the caller sets styles through CSSOM [csp-1103].
+        if (name.toLowerCase() === 'style') console.error(`kp-themes setMenu: attrs.style is not set (CSP); set el.style after the menu draws.`);
+        else if (value == null) el.removeAttribute(name);
         else el.setAttribute(name, value);
     }
     return el;

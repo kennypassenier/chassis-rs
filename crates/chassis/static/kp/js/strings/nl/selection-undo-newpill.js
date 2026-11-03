@@ -22,7 +22,7 @@ export const NL_SELECTION_UNDO_NEWPILL = {
     selectionCleared: 'Selectie gewist',
     undoToastUndo: 'Ongedaan maken',
     undoToastKeyTitle: (key) => `Ongedaan maken (${key})`,
-    undoToastAnnounce: (text, seconds) => `${text}. Ongedaan maken kan nog ${seconds} ${seconds === 1 ? 'seconde' : 'seconden'}`,
+    undoToastAnnounce: (text, seconds, key) => `${text.replace(/\.\s*$/, '')}. Ongedaan maken kan nog ${seconds} ${seconds === 1 ? 'seconde' : 'seconden'}${key ? `, druk op ${key}` : ''}`,
     undoToastClock: (seconds) => `${seconds} s`,
     undoToastRestored: 'Ongedaan gemaakt',
     undoToastSaving: 'Opslaan…',
