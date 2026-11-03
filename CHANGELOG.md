@@ -7,6 +7,27 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added
+- Local database: collections whose server assigns the key
+  (`SyncCollection::server_keys()`, manifest `keys: "server"`). `create()`
+  POSTs without a key and the item shows as a pending overlay under
+  `local:<idempotency key>` until the answer or the next pull. fix-overlay-1.
+- Local database: item actions in the overlay. `collection.action(name,
+  (record, body) => record)` registers the optimistic look,
+  `collection.act(key, name, body)` queues POST `<item route>/<name>`. Only the
+  action name is queued. fix-overlay-3.
+- chassisData: `composites` option (`{ path, lists: { field: itemRoute } }`),
+  so an item write amends the mapped field of a composite answer; queued
+  creates are added to the stored lists that would hold them and removed again
+  when refused. fix-overlay-4, fix-overlay-5.
+
+### Fixed
+- A queued PUT in the local database overlay merged nothing and hid the fields
+  it left out; it is now merged into the stored record for display.
+  fix-overlay-2.
+- An offline PUT replaced the stored list entry; it now merges into it
+  (the item's own copy still takes the body). fix-overlay-6.
+
 ## [4.5.1] - 2026-11-03
 
 ### Fixed

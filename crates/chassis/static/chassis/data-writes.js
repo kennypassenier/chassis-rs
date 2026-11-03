@@ -8,7 +8,8 @@ import { revOf } from './data-rev.js';
 import { storable } from './data-trim.js';
 import { send } from './data-send.js';
 import { fail, refusal } from './data-errors.js';
-import { amendLists, itemRouteOf } from './data-lists.js';
+import { addToLists, amendLists, itemRouteOf } from './data-lists.js';
+import { entryPath } from './data-trim.js';
 
 function checkOptions(options) {
     if (options.headers) {
@@ -34,6 +35,13 @@ export function createWrites(ctx) {
         if (item) await amendLists(ctx, item, path.split('?')[0], change);
     }
 
+    /** A queued create joins the lists that would hold it; its item path (stored with the edit) or null. */
+    async function listCreate(path, body) {
+        const route = matchRoute(config, path.split('?')[0]);
+        if (route?.kind !== 'list' || !body || typeof body !== 'object') return null;
+        return addToLists(ctx, route, body);
+    }
+
     /** The item and its entries in the stored lists are gone. */
     async function forgetItem(path) {
         await cache.forget(path);
@@ -57,17 +65,25 @@ export function createWrites(ctx) {
         const held = await cache.read(entry.path);
         if (entry.method === 'POST') {
             // The answer to a POST is not the copy of its path; an optimistic amendment is replaced by a fresh read.
-            if (replayed && (held || entry.optimistic)) await refetch(entry.path, route);
+            if (entry.listed) await settleListed(entry, body);
+            if (replayed && (held || entry.optimistic || entry.listed)) await refetch(entry.path, route);
             return;
         }
         if (body && typeof body === 'object') return adopt(entry.path, route, body, rev);
         if (held) await refetch(entry.path, route); // no usable answer body: ask for the real one
     }
 
+    /** The entry a queued create added to the lists becomes the server's answer, or goes when the answer is another item. */
+    async function settleListed(entry, answer) {
+        const same = answer && typeof answer === 'object' && entryPath(config, matchRoute(config, entry.path).child, answer) === entry.listed;
+        await listsHold(entry.listed, same ? () => answer : () => undefined);
+    }
+
     /** A queued edit was refused: the copy of its path goes back to the server's version at once. */
     async function restore(entry, outcomeBody) {
         const route = matchRoute(config, entry.path);
         if (!route) return;
+        if (entry.listed) await listsHold(entry.listed, () => undefined); // the created entry leaves the lists again
         if (entry.method === 'POST' && !entry.optimistic && !(await cache.read(entry.path))) return; // nothing was amended
         const current = outcomeBody && typeof outcomeBody === 'object' ? outcomeBody.current : null;
         if (entry.method !== 'POST' && current && typeof current === 'object') {
@@ -81,7 +97,8 @@ export function createWrites(ctx) {
         const make = change ?? (method === 'DELETE' ? () => undefined : method === 'PATCH' ? (old) => ({ ...old, ...body }) : () => body);
         // The same change shows in the item's copy and in every stored list entry of it.
         await cache.amend(path, make);
-        await listsHold(path, make);
+        // A PUT is shown merged in the stored list entry (the entry may hold fields the body leaves out); the item's own copy takes the body.
+        await listsHold(path, method === 'PUT' ? (old) => ({ ...old, ...body }) : make);
     }
 
     async function finish(entry, outcome) {
@@ -113,10 +130,12 @@ export function createWrites(ctx) {
         }
         const preview = method === 'POST' && typeof options.optimistic === 'function' ? options.optimistic : null;
         if (preview) entry.optimistic = true; // stored with the edit: a refusal then knows the copies were amended
+        if (!preview && method === 'POST') entry.listed = await listCreate(path, body);
+        if (entry.listed === null) delete entry.listed;
         await queue.add(entry);
         if (method !== 'POST' || preview) await optimistic(method, path, body, preview);
         ctx.kick();
-        return { ok: true, queued: true, status: 0, data: null, rev: null };
+        return { ok: true, queued: true, status: 0, data: null, rev: null, idempotencyKey: entry.key ?? null };
     }
 
     return {
