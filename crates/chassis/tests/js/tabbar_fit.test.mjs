@@ -14,6 +14,7 @@ test('the fit takes the first level at which nothing is clipped', () => {
   assert.equal(fitLevel(() => false), '');
   assert.equal(fitLevel((level) => level === ''), 'small');
   assert.equal(fitLevel((level) => level !== 'smaller'), 'smaller');
+  assert.equal(fitLevel((level) => ['', 'small', 'smaller'].includes(level)), 'tiny');
 });
 
 test('when no level fits the smallest one stays', () => {
