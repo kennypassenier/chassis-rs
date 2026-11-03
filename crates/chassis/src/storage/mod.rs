@@ -93,7 +93,9 @@ pub(crate) use kit_db::PasskeyRow;
 #[cfg(feature = "dashboard")]
 pub(crate) use kit_db::{ImportPlan, KitDb};
 #[cfg(any(feature = "dashboard", feature = "self-update"))]
-pub(crate) use kit_schema::{kit_file_name, kit_migrations, kit_schema_version};
+pub use kit_schema::kit_file_name;
+#[cfg(any(feature = "dashboard", feature = "self-update"))]
+pub(crate) use kit_schema::{kit_migrations, kit_schema_version};
 
 /// Re-seal the sealed fields of the kit database at `path` from `old` to
 /// `new` in one transaction (what `<name> rekey` does beside the JSON files).

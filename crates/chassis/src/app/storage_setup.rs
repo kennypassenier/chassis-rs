@@ -32,6 +32,12 @@ impl App {
         Ok(handle)
     }
 
+    /// The handle `App::app_db` returned, for the test harness.
+    #[cfg(all(feature = "storage", feature = "testing"))]
+    pub(crate) fn app_db_handle(&self) -> Option<crate::storage::AppDb> {
+        self.app_db.as_ref().map(|(handle, _)| handle.clone())
+    }
+
     /// 3.11.0: declare a kind of data in the app database, for the Storage
     /// page and the daily removal of rows finished by their own
     /// definition. Validated against the schema at start.

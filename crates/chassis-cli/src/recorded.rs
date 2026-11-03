@@ -43,6 +43,12 @@ pub(crate) struct Recorded {
     /// line (`# …`) may explain one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) unit_service: Vec<String>,
+    /// The project's own environment variable names (kyu-runner's
+    /// `KYU_RUNNER_HUB_TOKEN`), appended to every place the scaffold lists
+    /// the env names, so `sync --write` keeps them. Optional: an old
+    /// `.chassis.toml` without the field renders as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) env_names: Vec<String>,
     /// Whether `chassis release` builds and pushes a container image
     /// (3.3.0). Absent: derived from how the project is deployed, see
     /// `release::wants_image`. Almanac, kyu, kyu-runner and
@@ -112,6 +118,7 @@ impl Recorded {
             latch_env_flag => self.latch_env_flag(),
             deny_ignore => self.deny_ignore.clone(),
             unit_service => self.unit_service.clone(),
+            env_names => self.env_names.clone(),
             release_pubkey => RELEASE_PUBKEY,
             vmid => self.vmid,
             stack => self.name,

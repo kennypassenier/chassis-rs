@@ -10,6 +10,15 @@ use super::ImportContext;
 use crate::core::error::Error;
 
 impl ImportContext {
+    /// A context for `state_dir`, so a project can unit-test its import
+    /// hook with the context the kit would hand it (the struct is
+    /// `non_exhaustive`, so a literal does not compile outside the kit).
+    pub fn new(state_dir: impl Into<PathBuf>) -> Self {
+        ImportContext {
+            state_dir: state_dir.into(),
+        }
+    }
+
     /// Where an old file of the state directory lives (`<state_dir>/<name>`).
     /// Put it in [`ImportReport`](super::ImportReport)'s `files` so it is
     /// renamed `*.migrated` after the commit.
@@ -51,6 +60,16 @@ mod tests {
         ImportContext {
             state_dir: dir.to_path_buf(),
         }
+    }
+
+    #[test]
+    fn new_is_the_context_the_kit_builds() {
+        let c = ImportContext::new("/var/lib/x");
+        assert_eq!(c.state_dir, std::path::PathBuf::from("/var/lib/x"));
+        assert_eq!(
+            c.json_path("a.json"),
+            std::path::PathBuf::from("/var/lib/x/a.json")
+        );
     }
 
     #[test]

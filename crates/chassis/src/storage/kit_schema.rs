@@ -6,8 +6,9 @@
 
 use crate::storage::db::Migration;
 
-/// `<name>-kit.db`.
-pub(crate) fn kit_file_name(app: &str) -> String {
+/// `<name>-kit.db`: the kit file's name beside the app's own, for a test
+/// or a backup script that needs to find it.
+pub fn kit_file_name(app: &str) -> String {
     format!("{app}-kit.db")
 }
 

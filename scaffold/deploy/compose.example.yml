@@ -10,7 +10,7 @@ services:
       - "8080:8080"
     # {{ prefix }}_PUBLIC_URL is not in this list: it is a passkeys knob, and
     # the scaffold builds without that feature (feat-build-1).
-    env_file: /etc/{{ name }}/{{ name }}.env   # {{ prefix }}_TOKEN, {{ prefix }}_SECRET_KEY
+    env_file: /etc/{{ name }}/{{ name }}.env   # {{ prefix }}_TOKEN, {{ prefix }}_SECRET_KEY{% for n in env_names %}, {{ n }}{% endfor %}
     volumes:
       - {{ name }}-state:/var/lib/{{ name }}    # a named volume inherits the image's owner
     logging:

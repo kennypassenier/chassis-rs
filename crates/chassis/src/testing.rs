@@ -69,6 +69,8 @@ pub struct TestApp {
     /// The admin session cookie as `name=value`, after [`TestApp::login`].
     session: Option<String>,
     running: Option<Running>,
+    /// The handle the project got from `App::app_db` in its configure closure.
+    app_db: Option<crate::storage::AppDb>,
     client: reqwest::Client,
     timeout: Duration,
 }
@@ -105,6 +107,30 @@ impl TestApp {
     /// test then owns).
     pub fn state_dir(&self) -> &Path {
         &self.state_dir
+    }
+
+    /// The app database the project declared with `App::app_db` in its
+    /// configure closure, open since the app started; `None` when the app
+    /// has none. A test reads what a route wrote with
+    /// `app.app_db().unwrap().read(|conn| ...)`.
+    pub fn app_db(&self) -> Option<crate::storage::AppDb> {
+        self.app_db.clone()
+    }
+
+    /// Run `f` on a read connection of the app database. Panics with a
+    /// remedy when the app declared none or `f` fails, so the test stops at
+    /// the step that broke.
+    pub fn read_app_db<T>(
+        &self,
+        f: impl FnOnce(&rusqlite::Connection) -> Result<T, crate::core::error::Error>,
+    ) -> T {
+        let db = self.app_db.as_ref().expect(
+            "the test app has no app database. What now: call App::app_db in the configure closure of TestApp::start_with",
+        );
+        match db.read_blocking(f) {
+            Ok(v) => v,
+            Err(e) => panic!("reading the app database failed: {e}"),
+        }
     }
 
     /// Give every later request this long instead of

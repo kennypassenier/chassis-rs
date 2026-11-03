@@ -4,6 +4,9 @@
 //! on each says how.
 #![cfg(feature = "testing")]
 
+#[cfg(feature = "storage")]
+#[path = "testing_harness/app_db.rs"]
+mod app_db;
 #[path = "testing_harness/docs_and_clients.rs"]
 mod docs_and_clients;
 #[path = "testing_harness/env_and_open.rs"]
