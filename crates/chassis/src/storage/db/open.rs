@@ -15,7 +15,7 @@ use crate::core::error::{Error, Kind};
 
 /// Bookkeeping the kit itself needs (import markers, format versions),
 /// outside the numbered migrations so a project's list is all its own.
-pub(super) const META_DDL: &str =
+pub(crate) const META_DDL: &str =
     "CREATE TABLE IF NOT EXISTS chassis_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;";
 
 pub(super) fn pragmas(conn: &Connection, wal: bool) -> Result<(), Error> {
@@ -57,6 +57,18 @@ impl Db {
         migrations: &[Migration],
         options: &DbOptions,
     ) -> Result<Db, Error> {
+        Db::open_prepared(path, migrations, options, "")
+    }
+
+    /// [`Db::open_with`] that first runs `prelude` (idempotent DDL) on the
+    /// writer, before any migration. The app file uses it to have the
+    /// change log's table in place when the app's own migrations run.
+    pub(crate) fn open_prepared(
+        path: &Path,
+        migrations: &[Migration],
+        options: &DbOptions,
+        prelude: &str,
+    ) -> Result<Db, Error> {
         options.validate()?;
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| {
@@ -80,6 +92,7 @@ impl Db {
             let setup = (|| {
                 pragmas(&writer, true)?;
                 writer.execute_batch(META_DDL)?;
+                writer.execute_batch(prelude)?;
                 copy_before_migrating(&writer, path, migrations.len(), options)?;
                 migrate(&mut writer, migrations, &shown)
             })();
@@ -123,9 +136,18 @@ impl Db {
     /// memory database, so a test of durability or of the pause uses
     /// [`Db::open`] on a real file; reads share the writer here.
     pub fn open_in_memory(migrations: &[Migration]) -> Result<Db, Error> {
+        Db::open_in_memory_prepared(migrations, "")
+    }
+
+    /// [`Db::open_in_memory`] with a `prelude` as in [`Db::open_prepared`].
+    pub(crate) fn open_in_memory_prepared(
+        migrations: &[Migration],
+        prelude: &str,
+    ) -> Result<Db, Error> {
         let mut writer = Connection::open_in_memory()?;
         pragmas(&writer, false)?;
         writer.execute_batch(META_DDL)?;
+        writer.execute_batch(prelude)?;
         let schema = migrate(&mut writer, migrations, ":memory:")?;
         Ok(Db {
             inner: Arc::new(Inner {

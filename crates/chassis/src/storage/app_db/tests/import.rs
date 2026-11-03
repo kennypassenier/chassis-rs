@@ -9,6 +9,7 @@ fn import_spec(
     files: Vec<PathBuf>,
 ) -> AppDbSpec {
     AppDbSpec {
+        on_open: None,
         options: Default::default(),
         migrations: schema(),
         import: Some(Box::new(move |tx, _ctx| {

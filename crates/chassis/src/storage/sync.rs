@@ -18,6 +18,7 @@
 
 #[cfg(feature = "dashboard")]
 mod api;
+mod backfill;
 mod collection;
 mod create_rules;
 mod cursor;
@@ -39,10 +40,12 @@ mod tests;
 
 #[cfg(feature = "dashboard")]
 pub(crate) use api::routes;
+pub use backfill::{backfill, backfill_for};
 pub use collection::{MAX_PAGE_LIMIT, SyncCollection};
 pub use create_rules::{CreateVerdict, KeyExists, check_create, client_key};
 pub use cursor::Cursor;
 pub(crate) use ddl::SYNC_DDL;
+pub use ddl::create_tables;
 pub use feed::{Delete, Feed, Page, Upsert};
 #[cfg(feature = "live")]
 pub use hint::publish_hint;

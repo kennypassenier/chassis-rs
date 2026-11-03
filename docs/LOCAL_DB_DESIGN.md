@@ -248,9 +248,25 @@ the routes need `dashboard`). The wire shapes the page is built against:
 - Retention: `<P>_SYNC_RETAIN_DAYS` (a knob; when set by flag, environment or
   file it wins over `SyncCollection::retain`), else the collection's `retain`,
   else 30 days.
-- `chassis_sync` is created with `CREATE TABLE IF NOT EXISTS` every time the app
-  file opens (beside the preferences table), not as a numbered migration: an
-  app's one-time import runs inside that open and may already record changes.
+- `chassis_sync` (and the `chassis_meta` table its counter lives in) is created
+  with `CREATE TABLE IF NOT EXISTS` every time the app file opens, BEFORE the
+  app's migrations and import run, not as a numbered migration. So a migration,
+  the import or `AppDbSpec::on_open` may already call `tx.sync_upsert`.
+- Existing rows: `storage::sync::backfill(tx, collection, rows)` (shared scope)
+  and `backfill_for(tx, collection, scope, rows)` take `(key, rev)` pairs and
+  record each item that the change log does not hold yet. Idempotent: a retry
+  records nothing new and never overwrites a later change or tombstone. Returns
+  how many it recorded. Call it from a `Migration::code` step that adopts the
+  collection, or from the import.
+- Startup work: `AppDbSpec::on_open(|db: &AppDb| ..)` runs once, synchronously,
+  after the migrations and the import, on the already usable handle. A failure
+  is logged and listed in `AppDb::problems()` (like a failed import); it does
+  not stop the start. (No awaitable `opened()`: `App::app_db` is a handle that
+  opens inside `start`, and a hook inside the spec fits the existing import
+  hook and keeps startup work in one place.)
+- Tests: `storage::sync::create_tables(&Connection)` creates the same tables
+  (and `chassis_meta`) on a plain connection, so an app's unit test needs no
+  copy of the DDL.
 - Create rules (decision 8) are helpers: `client_key(&str)` (400 unless a
   36-character UUID), `check_create(held, sent_idempotency, recorded_idempotency)`
   returning `Create`, `Replay` or `KeyExists` (409 `code: "exists"`).
