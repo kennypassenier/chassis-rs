@@ -102,7 +102,8 @@ pub(in crate::shell::webapp) fn router(state: Arc<PwaState>) -> Router {
         .route(MANIFEST_PATH, get(serve_manifest))
         .route(SW_PATH, get(serve_worker))
         .route("/pwa/offline", get(serve_offline))
-        .route("/pwa/offline.js", get(serve_offline_js));
+        .route("/pwa/offline.js", get(serve_offline_js))
+        .route("/pwa/offline.css", get(serve_offline_css));
     for (path, _, _) in ICONS {
         r = r.route(path, get(serve_icon));
     }
@@ -152,6 +153,14 @@ async fn serve_worker(State(s): State<Arc<PwaState>>) -> Response {
 async fn serve_offline(State(s): State<Arc<PwaState>>) -> Response {
     let body = worker::offline_page(crate::shell::assets::asset_version(), &s.pwa.theme_color);
     text("text/html; charset=utf-8", body, s.csp())
+}
+
+async fn serve_offline_css(State(s): State<Arc<PwaState>>) -> Response {
+    text(
+        "text/css; charset=utf-8",
+        worker::OFFLINE_CSS.to_string(),
+        s.csp(),
+    )
 }
 
 async fn serve_offline_js(State(s): State<Arc<PwaState>>) -> Response {

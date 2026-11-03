@@ -19,7 +19,7 @@ pub(super) async fn security_headers(req: Request, next: Next) -> Response {
     put(
         h,
         "content-security-policy",
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     );
     put(h, "x-content-type-options", "nosniff");
     put(h, "x-frame-options", "DENY");

@@ -48,8 +48,12 @@ app.webapp(WebApp::embedded(FILES));            // served at the root (3.1.0)
   `index.html` never is.
 - **Content-Security-Policy.** The kit's policy by default
   (`chassis::shell::webapp::DEFAULT_CSP`: scripts, styles, fonts and
-  connections from this origin only). `.csp("…")` replaces it for the
-  app's responses only. kp-themes' framework-free modules run under the
+  connections from this origin only, no `'unsafe-inline'` for styles:
+  inline styles never happen). `.csp("…")` replaces it for the
+  app's responses only; `.allow_inline_styles()` is the named, per-app
+  opt-in that adds `'unsafe-inline'` to `style-src` for an app that has not
+  yet moved its `style="…"` markup and `<style>` blocks into stylesheets and
+  CSSOM (`el.style.setProperty`). kp-themes' framework-free modules run under the
   default, and the vendored kp-themes files are served at `/static/kp/…`
   (`/static/kp/dist/kp-themes.css`, `/static/kp/js/…`). Every build that
   serves the kit's pages (`dashboard`, and so `webapp`) serves the whole
@@ -149,8 +153,8 @@ app.webapp(WebApp::embedded(FILES).pwa(
   `/pwa/icon-{180,192,512,maskable-192,maskable-512,monochrome-512}.png`,
   `/pwa/icon.svg` (only when the web app ships an SVG there, else 404),
   `/favicon.ico` (a 308 to `/pwa/icon-192.png`, unless the web app ships its
-  own `favicon.ico`, which is then served), `/pwa/offline` and
-  `/pwa/offline.js`. The files named by shortcut icons and screenshots (see
+  own `favicon.ico`, which is then served), `/pwa/offline`,
+  `/pwa/offline.js` and `/pwa/offline.css`. The files named by shortcut icons and screenshots (see
   below) are public too, and nothing else is. The browser fetches these without a
   session, and a worker is installed before any login. The app and its other
   files still ask for the login.

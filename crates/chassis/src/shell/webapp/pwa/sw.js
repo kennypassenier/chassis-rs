@@ -11,6 +11,7 @@ const OFFLINE_URL = '/pwa/offline';
 const PRECACHE = [
     OFFLINE_URL,
     '/pwa/offline.js',
+    '/pwa/offline.css',
     `/static/kp/dist/kp-themes.css?v=${KIT_VERSION}`,
     `/static/kp/css/fonts.css?v=${KIT_VERSION}`,
 ];

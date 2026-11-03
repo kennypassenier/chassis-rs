@@ -18,7 +18,7 @@ export function compactInner(c, t) {
   const totalNow = done ? t.total + gain : t.total;
   const totalAfter = none || checking ? t.total : done ? t.total : Math.max(0, t.total - gain - t.wal);
   const meter = (label, bytes) =>
-    `<span class="kp-meter" role="meter" aria-label="${label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round((bytes / t.budget) * 100)}" aria-valuetext="${size(bytes)} of ${size(t.budget)}" style="--kp-value: ${(bytes / t.budget).toFixed(4)}; --kp-mark: ${t.warn / t.budget}"><span class="kp-meter__mark" aria-hidden="true"></span></span>`;
+    `<span class="kp-meter" role="meter" aria-label="${label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round((bytes / t.budget) * 100)}" aria-valuetext="${size(bytes)} of ${size(t.budget)}" data-chassis-value="${(bytes / t.budget).toFixed(4)}" data-chassis-mark="${t.warn / t.budget}"><span class="kp-meter__mark" aria-hidden="true"></span></span>`;
   const st = c.state === 'running' ? ['done', 'running', 'pending'] : done ? ['done', 'done', 'done'] : ['pending', 'pending', 'pending'];
   const run = c.state === 'running' || done;
   const steps = `<ol class="kp-steplist" aria-label="What happens">${stepItem('pause', 'Writes pause', 'For a few seconds; reading carries on', st[0])}${stepItem('rewrite', 'The file is rewritten', 'Without the empty space that deleted data left', st[1])}${stepItem('resume', 'Writes resume', 'The budget reading is updated', st[2])}</ol>`;

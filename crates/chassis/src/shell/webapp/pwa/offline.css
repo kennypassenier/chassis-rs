@@ -1,0 +1,13 @@
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+}
+
+div.wrap {
+    max-width: 28rem;
+    width: 100%;
+    padding: 16px;
+    box-sizing: border-box;
+}

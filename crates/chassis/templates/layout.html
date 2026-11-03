@@ -90,7 +90,7 @@
   {% endif %}
   <span class="kp-theme-menu">
     <button type="button" class="kp-icon-button" popovertarget="kp-theme-menu"
-            aria-label="Choose a theme" style="anchor-name: --kp-theme-menu">
+            aria-label="Choose a theme">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/>
@@ -100,7 +100,7 @@
         <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16c3.3 0 6-2.7 6-6 0-4.9-4.5-8.6-10-8.6z"/>
       </svg>
     </button>
-    <div popover="auto" id="kp-theme-menu" class="kp-popover" style="position-anchor: --kp-theme-menu">
+    <div popover="auto" id="kp-theme-menu" class="kp-popover">
       <ul class="kp-menu" data-kp-theme-picker aria-label="Choose a theme">
         {% for theme in themes %}
         <li><button type="button" data-kp-theme="{{ theme.name }}"><span class="kp-swatch" data-theme="{{ theme.name }}"></span>{{ theme.label }}</button></li>

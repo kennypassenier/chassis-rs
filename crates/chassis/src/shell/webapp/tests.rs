@@ -188,3 +188,30 @@ async fn at_the_root_the_app_answers_what_no_route_claims() {
     assert_eq!(res.status(), 308, "an old bookmark moves to the root");
     assert_eq!(res.headers()["location"], "/stacks/media?tab=logs");
 }
+
+/// Kenny, 2026-11-03: inline styles never happen. The default policy has no
+/// `'unsafe-inline'`; an app opts in by name, and only for itself.
+#[tokio::test]
+async fn the_default_policy_allows_no_inline_styles_and_the_opt_in_is_explicit() {
+    assert!(!DEFAULT_CSP.contains("unsafe-inline"), "{DEFAULT_CSP}");
+    assert!(DEFAULT_CSP.contains("style-src 'self';"), "{DEFAULT_CSP}");
+    let r = WebApp::embedded(FILES).router().unwrap();
+    let res = get_path(&r, "/", &[]).await;
+    assert!(
+        !res.headers()["content-security-policy"]
+            .to_str()
+            .unwrap()
+            .contains("unsafe-inline")
+    );
+    let r = WebApp::embedded(FILES)
+        .allow_inline_styles()
+        .router()
+        .unwrap();
+    let res = get_path(&r, "/", &[]).await;
+    assert!(
+        res.headers()["content-security-policy"]
+            .to_str()
+            .unwrap()
+            .contains("style-src 'self' 'unsafe-inline'")
+    );
+}
