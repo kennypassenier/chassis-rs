@@ -9,7 +9,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
 
 use super::files::{content_type, read};
-use super::inject::with_head_tags;
+use super::inject::{with_head_tags, with_import_map};
 use super::paths::relative_path;
 use super::{DEFAULT_CSP, RESERVED, WebApp};
 
@@ -81,10 +81,17 @@ pub(super) async fn serve(
     };
     // The runtime script goes into HTML before the ETag is computed over the
     // served bytes, so the tag and the validator always agree.
-    let body = if content_type(&served).starts_with("text/html") {
-        with_head_tags(body, app.runtime_variant(), app.page_tags().as_deref())
+    let (body, csp) = if content_type(&served).starts_with("text/html") {
+        let body = with_head_tags(body, app.runtime_variant(), app.page_tags().as_deref());
+        match with_import_map(&body, &app.csp) {
+            Some((mapped, policy)) => (
+                Cow::Owned(mapped),
+                HeaderValue::from_str(&policy).unwrap_or(csp),
+            ),
+            None => (body, csp),
+        }
     } else {
-        body
+        (body, csp)
     };
     let versioned = query.as_deref().is_some_and(has_version_param);
     file_response(&served, body, versioned, &headers, csp)

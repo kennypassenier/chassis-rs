@@ -22,6 +22,8 @@ use axum::extract::{Path, RawQuery};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
+pub(crate) mod kp_map;
+
 /// The kp-themes version the kit vendors (C3: one place).
 pub const KP_THEMES_VERSION: &str = "12.4.0";
 

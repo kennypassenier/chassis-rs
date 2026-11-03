@@ -116,3 +116,22 @@ fn head_open_end(lower: &[u8]) -> Option<usize> {
 fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
     hay.windows(needle.len()).position(|w| w == needle)
 }
+
+/// Option A (proto-kp-shape-1): the kp import map right after `<head>`, ahead
+/// of every module script, with the CSP that allows exactly that inline
+/// script. A page that carries an import map of its own, or an app policy
+/// without `script-src 'self'`, is left as it is (`None`).
+pub(super) fn with_import_map(html: &[u8], csp: &str) -> Option<(Vec<u8>, String)> {
+    let lower = html.to_ascii_lowercase();
+    if find(&lower, b"importmap").is_some() {
+        return None;
+    }
+    let csp = crate::shell::assets::kp_map::csp_with_hash(csp)?;
+    let at = head_open_end(&lower)?;
+    let tag = crate::shell::assets::kp_map::tag();
+    let mut out = Vec::with_capacity(html.len() + tag.len());
+    out.extend_from_slice(&html[..at]);
+    out.extend_from_slice(tag.as_bytes());
+    out.extend_from_slice(&html[at..]);
+    Some((out, csp))
+}

@@ -32,6 +32,11 @@ pub(super) fn build(
     env.add_global("register_pattern", REGISTER_PATTERN);
     env.add_global("base_stylesheet", BASE_STYLESHEET);
     env.add_global("split_entry", SPLIT_ENTRY);
+    // proto-kp-shape-1: option A. The import map goes before the first module
+    // script; the boot entry is the bundle itself (an import map does not
+    // rewrite `<script src>`), under the exact URL the map points at.
+    env.add_global("kp_import_map", crate::shell::assets::kp_map::tag());
+    env.add_global("kp_entry", crate::shell::assets::kp_map::bundle_url());
     env.add_global("default_theme", DEFAULT_THEME);
     env.add_global(
         "theme_names",

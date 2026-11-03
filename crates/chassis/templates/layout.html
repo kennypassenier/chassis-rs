@@ -19,6 +19,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{{ kp_import_map|safe }}
 <title>{% block title %}{{ app_name }}{% endblock %}</title>
 {#- kp-themes split delivery: the base stylesheet first, then the no-flash
     script BELOW it (the cascade layer order is fixed by whichever stylesheet
@@ -28,7 +29,7 @@
 <link rel="stylesheet" href="{{ base_stylesheet|safe }}?v={{ assets }}">
 <script src="/static/theme-boot.js?v={{ assets }}" data-register-pattern="{{ register_pattern|safe }}" data-themes="{{ theme_names }}" data-fallback="{{ default_theme }}"></script>
 <link rel="stylesheet" href="/static/chassis.css?v={{ assets }}">
-<script type="module" src="{{ split_entry|safe }}?v={{ assets }}"></script>
+<script type="module" src="{{ kp_entry|safe }}"></script>
 <script type="module" src="/static/chassis.js?v={{ assets }}"></script>
 {{ pwa_head|default('')|safe }}
 {% block head %}{% endblock %}

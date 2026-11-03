@@ -8,6 +8,16 @@ use axum::response::{IntoResponse, Response};
 
 use crate::core::error::Error;
 
+/// The kit's policy: `script-src 'self'` plus the hash of the inline import
+/// map (proto-kp-shape-1), no `'unsafe-inline'`.
+fn kit_csp() -> &'static str {
+    static CSP: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    CSP.get_or_init(|| {
+        let base = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+        crate::shell::assets::kp_map::csp_with_hash(base).unwrap_or_else(|| base.to_string())
+    })
+}
+
 /// Body of [`super::security_headers`].
 pub(super) async fn security_headers(req: Request, next: Next) -> Response {
     let mut res = next.run(req).await;
@@ -16,11 +26,7 @@ pub(super) async fn security_headers(req: Request, next: Next) -> Response {
         h.entry(k)
             .or_insert(axum::http::HeaderValue::from_static(v));
     };
-    put(
-        h,
-        "content-security-policy",
-        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
-    );
+    put(h, "content-security-policy", kit_csp());
     put(h, "x-content-type-options", "nosniff");
     put(h, "x-frame-options", "DENY");
     // CF-7 (2026-09-06): `same-origin`, not `no-referrer`. Under
