@@ -45,7 +45,13 @@ impl AppDb {
         // After the migrations: a file restored from a copy gets a new epoch.
         epoch::ensure(&db, Some(path))?;
         let dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
-        self.finish(db, spec.import, spec.on_open, kinds, &dir)
+        self.finish(
+            db,
+            (spec.import, spec.import_required),
+            spec.on_open,
+            kinds,
+            &dir,
+        )
     }
 
     /// Validate the declared kinds, run the one-time import, and publish
@@ -53,7 +59,7 @@ impl AppDb {
     pub(super) fn finish(
         &self,
         db: Db,
-        import: Option<ImportHook>,
+        import: (Option<ImportHook>, bool),
         on_open: Option<OpenHook>,
         kinds: Vec<DataKind>,
         state_dir: &Path,
@@ -62,8 +68,8 @@ impl AppDb {
         db.write_blocking(|tx| Ok(tx.execute_batch(crate::storage::prefs::PREFS_DDL)?))?;
         validate_kinds(&db, &kinds)?;
         dry_run_finished_rules(&db, &kinds)?;
-        if let Some(hook) = import {
-            self.apply_import(&db, hook, state_dir);
+        if let (Some(hook), required) = import {
+            self.apply_import(&db, hook, state_dir, required)?;
         }
         self.shared
             .db
@@ -96,12 +102,21 @@ impl AppDb {
 
     /// Run the import and record how it stands. A failure is never an
     /// error of the open: it becomes a problem and the next start retries.
-    fn apply_import(&self, db: &Db, hook: ImportHook, state_dir: &Path) {
+    /// With `required` (see `AppDbSpec::import_required`) it is an error of
+    /// the open instead, after the state and the problem are recorded.
+    fn apply_import(
+        &self,
+        db: &Db,
+        hook: ImportHook,
+        state_dir: &Path,
+        required: bool,
+    ) -> Result<(), Error> {
         match run_import(db, hook, state_dir) {
             Ok(done) => {
                 // Ran now, or the marker said it ran at an earlier start.
                 let _ran_now = done;
                 *self.shared.import.lock().expect("import lock") = ImportState::Done;
+                Ok(())
             }
             Err(e) => {
                 tracing::error!(error = %e, "the one-time import failed and was rolled back; the app keeps its old files and tries again at the next start");
@@ -117,8 +132,22 @@ impl AppDb {
                         ),
                         remedy: format!("{}; the import is retried at the next start", e.remedy),
                     });
-                *self.shared.import.lock().expect("import lock") =
-                    ImportState::Failed { why: e.message };
+                *self.shared.import.lock().expect("import lock") = ImportState::Failed {
+                    why: e.message.clone(),
+                };
+                if required {
+                    return Err(Error::dependency(
+                        format!(
+                            "the one-time import into the app database failed and this app does not start without it: {}",
+                            e.message
+                        ),
+                        format!(
+                            "{}; the old files are untouched and the import is retried at the next start",
+                            e.remedy
+                        ),
+                    ));
+                }
+                Ok(())
             }
         }
     }
@@ -137,7 +166,13 @@ impl AppDb {
         let handle = Self::empty()?;
         let db = Db::open_in_memory_prepared(&spec.migrations, SYNC_DDL)?;
         epoch::ensure(&db, None)?;
-        handle.finish(db, spec.import, spec.on_open, kinds, Path::new("."))?;
+        handle.finish(
+            db,
+            (spec.import, spec.import_required),
+            spec.on_open,
+            kinds,
+            Path::new("."),
+        )?;
         Ok(handle)
     }
 }

@@ -132,6 +132,9 @@ pub struct AppDbSpec {
     pub migrations: Vec<Migration>,
     /// Move the project's old data in, once.
     pub import: Option<ImportHook>,
+    /// When true, a failed import stops the start (see
+    /// [`AppDbSpec::import_required`]). Default: false.
+    pub import_required: bool,
     /// Startup work once the database is open (see [`AppDbSpec::on_open`]).
     pub on_open: Option<OpenHook>,
     /// The pool and pre-migration copies (default: [`DbOptions::new`]).
@@ -144,6 +147,7 @@ impl AppDbSpec {
         AppDbSpec {
             migrations,
             import: None,
+            import_required: false,
             on_open: None,
             options: DbOptions::new(),
         }
@@ -169,6 +173,19 @@ impl AppDbSpec {
         hook: impl FnOnce(&AppDb) -> Result<(), Error> + Send + 'static,
     ) -> Self {
         self.on_open = Some(Box::new(hook));
+        self
+    }
+
+    /// A failed import stops the start instead of carrying on with the old
+    /// files. The import is still rolled back whole and the old files stay
+    /// untouched; the kit then refuses to open the database, so `App::start`
+    /// returns the kit's error (what failed, and the remedy) and the process
+    /// ends through its normal shutdown. For an app that moved its data into
+    /// the app database and must never serve an empty one (no fallback to the
+    /// old files). Has no effect without [`AppDbSpec::with_import`]. The
+    /// state is still recorded in [`AppDb::import_state`] of the handle.
+    pub fn import_required(mut self) -> Self {
+        self.import_required = true;
         self
     }
 

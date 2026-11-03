@@ -9,6 +9,7 @@ fn import_spec(
     files: Vec<PathBuf>,
 ) -> AppDbSpec {
     AppDbSpec {
+        import_required: false,
         on_open: None,
         options: Default::default(),
         migrations: schema(),
@@ -142,4 +143,50 @@ fn a_handle_that_never_opened_says_so_instead_of_panicking() {
     let err = h.read_blocking(|_| Ok(())).unwrap_err();
     assert!(err.message.contains("not open yet"), "{err}");
     assert!(h.kinds().is_empty());
+}
+
+#[test]
+fn a_required_import_that_fails_stops_the_open_with_the_kit_error_and_leaves_the_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let old = dir.path().join("old.json");
+    std::fs::write(&old, b"[1,2,3]").unwrap();
+    let path = dir.path().join("a.db");
+    let spec = import_spec(3, 3, true, vec![old.clone()]).import_required();
+    let err = AppDb::open(&path, spec, vec![]).unwrap_err();
+    assert!(
+        err.message.contains("does not start without it") && err.message.contains("torn at row 3"),
+        "{err}"
+    );
+    assert!(
+        err.remedy.contains("restore it") && err.remedy.contains("next start"),
+        "{err}"
+    );
+    assert!(
+        old.exists() && !dir.path().join("old.json.migrated").exists(),
+        "the old file stays"
+    );
+    // The import was rolled back whole: a later start with a good hook imports.
+    let app = AppDb::open(&path, import_spec(3, 3, false, vec![old]), vec![]).unwrap();
+    assert_eq!(app.import_state(), ImportState::Done);
+    assert_eq!(count(&app, "settings"), 3);
+}
+
+#[test]
+fn a_required_import_that_succeeds_opens_normally_and_the_default_still_carries_on() {
+    let dir = tempfile::tempdir().unwrap();
+    let ok = AppDb::open(
+        &dir.path().join("a.db"),
+        import_spec(2, 2, false, vec![]).import_required(),
+        vec![],
+    )
+    .unwrap();
+    assert_eq!(ok.import_state(), ImportState::Done);
+    // Not required (the default): a failure is a problem, the open succeeds.
+    let soft = AppDb::open(
+        &dir.path().join("b.db"),
+        import_spec(2, 2, true, vec![]),
+        vec![],
+    )
+    .unwrap();
+    assert!(matches!(soft.import_state(), ImportState::Failed { .. }));
 }
