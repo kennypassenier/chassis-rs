@@ -47,11 +47,44 @@ impl BodyLimits {
     /// `/data/import` covers `/data/import/x`, not `/data/imports`), else
     /// the default.
     pub fn for_path(&self, path: &str) -> usize {
+        self.raised_for(path)
+            .map_or(self.default, |(_, bytes)| bytes)
+    }
+
+    /// The app's raised cap that governs `path`, if any (longest prefix).
+    fn raised_for(&self, path: &str) -> Option<(&str, usize)> {
         self.raised
             .iter()
             .filter(|(p, _)| covers(p, path))
             .max_by_key(|(p, _)| p.len())
-            .map_or(self.default, |(_, bytes)| *bytes)
+            .map(|(p, bytes)| (p.as_str(), *bytes))
+    }
+
+    /// The 413 for `path`, naming the limit that actually applied: the
+    /// route's own `body_limit` or the `max_body_bytes` knob (Habits, 4.5.1:
+    /// a raised route's 413 named the knob that did not apply).
+    fn too_large(&self, path: &str) -> Response {
+        let (what, remedy) = match self.raised_for(path) {
+            Some((prefix, bytes)) => (
+                format!(
+                    "the request body is larger than {bytes} bytes, the cap this service sets for {prefix}"
+                ),
+                format!(
+                    "send a body within {bytes} bytes; the service raises it in code with body_limit({prefix:?}, …), not with max_body_bytes"
+                ),
+            ),
+            None => (
+                format!(
+                    "the request body is larger than {} bytes, the cap for this route",
+                    self.default
+                ),
+                "send a body within max_body_bytes (the knob <PREFIX>_MAX_BODY_BYTES sets it)"
+                    .to_string(),
+            ),
+        };
+        let mut out = Error::invalid(what, remedy).into_response();
+        *out.status_mut() = StatusCode::PAYLOAD_TOO_LARGE;
+        out
     }
 }
 
@@ -69,10 +102,56 @@ pub async fn body_limit(State(limits): State<BodyLimits>, req: Request, next: Ne
         .get(header::CONTENT_LENGTH)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<usize>().ok());
+    let path = req.uri().path().to_string();
     if declared.is_some_and(|n| n > cap) {
-        return StatusCode::PAYLOAD_TOO_LARGE.into_response();
+        return limits.too_large(&path);
     }
     let (parts, body) = req.into_parts();
     let body = Body::new(Limited::new(body, cap));
-    next.run(Request::from_parts(parts, body)).await
+    let res = next.run(Request::from_parts(parts, body)).await;
+    // A streamed body crossed the cap inside an extractor: its bare 413 gets
+    // the same named limit (a handler's own JSON 413 is left alone).
+    if res.status() == StatusCode::PAYLOAD_TOO_LARGE && !is_json(&res) {
+        return limits.too_large(&path);
+    }
+    res
+}
+
+fn is_json(res: &Response) -> bool {
+    res.headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|ct| ct.starts_with("application/json"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn text(res: Response) -> String {
+        let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    /// Habits (4.5.1): a raised route's 413 named `max_body_bytes`, the knob
+    /// that did not apply; it names the route's own cap now.
+    #[tokio::test]
+    async fn a_413_names_the_limit_that_applied() {
+        let limits = BodyLimits::new(1024, vec![("/data/import".into(), 4096)]).unwrap();
+        let raised = limits.too_large("/data/import/x");
+        assert_eq!(raised.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        let body = text(raised).await;
+        assert!(
+            body.contains("4096") && body.contains("/data/import"),
+            "{body}"
+        );
+        assert!(body.contains("not with max_body_bytes"), "{body}");
+        let plain = text(limits.too_large("/data/notes")).await;
+        assert!(
+            plain.contains("1024") && plain.contains("MAX_BODY_BYTES"),
+            "{plain}"
+        );
+    }
 }

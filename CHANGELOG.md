@@ -7,6 +7,12 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed (Habits, cycle 2026-11-03)
+- A 413 on a route whose cap the app raised with `App::body_limit` named the
+  `max_body_bytes` knob, which did not apply there. The 413 now names the cap
+  that applied: the route's prefix and bytes, or the knob for an unmarked
+  route; also for a body that crosses the cap while it streams.
+
 ### Added
 - Local database: `collection.create(item, { path })` posts to another list
   route of the app; the body is still overlaid as a pending create of the
