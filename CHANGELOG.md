@@ -7,6 +7,8 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [4.5.0] - 2026-11-03
+
 ### Changed (kp-themes 12.3.0)
 - kp-themes 12.3.0 vendored (1736 files checked against its SHA256SUMS). Its
   source maps are opt-in at its own build now, so a release ships only the
