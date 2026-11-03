@@ -38,7 +38,7 @@ pub(super) fn kinds() -> Vec<DataKind> {
         DataKind::new("snoozes", "Snoozes")
             .table("snoozes")
             .time_column("until", TimeFormat::UnixSeconds)
-            .finished_by_definition("until < :now"),
+            .finished_when(String::from("until < :now")),
         DataKind::new("stamped", "Stamped")
             .table("stamped")
             .time_column("at", TimeFormat::Rfc3339),

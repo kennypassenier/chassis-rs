@@ -46,6 +46,7 @@ impl TestApp {
         let mut app =
             App::from_args_with_env(spec.clone(), vec![spec.name.to_string()], env, router)?;
         configure(&mut app);
+        let app_db = app.app_db_handle();
         let running = app.start().await?;
         let client = test_client()?;
         Ok(TestApp {
@@ -55,6 +56,7 @@ impl TestApp {
             token,
             session: None,
             running: Some(running),
+            app_db,
             client,
             timeout: DEFAULT_REQUEST_TIMEOUT,
         })

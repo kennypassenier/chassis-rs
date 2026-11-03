@@ -15,9 +15,7 @@ pub(super) fn run_import(db: &Db, hook: ImportHook, state_dir: &Path) -> Result<
     if db.read_blocking(|c| meta_get(c, "import_done"))?.is_some() {
         return Ok(false);
     }
-    let ctx = ImportContext {
-        state_dir: state_dir.to_path_buf(),
-    };
+    let ctx = ImportContext::new(state_dir);
     let report = db.write_blocking(|tx| {
         // Re-check inside the transaction: two starts racing import once.
         if meta_get(tx, "import_done")?.is_some() {

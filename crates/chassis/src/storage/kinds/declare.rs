@@ -106,6 +106,15 @@ impl DataKind {
         self
     }
 
+    /// [`DataKind::finished_by_definition`] for a fragment the caller
+    /// built or owns (a `String`, a `Cow`). A separate method because
+    /// widening the old parameter would change a public signature, which the
+    /// API contract counts as breaking within a major.
+    pub fn finished_when(self, where_sql: impl Into<String>) -> Self {
+        let where_sql: String = where_sql.into();
+        self.finished_by_definition(&where_sql)
+    }
+
     /// The same for a custom kind: code that removes its finished rows and
     /// says how many.
     pub fn finished_by(

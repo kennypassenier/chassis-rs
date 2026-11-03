@@ -7,6 +7,23 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added (small cycle 2026-11-03)
+- `.chassis.toml` takes an optional `env_names = ["KYU_RUNNER_HUB_TOKEN"]`: a
+  project's own environment variable names, appended to the comment in
+  `deploy/compose.example.yml` and to the secrets sentence of `README.md`, so
+  `chassis sync --write` keeps them. Absent = unchanged output. fix-cycle-kyu-1.
+- `ImportContext::new(state_dir)`, so an import hook can be unit-tested with a
+  real context. fix-cycle-almanac-1.
+- `chassis::storage::kit_file_name` is public (`<name>-kit.db`). fix-cycle-almanac-2.
+- `TestApp::app_db()` and `TestApp::read_app_db(|conn| ..)` reach the database the
+  project declared with `App::app_db` in its configure closure. fix-cycle-almanac-3.
+
+### Added (small cycle 2026-11-03, continued)
+- `DataKind::finished_when(impl Into<String>)`: `finished_by_definition` for an
+  owned or built fragment. The old method keeps `&str`, because widening its
+  parameter is a signature change the API contract counts as breaking.
+  fix-cycle-almanac-4.
+
 ### Fixed (Habits, cycle 2026-11-03)
 - A 413 on a route whose cap the app raised with `App::body_limit` named the
   `max_body_bytes` knob, which did not apply there. The 413 now names the cap
