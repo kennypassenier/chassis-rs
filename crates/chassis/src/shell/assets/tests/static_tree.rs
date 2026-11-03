@@ -56,6 +56,11 @@ fn generated_tables_cover_static_exactly() {
     for (name, _, body) in all_assets() {
         let on_disk = std::fs::read(root.join(name))
             .unwrap_or_else(|e| panic!("table names {name}, missing on disk: {e}"));
+        if *name == "kp/dist/kp-themes.min.js" {
+            // fix-kp-mix-1: the bundle's URL serves the facade over the split
+            // modules, not the file (the_bundle_url_serves_the_split_modules_not_a_second_copy).
+            continue;
+        }
         assert_eq!(&on_disk[..], *body, "{name} embeds the file's bytes");
     }
     assert_eq!(all_assets().count(), expected.len(), "no extra rows");
