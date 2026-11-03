@@ -35,6 +35,20 @@ demos on the kp-themes Agenda (research/chassis-kit-*); the rest is API.
 
 ## Deviations found while building (for Kenny, with the next demo round)
 
+Checked against main on 2026-11-03 (`[fix-open-5]`). Settled in the kit:
+the CSRF plate wording (plain title, detail in the remedy, `[fix-open-3]`),
+the one idle rule (the tab badge writes `counts.idle` from the server,
+`shell-palette-clients.js`; rule in `client_list.rs`), the test label (only the
+per-process key `clients_api/test_send.rs` sends marks a test), the connection
+line (a failing request only probes `/healthz`; the line shows when the whole
+service is out of reach, `shell-connection.js`), the TEMPORARY `.kp-formgrid`
+block (gone from `chassis.css`), the availability strip (kept in the kit
+database, `dashboard/sections.rs`), the command-palette edges (kp-themes
+11.2.0). Not re-measurable without a browser run and left as they were: the
+Search trigger height at 1894, the 4.6 px clients-manage near-miss, the
+almanac 390 px nav and the tab bar's reserved height; `bodyBytes` and the
+banner position are kp-themes' or Kenny's call.
+
 - Shell: the connection banner sits at the foot of the window (the demo's
   markup) while the demo's look text said "under the bar"; Kenny to judge.
 - Shell: the CSRF refusal's plate title stays the kit's technical message

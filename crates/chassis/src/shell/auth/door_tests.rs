@@ -12,7 +12,7 @@ use axum::routing::get;
 
 use super::*;
 
-fn auth_state() -> AuthState {
+pub(super) fn auth_state() -> AuthState {
     AuthState {
         name: "t",
         secrets: Some(

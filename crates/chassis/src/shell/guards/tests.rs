@@ -183,4 +183,31 @@ async fn csrf_passes_a_same_origin_browser_form_post_and_refuses_cross_site() {
     );
 }
 
+/// The refusal reads as plain language; the technical detail rides in the
+/// remedy, not in the title.
+#[tokio::test]
+async fn csrf_refusal_title_is_plain_and_the_detail_is_in_the_remedy() {
+    let app = Router::new()
+        .route("/act", post(|| async { "did" }))
+        .layer(axum::middleware::from_fn(csrf_guard));
+    let req = Request::builder()
+        .method("POST")
+        .uri("/act")
+        .header("sec-fetch-site", "cross-site")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.oneshot(req).await.unwrap();
+    let body = axum::body::to_bytes(res.into_body(), 4096).await.unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let error = json["error"].as_str().unwrap();
+    assert!(error.contains("another website"), "{error}");
+    assert!(!error.contains("Sec-Fetch-Site"), "{error}");
+    assert!(
+        json["remedy"]
+            .as_str()
+            .unwrap()
+            .contains("Sec-Fetch-Site: cross-site")
+    );
+}
+
 mod limits;

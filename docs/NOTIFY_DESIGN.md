@@ -94,7 +94,11 @@ the primary becomes the last-error sentence "it answered HTTP 401: the hub
 wants a token and none is set (set `<P>_NOTIFY_TOKEN`)" or, with a token,
 "the hub refused the token, which is probably wrong or revoked (check ...)".
 The card shows only "Token: set" / "Token: not set" with the variable's name
-(`token: {set, env}` in `GET /api/kit/notify`); it cannot be edited there.
+(`token: {set, env, other_host}` in `GET /api/kit/notify`); it cannot be edited there.
+The kit target gets the same token, so when a token is set and the hosts of
+the primary and of `notify_kit_url` differ (port, path and case ignored), the
+start logs a warning and the card shows a warning line naming both hosts;
+`other_host` is `{primary, kit}` then, else null.
 
 **Outbox.** Table `kit_outbox` (id, created_at, kind, body, attempts,
 next_try_at, dedup_key, dedup_window), schema step 2 of the kit file. It is in

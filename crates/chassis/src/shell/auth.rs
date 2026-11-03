@@ -18,6 +18,8 @@ mod cookie_origin;
 mod door_hint;
 #[cfg(test)]
 mod door_tests;
+#[cfg(test)]
+mod expiry_tests;
 mod limits;
 mod lookup;
 mod navigation;

@@ -7,6 +7,22 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed (open items, 2026-11-03)
+- The 403 for a cross-site request now has a plain title ("this action was
+  blocked because it was sent from another website"); the technical detail
+  (`Sec-Fetch-Site: …`, or the foreign `Origin`) moved into the remedy, for the
+  JSON error and the page alike. A test matching the old title text must
+  follow. fix-open-3.
+- Notifications: when the primary's token is set and `notify_kit_url` is on
+  another host than the primary address, the start logs a warning and the
+  Notifications card shows a warning line naming both hosts, because the same
+  token goes to both. `GET /api/kit/notify` carries `token.other_host`
+  (`{primary, kit}` or null). fix-open-2.
+- Tests lock the session lifetime: a remember-me session ends exactly at the
+  cookie's `Max-Age`, a plain session slides by `session_ttl_secs` and its
+  cookie carries no `Max-Age` (the server owns its end). No behaviour change.
+  fix-open-4.
+
 ### Fixed (Kitchen, cycle 2026-11-03)
 - The logout warning on the kit's own pages (Status, Clients, Storage) used
   the kit's English words while the app speaks its own language. A web-app

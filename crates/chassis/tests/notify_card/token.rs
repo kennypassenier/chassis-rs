@@ -66,7 +66,7 @@ async fn the_right_token_delivers_and_the_page_and_json_never_show_it() {
     .await;
     assert_eq!(
         v["token"],
-        json!({"set": true, "env": "NT_OK_NOTIFY_TOKEN"})
+        json!({"set": true, "env": "NT_OK_NOTIFY_TOKEN", "other_host": null})
     );
     let (_, test) = app.post_json("/api/kit/notify/test", json!({})).await;
     for text in [v.to_string(), test.to_string(), app.page("/").await.1] {
@@ -259,4 +259,65 @@ fn the_knob_is_redacted_in_the_table_and_in_the_printed_config() {
         printed.contains("notify_token") && !printed.contains(TOKEN),
         "{printed}"
     );
+}
+
+/// The primary's token is also sent to `notify_kit_url`; when that address
+/// is on another host the card says so (and the start logs a warning).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_kit_address_on_another_host_is_flagged_next_to_the_token() {
+    let _one = SERIAL.lock().await;
+    let (kyu, _) = kyu_requiring_bearer().await;
+    let other = kyu.replace("127.0.0.1", "localhost");
+    let (mut app, _) = start(
+        "nt-host",
+        "NT_HOST",
+        &[
+            ("NOTIFY_URL", &kyu),
+            ("NOTIFY_KIT_URL", &other),
+            ("NOTIFY_TOKEN", TOKEN),
+        ],
+        None,
+    )
+    .await;
+    let v = crate::fixtures::overview(&app).await;
+    assert_eq!(
+        v["token"]["other_host"],
+        json!({"primary": "127.0.0.1", "kit": "localhost"})
+    );
+    assert!(!v.to_string().contains(TOKEN));
+    app.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_same_host_or_no_token_raises_no_flag() {
+    let _one = SERIAL.lock().await;
+    let (kyu, _) = kyu_requiring_bearer().await;
+    let (mut same, _) = start(
+        "nt-same",
+        "NT_SAME",
+        &[
+            ("NOTIFY_URL", &kyu),
+            ("NOTIFY_KIT_URL", &kyu),
+            ("NOTIFY_TOKEN", TOKEN),
+        ],
+        None,
+    )
+    .await;
+    let v = crate::fixtures::overview(&same).await;
+    assert!(v["token"]["other_host"].is_null());
+    same.shutdown().await;
+    let other = kyu.replace("127.0.0.1", "localhost");
+    let (mut bare, _) = start(
+        "nt-notok",
+        "NT_NOTOK",
+        &[("NOTIFY_URL", &kyu), ("NOTIFY_KIT_URL", &other)],
+        None,
+    )
+    .await;
+    let v = crate::fixtures::overview(&bare).await;
+    assert!(
+        v["token"]["other_host"].is_null(),
+        "no token, nothing leaves"
+    );
+    bare.shutdown().await;
 }
