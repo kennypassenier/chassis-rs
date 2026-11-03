@@ -313,6 +313,25 @@ Readings of the points the decisions leave open; the server half must match:
 - **Writes**: `create` POSTs to `routes.list` with the key in the body; `put` / `patch`
   / `delete` go to `routes.item` with `If-Match` = the stored record's rev (none for a
   record that only exists in the queue). Queue, failed list and band are chassisData's.
+- **Server-assigned keys** (`SyncCollection::server_keys()`, manifest `keys: "server"`):
+  `create(item)` POSTs the item without a key to `routes.list` with its Idempotency-Key.
+  Queued, it shows in queries under the temporary key `local:<idempotency key>` (returned as
+  `key`, `pending: true`); the entry leaves the overlay once sent, and the pull that follows
+  brings the real record. Online, `key` is the key in the server's answer. `put` / `patch` /
+  `delete` / `act` on a `local:` key throw (the server has no such item yet).
+- **PUT in the overlay** merges into the stored record (`{...stored, ...body}`) for display;
+  the server stays master after the send.
+- **Item actions**: `collection.action(name, (record, body) => record)` registers the optimistic
+  look of POST `<item route>/<name>` (return `null` to hide the record; a throwing transform is
+  warned about and ignored). `collection.act(key, name, body)` queues that POST (If-Match = the
+  stored rev). The queue stores only the entry; the overlay looks the transform up by name at
+  read time, in queue order with the other edits.
+- **Cached routes** (data-lists.js, for apps on chassisData without the db): `composites:
+  [{ path: '/data/snapshot', lists: { tasks: '/data/tasks/:id' } }]` (both paths also in
+  `routes`) makes an item write amend `snapshot.tasks`; a queued POST to a list route whose
+  body has the item key is added to the stored whole-collection copies of the list (no query
+  string) and the composite fields, and leaves them again when refused; a PUT merges into the
+  stored list entry (the item's own copy takes the body).
 - **Cap**: the database's bytes are added to the cache and queue bytes of the 50 MB
   cap. A page whose upserts do not fit is not stored (its deletes are), the
   collection is `stale`, the cursor stays.

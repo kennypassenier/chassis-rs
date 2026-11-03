@@ -3,6 +3,7 @@
 
 import { normalizeDb } from './db-config.js';
 import { childRoute } from './data-trim.js';
+import { compileComposites } from './data-composite.js';
 
 export const DEFAULTS = Object.freeze({
     name: 'app',
@@ -17,6 +18,7 @@ export const DEFAULTS = Object.freeze({
     messages: {},
     describe: null,
     db: null,
+    composites: [],
 });
 
 const PARAM = /^:[A-Za-z_][A-Za-z0-9_]*$/;
@@ -75,7 +77,7 @@ export function normalize(options = {}) {
     merged.db = normalizeDb(merged.db);
     const compiled = merged.routes.map(compileRoute);
     for (const route of compiled) route.child = route.kind === 'list' ? childRoute(compiled, route) : null;
-    return { ...merged, compiled };
+    return { ...merged, compiled, composites: compileComposites(merged.composites, compiled) };
 }
 
 /** The route a path belongs to (query string ignored), or null. */

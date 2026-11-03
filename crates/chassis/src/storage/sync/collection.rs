@@ -29,6 +29,7 @@ pub struct SyncCollection {
     retain: Option<Duration>,
     page_limit: usize,
     routes: Option<(String, String)>,
+    server_keys: bool,
 }
 
 impl SyncCollection {
@@ -44,6 +45,7 @@ impl SyncCollection {
             retain: None,
             page_limit: DEFAULT_PAGE_LIMIT,
             routes: None,
+            server_keys: false,
         }
     }
 
@@ -91,6 +93,14 @@ impl SyncCollection {
     /// (POST creates) and the item route (`:id` (any single `:param`) stands for the key).
     pub fn routes(mut self, list: &str, item: &str) -> Self {
         self.routes = Some((list.to_string(), item.to_string()));
+        self
+    }
+
+    /// The server assigns the key (an integer id, say): the page's `create`
+    /// POSTs the item without a key and shows it under a temporary local one
+    /// until the answer or the next pull brings the real record.
+    pub fn server_keys(mut self) -> Self {
+        self.server_keys = true;
         self
     }
 
@@ -176,6 +186,7 @@ impl SyncCollection {
             "rev": self.rev,
             "indexes": self.indexes,
             "shared": self.shared,
+            "keys": if self.server_keys { "server" } else { "client" },
             "routes": self.routes.as_ref().map(|(list, item)| json!({ "list": list, "item": item })),
             "schema": self.schema_hash(),
         })

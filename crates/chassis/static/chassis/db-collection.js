@@ -6,14 +6,15 @@
 // collection is pulled, so the record is the server's answer.
 
 import { fail } from './data-errors.js';
-import { itemPath } from './db-config.js';
+import { LOCAL_PREFIX, isLocalKey, itemPath } from './db-config.js';
 import { buildOverlay } from './db-overlay.js';
 import { createQuery } from './db-query.js';
 
 /** deps: { def, store, data (the chassisData client), hub, keeper, puller, settings, uuid }. */
 export function createCollection(deps) {
     const { def, store, data, hub, keeper, puller, settings, uuid } = deps;
-    const overlay = () => buildOverlay(data.queue(), def, async (key) => (await store.get(def.name, key))?.data ?? null);
+    const actions = new Map(); // name -> optimistic transform (record, body) => record; never stored in the queue
+    const overlay = () => buildOverlay(data.queue(), def, async (key) => (await store.get(def.name, key))?.data ?? null, actions);
     const source = { def, store, overlay, partial: () => !settings().all };
     const root = createQuery(source);
     const checkKey = (key) => {
@@ -28,9 +29,32 @@ export function createCollection(deps) {
         return result;
     }
 
+    /** A write to the server's own route needs the server's key: a temporary one has none yet. */
+    function onServer(key) {
+        if (isLocalKey(key)) throw fail(`${def.name}: ${key} is a create the server has not accepted yet.`, { remedy: 'Wait until it is sent (the key then changes to the real one).' });
+        return checkKey(key);
+    }
+
+    async function createClientKeyed(item) {
+        const key = item?.[def.key] === undefined ? uuid() : checkKey(item[def.key]);
+        const result = await done(await data.post(def.routes.list, { ...item, [def.key]: key }));
+        return { ...result, key };
+    }
+
+    /** The server assigns the key: queued, the item shows under `local:<idempotency key>` until the answer or the next pull. */
+    async function createServerKeyed(item) {
+        const result = await done(await data.post(def.routes.list, { ...item }));
+        const key = result.queued ? `${LOCAL_PREFIX}${result.idempotencyKey}` : (result.data?.[def.key] ?? null);
+        return { ...result, key };
+    }
+
     async function revOf(key) {
         return (await store.get(def.name, key))?.rev ?? undefined;
     }
+
+    const checkAction = (name) => {
+        if (typeof name !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(name)) throw fail(`${def.name}: an action name is letters, digits, "_" or "-".`);
+    };
 
     const clause = (index, kind) => (a, b) => createQuery(source, { index, kind, a, b });
     const whereOf = (index) => ({ equals: clause(index, 'equals'), between: clause(index, 'between'), startsWith: clause(index, 'startsWith') });
@@ -51,25 +75,37 @@ export function createCollection(deps) {
         count: root.count,
         query: () => root,
         async create(item) {
-            const key = item?.[def.key] === undefined ? uuid() : checkKey(item[def.key]);
-            if (!def.routes) itemPath(def, key); // throws the "declares no routes" sentence
-            const result = await done(await data.post(def.routes.list, { ...item, [def.key]: key }));
-            return { ...result, key };
+            if (!def.routes) itemPath(def, 'x'); // throws the "declares no routes" sentence
+            return def.keys === 'server' ? createServerKeyed(item) : createClientKeyed(item);
         },
         async put(key, item) {
-            checkKey(key);
+            onServer(key);
             const rev = await revOf(key);
             return done(await data.put(itemPath(def, key), { ...item, [def.key]: key }, rev === undefined ? {} : { rev }));
         },
         async patch(key, fields) {
-            checkKey(key);
+            onServer(key);
             const rev = await revOf(key);
             return done(await data.patch(itemPath(def, key), fields, rev === undefined ? {} : { rev }));
         },
         async delete(key) {
-            checkKey(key);
+            onServer(key);
             const rev = await revOf(key);
             return done(await data.delete(itemPath(def, key), rev === undefined ? {} : { rev }));
+        },
+        /** Register the optimistic look of item action `name`: `(record, body) => record` (`null` hides it). */
+        action(name, transform) {
+            checkAction(name);
+            if (typeof transform !== 'function') throw fail(`${def.name}: the transform of action "${name}" must be a function.`);
+            actions.set(name, transform);
+            return this;
+        },
+        /** POST `<item route>/<name>` with `body`, queued like any write; the registered transform shows meanwhile. */
+        async act(key, name, body = {}) {
+            onServer(key);
+            checkAction(name);
+            const rev = await revOf(key);
+            return done(await data.post(`${itemPath(def, key)}/${name}`, body, rev === undefined ? {} : { rev }));
         },
         keep: (key, on = true) => keeper.set(def, checkKey(key), on),
         isKept: (key) => keeper.isKept(def.name, checkKey(key)),
