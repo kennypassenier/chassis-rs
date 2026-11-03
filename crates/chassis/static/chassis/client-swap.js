@@ -13,7 +13,8 @@ export function createSwap(ctx, wire) {
   }
 
   // The new regions go in; focus stays on the page's heading so a keyboard or
-  // screen-reader user is not left on a button that no longer exists.
+  // screen-reader user is not left on a button that no longer exists. The
+  // focus never scrolls [fix-hsb-cycle-2]: it used to jump the page to the top.
   async function refresh() {
     const doc = await fetchPage();
     if (!doc) {
@@ -28,7 +29,7 @@ export function createSwap(ctx, wire) {
       mine.replaceWith(adopted);
       wire(adopted);
     }
-    if (open && !document.contains(open)) ctx.page.querySelector('.manage-head__title')?.focus();
+    if (open && !document.contains(open)) ctx.page.querySelector('.manage-head__title')?.focus({ preventScroll: true });
   }
 
   return { refresh };
