@@ -92,6 +92,17 @@ impl Channel {
             last_delivery: meta.last_delivery()?,
             token_set: self.inner.auth.token.is_some(),
             token_env: self.inner.auth.env_name.clone(),
+            token_other_host: self.token_other_host(),
         })
+    }
+
+    /// The primary's token is also sent to the kit target (`docs/NOTIFY_DESIGN.md`).
+    /// When their hosts differ, the token leaves for a host the primary
+    /// address does not name: `(primary host, kit host)`, else `None`.
+    pub(crate) fn token_other_host(&self) -> Option<(String, String)> {
+        self.inner.auth.token.as_ref()?;
+        let primary = self.target(Which::Primary).value?;
+        let kit = self.inner.kit.value.as_deref()?;
+        crate::core::notify_target::differing_hosts(&primary, kit)
     }
 }

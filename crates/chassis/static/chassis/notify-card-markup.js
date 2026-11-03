@@ -70,6 +70,11 @@ export function factsHtml(d) {
   const tokenHtml = `<div class="kp-kv__row"><dt>Token</dt><dd data-notify-token="${tok.set ? 'set' : 'unset'}">${tok.set ? 'Set' : 'Not set'}</dd></div>`;
   const tokenNote = `The primary address’s token comes from the environment variable ${tok.env}; it is never shown or changed here.`;
   // Present only when notify_kit_url is set: where the kit's own events go. Configuration only.
+  // The primary token is also sent to the kit address; say so when that is another host.
+  const other = tok.other_host;
+  const hostHtml = other
+    ? `<div class="kp-alert kp-alert--warning" role="status" data-notify-token-host><span class="kp-attention__icon" aria-hidden="true">!</span><div class="kp-attention__text"><strong>The token also goes to another host</strong><span>The primary address is on ${esc(other.primary)}, but the kit events address is on ${esc(other.kit)}, and both get the same token. Use the same hub for both, or be sure ${esc(other.kit)} may see the token.</span></div></div>`
+    : '';
   const kitHtml = d.kit
     ? `<div class="kp-kv__row"><dt>Kit events</dt><dd data-notify-kit>${esc(d.kit.address ?? '')} <span class="kp-text-muted">service, update and health events; fixed by configuration</span></dd></div>`
     : '';
@@ -80,7 +85,7 @@ export function factsHtml(d) {
       <p class="kp-text-muted notify-card__note">${esc(kept)}</p>
       <dl class="kp-kv kp-kv--lines"><div class="kp-kv__row"><dt>Last delivery</dt><dd>${last}</dd></div>${kitHtml}${tokenHtml}</dl>
       <p class="kp-text-muted notify-card__note" data-notify-token-note>${esc(tokenNote)}</p>
-      ${errorHtml}`;
+      ${hostHtml}${errorHtml}`;
 }
 
 export function testHtml(d) {

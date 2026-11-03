@@ -138,6 +138,9 @@ pub(crate) struct View {
     /// Whether a primary token is set, and the variable it comes from.
     pub token_set: bool,
     pub token_env: String,
+    /// `(primary host, kit host)` when the primary's token goes to a kit
+    /// target on another host.
+    pub token_other_host: Option<(String, String)>,
 }
 
 impl Channel {

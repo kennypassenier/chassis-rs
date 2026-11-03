@@ -87,7 +87,13 @@ fn view_json(v: View) -> Value {
         "can_edit": !both_locked,
         // Only whether a token is set and which variable carries it; the
         // value never leaves the sender.
-        "token": {"set": v.token_set, "env": v.token_env},
+        // `other_host` is `{primary, kit}` when the token also goes to a
+        // kit target on another host, else null.
+        "token": {
+            "set": v.token_set,
+            "env": v.token_env,
+            "other_host": v.token_other_host.map(|(p, k)| json!({"primary": p, "kit": k})),
+        },
         "outbox": {
             "waiting": v.counts.waiting,
             "oldest_at": v.counts.oldest_at.map(epoch_rfc3339),

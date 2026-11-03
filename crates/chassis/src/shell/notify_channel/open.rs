@@ -80,6 +80,13 @@ impl Channel {
             }),
         };
         channel.reload()?;
+        if let Some((primary, kit)) = channel.token_other_host() {
+            tracing::warn!(
+                primary_host = %primary,
+                kit_host = %kit,
+                "notify: the primary token is also sent to notify_kit_url, which is on another host; point both at the same hub or accept that the kit host receives the token"
+            );
+        }
         Ok(channel)
     }
 

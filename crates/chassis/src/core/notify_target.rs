@@ -15,6 +15,9 @@
 
 use crate::core::error::Error;
 
+mod host;
+pub use host::{differing_hosts, host_of};
+
 /// The knob keys: file key, flag and (upper-cased, prefixed) environment name.
 pub const KEY_PRIMARY: &str = "notify_url";
 pub const KEY_FALLBACK: &str = "notify_fallback_url";
