@@ -130,14 +130,19 @@ export function createQueue({ store, send, field, policy, hooks = {} }) {
             }
             running = (async () => {
                 let summary;
-                do {
-                    again = false;
-                    summary = await replayAll();
-                } while (again);
+                try {
+                    do {
+                        again = false;
+                        summary = await replayAll();
+                    } while (again);
+                } finally {
+                    // Cleared in the same turn as the last `again` check: a call that
+                    // came in a `.finally()` later joined a finished replay and got
+                    // its stale answer without a new round (fix-queue-race-1).
+                    running = null;
+                }
                 return summary;
-            })().finally(() => {
-                running = null;
-            });
+            })();
             return running;
         },
         async drop(id) {

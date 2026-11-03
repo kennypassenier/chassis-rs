@@ -17,6 +17,9 @@ impl App {
         if let Some(db) = slot.as_ref() {
             return Ok(db.clone());
         }
+        // The plain "not writable, chown it" refusal before SQLite's own
+        // "unable to open database file" (start creates a missing directory).
+        crate::shell::store::probe_state_dir(&loaded.state_dir, true)?;
         let db = Db::open(
             &loaded
                 .state_dir

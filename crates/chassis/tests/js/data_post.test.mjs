@@ -86,7 +86,9 @@ test('a POST does not amend the copy unless optimistic(copy) is given', async ()
     assert.equal((await store.getRead(D1)).data.qty, 3);
     await data.post(D1, {}, { optimistic: (c) => ({ ...c, qty: c.qty - 1 }) });
     assert.equal((await store.getRead(D1)).data.qty, 2);
-    assert.ok(data.queue().every((e) => !('optimistic' in e)));
+    // The preview function never goes into the stored queue (IndexedDB cannot hold it);
+    // since fix-habits-data-3 only a flag says the copies were amended.
+    assert.ok(data.queue().every((e) => typeof e.optimistic !== 'function'));
 });
 
 test('post accepts rev, rejects custom headers', async () => {

@@ -9,6 +9,15 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [4.5.0] - 2026-11-03
 
+### Fixed (found by the 4.5.0 gate)
+- A `chassisData.retry()` that came in while a replay was just finishing joined
+  that finished replay and returned its stale answer without sending
+  (fix-queue-race-1). The replay now clears itself in the same turn as its
+  last check.
+- With the update state in the kit database, an unwritable state directory
+  was refused with SQLite's "unable to open database file" instead of the
+  kit's "not writable, chown it" remedy; the state directory is probed first.
+
 ### Changed (kp-themes 12.3.0)
 - kp-themes 12.3.0 vendored (1736 files checked against its SHA256SUMS). Its
   source maps are opt-in at its own build now, so a release ships only the
