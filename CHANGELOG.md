@@ -13,6 +13,17 @@ scaffold writes. A breaking change in either is a major and carries a
   that applied: the route's prefix and bytes, or the knob for an unmarked
   route; also for a body that crosses the cap while it streams.
 
+### Fixed (HTTPSwitchboard, cycle 2026-11-03)
+- The phone tab bar no longer cuts a word that is wider than its tab
+  ("TRANSLATI..." for "Try a translation" in a five-tab bar, 78 px per tab).
+  The label wraps first, as since 4.2.0; a word that still does not fit now
+  steps down in size (`data-fit` small, then smaller, measured by
+  `shell-tabbar-fit.js`) instead of ending in an ellipsis. `Page::short_label`
+  stays the way to pick a better word. [fix-hsb-cycle-1] Round: [kp11].
+- An action on a client's page (Re-issue, Revoke) updated the page in place but
+  moved the focus to the heading, which scrolled the page to the top and lost
+  the reader's place; the focus no longer scrolls. [fix-hsb-cycle-2] Round: [kp11].
+
 ### Added
 - Local database: `collection.create(item, { path })` posts to another list
   route of the app; the body is still overlaid as a pending create of the
