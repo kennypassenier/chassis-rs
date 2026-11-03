@@ -24,6 +24,10 @@
 # everything under js/, from the release's consumer.tar and fonts.tar. Every
 # file is checked against the release's own SHA256SUMS before anything under
 # static/kp/ is touched; a mismatch or a missing line stops the script.
+# The source maps may come with their own SHA256SUMS.maps (kp-themes after
+# 12.2.0); it is checked the same way. dist/css/_density and _print were
+# never vendored (the rule takes only *-register.min.css), so their removal
+# upstream changes nothing here.
 set -euo pipefail
 
 usage="usage: scripts/vendor-kp-themes.sh <version, e.g. 12.0.0> [--from-dir <kp-themes tree>]"
@@ -64,6 +68,20 @@ else
   tar -xf "$work/consumer.tar" -C "$work/tree"
   tar -xf "$work/fonts.tar" -C "$work/tree"
   work_tree="$work/tree"
+  # From the release after 12.2.0 on, the source maps carry their own sums in
+  # an optional SHA256SUMS.maps asset; older releases list them in SHA256SUMS.
+  if gh release view "v$version" --repo "$repo" --json assets --jq '.assets[].name' |
+    grep -qx 'SHA256SUMS.maps'; then
+    gh release download "v$version" --repo "$repo" --dir "$work" -p SHA256SUMS.maps
+  fi
+fi
+if [ -n "$from_dir" ] && [ -f "$from_dir/SHA256SUMS.maps" ]; then
+  cp "$from_dir/SHA256SUMS.maps" "$work/SHA256SUMS.maps"
+fi
+# One list to check against: the maps group joins the main sums when present.
+if [ -f "$work/SHA256SUMS.maps" ]; then
+  cat "$work/SHA256SUMS.maps" >> "$work/SHA256SUMS"
+  echo "vendor-kp-themes: source maps checked against SHA256SUMS.maps"
 fi
 
 # The vendored set, by rule.
