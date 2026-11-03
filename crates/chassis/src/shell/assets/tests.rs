@@ -246,8 +246,8 @@ fn the_bundle_url_serves_the_split_modules_not_a_second_copy() {
         .expect("bundle URL served");
     let text = std::str::from_utf8(body).unwrap();
     assert!(ct.starts_with("text/javascript"), "{ct}");
-    assert!(text.contains("import './js/auto.js';"), "{text}");
-    assert!(text.contains("export * from './js/index.js';"), "{text}");
+    assert!(text.contains("import './js/auto.js?v="), "{text}");
+    assert!(text.contains("export * from './js/index.js?v="), "{text}");
     for target in ["kp/dist/js/auto.js", "kp/dist/js/index.js"] {
         assert!(
             all_assets().any(|(n, _, _)| *n == target),

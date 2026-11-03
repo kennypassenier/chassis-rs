@@ -8,6 +8,10 @@ scaffold writes. A breaking change in either is a major and carries a
 ## [Unreleased]
 
 ### Fixed (trial bump on 4.6.0)
+- A page that imports the bundle URL revalidated the split entries behind it
+  on every load (kyu: 331 module requests per page). The facade now imports
+  `auto.js` and `index.js` under a `?v=` content hash, so both are answered
+  `immutable` like the hashed chunks; a new kp-themes is a new hash.
 - The Status page asked for its eleven kp-themes parts one after the other,
   a round trip each, so it was ready late, and leaving it early cancelled
   imports still on the way (Firefox's "Loading failed for the module …
