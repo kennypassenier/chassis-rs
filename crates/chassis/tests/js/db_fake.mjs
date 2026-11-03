@@ -22,7 +22,7 @@ export const MANIFEST = {
 
 /** A service: `/api/sync` manifest, `/api/sync/dishes` feed, `/data/dishes` item routes. `up` switches the network. */
 export function fakeFeed() {
-    const s = { items: new Map(), log: [], seq: 0, floor: 0, up: true, refuse: null, calls: [], pageMax: 500, auth: false };
+    const s = { items: new Map(), log: [], seq: 0, floor: 0, up: true, refuse: null, calls: [], pageMax: 500, auth: false, list: false, listStatus: null };
     const bump = (key, deleted) => s.log.push({ seq: ++s.seq, key, deleted });
     s.set = (id, fields) => {
         const old = s.items.get(id);
@@ -56,6 +56,9 @@ export function fakeFeed() {
     };
     s.item = (pathname, init, headers) => {
         if (init.method !== 'GET' && s.refuse) return reply(s.refuse, { error: 'no', remedy: 'x' });
+        if (pathname === '/data/dishes' && init.method === 'GET' && s.list) { // opt-in: the list route (read-through)
+            return s.listStatus ? reply(s.listStatus, { error: 'boom', remedy: 'x' }) : reply(200, [...s.items].map(([, v]) => ({ ...v.data, rev: v.rev })));
+        }
         const id = decodeURIComponent(pathname.split('/')[3] ?? '');
         const cur = s.items.get(id);
         if (init.method === 'GET') return cur ? reply(200, { ...cur.data, rev: cur.rev }, cur.rev) : reply(404, { error: 'none', remedy: 'x' });

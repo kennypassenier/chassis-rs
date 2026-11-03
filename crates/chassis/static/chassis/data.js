@@ -49,8 +49,10 @@ export function installData(win, doc, deps = {}, kp = null) {
     // The logout guard needs no configure(): it reads the stored queues of
     // every chassis-data database, and adds the open client's own once there.
     installLogoutGuard({ win, doc, confirm: kp?.openConfirmation, client: async () => (ready ? await ready : null), messages: () => wordsOf(words) });
+    // `messages` of the app (an object or a function), swappable: a later configure({ messages }) replaces them.
+    const messages = () => wordsOf(words);
     const configure = (options) => {
-        if (ready) throw new Error('chassisData: configure() was already called on this page.');
+        if (ready) return reword(options);
         const config = normalize(options);
         words = config.messages;
         ready = (async () => {
@@ -69,8 +71,8 @@ export function installData(win, doc, deps = {}, kp = null) {
                 clearTimer: (id) => win.clearTimeout(id),
                 now: () => Date.now(),
             });
-            const view = kp?.openDialog ? createFailedView({ win, doc, kp, data, messages: config.messages, describe: config.describe }) : null;
-            if (kp) bindBand({ win, doc, kp, data, messages: config.messages, view });
+            const view = kp?.openDialog ? createFailedView({ win, doc, kp, data, messages, describe: config.describe }) : null;
+            if (kp) bindBand({ win, doc, kp, data, messages, view });
             win.addEventListener('online', () => data.retry());
             const local = config.db ? bootDb({
                 win, doc, app: config.name, options: config.db, data, hub, events, emit, storage: storageOf(win), deps,
@@ -97,6 +99,17 @@ export function installData(win, doc, deps = {}, kp = null) {
         })();
         return ready;
     };
+    /** A second configure() may only bring new `messages` (the language changed); anything else is an error. */
+    function reword(options) {
+        const extra = Object.keys(options ?? {}).filter((k) => k !== 'messages');
+        const next = options?.messages;
+        if (extra.length > 0 || !(typeof next === 'function' || (next && typeof next === 'object'))) {
+            throw new Error('chassisData: configure() was already called on this page. A later call may only pass { messages } (an object or a function).');
+        }
+        words = next;
+        if (typeof win.dispatchEvent === 'function' && typeof win.CustomEvent === 'function') win.dispatchEvent(new win.CustomEvent('chassis-data-messages'));
+        return ready;
+    }
     const dbEnsure = () => (ready ? ready.then((client) => client.dbEnsure()) : Promise.reject(new Error('chassisData: call configure() first.')));
     const facade = { configure, ready: () => ready, db: lazyDb({ ensure: dbEnsure, hub }) };
     for (const name of METHODS) {

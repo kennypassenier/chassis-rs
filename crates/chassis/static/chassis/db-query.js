@@ -15,8 +15,19 @@ export function createQuery(source, spec = null, opts = { sort: null, desc: fals
     const { def, store } = source;
     const more = (change) => createQuery(source, spec, { ...opts, ...change });
 
+    /** The server's records: through the service when the collection is not kept whole (see db-through.js), else the store. */
+    async function base(fresh) {
+        if (fresh === null) return spec ? store.query(def.name, spec.index, spec) : store.all(def.name);
+        if (!spec) return fresh;
+        const test = matcher(spec);
+        const at = (r) => (spec.index === def.key ? r.key : getPath(r.data, spec.index));
+        return fresh.filter((r) => indexable(at(r)) && test(at(r)));
+    }
+
     async function rows() {
-        const [records, over] = await Promise.all([spec ? store.query(def.name, spec.index, spec) : store.all(def.name), source.overlay()]);
+        const fresh = (await source.through?.()) ?? null;
+        // The queued edits are laid over the rows that were read through too (an edit of an item that is not on the device).
+        const [records, over] = await Promise.all([base(fresh), source.overlay(fresh && new Map(fresh.map((r) => [r.key, r.data])))]);
         const rows = records.filter((r) => !over.has(r.key)).map((r) => ({ key: r.key, data: r.data, pending: false }));
         const valueOf = (key, data) => (spec.index === def.key ? key : getPath(data, spec.index));
         const test = spec ? matcher(spec) : null;

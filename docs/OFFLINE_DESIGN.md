@@ -49,7 +49,12 @@ still refuses copies on top of this.
 
 `configure({ messages })` is an object, or a function returning one (fix-habits-data-7);
 a function is called at show time (toasts, drawer, logout dialog), so the words follow
-a language that is known only after `configure()`.
+a language that is known only after `configure()`. An object is read at show time too, but it
+is the object `configure()` was given; to change the words of a page that is already
+configured, call `configure({ messages })` again (fix-kitchen-cycle-6): that is the only
+second call accepted (anything else still throws), it replaces the words for the toasts, the
+logout dialog and the drawer, and fires `chassis-data-messages` on `window`. An open drawer
+draws again at once, heading and intro included, on that event and on kp's `kp-strings-change`.
 
 **Naming a failed edit** (fix-habits-drawer-9). `configure({ describe(entry) })` returns
 `{ title, detail? }` for a failed or held entry; the drawer card shows it instead of

@@ -34,9 +34,17 @@ export function createFailedView({ win, doc, kp, data, messages = {}, describe =
     let dialog = null;
     const body = () => dialog.querySelector('.kp-drawer__body');
 
+    /** The heading, close label and intro in the current words (also while the drawer is open). */
+    function retext(text) {
+        dialog.querySelector('.kp-dialog__title').textContent = text.failedTitle;
+        dialog.querySelector('.kp-dialog__close').setAttribute('aria-label', text.close);
+        dialog.querySelector('.kp-drawer__desc').textContent = text.intro;
+    }
+
     async function refresh() {
         if (!dialog) return;
         const text = wording();
+        retext(text);
         const items = reviewable(await data.queue());
         const list = doc.createElement('ul');
         list.className = 'chassis-failed__list';
@@ -82,6 +90,8 @@ export function createFailedView({ win, doc, kp, data, messages = {}, describe =
         }
     };
     const onQueue = () => dialog?.open && refresh().catch((err) => console.warn('chassisData: the failed-edits view could not refresh.', err));
+    // The words changed (a later configure({ messages }), or kp's language switch): an open drawer draws again.
+    const onWords = () => dialog?.open && refresh().catch((err) => console.warn('chassisData: the failed-edits view could not follow the new words.', err));
 
     return {
         async open(trigger = null) {
@@ -93,7 +103,11 @@ export function createFailedView({ win, doc, kp, data, messages = {}, describe =
                 dialog = shell(doc, wording(), 'chassis-failed');
                 dialog.addEventListener('click', onClick);
                 doc.body.append(dialog);
-                if (!listening) win.addEventListener('chassis-data-queue', onQueue);
+                if (!listening) {
+                    win.addEventListener('chassis-data-queue', onQueue);
+                    win.addEventListener('chassis-data-messages', onWords);
+                    doc.addEventListener?.('kp-strings-change', onWords);
+                }
                 listening = true;
             }
             await refresh();
@@ -102,6 +116,8 @@ export function createFailedView({ win, doc, kp, data, messages = {}, describe =
         refresh,
         destroy() {
             win.removeEventListener('chassis-data-queue', onQueue);
+            win.removeEventListener('chassis-data-messages', onWords);
+            doc.removeEventListener?.('kp-strings-change', onWords);
             listening = false;
             dialog?.remove();
             dialog = null;

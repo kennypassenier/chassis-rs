@@ -333,7 +333,8 @@ a cached route any more, the route leaves `configure({ routes })`.
 
 **Kitchen** (first): moves its data from `kitchen.json` into its app database
 (Kenny's rule, open question 1), importing the file once through
-`AppDbSpec::with_import`. Then:
+`AppDbSpec::with_import`, with `.import_required()` so a failed import stops the start with the kit's
+error and remedy instead of serving an empty database ([fix-kitchen-cycle-1]). Then:
 1. Server: one table per collection (dishes, dish_parts, dish_categories,
    ingredients, ingredient_categories, freezer, shelf, resting, log), each
    write calling `tx.sync_upsert` / `tx.sync_delete` in the same transaction.
@@ -404,7 +405,23 @@ Readings of the points the decisions leave open; the server half must match:
   (`collection.action`), the function is not called for them. A name the manifest lacks is warned.
 - **`opts.rev`** (`[fix-db-habits-3]`): `patch(key, fields, { rev })`, `put(key, item, { rev })`,
   `delete(key, { rev })` and `act(key, name, body, { rev })` send that rev as If-Match instead of the
-  stored record's, for a write right after a write through a non-collection route.
+  stored record's, for a write right after a write through a non-collection route. This is also the
+  answer to "a stale save wins after a background pull": pass the rev the page read and the server
+  answers 409 (failed list) instead of accepting the write over the newer record.
+- **Read-through** (`[fix-kitchen-cycle-3]`, db-through.js): with "keep everything" off, a read of
+  an item that is not on the device asks the server through the collection's routes. `all()`,
+  `where(..)` and the other queries read the list route (an array, or `{ items }`) and run the query
+  over those rows with the queued edits laid over them (also an edit of an item that is not on the
+  device); `get(key)` of an unstored key reads the item route. What was read is stored by the keep
+  rules: a kept key is written (when new or newer), anything else is only shown, so the device keeps
+  just what the person chose. Offline, or when the service answers an error (reported with a
+  warning, except 404/410), the stored records are shown; `partial` is still `true`. With keep
+  everything on there is no extra request. A collection with no declared routes has no read-through.
+- **`clear()`** (`[fix-kitchen-cycle-4]`): `chassisData.db.clear()` empties every collection's local
+  store and forgets its cursor (the next pull starts from the beginning and brings back what the keep
+  rules allow); `usage()` is 0 afterwards. The write queue (waiting and failed edits) and the keep
+  choices stay. It resolves to `{ collections, waiting }` so an app can say that waiting edits remain.
+  A pull in flight finishes first. The chassisData read copies are not touched (`clearCopy()`).
 - **Cached routes** (data-lists.js, for apps on chassisData without the db): `composites:
   [{ path: '/data/snapshot', lists: { tasks: '/data/tasks/:id' } }]` (both paths also in
   `routes`) makes an item write amend `snapshot.tasks`; a queued POST to a list route whose

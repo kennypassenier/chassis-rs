@@ -40,6 +40,8 @@ export function lazyDb({ ensure, hub }) {
         /** Resolves to the names of the collections once the manifest is in; rejects while the service cannot be reached and nothing was synced. */
         ready: () => ensure().then((db) => db.names()),
         sync: (names = null) => ensure().then((db) => db.sync(names)),
+        /** Empty the local stores; the queue and the keep choices stay. See createDb's `clear`. */
+        clear: () => ensure().then((db) => db.clear()),
         usage: () => ensure().then((db) => ({ bytes: db.bytes() })),
     };
 }

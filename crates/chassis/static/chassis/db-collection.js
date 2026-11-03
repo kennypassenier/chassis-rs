@@ -9,13 +9,16 @@ import { fail } from './data-errors.js';
 import { LOCAL_PREFIX, isLocalKey, itemPath } from './db-config.js';
 import { buildOverlay } from './db-overlay.js';
 import { createQuery } from './db-query.js';
+import { createThrough } from './db-through.js';
 
 /** deps: { def, store, data (the chassisData client), hub, keeper, puller, settings, uuid }. */
 export function createCollection(deps) {
     const { def, store, data, hub, keeper, puller, settings, uuid, overlayFn = null } = deps;
+    const through = createThrough({ def, store, keeper, send: deps.send, settings, now: deps.now, warn: deps.warn });
     const actions = new Map(); // name -> optimistic transform (record, body) => record; never stored in the queue
-    const overlay = () => buildOverlay(data.queue(), def, async (key) => (await store.get(def.name, key))?.data ?? null, actions, overlayFn);
-    const source = { def, store, overlay, partial: () => !settings().all };
+    // `read`: rows just read through the service (key -> data), the base of an edit to an item that is not on the device.
+    const overlay = (read = null) => buildOverlay(data.queue(), def, async (key) => read?.get(key) ?? (await store.get(def.name, key))?.data ?? null, actions, overlayFn);
+    const source = { def, store, overlay, partial: () => !settings().all, through: through.list };
     const root = createQuery(source);
     const checkKey = (key) => {
         if (typeof key !== 'string' || key === '') throw fail(`${def.name}: the key must be a non-empty string.`);
@@ -75,10 +78,15 @@ export function createCollection(deps) {
         name: def.name,
         async get(key) {
             checkKey(key);
+            const shown = (queued) => (queued.deleted ? null : { ...queued.data, pending: true });
             const queued = (await overlay()).get(key);
-            if (queued) return queued.deleted ? null : { ...queued.data, pending: true };
+            if (queued) return shown(queued);
             const record = await store.get(def.name, key);
-            return record ? { ...record.data } : null;
+            if (record) return { ...record.data };
+            const read = await through.item(key); // not on the device: ask the service, store only a kept one
+            if (!read) return null;
+            const over = (await overlay(new Map([[key, read.data]]))).get(key);
+            return over ? shown(over) : { ...read.data };
         },
         all: () => root.toArray(),
         where: whereOf,

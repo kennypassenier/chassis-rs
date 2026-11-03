@@ -50,7 +50,7 @@ export function createDb(deps) {
             const def = defs[name];
             if (!def) throw fail(`there is no collection ${JSON.stringify(name)} in the manifest.`, { remedy: `Declared: ${names.join(', ') || 'none'}.` });
             if (!collections.has(name)) {
-                collections.set(name, createCollection({ def, store, data, hub, keeper, puller, settings, uuid: deps.uuid, overlayFn: overlays[name] }));
+                collections.set(name, createCollection({ def, store, data, hub, keeper, puller, settings, uuid: deps.uuid, now: deps.now, send: deps.send, warn, overlayFn: overlays[name] }));
             }
             return collections.get(name);
         },
@@ -64,6 +64,22 @@ export function createDb(deps) {
                 else await keeper.trim(defs[name]);
                 hub.notify(name, 'keep');
             }
+        },
+        /**
+         * Empty every collection's local store and forget its cursor (the next
+         * pull starts from the beginning). The write queue (waiting and failed
+         * edits) and the per-device keep choices stay. Resolves to
+         * `{ collections, waiting }`: `waiting` is how many edits still wait,
+         * so an app may tell the person they stay.
+         */
+        async clear() {
+            for (const name of names) {
+                await puller.settled(name);
+                await store.reset(name);
+                hub.notify(name, 'clear');
+            }
+            data.settle(); // the cap level moved
+            return { collections: [...names], waiting: data.pending() };
         },
         /** Logout: the database is deleted; this object is finished. */
         async purge() {

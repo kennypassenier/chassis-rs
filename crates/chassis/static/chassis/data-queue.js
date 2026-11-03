@@ -153,6 +153,13 @@ export function createQueue({ store, send, field, policy, hooks = {} }) {
             changed();
             return true;
         },
+        /** Add fields to a stored entry (the optimistic undo record). False when it is gone. */
+        async patch(id, fields) {
+            const entry = entries.find((e) => e.id === id);
+            if (!entry) return false;
+            await persist({ ...entry, ...fields });
+            return true;
+        },
         /** End a hold: send the edit again with `rev` (default: the server's current one). */
         async resave(id, rev) {
             const entry = entries.find((e) => e.id === id && e.state !== 'queued');
