@@ -12,6 +12,13 @@
     margin-block-start: var(--kp-space-sm, 0.5rem);
 }
 
+/* [fix-touch-44-7] The control takes the whole header width: its progress rule
+   ran under the bar's own width only (half the header on a wide screen), and
+   Refresh now stands at the end of the row with the line taking the spare room. */
+.chassis-fresh > .kp-refresh {
+    flex: 1 1 100%;
+}
+
 /* One visual row, one row track (Kenny, 2026-10-19): the control's three
    parts share top and bottom edges instead of being centred at their own
    heights, and the freshness line keeps its column when the page is narrow
@@ -32,16 +39,38 @@
     display: flex;
     align-items: center;
 }
-/* On a phone the freshness line (which keeps room for its longest wording)
-   takes a row of its own under the chooser and the button: three columns
-   would push "updating…" past the edge. */
+/* The bar has a caption ("Refresh automatically") as its first cell, so on a
+   screen the four cells share one row: caption | chooser | freshness line
+   (the one that takes the spare width) | Refresh now. Three columns pushed
+   the button onto a row of its own, 24 px high, under the line. */
+@media (min-width: 40rem) {
+    .chassis-fresh .kp-refresh__bar:has(> .kp-refresh__caption) {
+        grid-template-columns: auto auto minmax(min-content, 1fr) auto;
+    }
+}
+/* On a phone the caption and the chooser stand on the first row, the
+   freshness line (which keeps room for its longest wording) and Refresh now
+   on the second: three columns would push "updating…" past the edge. */
 @media (max-width: 39.99rem) {
     .chassis-fresh .kp-refresh__bar {
         grid-template-columns: minmax(0, 1fr) auto;
         row-gap: var(--kp-space-sm, 0.5rem);
     }
     .chassis-fresh .kp-refresh__bar > .kp-refresh__line {
-        grid-column: 1 / -1;
+        grid-column: 1;
         grid-row: 2;
+    }
+    .chassis-fresh .kp-refresh__bar > .kp-refresh__now {
+        grid-column: 2;
+        grid-row: 2;
+    }
+}
+
+/* [fix-touch-44-4] A touch screen: Refresh now is as tall as a finger needs
+   (the override above had set its height back to its text's, 24 px). */
+@media (pointer: coarse) {
+    .chassis-fresh .kp-refresh__bar > .kp-button {
+        min-block-size: var(--kp-touch-target, 2.75rem);
+        min-inline-size: var(--kp-touch-target, 2.75rem);
     }
 }

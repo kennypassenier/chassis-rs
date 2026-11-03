@@ -22,6 +22,8 @@ mod layout_and_shell;
 mod login_pages;
 #[path = "kenny_rules/runtime_rules.rs"]
 mod runtime_rules;
+#[path = "kenny_rules/touch_targets.rs"]
+mod touch_targets;
 
 // Locked elsewhere, listed so the inventory stays in one place:
 // - the web app at the root, /app/… 308 to the root (Kenny, 2026-10-01):

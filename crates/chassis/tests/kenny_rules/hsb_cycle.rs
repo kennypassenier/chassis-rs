@@ -15,7 +15,7 @@ fn a_tab_label_steps_down_in_size_instead_of_being_cut() {
     );
     let fit = kit_file("static/chassis/shell-tabbar-fit.js");
     let css = kit_file("static/chassis/shell.css");
-    for level in ["small", "smaller"] {
+    for level in ["small", "smaller", "tiny", "tiniest"] {
         assert!(
             fit.contains(&format!("'{level}'")),
             "the fit does not know the level {level}"

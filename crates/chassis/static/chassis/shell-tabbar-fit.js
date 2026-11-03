@@ -6,7 +6,7 @@
 // better word still sets Page::short_label; this is the net under it.
 // Pure parts (isClipped, fitLevel) are tested with node --test.
 
-export const FIT_LEVELS = ['', 'small', 'smaller'];
+export const FIT_LEVELS = ['', 'small', 'smaller', 'tiny', 'tiniest'];
 
 // A label is clipped when its content is taller (the two-line clamp cut a
 // word) or wider (a word that cannot break) than its box. One pixel of slack
@@ -22,14 +22,20 @@ export function fitLevel(clippedAt, levels = FIT_LEVELS) {
   return levels[levels.length - 1];
 }
 
-function fitLabel(label) {
-  const level = fitLevel((candidate) => {
-    if (candidate) label.dataset.fit = candidate;
-    else delete label.dataset.fit;
-    return isClipped(label);
-  });
+function setLevel(label, level) {
   if (level) label.dataset.fit = level;
   else delete label.dataset.fit;
+}
+
+// [fix-touch-44-6] One level for the whole bar (kp-themes' own fit does the
+// same): the loosest at which no label is clipped, so the labels keep one size
+// and a bar with one long word does not mix sizes.
+function fitBar(labels) {
+  const level = fitLevel((candidate) => {
+    labels.forEach((label) => setLevel(label, candidate));
+    return labels.some(isClipped);
+  });
+  labels.forEach((label) => setLevel(label, level));
 }
 
 // Returns nothing; `joined` collects what this file attached. Runs when the
@@ -37,7 +43,7 @@ function fitLabel(label) {
 export function attachTabbarFit(joined) {
   const bar = document.querySelector('.chassis-tabbar');
   if (!bar) return;
-  const run = () => bar.querySelectorAll('.kp-tabbar__label').forEach(fitLabel);
+  const run = () => fitBar([...bar.querySelectorAll('.kp-tabbar__label')]);
   run();
   if (document.fonts?.ready) document.fonts.ready.then(run);
   if (typeof ResizeObserver === 'function') new ResizeObserver(run).observe(bar);

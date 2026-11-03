@@ -22,6 +22,23 @@ scaffold writes. A breaking change in either is a major and carries a
   (HTTPSwitchboard). The read-back markup now drops them
   (`markupWithoutStyles`), and the meters paint again from their data
   attributes.
+### Fixed (round kp11, Almanac and HTTPSwitchboard on 4.6.0)
+- **fix-touch-44-1:** on a touch screen (`pointer: coarse`) the skip link, the
+  brand and the Search button are 44 x 44 px at least (kp-themes' own
+  `--kp-touch-target`); the desktop bar is unchanged.
+- **fix-touch-44-4:** "Refresh now" in the kit's refresh row is 44 px high on a
+  touch screen (the kit's own override had set it back to its text's 24 px).
+- **fix-touch-44-6:** a phone tab bar label wraps between words only and never
+  breaks inside one ("CALENDAR/S"); the fit steps the whole bar down (two new
+  levels, `tiny` and `tiniest`) until no word is wider than its tab.
+- **fix-touch-44-7:** the Status refresh row keeps caption, chooser, freshness
+  line and "Refresh now" on one row on a screen (four columns, the button had
+  dropped under the line at 28 px) and the control spans its header.
+- **fix-touch-44-5:** `tests/browser/touch_targets.firefox.mjs` measures every
+  interactive element on login, Status, Storage and Clients at 390 px with a
+  coarse pointer (Firefox, `hasTouch`) and the six-tab bar; a Rust lock keeps
+  the rules in the stylesheet. Sizes still under 44 px that belong to
+  kp-themes (sort headers, uptime cells, switch input) are listed for it.
 
 ## [4.6.0] - 2026-11-03
 
