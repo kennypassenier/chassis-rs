@@ -170,8 +170,8 @@
   <h2 class="kp-dialog__title" id="chassis-sheet-title">Keyboard shortcuts</h2>
 </dialog>
 <nav class="kp-tabbar chassis-tabbar" id="chassis-tabbar" aria-label="Areas">
-  {%- set tab_limit = 5 -%}
-  {#- ux-chassis-8: the first five primary pages (the most a 390 px bar carries beside More) are tabs; everything else,
+  {%- set tab_limit = phone_tabs -%}
+  {#- ux-chassis-8 / release-470: the first `phone_tabs` primary pages (four: a readable label at 390 px beside More) are tabs; everything else,
       secondary pages included, is behind the one More tab, so a page is in
       the tab bar or in More, never both. -#}
   {%- set tabs = namespace(n=0) -%}

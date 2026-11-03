@@ -124,16 +124,27 @@ async fn the_phone_tab_bar_has_one_more_tab_and_no_page_twice() {
     let tabbar = &html[from..from + html[from..].find("</nav>").unwrap()];
     assert_eq!(tabbar.matches("kp-tabbar__tab--more").count(), 1);
     // Primary pages are tabs; the secondary ones are not.
-    for tab in ["Overview", "Stacks", "Backups", "Status", "Clients"] {
+    // Kenny's release-470: four primary pages are tabs, the fifth goes to More.
+    for tab in ["Overview", "Stacks", "Backups", "Status"] {
         assert!(tabbar.contains(&format!(">{tab}<")), "{tab} is a tab");
     }
+    assert!(
+        !tabbar.contains(">Clients<"),
+        "the fifth primary page is in More, not a tab"
+    );
     assert!(!tabbar.contains("Audit log"));
     let more = &html[html.find("id=\"chassis-more\"").unwrap()..];
     let more = &more[..more.find("</dialog>").unwrap()];
-    for held in ["Audit log", "Settings", "Passkeys", "Help for this page"] {
+    for held in [
+        "Audit log",
+        "Settings",
+        "Passkeys",
+        "Help for this page",
+        "Clients",
+    ] {
         assert!(more.contains(held), "More holds {held}");
     }
-    for tab in ["Overview", "Stacks", "Backups", "Status", "Clients"] {
+    for tab in ["Overview", "Stacks", "Backups", "Status"] {
         assert!(
             !more.contains(&format!(">{tab}<")),
             "{tab} must not repeat in More"

@@ -7,6 +7,12 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed (Kenny's release-470 form)
+- **tabbar "Max 4 plus More":** on a phone the tab bar shows at most four
+  primary pages beside More (`PHONE_TABS`); the fifth and later are in the
+  More drawer. Six tabs at 390 px left 65 px each, so the labels had to shrink to
+  8.6 px to fit without a mid-word break.
+
 ### Changed (kp-themes 12.6.0)
 - kp-themes 12.6.0 vendored (1911 files checked against its SHA256SUMS):
   - every component shortcut can be configured through

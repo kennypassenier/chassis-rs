@@ -4,6 +4,11 @@
 
 use super::*;
 
+/// How many primary pages the phone tab bar shows beside More (Kenny's
+/// release-470, "Max 4 plus More"): six tabs at 390 px left 65 px each, too
+/// narrow for a readable label, so the rest is behind More.
+pub(crate) const PHONE_TABS: usize = 4;
+
 /// Build the environment for a dashboard named `app_name` whose navigation is
 /// `kit_nav` and whose clients are called `vocab`.
 pub(super) fn build(
@@ -66,6 +71,7 @@ pub(super) fn build(
     );
     env.add_global("chassis_version", crate::VERSION);
     env.add_global("kp_themes_version", KP_THEMES_VERSION);
+    env.add_global("phone_tabs", PHONE_TABS);
     env.add_global("clients_label", clients_label.to_string());
     env.add_global("vocab", minijinja::Value::from_serialize(vocab));
     env.add_global("token_var", vocab.token_var());
