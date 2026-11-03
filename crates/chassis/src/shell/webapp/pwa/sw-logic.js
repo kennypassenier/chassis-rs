@@ -113,6 +113,21 @@ function isAppDataDb(name) {
     return typeof name === 'string' && (name.startsWith('chassis-data:') || name.startsWith('chassis-db:'));
 }
 
+/**
+ * The message an activated worker sends to the open pages. `update` says
+ * whether this activation replaced an earlier release (it found that
+ * release's cache): the pages then run old scripts and reload once. On a
+ * first install nothing is stale, so `update` is false and no page reloads.
+ * Only the worker knows this. A page cannot: a worker that was registered by
+ * an earlier page (the login) may claim it in the middle of its load, and
+ * `navigator.serviceWorker.controller` is then already set when its own
+ * registration code runs, which looked like an update and reloaded the page
+ * in the middle of its start (fix-sw-first-1).
+ */
+function activationMessage(version, staleNames) {
+    return { type: 'chassis-sw-activated', version, update: staleNames.length > 0 };
+}
+
 /** The oldest keys beyond `max`, in the order the cache lists them. */
 function surplusKeys(keys, max = MAX_ENTRIES) {
     return keys.length > max ? keys.slice(0, keys.length - max) : [];
@@ -121,6 +136,6 @@ function surplusKeys(keys, max = MAX_ENTRIES) {
 if (typeof module !== 'undefined') {
     module.exports = {
         cacheNameFor, staleCaches, isCacheableRequest, isCacheableResponse, surplusKeys,
-        isLogoutRequest, survivesLogout, isAppDataDb,
+        isLogoutRequest, survivesLogout, isAppDataDb, activationMessage,
     };
 }

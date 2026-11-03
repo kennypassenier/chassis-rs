@@ -8,6 +8,15 @@ scaffold writes. A breaking change in either is a major and carries a
 ## [Unreleased]
 
 ### Fixed (trial bump on 4.6.0)
+- The first install no longer loads the page twice (Medicine Cabinet, HTTPSwitchboard).
+  A worker an earlier page (the login) had registered claimed the next page in the middle
+  of its load; that page's `registerPwa` then saw a controller, took the activation for an
+  update and reloaded, which aborted its lazy imports and the `/api/kit/status` read
+  (`NS_BINDING_ABORTED`, "ServiceWorker ... unexpected error"). The worker now says in its
+  `chassis-sw-activated` message whether it replaced a release (`update`, true only when it
+  found an earlier cache) and the page reloads only for `update: true`. The worker also
+  never lets a cache fault reach the page: an unopenable cache, a failed store or a failed
+  cache listing is logged and the network answers. [fix-sw-first-1]
 - `scripts/release-kit.sh` installs the released `chassis` command on the
   machine that released it (`cargo install --path crates/chassis-cli`), so
   the CLI the apps use follows the kit (kyu-runner found 3.6.3 installed while

@@ -28,14 +28,30 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         (async () => {
-            const names = await caches.keys();
-            await Promise.all(staleCaches(names, CACHE).map((n) => caches.delete(n)));
+            const stale = await staleCachesNow();
+            await Promise.all(stale.map((n) => caches.delete(n).catch(warn('drop a cache'))));
             await self.clients.claim();
             const pages = await self.clients.matchAll({ type: 'window' });
-            for (const page of pages) page.postMessage({ type: 'chassis-sw-activated', version: CACHE });
+            for (const page of pages) page.postMessage(activationMessage(CACHE, stale));
         })(),
     );
 });
+
+// The earlier releases' caches; an unreadable cache storage means none.
+async function staleCachesNow() {
+    try {
+        return staleCaches(await caches.keys(), CACHE);
+    } catch (err) {
+        warn('list the caches')(err);
+        return [];
+    }
+}
+
+// A cache fault never reaches the page: it is logged here and the network
+// answers instead (fix-sw-first-1).
+function warn(what) {
+    return (err) => console.warn(`chassis: service worker could not ${what}:`, err);
+}
 
 self.addEventListener('fetch', (event) => {
     const req = event.request;
@@ -52,17 +68,26 @@ self.addEventListener('fetch', (event) => {
         mode: req.mode,
         destination: req.destination,
     });
-    if (wanted) event.respondWith(networkFirst(event, req));
+    if (wanted) event.respondWith(networkFirst(event, req).catch((err) => (warn('answer')(err), fetch(req))));
 });
 
+async function openCache() {
+    try {
+        return await caches.open(CACHE);
+    } catch (err) {
+        warn('open its cache')(err);
+        return null;
+    }
+}
+
 async function networkFirst(event, req) {
-    const cache = await caches.open(CACHE);
+    const cache = await openCache();
     try {
         const res = await fetch(req);
-        if (isCacheableResponse(res)) event.waitUntil(store(cache, req, res.clone()));
+        if (cache && isCacheableResponse(res)) event.waitUntil(store(cache, req, res.clone()).catch(warn('store a copy')));
         return res;
     } catch (err) {
-        const hit = await cache.match(req);
+        const hit = cache ? await cache.match(req).catch(() => undefined) : undefined;
         if (hit) return hit;
         if (req.mode === 'navigate') return offlinePage(cache);
         return Response.error();
@@ -97,7 +122,7 @@ async function store(cache, req, res) {
 // The offline page, marked so the page's own retry can tell it from a real
 // answer.
 async function offlinePage(cache) {
-    const page = await cache.match(OFFLINE_URL);
+    const page = cache ? await cache.match(OFFLINE_URL).catch(() => undefined) : undefined;
     const body = page ? await page.text() : '<!doctype html><title>Offline</title><p>You are offline.</p>';
     return new Response(body, {
         status: 200,
