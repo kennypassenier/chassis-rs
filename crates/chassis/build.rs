@@ -230,6 +230,9 @@ fn classify(rel: &str) -> Option<&'static str> {
 /// directory, and an absolute path would then embed THAT checkout's files
 /// (measured 2026-10-30 across two worktrees).
 fn entry(rel: &str, mime: &str) -> String {
+    if rel == kp_guards::KP_BUNDLE {
+        return bundle_facade_row(mime);
+    }
     let mut row = String::new();
     writeln!(
         row,
@@ -238,6 +241,24 @@ fn entry(rel: &str, mime: &str) -> String {
     )
     .unwrap();
     row
+}
+
+/// The bundle's URL answers a facade over the split entries (fix-kp-mix-1).
+/// Kit pages load the split modules (`dist/js/auto.js`, one controller
+/// registry); a project script that imports the self-contained bundle on the
+/// same page brought a second copy, and the two attached to each other's
+/// markup until Firefox's main thread froze (HTTPSwitchboard, Almanac on
+/// 4.4.0+). Through the facade every import of the bundle shares the split
+/// modules: the same exports (kp `dist/js/index.js` carries all 1854 of the
+/// bundle's), and the same boot (`auto.js`, which the bundle copies).
+fn bundle_facade_row(mime: &str) -> String {
+    const FACADE: &str = "// chassis: the bundle's URL serves the split modules, so a page never holds two copies of kp-themes.\n\
+        import './js/auto.js';\n\
+        export * from './js/index.js';\n";
+    format!(
+        "    ({:?}, {mime:?}, b\"{FACADE}\"),\n",
+        kp_guards::KP_BUNDLE
+    )
 }
 
 /// Writes `&[ rows ]`, the expression `assets.rs` includes.

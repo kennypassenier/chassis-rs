@@ -26,14 +26,14 @@ async fn fetch(path: &str, headers: &[(&str, &str)]) -> axum::response::Response
 }
 
 #[tokio::test]
-async fn the_bundle_is_served_gzip_when_asked() {
+async fn the_split_index_is_served_gzip_when_asked() {
     let raw = ASSETS
         .iter()
-        .find(|(n, _, _)| *n == "kp/dist/kp-themes.min.js")
+        .find(|(n, _, _)| *n == "kp/dist/js/index.js")
         .expect("bundle")
         .2;
     let res = fetch(
-        "/static/kp/dist/kp-themes.min.js?v=x",
+        "/static/kp/dist/js/index.js?v=x",
         &[("accept-encoding", "gzip")],
     )
     .await;
@@ -53,7 +53,7 @@ async fn the_bundle_is_served_gzip_when_asked() {
 
 #[tokio::test]
 async fn nothing_is_compressed_unless_asked_and_fonts_never() {
-    let plain = fetch("/static/kp/dist/kp-themes.min.js?v=x", &[]).await;
+    let plain = fetch("/static/kp/dist/js/index.js?v=x", &[]).await;
     assert!(!plain.headers().contains_key("content-encoding"));
     let font = ASSETS
         .iter()
@@ -73,7 +73,7 @@ async fn nothing_is_compressed_unless_asked_and_fonts_never() {
 
 #[tokio::test]
 async fn revalidation_still_answers_304_with_gzip() {
-    let path = "/static/kp/dist/kp-themes.min.js";
+    let path = "/static/kp/dist/js/index.js";
     let first = fetch(path, &[("accept-encoding", "gzip")]).await;
     let etag = first.headers()["etag"].to_str().unwrap().to_string();
     assert!(

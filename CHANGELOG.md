@@ -7,6 +7,25 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [4.5.1] - 2026-11-03
+
+### Fixed
+- A kit page whose project script imports the bundle
+  (`/static/kp/dist/kp-themes.min.js`) froze Firefox before
+  DOMContentLoaded (HTTPSwitchboard, Almanac; since 4.2.0 moved kit pages to
+  the split modules). The page held two copies of kp-themes, the kit's split
+  modules and the bundle, which attached to each other's markup without end.
+  The bundle's URL now serves a facade over the split modules
+  (`import './js/auto.js'; export * from './js/index.js';`), so every import
+  of it shares the page's one copy: the same 1854 exports, the same boot. A
+  project that imports the bundle changes nothing, which makes the 4.4.0
+  migration note ("bundle apps change nothing") true again. Measured on
+  HTTPSwitchboard's own repro: login, then goto /translate committed in 25 ms
+  (it never committed on 4.5.0). fix-kp-mix-1.
+- Advice from Almanac's analysis, for projects: a deferred module must not
+  `await` `data-kp-auto-ready` at top level; the auto-attach runs on
+  DOMContentLoaded, which waits for that module.
+
 ## [4.5.0] - 2026-11-03
 
 ### Fixed (found by the 4.5.0 gate)
