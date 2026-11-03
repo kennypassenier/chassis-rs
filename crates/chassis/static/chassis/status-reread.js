@@ -1,6 +1,7 @@
 // The status page's reads: the quiet refresh (nothing dimmed) and the loud
 // re-read (the cards and, for the whole page, the figures show their loading
 // states; a failure puts the last good read back, then shows the plate).
+import { markupWithoutStyles } from './meters.js';
 import { poll } from './status-api.js';
 import { stampTimes } from './status-format.js';
 import { POLLED, mayChange } from './status-settle.js';
@@ -49,7 +50,7 @@ export function createReread(ctx) {
     const cards = cardsOf(scope);
     const was = new Map(cards.map((c) => [c, c.getAttribute('data-kp-state')]));
     const strip = ctx.only('.kp-ops__kpis .kp-kpis');
-    const tiles = strip ? strip.innerHTML : '';
+    const tiles = strip ? markupWithoutStyles(strip) : '';
     if (page) pageReading();
     for (const card of cards) {
       ctx.reading.add(card);

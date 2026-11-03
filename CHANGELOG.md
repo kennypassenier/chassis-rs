@@ -7,6 +7,14 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed (trial bump on 4.6.0)
+- The Status page put its figures back after a failed read as markup that
+  still carried the style attributes CSSOM had set on its meters, which the CSP
+  (`style-src 'self'`) blocks, so the Health meter lost its value
+  (HTTPSwitchboard). The read-back markup now drops them
+  (`markupWithoutStyles`), and the meters paint again from their data
+  attributes.
+
 ## [4.6.0] - 2026-11-03
 
 ### Changed (Kenny's release-460 form)

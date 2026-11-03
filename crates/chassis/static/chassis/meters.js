@@ -39,3 +39,16 @@ export function installMeters(doc) {
   });
   return observer;
 }
+
+/**
+ * The markup inside `el` as the page could put it back with `innerHTML`, but
+ * without the style attributes CSSOM left on its elements (a painted meter's
+ * custom properties): read back as markup they would be inline styles, which
+ * the CSP blocks (HTTPSwitchboard, the Status page's read-back of its figures
+ * after a failed read). The data attributes stay, so the meters paint again.
+ */
+export function markupWithoutStyles(el) {
+    const copy = el.cloneNode(true);
+    for (const styled of copy.querySelectorAll('[style]')) styled.removeAttribute('style');
+    return copy.innerHTML;
+}
