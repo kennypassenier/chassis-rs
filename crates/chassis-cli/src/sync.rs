@@ -8,11 +8,13 @@ use std::path::Path;
 use chassis::Error;
 
 use crate::drift;
+use crate::exit_codes::Finish;
 use crate::process::require_tool;
 use crate::protect::protect_main;
 use crate::recorded::Recorded;
 use crate::render::io_err;
 use crate::sync_files::{remove_obsolete_files, sync_rendered_files};
+use crate::sync_hint::upgrade_hint;
 
 /// Reads the record `new` wrote, for every command that works on a project.
 pub(crate) fn read_recorded(dir: &Path) -> Result<Recorded, Error> {
@@ -32,10 +34,26 @@ pub(crate) fn read_recorded(dir: &Path) -> Result<Recorded, Error> {
 /// that was not written, or drift `--write` cannot fix (the kit tag in
 /// Cargo.toml, a branch protection without `--protect`). Scripts and CI read
 /// the exit code, so `unresolved` is what decides exit 1, `--write` or not.
+/// `deviation`: a file differs and `.chassis.toml` declares that it may
+/// (runner-2); it decides exit 4 when nothing is `unresolved`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SyncOutcome {
     pub(crate) changed: bool,
     pub(crate) unresolved: bool,
+    pub(crate) deviation: bool,
+}
+
+impl SyncOutcome {
+    /// How the command ends: undeclared drift wins over a declared deviation.
+    pub(crate) fn finish(self) -> Finish {
+        if self.unresolved {
+            Finish::Unresolved
+        } else if self.deviation {
+            Finish::DeclaredDeviation
+        } else {
+            Finish::Clean
+        }
+    }
 }
 
 /// Returns whether any kit-owned file, or anything K32 compares, differed.
@@ -56,6 +74,7 @@ pub(crate) fn cmd_sync(
     let mut found = SyncOutcome {
         changed: false,
         unresolved: false,
+        deviation: false,
     };
     sync_kp_themes(dir, &mut rec, write, &mut found)?;
     let cargo = read_cargo(dir)?;
@@ -165,6 +184,9 @@ fn report_record_and_dependency_drift(
         found.changed = true;
         found.unresolved = true;
         println!("{d}");
+    }
+    if let Some(hint) = upgrade_hint(&rec.chassis_tag, env!("CARGO_PKG_VERSION")) {
+        println!("{hint}");
     }
     if remote {
         for d in drift::remote_drift(&rec.repo)? {

@@ -63,6 +63,15 @@ pub(crate) struct Recorded {
     /// drift until the line is deleted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) required_checks: Vec<String>,
+    /// Kit-owned files the project deliberately keeps different from the
+    /// scaffold (runner-2, kyu-runner's design 2026-09-10): paths relative to
+    /// the project root. `sync` reports such a difference as a `~` line,
+    /// leaves the file alone even with `--write`, and exits 4 instead of 1
+    /// when nothing else is wrong, so the exit code keeps meaning "a kit-owned
+    /// file drifted without anyone deciding it". `--write --force` still
+    /// overwrites it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) deviations: Vec<String>,
     /// The LXC's vmid (1.7.1): `service.yml` names it and the hostname
     /// `<vmid>-app-<name>` the homelab validates. 0 = not adopted yet.
     #[serde(default)]

@@ -22,6 +22,32 @@ scaffold writes. A breaking change in either is a major and carries a
   cookie's `Max-Age`, a plain session slides by `session_ttl_secs` and its
   cookie carries no `Max-Age` (the server owns its end). No behaviour change.
   fix-open-4.
+### Added (chassis CLI open items)
+- `chassis release` exits **3** when it has published everything and only the
+  human signing step is left (the sign script did not complete, or
+  `[release] sign = false`), instead of the 1 a real failure gets
+  [fix-runner-1]. The exit codes are listed in `chassis --help` and the README.
+- `.chassis.toml` takes `deviations = ["deny.toml"]`: kit-owned files the
+  project keeps different on purpose. `chassis sync` reports them as `~`, does
+  not write them (`--write --force` still does), and exits **4** instead of 1
+  when they are all that differs [fix-runner-2].
+- `chassis sync` prints one `~` line naming `chassis upgrade <version>` when
+  the recorded kit version is older than the CLI's [fix-runner-3].
+
+### Changed (chassis CLI open items)
+- The generated `docs/KIT.md` header no longer states the kit version or tag
+  (both stay in `.chassis.toml`), so a bump that moves only the version no
+  longer rewrites the file; it changes when the kit's content changes
+  [fix-runner-4]. A project's next `sync --write` rewrites the header once.
+- `scripts/drill-release.sh` builds the target `chassis release` would: `[release]
+  build` from `.chassis.toml` (musl by default), or `--build musl|glibc`; the
+  `inbox` example, which needs OpenSSL through `passkeys`, still builds glibc
+  [fix-drill-1].
+
+### Checked, not changed
+- `human_time` unused without the dashboard feature: not real. It is in the
+  `chassis` crate, already `cfg(any(feature = "dashboard", test))`; `cargo check`
+  of `chassis-cli` and of `chassis` with each feature alone gives no warning.
 
 ### Fixed (Kitchen, cycle 2026-11-03)
 - The logout warning on the kit's own pages (Status, Clients, Storage) used

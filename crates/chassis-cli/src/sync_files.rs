@@ -41,6 +41,13 @@ pub(crate) fn sync_rendered_files(
         // missing file is no gate at all, which is the fail-open rule 12
         // forbids. A migrated project never ran `new`, so this is the only
         // way it ever receives one (kyu-runner, 2026-09-10).
+        if !force && rec.deviations.contains(&rel) && dir.join(&rel).exists() {
+            found.deviation = true;
+            println!(
+                "~ {rel} (declared in .chassis.toml `deviations`; differs from the scaffold, left alone)"
+            );
+            continue;
+        }
         if owned && !force && dir.join(&rel).exists() {
             println!(
                 "~ {rel} (project-owned; differs from the scaffold, left alone — use --write --force to overwrite)"

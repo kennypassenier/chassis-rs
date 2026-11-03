@@ -20,6 +20,7 @@ existing one against. Each file is a minijinja template rendered with:
 | `vmid` | the LXC's vmid once adopted (1.7.1); `service.yml` and its hostname `<vmid>-app-<name>` come from it — a sync no longer resets them to 0 | `112` |
 | `deny_ignore` | RUSTSEC ids cargo-deny ignores for this project (1.7.0), each a reviewed decision with its reason in a comment beside it | `["RUSTSEC-2023-0071"]` |
 | `unit_service` | the project's own `[Service]` directives, rendered into `deploy/<name>.service` after `ExecStart=` so `chassis sync --write` keeps them (fix-14); a `# …` line may explain one | `["ExecReload=/bin/kill -HUP $MAINPID"]` |
+| `deviations` | kit-owned files the project deliberately keeps different from the scaffold (runner-2): `chassis sync` prints them as `~`, never writes them (only `--write --force` does) and exits 4 instead of 1 when nothing else differs | `["deny.toml"]` |
 | `image` | whether `chassis release` builds and pushes a container image (3.3.0). Absent: no image when `deploy/service.yml` names a `binary:` (a native unit), else an image | `false` |
 | `latch_env` | the `--env` the latch unit passes (1.6.0; default `prod`; `""` = no `--env`, latch's own default) | `""` |
 | `vmid` / `stack` | for `service.yml`; placeholders until adoption | `0` / `inbox` |

@@ -54,6 +54,7 @@ fn rec() -> Recorded {
         env_names: Vec::new(),
         image: None,
         required_checks: Vec::new(),
+        deviations: Vec::new(),
         vmid: 0,
         release: Default::default(),
     }

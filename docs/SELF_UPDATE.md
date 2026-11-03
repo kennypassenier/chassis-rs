@@ -333,10 +333,12 @@ the release is inert to the updater. Proven by:
 
 ## Running the drills
 
-`scripts/drill-release.sh` builds a drill release of `inbox` for Debian
-trixie — glibc, because the kit's own drill tooling has not moved to musl
-with the scaffold yet (queued) — writes the manifest and `VERSION`, signs
-it, and can serve it:
+`scripts/drill-release.sh` builds a drill release of `inbox` for the target
+`chassis release` would use: `[release] build` in `.chassis.toml` (musl by
+default, glibc with `glibc_image`), or `--build musl|glibc` to force it.
+This repository has no record and `inbox` enables `passkeys` (OpenSSL), so
+the drill builds glibc here unless told otherwise. It writes the manifest
+and `VERSION`, signs it, and can serve it:
 
 ```bash
 scripts/drill-release.sh 0.1.1                 # sign with Kenny's key (password prompt)

@@ -3,12 +3,12 @@
 
 use crate::process::run_interactive;
 
-const FLOW: &str = include_str!("../release_flow.rs");
+const FLOW: &str = include_str!("../release_flow/sign.rs");
 
 #[test]
 fn the_sign_step_passes_its_prompt_through() {
     // Escaped quotes: these literals never match their own source line.
-    let step = "run_interactive(dir, \"scripts/sign-release.sh\", &[tag])?;";
+    let step = "run_interactive(dir, \"scripts/sign-release.sh\", &[tag])";
     assert!(
         FLOW.contains(step),
         "the sign step must not buffer its output"

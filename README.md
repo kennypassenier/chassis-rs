@@ -52,9 +52,16 @@ wrote (obsolete since 3.0.0; `--write` removes them), and with `--remote`
 checks (there is no CI), not strict, admins not enforced. Every such difference
 is one line, `! <what>: <project value> vs <expected> — <remedy>`, printed
 next to the file diffs (`kp_themes` first, because that record feeds
-the rendered files such as `docs/KIT.md`). Exit 0 = in sync (or every difference applied with
-`--write`); exit 1 = drift found and not applied, or the command itself
-could not run (unparseable file, missing tool — stderr carries the remedy).
+the rendered files such as `docs/KIT.md`). When the recorded kit version lags the
+`chassis` that runs, one more `~` line names `chassis upgrade <version>`. A kit-owned
+file the project keeps different on purpose is listed in `.chassis.toml` as
+`deviations = ["deny.toml"]`: sync prints it as `~`, never writes it, and does not count it as drift.
+
+Exit codes: 0 = in sync (or every difference applied with `--write`); 1 = drift found
+and not applied, or the command itself could not run (unparseable file, missing tool —
+stderr carries the remedy); 2 = the command line did not parse (clap); 3 = `release`
+published and is waiting on the human signing step (see below); 4 = `sync` found no
+drift except the deviations the project declared. `chassis --help` lists them.
 Without `--remote` sync needs no network and no token, so a script can run
 it as a drift check; `--remote` is the only part that needs `gh` and a login.
 
@@ -64,7 +71,11 @@ CI workflow used to run (fmt, clippy, tests, the project's own gates,
 bump, commit and tag, then the static musl binary, `SHA256SUMS` and the
 image, and only then the pushes, the GitHub release (not `latest` until
 signed) and `scripts/sign-release.sh`. `--dry-run` stops after the builds;
-`--plan` prints the steps.
+`--plan` prints the steps. The signing step needs a key and a password only the
+person has, so when it does not complete (or `[release] sign = false`) the command
+exits **3**, not 1: everything is published, only `scripts/sign-release.sh <tag>`
+is left. A script that chains releases can tell "waiting for the key" (3) from
+"something broke" (1).
 
 Every project also carries `docs/KIT.md`: what it gets from the kit — the
 door (tokens, the two secrets), the dashboard pages, `/healthz` and
