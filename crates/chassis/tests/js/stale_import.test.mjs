@@ -8,7 +8,9 @@ const fakeWin = (store = new Map()) => {
     return {
         reloads: 0,
         sessionStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) },
-        addEventListener(type, f) { if (type === 'unhandledrejection') handler = f; },
+        handlers: {},
+        addEventListener(type, f) { if (type === 'unhandledrejection') handler = f; this.handlers[type] = f; },
+        setTimeout: (f) => f(),
         location: { reload() { win.reloads += 1; } },
         fire: (reason) => handler({ reason }),
         store,
@@ -50,5 +52,30 @@ test('blocked storage never reloads, and the guard installs once', () => {
     guardStaleImports(win);
     guardStaleImports(win);
     win.fire(new TypeError('error loading dynamically imported module'));
+    assert.equal(win.reloads, 0);
+});
+
+test('a rejection while the page is being left never reloads (it would cancel the navigation)', () => {
+    win = fakeWin();
+    guardStaleImports(win);
+    win.handlers.beforeunload();
+    win.fire(new TypeError('error loading dynamically imported module'));
+    assert.equal(win.reloads, 0);
+    assert.equal(win.store.get(RELOAD_KEY), undefined);
+    win = fakeWin();
+    guardStaleImports(win);
+    win.handlers.pagehide();
+    win.fire(new TypeError('error loading dynamically imported module'));
+    assert.equal(win.reloads, 0);
+});
+
+test('a navigation that starts during the settle delay also cancels the reload', () => {
+    win = fakeWin();
+    let later;
+    win.setTimeout = (f) => { later = f; };
+    guardStaleImports(win);
+    win.fire(new TypeError('error loading dynamically imported module'));
+    win.handlers.pagehide();
+    later();
     assert.equal(win.reloads, 0);
 });

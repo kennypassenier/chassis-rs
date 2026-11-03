@@ -7,6 +7,15 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed (nav-hang, http-switchboard and Almanac 2026-11-03)
+- After login in Firefox, every further `page.goto` hung or was aborted. The
+  stale-chunk guard (4.2.0, `stale-import.js`) took the rejection of a lazy
+  import that the navigation itself cancelled for a gone chunk and called
+  `location.reload()`, which replaced the navigation just started with a reload
+  of the old page. The guard now ignores rejections while the page is being
+  left (beforeunload / pagehide) and waits 250 ms before it reloads. Apps need
+  only the bump to the next chassis release. Round: [kp11]. [fix-nav-hang-1]
+
 ### Fixed (chassis release, kyu 2026-11-03)
 - The failed-test record no longer reads nextest's progress counter
   (`FAIL [ 109.951s] (45/71) kyu-runner::l2 x`) as the binary id, which built
