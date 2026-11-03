@@ -80,7 +80,7 @@ pub mod sync;
 
 pub use app_db::{
     AppDb, AppDbSpec, CompactPreview, Deleted, ImportContext, ImportHook, ImportReport,
-    ImportState, ImportStore, KindOverview, Preview, StorageProblem,
+    ImportState, ImportStore, KindOverview, OpenHook, Preview, StorageProblem,
 };
 pub use db::{
     Db, DbOptions, FileSizes, Inspection, MAX_READERS, Migration, meta_get, meta_set, wal_path,

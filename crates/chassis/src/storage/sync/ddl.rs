@@ -5,9 +5,14 @@
 //! (`deleted = 1`); an upsert after it turns the row live again. So the table
 //! never holds more than one row per item, and holds no copy of the data.
 //!
-//! The DDL is idempotent and runs every time the app file opens (beside the
-//! preferences table), because an app's one-time import runs inside that
-//! open and may already call `sync_upsert`.
+//! The DDL is idempotent and runs every time the app file opens, BEFORE the
+//! app's migrations (and so before its one-time import), so a migration or
+//! the import may already call `sync_upsert` or [`backfill`](super::backfill).
+
+use rusqlite::Connection;
+
+use crate::core::error::Error;
+use crate::storage::db::META_DDL;
 
 /// Created with the app file; every statement is `IF NOT EXISTS`.
 pub(crate) const SYNC_DDL: &str = "
@@ -23,6 +28,21 @@ CREATE TABLE IF NOT EXISTS chassis_sync (
 ) STRICT;
 CREATE INDEX IF NOT EXISTS chassis_sync_by_seq ON chassis_sync (collection, seq);
 ";
+
+/// Create the change log's tables on `conn` (and the `chassis_meta` table
+/// its counter lives in), for an app's unit test that works on a plain
+/// in-memory [`Connection`] instead of an [`AppDb`](crate::storage::AppDb).
+/// Idempotent, like the kit's own open.
+///
+/// ```
+/// let conn = rusqlite::Connection::open_in_memory().unwrap();
+/// chassis::storage::sync::create_tables(&conn).unwrap();
+/// ```
+pub fn create_tables(conn: &Connection) -> Result<(), Error> {
+    conn.execute_batch(META_DDL)?;
+    conn.execute_batch(SYNC_DDL)?;
+    Ok(())
+}
 
 /// The scope of a row every login may read.
 pub(crate) const SHARED_SCOPE: &str = "shared";

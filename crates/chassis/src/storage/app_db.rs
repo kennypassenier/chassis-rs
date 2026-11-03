@@ -119,6 +119,10 @@ impl ImportStore {
 pub type ImportHook =
     Box<dyn FnOnce(&Transaction, &ImportContext) -> Result<ImportReport, Error> + Send>;
 
+/// Runs once when the database is open (post-open hook, see
+/// [`AppDbSpec::on_open`]).
+pub type OpenHook = Box<dyn FnOnce(&AppDb) -> Result<(), Error> + Send>;
+
 /// What a project hands [`crate::App::app_db`].
 #[derive(Default)]
 #[non_exhaustive]
@@ -127,6 +131,8 @@ pub struct AppDbSpec {
     pub migrations: Vec<Migration>,
     /// Move the project's old data in, once.
     pub import: Option<ImportHook>,
+    /// Startup work once the database is open (see [`AppDbSpec::on_open`]).
+    pub on_open: Option<OpenHook>,
     /// The pool and pre-migration copies (default: [`DbOptions::new`]).
     pub options: DbOptions,
 }
@@ -137,6 +143,7 @@ impl AppDbSpec {
         AppDbSpec {
             migrations,
             import: None,
+            on_open: None,
             options: DbOptions::new(),
         }
     }
@@ -146,6 +153,21 @@ impl AppDbSpec {
     /// before a migration.
     pub fn with_options(mut self, options: DbOptions) -> Self {
         self.options = options;
+        self
+    }
+
+    /// Startup work that needs the open database (warming a cache, seeding
+    /// the change log of rows an import did not touch). `hook` runs once,
+    /// synchronously, after the migrations and the import, on the handle
+    /// that is already usable (`read_blocking` / `write_blocking`; do not
+    /// block on the async calls). A failure does not stop the start: it is
+    /// logged and shown as a [`StorageProblem`] in [`AppDb::problems`], like
+    /// a failed import.
+    pub fn on_open(
+        mut self,
+        hook: impl FnOnce(&AppDb) -> Result<(), Error> + Send + 'static,
+    ) -> Self {
+        self.on_open = Some(Box::new(hook));
         self
     }
 

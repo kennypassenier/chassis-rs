@@ -39,6 +39,7 @@ mod snapshot;
 mod tests;
 
 pub(crate) use maintenance::vacuum_into_conn;
+pub(crate) use open::META_DDL;
 pub use options::{DbOptions, MAX_READERS};
 
 /// How long a statement waits for a lock before it gives up.

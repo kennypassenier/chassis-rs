@@ -82,7 +82,7 @@ impl SyncWrite for Transaction<'_> {
 }
 
 /// Take the next value of the file's counter and replace the item's row.
-fn record(
+pub(super) fn record(
     tx: &Transaction,
     collection: &str,
     scope: &str,

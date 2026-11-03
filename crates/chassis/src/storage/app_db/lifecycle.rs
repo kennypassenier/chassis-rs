@@ -7,10 +7,11 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use super::import::run_import;
-use super::{AppDb, AppDbSpec, ImportHook, ImportState, Shared, StorageProblem};
+use super::{AppDb, AppDbSpec, ImportHook, ImportState, OpenHook, Shared, StorageProblem};
 use crate::core::error::Error;
 use crate::storage::db::Db;
 use crate::storage::kinds::DataKind;
+use crate::storage::sync::SYNC_DDL;
 
 impl AppDb {
     pub(super) fn empty() -> Result<AppDb, Error> {
@@ -37,9 +38,11 @@ impl AppDb {
         spec: AppDbSpec,
         kinds: Vec<DataKind>,
     ) -> Result<(), Error> {
-        let db = Db::open_with(path, &spec.migrations, &spec.options)?;
+        // The change log's table exists before the app's migrations run, so
+        // a migration may seed it (`sync::backfill`).
+        let db = Db::open_prepared(path, &spec.migrations, &spec.options, SYNC_DDL)?;
         let dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
-        self.finish(db, spec.import, kinds, &dir)
+        self.finish(db, spec.import, spec.on_open, kinds, &dir)
     }
 
     /// Validate the declared kinds, run the one-time import, and publish
@@ -48,14 +51,12 @@ impl AppDb {
         &self,
         db: Db,
         import: Option<ImportHook>,
+        on_open: Option<OpenHook>,
         kinds: Vec<DataKind>,
         state_dir: &Path,
     ) -> Result<(), Error> {
         // The kit's preferences table sits beside the app's own schema.
         db.write_blocking(|tx| Ok(tx.execute_batch(crate::storage::prefs::PREFS_DDL)?))?;
-        // The change log of the local database (feat-localdb-1), beside it: an
-        // import that runs below may already record its rows as changes.
-        db.write_blocking(|tx| Ok(tx.execute_batch(crate::storage::sync::SYNC_DDL)?))?;
         validate_kinds(&db, &kinds)?;
         dry_run_finished_rules(&db, &kinds)?;
         if let Some(hook) = import {
@@ -66,7 +67,28 @@ impl AppDb {
             .set(db)
             .map_err(|_| Error::internal("the app database was opened twice", "report this"))?;
         let _ = self.shared.kinds.set(kinds);
+        if let Some(hook) = on_open {
+            self.apply_on_open(hook);
+        }
         Ok(())
+    }
+
+    /// Run the post-open hook on the published handle. A failure is not an
+    /// error of the open (the file is fine); it becomes a problem on the
+    /// Storage page, like a failed import.
+    fn apply_on_open(&self, hook: OpenHook) {
+        if let Err(e) = hook(self) {
+            tracing::error!(error = %e, "the post-open hook of the app database failed");
+            self.shared
+                .problems
+                .lock()
+                .expect("problems lock")
+                .push(StorageProblem {
+                    what: "the post-open hook of the app database failed".into(),
+                    why: e.message,
+                    remedy: e.remedy,
+                });
+        }
     }
 
     /// Run the import and record how it stands. A failure is never an
@@ -110,8 +132,8 @@ impl AppDb {
     /// In memory, for fast tests of a project's own queries.
     pub fn open_in_memory(spec: AppDbSpec, kinds: Vec<DataKind>) -> Result<AppDb, Error> {
         let handle = Self::empty()?;
-        let db = Db::open_in_memory(&spec.migrations)?;
-        handle.finish(db, spec.import, kinds, Path::new("."))?;
+        let db = Db::open_in_memory_prepared(&spec.migrations, SYNC_DDL)?;
+        handle.finish(db, spec.import, spec.on_open, kinds, Path::new("."))?;
         Ok(handle)
     }
 }

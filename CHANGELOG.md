@@ -27,6 +27,16 @@ scaffold writes. A breaking change in either is a major and carries a
   fix-overlay-2.
 - An offline PUT replaced the stored list entry; it now merges into it
   (the item's own copy still takes the body). fix-overlay-6.
+- The change log's table (`chassis_sync`) and `chassis_meta` now exist before
+  the app's migrations and import run, so a migration can call
+  `tx.sync_upsert`. New `storage::sync::backfill` / `backfill_for` record the
+  rows that existed before the change log once and idempotently (Medicine
+  Cabinet). fix-sync-mc-1.
+- `AppDbSpec::on_open(|db| ..)`: a hook that runs once after the migrations
+  and the import, on the usable handle; a failure becomes a storage problem
+  like a failed import. fix-sync-mc-2.
+- `storage::sync::create_tables(&Connection)` creates the change log's tables
+  for an app's unit tests, so they need not copy the DDL. fix-sync-mc-3.
 
 ## [4.5.1] - 2026-11-03
 
