@@ -24,7 +24,7 @@ function fakePage() {
         connectionOf: () => handle,
         toast: (text, o) => { const el = { isConnected: true }; toasts.push({ text, o, el }); return el; },
     };
-    const win = { ...target(), CustomEvent: class { constructor(n, i) { this.type = n; this.detail = i.detail; } },
+    const win = { ...target(), CustomEvent: class { constructor(n, i) { this.type = n; this.detail = i?.detail; } },
         dispatchEvent(e) { win.fire(e.type, e.detail); }, location: { href: 'https://a.example/' } };
     const doc = { ...target(), querySelectorAll: () => [band] };
     return { win, doc, kp, attrs, sets, toasts };

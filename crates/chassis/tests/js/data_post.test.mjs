@@ -104,6 +104,6 @@ test('rev "*" is sent as a bare If-Match, a real revision stays quoted (fix-habi
     const { data } = await makeClient(svc);
     await data.put(D1, { id: 1, name: 'A' }, { rev: '*' }).catch(() => {}); // the fake service has no wildcard: only the header is asserted
     assert.equal(svc.calls.at(-1).headers['if-match'], '*');
-    await data.put(D1, { id: 1, name: 'B' }, { rev: '4' });
+    await data.put(D1, { id: 1, name: 'B' }, { rev: '4' }).catch(() => {}); // rev 4 is stale here (the item is at 3): only the header is asserted
     assert.equal(svc.calls.at(-1).headers['if-match'], '"4"');
 });
