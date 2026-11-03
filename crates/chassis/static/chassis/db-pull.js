@@ -121,6 +121,8 @@ export function createPuller(deps) {
 
     return {
         pull,
+        /** Resolves when no pull of `name` is running (a clear waits for it, or the pull would write behind it). */
+        settled: (name) => (running.get(name) ?? Promise.resolve()).then(() => undefined),
         pullAll: (names) => Promise.all(names.map((n) => pull(n))),
         /** Forget the cursor: the next pull is a full resync (used when "keep everything" is switched on). */
         async resync(name) {
