@@ -44,6 +44,12 @@
     overflow-wrap: break-word;
 }
 
+/* [fix-hsb-cycle-1] A word wider than its tab ("TRANSLATION" in a five-tab
+   bar) steps the label down instead of ending in an ellipsis; the level is set
+   by shell-tabbar-fit.js, which measures. */
+.chassis-tabbar .kp-tabbar__label[data-fit="small"] { font-size: 0.85em; letter-spacing: 0; }
+.chassis-tabbar .kp-tabbar__label[data-fit="smaller"] { font-size: 0.72em; letter-spacing: 0; }
+
 /* [fix-hsb-ux-1] The connection banner keeps ONE footprint in every state
    (offline, reconnecting, refused, back): the mark, the words and the Retry
    slot stand on the same lines and the same columns whatever the state says,

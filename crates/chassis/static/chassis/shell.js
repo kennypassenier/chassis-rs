@@ -9,6 +9,7 @@ import { attachErrorPage } from './shell-error-page.js';
 import { attachPalette } from './shell-palette.js';
 import { attachConnectionLine } from './shell-connection.js';
 import { attachHeaderMenus } from './shell-more.js';
+import { attachTabbarFit } from './shell-tabbar-fit.js';
 
 // ====================================================================== shell ==
 // kit-kp11 (Kenny approved the demo sections shell-bar, shell-phone and
@@ -25,6 +26,9 @@ import { attachHeaderMenus } from './shell-more.js';
 
   // The header's one More menu and the help drawer.
   attachHeaderMenus(joined);
+
+  // The phone tab bar's labels step down in size instead of being cut.
+  attachTabbarFit(joined);
 
   // Error page: the drawing, the copy button, the way back, the time.
   attachErrorPage(joined);

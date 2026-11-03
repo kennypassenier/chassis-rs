@@ -10,6 +10,8 @@ mod support;
 mod component_states;
 #[path = "kenny_rules/fixtures.rs"]
 mod fixtures;
+#[path = "kenny_rules/hsb_cycle.rs"]
+mod hsb_cycle;
 #[path = "kenny_rules/kit_choices.rs"]
 mod kit_choices;
 #[path = "kenny_rules/kit_page_fit.rs"]
