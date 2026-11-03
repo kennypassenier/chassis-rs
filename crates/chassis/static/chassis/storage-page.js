@@ -6,6 +6,7 @@ import { createDialogHost } from './storage-dialog.js';
 import { wireDialogClicks, wireStaleness } from './storage-dialog-events.js';
 import { partsAttacher } from './storage-parts.js';
 import { createRefresh } from './storage-refresh.js';
+import { guardImport } from './stale-import.js';
 
 /* ======================================================================
    storage (kit-storage, 3.11.0)
@@ -41,7 +42,7 @@ if (storageRoot) {
 async function buildContext(root) {
   // Each part is its own entry under dist/js/ (kp-themes 12.2): the name is the
   // entry's file name, so a page loads only the parts it asks for.
-  const kp = (part) => import(`../kp/dist/js/${part}.js`);
+  const kp = (part) => guardImport(import(`../kp/dist/js/${part}.js`));
   const [stackbar, cardState, datatable, flash, overlays] = await Promise.all([kp('stackbar'), kp('card-state'), kp('datatable'), kp('flash'), kp('overlays')]);
   const card = (key) => root.querySelector(`[data-storage-card="${key}"]`);
   const kindsCard = card('kinds');

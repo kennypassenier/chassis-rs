@@ -3,6 +3,8 @@
 // Split out of chassis.js by responsibility; the page runs exactly as
 // before.
 
+import { guardImport } from './stale-import.js';
+
 // A project's [data-post] button (a row or a section action, K29): POST (or
 // its method) to the route it names, then reload; a refusal is the kit's JSON
 // and shows as a word on the button with the sentence under it. Destructive
@@ -12,7 +14,7 @@
 document.addEventListener('click', async (event) => {
   const post = event.target.closest('[data-post]');
   if (!post || post.hasAttribute('data-kp-armed-pending')) return;
-  const { runFlashButton } = await import('../kp/dist/js/flash.js');
+  const { runFlashButton } = await guardImport(import('../kp/dist/js/flash.js'));
   runFlashButton(
     post,
     async () => {

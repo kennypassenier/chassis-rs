@@ -10,6 +10,7 @@ import { wireRefresh } from './status-refresh-wiring.js';
 import { createReread } from './status-reread.js';
 import { createSections } from './status-sections.js';
 import { createSettle } from './status-settle.js';
+import { guardImport } from './stale-import.js';
 
 /* ======================================================================
    status (kit-kp11)
@@ -33,7 +34,7 @@ if (statusRoot) {
 async function buildContext(root) {
   // Each part is its own entry under dist/js/ (kp-themes 12.2): the name is the
   // entry's file name, so a page loads only the parts it asks for.
-  const kp = (part) => import(`../kp/dist/js/${part}.js`);
+  const kp = (part) => guardImport(import(`../kp/dist/js/${part}.js`));
   const { restoreRemembered, attachRemembered } = await kp('remember');
   restoreRemembered(root);
   attachRemembered(root);

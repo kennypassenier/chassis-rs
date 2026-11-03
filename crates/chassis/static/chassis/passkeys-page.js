@@ -3,6 +3,7 @@
 // before.
 
 import { attachPageParts } from './page-parts.js';
+import { guardImport } from './stale-import.js';
 
 // ==========================================================================
 // passkeys (kit-kp11, approved demo "passkeys-list" and "passkeys-qr")
@@ -55,7 +56,7 @@ async function initPasskeys(root) {
   // moment (its busy card, the theme's own loading animation) instead of an empty box
   // while their modules load; the QR code is drawn here, so its loading ends
   // the moment its module attached.
-  const [{ setPasskeys }, qrModule] = await Promise.all([import('../kp/dist/js/passkeys.js'), qr ? import('../kp/dist/js/qr.js') : null]);
+  const [{ setPasskeys }, qrModule] = await Promise.all([guardImport(import('../kp/dist/js/passkeys.js')), qr ? guardImport(import('../kp/dist/js/qr.js')) : null]);
   const dialog = document.getElementById('passkey-register');
   const base = {
     markCurrent: true,

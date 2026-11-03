@@ -13,6 +13,7 @@ import { createRequests } from './client-requests.js';
 import { wireDanger } from './client-danger.js';
 import { createSwap } from './client-swap.js';
 import { wireRegion } from './client-wire.js';
+import { guardImport } from './stale-import.js';
 
 // The kp-themes entries the client page uses, one file each under dist/js/.
 const CLIENT_ENTRIES = ['card-state', 'loading-pieces', 'overlays', 'request-inspector', 'idmark', 'components', 'flash', 'patterns', 'command', 'json-field'];
@@ -23,7 +24,7 @@ if (root) startClientPage(root);
 async function startClientPage(page) {
   // The page imports only the entries it uses (kp-themes 12.2) and merges
   // their names into one object, which the region modules read as `ctx.kp`.
-  const kp = Object.assign({}, ...(await Promise.all(CLIENT_ENTRIES.map((name) => import(`../kp/dist/js/${name}.js`)))));
+  const kp = Object.assign({}, ...(await Promise.all(CLIENT_ENTRIES.map((name) => guardImport(import(`../kp/dist/js/${name}.js`))))));
   const ctx = { page, kp, id: page.dataset.clientId, name: page.dataset.clientName };
   ctx.requests = createRequests(ctx);
   ctx.requests.attach();

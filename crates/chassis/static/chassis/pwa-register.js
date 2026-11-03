@@ -17,12 +17,12 @@
 // fires `chassis-pwa-update` on window with `detail: { version, apply() }`.
 // `apply()` reloads once, recorded under the same key as the automatic reload.
 
-import { guardStaleImports } from './stale-import.js';
+import { guardStaleImports, UPDATE_EVENT } from './stale-import.js';
 
 export const MANIFEST_HREF = '/manifest.webmanifest';
 export const WORKER_URL = '/sw.js';
 const RELOADED_KEY = 'chassis-sw-reloaded';
-export const UPDATE_EVENT = 'chassis-pwa-update';
+export { UPDATE_EVENT };
 /** The attribute on the manifest link that carries `Pwa::reload`; absent means auto. */
 export const RELOAD_ATTR = 'data-chassis-reload';
 
@@ -70,9 +70,9 @@ function announce(win, version, store, announced) {
 export function registerPwa(win, doc, nav = win.navigator) {
     if (!nav?.serviceWorker || typeof doc.querySelector !== 'function' || !linksManifest(doc)) return null;
     // An installed app is the one that stays open across updates.
-    guardStaleImports(win);
-    const hadController = Boolean(nav.serviceWorker.controller);
     const ask = reloadMode(doc) === 'ask';
+    guardStaleImports(win, { ask });
+    const hadController = Boolean(nav.serviceWorker.controller);
     const store = (() => {
         try {
             return win.sessionStorage;

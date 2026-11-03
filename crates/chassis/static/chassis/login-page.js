@@ -3,6 +3,7 @@
 // before.
 
 import { attachPageParts } from './page-parts.js';
+import { guardImport } from './stale-import.js';
 
 // ==========================================================================
 // login (kit-kp11, approved demo "login")
@@ -39,7 +40,7 @@ function initLogin(root) {
   // the form says data-kp-form-native-submit), so the page changes on the
   // answer; a service that does not answer within 20 s ends the busy
   // state with a reason on the token field.
-  import('../kp/dist/js/forms.js').then(({ attachForms, form }) => {
+  guardImport(import('../kp/dist/js/forms.js')).then(({ attachForms, form }) => {
     attachForms(root, { wrapper: '.kp-formgrid__control' });
     const el = root.querySelector('form[data-kp-form]');
     el?.addEventListener('kp-form-valid', (event) => {

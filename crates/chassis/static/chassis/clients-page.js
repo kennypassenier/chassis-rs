@@ -8,6 +8,7 @@ import { watchForFirstCall } from './clients-first-call.js';
 import { startIssueDialog } from './clients-issue.js';
 import { createFilters } from './clients-filters.js';
 import { wireRefresh } from './clients-refresh.js';
+import { guardImport } from './stale-import.js';
 
 // ============================================================================
 // clients (kit-kp11): the Clients page, as approved in the clients-list and
@@ -34,7 +35,7 @@ if (clientsPageRoot) startClientsPage(clientsPageRoot);
 async function startClientsPage(root) {
   // The name is the entry's file name under dist/js/ (kp-themes 12.2); the cache holds each once.
   const modules = {};
-  const load = async (name) => (modules[name] ??= await import(`../kp/dist/js/${name}.js`));
+  const load = async (name) => (modules[name] ??= await guardImport(import(`../kp/dist/js/${name}.js`)));
   const wanted = CLIENTS_MODULES.filter(([selector]) => root.querySelector(selector));
   await Promise.all([...wanted.map(([, name]) => load(name)), load('hovercard'), load('problems'), load('datatable'), load('steplist')]);
   if (modules.remember) modules.remember.restoreRemembered(root);

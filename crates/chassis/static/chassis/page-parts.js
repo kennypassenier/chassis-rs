@@ -3,6 +3,8 @@
 // Split out of chassis.js by responsibility; the page runs exactly as
 // before.
 
+import { guardImport } from './stale-import.js';
+
 // ==========================================================================
 // kp parts of the login and passkeys pages (kit-kp11)
 // The two pages are made of kp-themes parts that need their behaviour
@@ -29,7 +31,7 @@ export async function attachPageParts(root) {
   await Promise.all(
     PAGE_PARTS.filter(([selector]) => root.querySelector(selector)).map(async ([, path, attach]) => {
       try {
-        attach(await import(path), root);
+        attach(await guardImport(import(path)), root);
       } catch (e) {
         console.warn(`chassis: ${path} did not attach`, e);
       }
