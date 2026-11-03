@@ -84,6 +84,12 @@ When Kenny asks for the cycle:
 4. Kenny gets a release form for chassis-rs; it is released on his go.
 5. The child apps then release one by one, starting with the one most likely to surface new faults.
 
+**Release forms (Kenny, 2026-11-03, absolute):** every release form lists clearly
+- every item still open, and
+- every item parked for a later release,
+
+with an option to take them ALL into this release. Only items Kenny himself explicitly put on a later-list may stay out; everything else goes into the release.
+
 The whole cycle runs with as few tokens as possible: no full-suite reruns, only failed tests rerun. Every point where Kenny's input is needed is announced in the coordinator chat.
 
 ## When tests run (Kenny, 2026-10-04, test report)
