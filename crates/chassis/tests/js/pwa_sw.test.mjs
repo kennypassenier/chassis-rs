@@ -68,7 +68,7 @@ test('a release drops the caches of the earlier ones and nothing else', () => {
 });
 
 // The worker with fakes: the network answers or fails, the cache remembers.
-function worker({ network }) {
+function worker({ network, openFails = false, cacheKeys = [], clients = [] }) {
     const listeners = {};
     const store = new Map();
     const cache = {
@@ -79,8 +79,9 @@ function worker({ network }) {
         addAll: async () => {},
     };
     const ctx = {
-        self: { addEventListener: (n, f) => (listeners[n] = f), location: { origin }, skipWaiting() {}, clients: {} },
-        caches: { open: async () => cache, keys: async () => [], delete: async () => {} },
+        self: { addEventListener: (n, f) => (listeners[n] = f), location: { origin }, skipWaiting() {}, clients: { claim: async () => {}, matchAll: async () => clients } },
+        caches: { open: async () => { if (openFails) throw new Error('storage'); return cache; }, keys: async () => cacheKeys, delete: async () => {} },
+        console: { warn() {} },
         fetch: async (r) => network(r),
         Response: class {
             constructor(body, init) { Object.assign(this, { body, ...init }); }
@@ -103,7 +104,12 @@ function worker({ network }) {
         await Promise.all(waits);
         return out;
     };
-    return { handle, store };
+    const activate = async () => {
+        const waits = [];
+        listeners.activate({ waitUntil: (p) => waits.push(p) });
+        await Promise.all(waits);
+    };
+    return { handle, store, activate };
 }
 const request = (path, mode = 'cors', method = 'GET') => ({
     url: origin + path, method, mode, headers: { has: () => false, get: () => null },
@@ -207,4 +213,25 @@ test('the worker deletes only the offline app data databases at logout', () => {
     assert.equal(logic.isAppDataDb('chassis-db:kitchen'), true);
     assert.equal(logic.isAppDataDb('other-db'), false);
     assert.equal(logic.isAppDataDb(undefined), false);
+});
+
+test('a failing cache storage never fails a request: the network answers (fix-sw-first-1)', async () => {
+    const w = worker({ network: (r) => res({ body: `net ${r.url}` }), openFails: true });
+    assert.equal((await w.handle(request('/js/main.js'))).body, `net ${origin}/js/main.js`);
+    assert.equal((await w.handle(request('/stacks', 'navigate'))).body, `net ${origin}/stacks`);
+    const offline = worker({ network: () => { throw new TypeError('offline'); }, openFails: true });
+    assert.equal((await offline.handle(request('/stacks', 'navigate'))).headers['X-Chassis-Offline'], '1');
+});
+
+test('the activation message says whether it replaced a release (fix-sw-first-1)', async () => {
+    assert.equal(JSON.stringify(logic.activationMessage('c', [])), JSON.stringify({ type: 'chassis-sw-activated', version: 'c', update: false }));
+    assert.equal(logic.activationMessage('c', ['chassis-pwa-old']).update, true);
+    const sent = [];
+    const page = { postMessage: (m) => sent.push(m) };
+    await worker({ network: () => res(), clients: [page] }).activate();
+    assert.equal(sent[0].update, false, 'no earlier cache: a first install');
+    await worker({ network: () => res(), clients: [page], cacheKeys: ['chassis-pwa-0-0', 'other'] }).activate();
+    assert.equal(sent[1].update, true);
+    await worker({ network: () => res(), clients: [page], cacheKeys: null }).activate();
+    assert.equal(sent[2].update, false, 'an unreadable cache list is not an update');
 });

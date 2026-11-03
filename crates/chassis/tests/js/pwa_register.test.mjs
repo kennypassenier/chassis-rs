@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { shouldReload, linksManifest, registerPwa, reloadMode } from '../../static/chassis/pwa-register.js';
 
-const msg = (version) => ({ type: 'chassis-sw-activated', version });
+const msg = (version, update = true) => ({ type: 'chassis-sw-activated', version, update });
 
 test('only an update of a controlled page reloads, once per release', () => {
     assert.equal(shouldReload({ hadController: false, message: msg('v1'), lastReloaded: null }), false, 'first install');
@@ -13,6 +13,13 @@ test('only an update of a controlled page reloads, once per release', () => {
     assert.equal(shouldReload({ hadController: true, message: msg('v3'), lastReloaded: 'v2' }), true);
     assert.equal(shouldReload({ hadController: true, message: { type: 'other' }, lastReloaded: null }), false);
     assert.equal(shouldReload({ hadController: true, message: undefined, lastReloaded: null }), false);
+});
+
+test('a worker that reports a first install never reloads, even if the page already has a controller', () => {
+    // fix-sw-first-1: an earlier page's worker claimed this page mid-load, so
+    // `controller` was set when registerPwa ran; the worker knows it is the first.
+    assert.equal(shouldReload({ hadController: true, message: msg('v1', false), lastReloaded: null }), false);
+    assert.equal(shouldReload({ hadController: true, message: { type: 'chassis-sw-activated', version: 'v1' }, lastReloaded: null }), false, 'no flag: no reload');
 });
 
 const docWith = (found) => ({ querySelector: () => (found ? {} : null) });

@@ -44,6 +44,10 @@ export function reloadMode(doc) {
  */
 export function shouldReload({ hadController, message, lastReloaded }) {
     if (!message || message.type !== 'chassis-sw-activated') return false;
+    // The worker says whether it replaced an earlier release; a page cannot
+    // tell a first install from an update by its own controller, because a
+    // worker an earlier page registered may claim it mid-load.
+    if (message.update !== true) return false;
     return hadController && message.version !== lastReloaded;
 }
 
