@@ -607,10 +607,10 @@ never from a list in the layout:
 - **CSRF.** A state-changing request from a browser must come from this
   dashboard. `Sec-Fetch-Site` decides first (every modern browser sends it
   and no referrer policy blanks it): `same-origin` and `none` pass,
-  `cross-site` and `same-site` are refused with 403 `cross-site request
-  (Sec-Fetch-Site: …) refused`. Without that header the `Origin` must
-  match `Host` or it is refused with 403 `cross-origin request from …
-  refused`; requests without `Origin` (curl) pass. GET/HEAD/OPTIONS always
+  `cross-site` and `same-site` are refused with 403 `this action was
+  blocked because it was sent from another website` (the remedy carries
+  the technical detail, `Sec-Fetch-Site: …`). Without that header the `Origin` must
+  match `Host` or it is refused with the same 403 (the remedy names the origin); requests without `Origin` (curl) pass. GET/HEAD/OPTIONS always
   pass. (CF-7, 2026-09-06: the `Origin`-only rule refused every form from
   Chrome, because under the former `no-referrer` policy a form submit
   carries `Origin: null`.)

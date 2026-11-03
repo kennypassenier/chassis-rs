@@ -25,8 +25,10 @@ pub(super) async fn csrf_guard(req: Request<Body>, next: Next) -> Response {
         Some(other @ ("cross-site" | "same-site")) => {
             return Error::new(
                 Kind::Unauthorized,
-                format!("cross-site request (Sec-Fetch-Site: {other}) refused"),
-                "call this endpoint from the dashboard itself, or from a script without browser fetch metadata",
+                "this action was blocked because it was sent from another website",
+                format!(
+                    "use the button on this dashboard itself (technical detail: the browser reported Sec-Fetch-Site: {other}; a script without browser fetch metadata is let through)"
+                ),
             )
             .into_response()
             .with_status(StatusCode::FORBIDDEN);
@@ -48,8 +50,10 @@ pub(super) async fn csrf_guard(req: Request<Body>, next: Next) -> Response {
         if !origin_host.eq_ignore_ascii_case(host) {
             return Error::new(
                 Kind::Unauthorized,
-                format!("cross-origin request from {origin} refused"),
-                "call this endpoint from the dashboard itself, or from a script without an Origin header",
+                "this action was blocked because it was sent from another website",
+                format!(
+                    "use the button on this dashboard itself (technical detail: the request came from the origin {origin}, not this host; a script without an Origin header is let through)"
+                ),
             )
             .into_response()
             .with_status(StatusCode::FORBIDDEN);

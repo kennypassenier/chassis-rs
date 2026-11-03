@@ -183,7 +183,7 @@ let (status, html) = TestApp::send_text(
 )
 .await;
 assert_eq!(status, 403);
-assert!(html.contains("cross-site request"), "refused as a page: {html}");
+assert!(html.contains("sent from another website"), "refused as a page: {html}");
 ```
 
 ## The fake release server (with `self-update`)
