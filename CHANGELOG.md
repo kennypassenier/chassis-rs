@@ -8,6 +8,15 @@ scaffold writes. A breaking change in either is a major and carries a
 ## [Unreleased]
 
 ### Added
+- Local database: `collection.create(item, { path })` posts to another list
+  route of the app; the body is still overlaid as a pending create of the
+  collection (the queued entry carries `collection`). fix-db-habits-1.
+- Local database: `configure({ db: { overlay: { name: (record, entry) =>
+  record } } })`, a per-collection function that lays one queued create, PUT
+  or PATCH over a record (or `null` for a create) in place of the default
+  merge; item actions keep working. fix-db-habits-2.
+- Local database: `patch`, `put`, `delete` and `act` accept `{ rev }` to
+  override the stored rev for If-Match. fix-db-habits-3.
 - Local database: collections whose server assigns the key
   (`SyncCollection::server_keys()`, manifest `keys: "server"`). `create()`
   POSTs without a key and the item shows as a pending overlay under
