@@ -75,6 +75,17 @@ contract, the `--version` smoke — before it tags.
 - **Next kp-themes vendoring (kp-themes main, 2026-10-30, not yet released):** `js/controller.js` is new and shared; 51 modules are facades (`js/<name>.js` re-exports `js/<name>/*.js`), and `css/_rules.css` is generated from `css/rules/*.css`. Copy the folders, not only the facade files (the list is kp-themes `gates/checksums.mjs` FILES + `gates/checksums-parts.mjs` PART_FILES). The build.rs core list in chassis (17 `kp/js` files embedded in `ASSETS`) must then also take each core facade's folder and `controller.js`, or the core pages 404 on their parts.
 - Session title convention: `🏗️ chassis-rs - Fase <N> - <phase name>`.
 
+## The release cycle (Kenny, 2026-11-03: "cyclus")
+
+When Kenny asks for the cycle:
+1. Every child app reports its chassis-rs and kp-themes faults and wishes.
+2. kp-themes fixes all of its open items and releases first.
+3. chassis-rs vendors that release and fixes all of its open items.
+4. Kenny gets a release form for chassis-rs; it is released on his go.
+5. The child apps then release one by one, starting with the one most likely to surface new faults.
+
+The whole cycle runs with as few tokens as possible: no full-suite reruns, only failed tests rerun. Every point where Kenny's input is needed is announced in the coordinator chat.
+
 ## When tests run (Kenny, 2026-10-04, test report)
 
 A commit runs fmt and clippy only, and skips them when their input did not
