@@ -52,6 +52,7 @@ pub struct Push {
     url: Option<String>,
     tag: Option<String>,
     actions: Vec<Action>,
+    sync: Option<Vec<String>>,
     urgency: Option<Urgency>,
     ttl: Option<Duration>,
 }
@@ -65,6 +66,7 @@ impl Push {
             url: None,
             tag: None,
             actions: Vec::new(),
+            sync: None,
             urgency: None,
             ttl: None,
         }
@@ -97,6 +99,15 @@ impl Push {
             title: title.into(),
             url: path.into(),
         });
+        self
+    }
+
+    /// Mark the message as a sync hint (decision 6 of the local database): the
+    /// worker also tells its open windows to pull these collections at once
+    /// (an empty list means every collection). The notification is still shown;
+    /// a push cannot wake a page silently. Prefer `publish_sync_push`.
+    pub fn sync(mut self, collections: &[&str]) -> Self {
+        self.sync = Some(collections.iter().map(|c| (*c).to_string()).collect());
         self
     }
 
@@ -135,6 +146,9 @@ impl Push {
             if let Some(v) = value {
                 doc[key] = json!(v);
             }
+        }
+        if let Some(names) = &self.sync {
+            doc["sync"] = json!(names);
         }
         let bytes = doc.to_string().into_bytes();
         // Refused here, once, so an oversized notification is not recorded
@@ -200,6 +214,14 @@ mod tests {
 
     fn parsed(p: &Push) -> Value {
         serde_json::from_slice(&p.payload().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn a_sync_hint_rides_in_the_payload_and_an_empty_list_means_all() {
+        let one = parsed(&Push::new("Menu").sync(&["dishes", "freezer"]));
+        assert_eq!(one["sync"], json!(["dishes", "freezer"]));
+        assert_eq!(parsed(&Push::new("Menu").sync(&[]))["sync"], json!([]));
+        assert!(parsed(&Push::new("Menu")).get("sync").is_none());
     }
 
     #[test]

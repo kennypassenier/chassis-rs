@@ -15,8 +15,24 @@ self.addEventListener('push', (event) => {
     const text = event.data ? event.data.text() : '';
     const payload = parsePushPayload(text, self.location.origin);
     const options = notificationOptions(payload, Notification.maxActions ?? 2);
-    event.waitUntil(self.registration.showNotification(payload.title, options));
+    event.waitUntil(Promise.all([self.registration.showNotification(payload.title, options), tellWindows(payload)]));
 });
+
+/**
+ * A push that carries `sync` also tells the open windows to pull (decision 6
+ * of the local database). No window open: nothing happens, the next start
+ * pulls anyway. A failure is logged, never allowed to cancel the notification.
+ */
+async function tellWindows(payload) {
+    const message = syncMessage(payload);
+    if (!message) return;
+    try {
+        const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const page of open) page.postMessage(message);
+    } catch (err) {
+        console.warn('push: the open windows could not be told to sync.', err);
+    }
+}
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();

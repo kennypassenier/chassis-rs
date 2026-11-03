@@ -85,13 +85,13 @@ test('an open window is reused only when it shows the very page', () => {
 
 function worker({ fetchResult = { type: 'basic', ok: true, status: 200 }, clients = [], maxActions = 2 } = {}) {
     const listeners = {};
-    const log = { shown: [], fetched: [], opened: [], focused: [], closed: 0 };
+    const log = { shown: [], fetched: [], opened: [], focused: [], posted: [], closed: 0 };
     const self = {
         addEventListener: (name, fn) => (listeners[name] = fn),
         location: { origin },
         registration: { showNotification: async (title, options) => log.shown.push({ title, options }) },
         clients: {
-            matchAll: async () => clients.map((c) => ({ url: c, focus: async () => log.focused.push(c) })),
+            matchAll: async () => clients.map((c) => ({ url: c, focus: async () => log.focused.push(c), postMessage: (m) => log.posted.push({ to: c, m: JSON.parse(JSON.stringify(m)) }) })),
             openWindow: async (u) => log.opened.push(u),
         },
     };
@@ -167,4 +167,20 @@ test('a body click focuses the open window at the url, else opens a new one', as
     const none = worker({ clients: [`${origin}/other`] });
     await none.click('', data);
     assert.deepEqual([none.log.focused, none.log.opened], [[], ['/habits/water']]);
+});
+
+test('a push with sync tells every open window to pull; one without does not; no window is fine', async () => {
+    const w = worker({ clients: [`${origin}/a`, `${origin}/b`] });
+    await w.run('push', { data: { text: () => JSON.stringify({ title: 'Menu', sync: ['dishes', '', 3] }) } });
+    assert.equal(w.log.shown.length, 1, 'the notification is still shown');
+    assert.deepEqual(w.log.posted.map((p) => p.m), Array(2).fill({ type: 'chassis-sync', collections: ['dishes'] }));
+    const all = worker({ clients: [`${origin}/a`] });
+    await all.run('push', { data: { text: () => JSON.stringify({ title: 'Menu', sync: [] }) } });
+    assert.deepEqual(all.log.posted.map((p) => p.m), [{ type: 'chassis-sync', collections: [] }], 'empty = everything');
+    const plain = worker({ clients: [`${origin}/a`] });
+    await plain.run('push', { data: { text: () => JSON.stringify({ title: 'Hi' }) } });
+    assert.deepEqual(plain.log.posted, []);
+    const none = worker();
+    await none.run('push', { data: { text: () => JSON.stringify({ title: 'Menu', sync: ['dishes'] }) } });
+    assert.equal(none.log.shown.length, 1);
 });

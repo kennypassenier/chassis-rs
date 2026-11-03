@@ -3,7 +3,8 @@
 // page is visible), the connection coming back, the page getting focus or
 // becoming visible, the band's retry, and the hints of the app's live
 // channel (SSE, `shell/live.rs`): event `sync` names the changed collections,
-// `resync` means "everything". Start-up pulls are the caller's.
+// `resync` means "everything"; a push with `sync` arrives as a message of the
+// service worker (`chassis-sync`, sw-push.js). Start-up pulls are the caller's.
 
 /** The collections a `sync` hint names (`["dishes"]`, `{"collections":[..]}` or `dishes,freezer`); null = all. */
 export function parseHint(text) {
@@ -35,6 +36,15 @@ export function bindTriggers({ win, doc, fire, pullMs, live = null, setTimer, cl
     on(win, 'focus', all);
     on(doc, 'visibilitychange', () => doc.visibilityState === 'visible' && all());
     on(doc, 'kp-connection-retry', all);
+
+    // A push with `sync` in its data: the worker posts it to every open window.
+    const worker = win.navigator?.serviceWorker;
+    if (worker) {
+        on(worker, 'message', (e) => {
+            if (e.data?.type !== 'chassis-sync') return;
+            fire(Array.isArray(e.data.collections) && e.data.collections.length ? e.data.collections : null);
+        });
+    }
 
     let timer = null;
     const arm = () => {

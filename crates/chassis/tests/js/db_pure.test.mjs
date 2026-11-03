@@ -77,6 +77,7 @@ test('triggers: the timer, online, focus, visibility and the live hints fire a p
     const target = () => { const m = new Map(); return { addEventListener: (n, f) => m.set(n, f), removeEventListener: (n) => m.delete(n), fire: (n, e) => m.get(n)?.(e), m }; };
     const win = Object.assign(target(), { EventSource: class { static last; constructor(url) { this.url = url; this.on = {}; this.closed = false; this.constructor.last = this; } addEventListener(n, f) { this.on[n] = f; } close() { this.closed = true; } } });
     const doc = Object.assign(target(), { hidden: false, visibilityState: 'visible' });
+    win.navigator = { serviceWorker: target() };
     const timers = [];
     const off = bindTriggers({ win, doc, fire: (n) => fired.push(n), pullMs: 300000, live: '/events', setTimer: (fn, ms) => (timers.push({ fn, ms }), timers.length), clearTimer: () => {} });
     assert.equal(timers.at(-1).ms, 300000);
@@ -87,9 +88,16 @@ test('triggers: the timer, online, focus, visibility and the live hints fire a p
     win.EventSource.last.on.sync({ data: '["dishes"]' });
     win.EventSource.last.on.resync({});
     assert.deepEqual(fired, [null, null, null, null, ['dishes'], null]);
+    fired.length = 0;
+    const sw = win.navigator.serviceWorker;
+    sw.fire('message', { data: { type: 'chassis-sync', collections: ['dishes'] } });
+    sw.fire('message', { data: { type: 'chassis-sync', collections: [] } });
+    sw.fire('message', { data: { type: 'chassis-sw-activated' } });
+    assert.deepEqual(fired, [['dishes'], null], 'a push hint pulls the named collections, an empty one all; other messages are ignored');
+    fired.length = 0;
     doc.hidden = true;
     timers.at(-1).fn();
-    assert.equal(fired.length, 6, 'a hidden page does not poll');
+    assert.equal(fired.length, 0, 'a hidden page does not poll');
     off();
     assert.equal(win.EventSource.last.closed, true);
 });

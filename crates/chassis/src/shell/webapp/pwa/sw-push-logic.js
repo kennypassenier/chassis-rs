@@ -43,12 +43,22 @@ function parsePushPayload(text, origin) {
         .map((a) => ({ action: str(a?.action), title: str(a?.title), url: pushSafePath(a?.url, origin) }))
         .filter((a) => a.action && a.title && a.url);
     return {
+        sync: Array.isArray(raw.sync) ? raw.sync.filter((n) => typeof n === 'string' && n !== '') : null,
         title: str(raw.title) ?? PUSH_FALLBACK_TITLE,
         body: str(raw.body),
         tag: str(raw.tag),
         url: pushSafePath(raw.url, origin) ?? '/',
         actions,
     };
+}
+
+/**
+ * The message a `sync` push gives the open windows (decision 6 of the local
+ * database), or null when the push carries no `sync`. An empty list means
+ * every collection; the page side is db-triggers.js.
+ */
+function syncMessage(payload) {
+    return payload.sync ? { type: 'chassis-sync', collections: payload.sync } : null;
 }
 
 /**
@@ -102,5 +112,5 @@ function pickClient(clients, target, origin) {
 }
 
 if (typeof module !== 'undefined') {
-    module.exports = { pushSafePath, parsePushPayload, notificationOptions, clickPlan, pickClient };
+    module.exports = { pushSafePath, parsePushPayload, notificationOptions, syncMessage, clickPlan, pickClient };
 }
