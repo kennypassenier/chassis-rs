@@ -17,6 +17,7 @@ import { wordsOf } from './data-errors.js';
 import { createHub } from './db-hub.js';
 import { lazyDb } from './db-lazy.js';
 import { installLogoutGuard } from './logout-guard.js';
+import { rememberLogoutWords } from './logout-words.js';
 import { memoryStore, openStore } from './data-store.js';
 
 const METHODS = ['get', 'put', 'patch', 'post', 'delete', 'queue', 'pending', 'failed', 'unsent', 'retry', 'drop', 'resave',
@@ -51,10 +52,14 @@ export function installData(win, doc, deps = {}, kp = null) {
     installLogoutGuard({ win, doc, confirm: kp?.openConfirmation, client: async () => (ready ? await ready : null), messages: () => wordsOf(words) });
     // `messages` of the app (an object or a function), swappable: a later configure({ messages }) replaces them.
     const messages = () => wordsOf(words);
+    // The kit's own pages ask at logout with the app's words, stored here (fix-logout-words-1).
+    const keepLogoutWords = () => rememberLogoutWords(storageOf(win), messages());
+    if (typeof win.addEventListener === 'function') win.addEventListener('kp-strings-change', () => keepLogoutWords());
     const configure = (options) => {
         if (ready) return reword(options);
         const config = normalize(options);
         words = config.messages;
+        keepLogoutWords();
         ready = (async () => {
             const store = await storeFor(win, config.name, deps);
             const listeners = new Map();
@@ -107,6 +112,7 @@ export function installData(win, doc, deps = {}, kp = null) {
             throw new Error('chassisData: configure() was already called on this page. A later call may only pass { messages } (an object or a function).');
         }
         words = next;
+        keepLogoutWords();
         if (typeof win.dispatchEvent === 'function' && typeof win.CustomEvent === 'function') win.dispatchEvent(new win.CustomEvent('chassis-data-messages'));
         return ready;
     }

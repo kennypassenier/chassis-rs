@@ -14,6 +14,7 @@ import { localiseTimes } from './format-text.js';
 import { installRefresh } from './refresh-kit.js';
 import { guardStaleImports } from './stale-import.js';
 import { installLogoutGuard } from './logout-guard.js';
+import { storedLogoutWords } from './logout-words.js';
 
 // A lazy kp chunk gone after an app update reloads the page once.
 guardStaleImports(window);
@@ -50,4 +51,6 @@ localiseTimes();
 // The logout asks before unsent offline edits are lost, on every kit page
 // (fix-offline-logout-1): it reads the origin's stored queues, so no page
 // has to configure chassisData first.
-installLogoutGuard({ win: window, doc: document, confirm: openConfirmation });
+// The app's own logout words when one of its pages stored them (fix-logout-words-1).
+const kitStorage = (() => { try { return window.localStorage; } catch { return null; } })();
+installLogoutGuard({ win: window, doc: document, confirm: openConfirmation, messages: () => storedLogoutWords(kitStorage) });

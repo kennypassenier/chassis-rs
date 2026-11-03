@@ -7,6 +7,13 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed (Kitchen, cycle 2026-11-03)
+- The logout warning on the kit's own pages (Status, Clients, Storage) used
+  the kit's English words while the app speaks its own language. A web-app
+  page now keeps the app's logout words (rendered, also after a later
+  `configure({ messages })` or a language switch) in localStorage
+  (`chassis-data:logout-words`), and the kit pages ask with those.
+
 ### Added (small cycle 2026-11-03)
 - `.chassis.toml` takes an optional `env_names = ["KYU_RUNNER_HUB_TOKEN"]`: a
   project's own environment variable names, appended to the comment in
