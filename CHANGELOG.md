@@ -8,6 +8,23 @@ scaffold writes. A breaking change in either is a major and carries a
 ## [Unreleased]
 
 ### Fixed (chassis release, kyu 2026-11-03)
+- **A page open across an update never stays broken: the stale-chunk guard
+  now covers caught imports and `Reload::Ask` [fix-stale-chunk-1].** The 4.2.0
+  guard only saw an `unhandledrejection`, and it reloaded on its own. Two
+  holes. (1) The kit's own pages (Status, Storage, Clients, Passkeys, Login)
+  catch a failed `import()` themselves and log it, so the guard never fired and
+  the page stayed half drawn; that is the Firefox "Loading failed for the
+  module version-delta.js" sighting on Status. Every kit and kp import site now
+  passes through `guardImport()`, which reports the failure to the guard and
+  still rejects for the caller. (2) With `Reload::Ask` the page reloaded
+  anyway, over what someone was typing; it now fires the same
+  `chassis-pwa-update` event as a new release (`detail.apply()` reloads) and the
+  app's own prompt decides. Chosen over keeping the previous chunks in the
+  service worker (b only): the worker drops the old cache on activation, holds
+  only files the page already fetched, and the rest of the stale page's scripts
+  would still be old. The one-reload-per-minute `sessionStorage` cooldown is
+  unchanged, so a chunk that is really missing fails visibly, never in a loop.
+
 - The failed-test record no longer reads nextest's progress counter
   (`FAIL [ 109.951s] (45/71) kyu-runner::l2 x`) as the binary id, which built
   a filterset nextest refused. A record written that way by an older chassis

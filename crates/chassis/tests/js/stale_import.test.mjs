@@ -1,13 +1,16 @@
 // The stale-chunk guard (fix-stale-chunk-1), run without a browser.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { guardStaleImports, isFailedImport, mayReload, RELOAD_KEY, COOLDOWN_MS } from '../../static/chassis/stale-import.js';
+import { guardStaleImports, guardImport, isFailedImport, mayReload, RELOAD_KEY, COOLDOWN_MS, UPDATE_EVENT } from '../../static/chassis/stale-import.js';
 
 const fakeWin = (store = new Map()) => {
     let handler;
     return {
         reloads: 0,
         sessionStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) },
+        events: [],
+        dispatchEvent(e) { this.events.push(e); return true; },
+        CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail; } },
         addEventListener(type, f) { if (type === 'unhandledrejection') handler = f; },
         location: { reload() { win.reloads += 1; } },
         fire: (reason) => handler({ reason }),
@@ -51,4 +54,38 @@ test('blocked storage never reloads, and the guard installs once', () => {
     guardStaleImports(win);
     win.fire(new TypeError('error loading dynamically imported module'));
     assert.equal(win.reloads, 0);
+});
+
+const failed = () => new TypeError('error loading dynamically imported module');
+
+test('Reload::Ask: the guard asks through the update event and reloads only on apply', () => {
+    win = fakeWin();
+    guardStaleImports(win, { ask: true });
+    win.fire(failed());
+    win.fire(failed());
+    assert.equal(win.reloads, 0);
+    assert.equal(win.events.length, 1);
+    assert.equal(win.events[0].type, UPDATE_EVENT);
+    win.events[0].detail.apply();
+    assert.equal(win.reloads, 1);
+    assert.ok(Number(win.store.get(RELOAD_KEY)) > 0);
+});
+
+test('ask mode can be switched on by a later call (boot-kit installs the guard first)', () => {
+    win = fakeWin();
+    guardStaleImports(win);
+    guardStaleImports(win, { ask: true });
+    win.fire(failed());
+    assert.equal(win.reloads, 0);
+    assert.equal(win.events.length, 1);
+});
+
+test('an import whose caller catches the failure still reaches the guard, and still rejects', async () => {
+    win = fakeWin();
+    guardStaleImports(win);
+    await assert.rejects(guardImport(Promise.reject(failed()), win), TypeError);
+    assert.equal(win.reloads, 1);
+    await assert.rejects(guardImport(Promise.reject(new Error('boom')), win), /boom/);
+    assert.equal(win.reloads, 1);
+    assert.equal(await guardImport(Promise.resolve(7), win), 7);
 });
