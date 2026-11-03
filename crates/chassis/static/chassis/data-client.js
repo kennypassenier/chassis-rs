@@ -71,7 +71,7 @@ export async function createData({ config, fetch, store, storage, emit = () => {
     await queue.load();
     const ctx = { config, cache, reconcile, fetch, now, uuid, settings: current, queue: () => queue, kick: replayer.kick };
     writes = createWrites(ctx);
-    const { afterWrite: _ignored, restore: _restore, ...writeApi } = writes;
+    const { afterWrite: _ignored, restore: _restore, undo: undoDropped, ...writeApi } = writes;
     replayer.schedule();
     return {
         get: createReads(ctx).get,
@@ -83,7 +83,12 @@ export async function createData({ config, fetch, store, storage, emit = () => {
         unsent: () => queue.unsent(),
         retry: () => queue.replay(),
         async drop(id) {
+            const entry = queue.list().find((e) => e.id === id);
             const ok = await queue.drop(id);
+            // A waiting edit's optimistic effect on the copies goes with it; a refused one was undone when it was refused.
+            if (ok && entry?.state === 'queued') {
+                await undoDropped(entry).catch((err) => console.warn(`chassisData: the copies could not be put back after dropping the edit to ${entry.path}.`, err));
+            }
             if (ok) replayer.kick(); // a dropped hold lets the edits behind it go
             return ok;
         },

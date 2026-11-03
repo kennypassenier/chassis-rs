@@ -9,11 +9,27 @@
 import { matchRoute } from './data-config.js';
 import { entriesOf, entryPath } from './data-trim.js';
 
-/** `entries` with `change` applied to the one at `path` (`undefined` removes it); `data` itself when it is not there. */
-function amendEntries(config, child, path, data, change) {
+/**
+ * `entries` with `change` applied to the one at `path` (`undefined` removes it); `data` itself when it is not there.
+ * `seen({ index, entry })` hears the entry as it was, so a caller can put it back (`restoreEntry`).
+ */
+function amendEntries(config, child, path, data, change, seen = null) {
     const entries = entriesOf(data);
     if (!entries || !entries.some((e) => entryPath(config, child, e) === path)) return data;
-    const next = entries.flatMap((e) => (entryPath(config, child, e) === path ? [change(e)] : [e])).filter((e) => e !== undefined);
+    const next = entries.flatMap((e, index) => {
+        if (entryPath(config, child, e) !== path) return [e];
+        seen?.({ index, entry: e });
+        return [change(e)];
+    }).filter((e) => e !== undefined);
+    return Array.isArray(data) ? next : { ...data, items: next };
+}
+
+/** `entries` with the entry of `path` replaced by `hit.entry`, or put back at `hit.index` when it is gone. */
+function putBack(config, child, path, data, hit) {
+    const entries = entriesOf(data);
+    if (!entries) return data;
+    const at = entries.findIndex((e) => entryPath(config, child, e) === path);
+    const next = at >= 0 ? entries.map((e, i) => (i === at ? hit.entry : e)) : [...entries.slice(0, hit.index), hit.entry, ...entries.slice(hit.index)];
     return Array.isArray(data) ? next : { ...data, items: next };
 }
 
@@ -25,13 +41,13 @@ function appendEntry(config, child, data, entry) {
     return Array.isArray(data) ? [...entries, entry] : { ...data, items: [...entries, entry] };
 }
 
-/** Run `fn(data) -> data` on every stored copy of composite `path` for the fields mapped to item route `child`. */
+/** Run `fn(data, where) -> data` on every stored copy of composite `path` for the fields mapped to item route `child`; `where` = { stored, field }. */
 async function amendComposites({ config, cache }, child, fn) {
     for (const composite of config.composites) {
         for (const { field, item } of composite.fields) {
             if (item !== child) continue;
             for (const stored of cache.paths().filter((p) => p.split('?')[0] === composite.path)) {
-                await cache.amend(stored, (data) => (data && typeof data === 'object' && field in data ? { ...data, [field]: fn(data[field]) } : data));
+                await cache.amend(stored, (data) => (data && typeof data === 'object' && field in data ? { ...data, [field]: fn(data[field], { stored, field }) } : data));
             }
         }
     }
@@ -42,15 +58,27 @@ async function amendComposites({ config, cache }, child, fn) {
  * belongs to item route `child`, and in every composite answer that maps a
  * field to it. `change` returns the new entry, or `undefined` to remove it. A
  * list whose shape is unknown, or that does not hold the item, is left as it is.
+ * `record({ stored, field, index, entry })` hears each entry as it was (field = null for a plain list), for `restoreEntries`.
  */
-export async function amendLists(ctx, child, path, change) {
+export async function amendLists(ctx, child, path, change, record = null) {
     const { config, cache } = ctx;
     for (const stored of cache.paths()) {
         const route = matchRoute(config, stored);
         if (route?.kind !== 'list' || route.child !== child) continue;
-        await cache.amend(stored, (data) => amendEntries(config, child, path, data, change));
+        await cache.amend(stored, (data) => amendEntries(config, child, path, data, change, record && ((hit) => record({ stored, field: null, ...hit }))));
     }
-    await amendComposites(ctx, child, (value) => amendEntries(config, child, path, value, change));
+    await amendComposites(ctx, child, (value, where) => amendEntries(config, child, path, value, change, record && ((hit) => record({ ...where, ...hit }))));
+}
+
+/** Put the entries `amendLists` reported back where they were (a list that is gone is left alone). */
+export async function restoreEntries({ config, cache }, child, path, hits) {
+    for (const hit of hits) {
+        if (!cache.paths().includes(hit.stored)) continue;
+        await cache.amend(hit.stored, (data) => {
+            if (hit.field === null) return putBack(config, child, path, data, hit);
+            return data && typeof data === 'object' && hit.field in data ? { ...data, [hit.field]: putBack(config, child, path, data[hit.field], hit) } : data;
+        });
+    }
 }
 
 /**

@@ -9,6 +9,7 @@ import { storable } from './data-trim.js';
 import { send } from './data-send.js';
 import { fail, refusal } from './data-errors.js';
 import { addToLists, amendLists, itemRouteOf } from './data-lists.js';
+import { createUndo } from './data-undo.js';
 import { entryPath } from './data-trim.js';
 
 function checkOptions(options) {
@@ -20,6 +21,7 @@ function checkOptions(options) {
 /** `ctx` = { config, cache, fetch, now, settings, queue: () => queue, kick }. */
 export function createWrites(ctx) {
     const { config, cache, fetch, now, uuid } = ctx;
+    const undoer = createUndo(ctx);
 
     /** The copy of `path` becomes `body` (the server's version), or goes when it cannot be kept. */
     async function adopt(path, route, body, rev) {
@@ -59,6 +61,7 @@ export function createWrites(ctx) {
 
     /** After a send went through: the copy becomes the service's answer (never a merge with the optimistic one). */
     async function afterWrite(entry, rev, body, replayed = false) {
+        if (replayed) await refetchAmended(entry); // routes the app amended while the edit waited: now the server's word
         const route = matchRoute(config, entry.path);
         if (!route) return;
         if (entry.method === 'DELETE') return forgetItem(entry.path);
@@ -81,6 +84,7 @@ export function createWrites(ctx) {
 
     /** A queued edit was refused: the copy of its path goes back to the server's version at once. */
     async function restore(entry, outcomeBody) {
+        await refetchAmended(entry);
         const route = matchRoute(config, entry.path);
         if (!route) return;
         if (entry.listed) await listsHold(entry.listed, () => undefined); // the created entry leaves the lists again
@@ -92,13 +96,52 @@ export function createWrites(ctx) {
         await refetch(entry.path, route);
     }
 
-    /** What a queued edit does to the copy, so offline reads show it. */
+    /** What a queued edit does to the copies at its own path, so offline reads show it: the item's copy and its entry in every stored list. Returns how to put it back. */
     async function optimistic(method, path, body, change = null) {
         const make = change ?? (method === 'DELETE' ? () => undefined : method === 'PATCH' ? (old) => ({ ...old, ...body }) : () => body);
-        // The same change shows in the item's copy and in every stored list entry of it.
-        await cache.amend(path, make);
+        const undo = [];
+        await undoer.amendRecorded(undo, path, make);
         // A PUT is shown merged in the stored list entry (the entry may hold fields the body leaves out); the item's own copy takes the body.
-        await listsHold(path, method === 'PUT' ? (old) => ({ ...old, ...body }) : make);
+        await undoer.entriesRecorded(undo, path.split('?')[0], method === 'PUT' ? (old) => ({ ...old, ...body }) : make);
+        return undo;
+    }
+
+    /** The app's own amendments of other read routes (`options.amends`), each recorded for an undo. */
+    async function amendOthers(amends) {
+        const undo = [];
+        for (const [route, amend] of Object.entries(amends)) await undoer.amendRecorded(undo, route, amend);
+        return undo;
+    }
+
+    /** Check `options.amends`: read routes of the app, each with a function that changes a copy of the answer. */
+    function amendsOf(options) {
+        const amends = options.amends ?? {};
+        if (typeof amends !== 'object' || amends === null || Array.isArray(amends)) throw fail('amends must be an object of { "/read/route": (copy) => copy }.');
+        for (const [route, fn] of Object.entries(amends)) {
+            checkPath(route);
+            if (typeof fn !== 'function') throw fail(`amends[${JSON.stringify(route)}] must be a function (copy) => copy.`);
+            if (!matchRoute(config, route.split('?')[0])) throw fail(`amends names ${route}, which is not a declared route. Add it to routes.`);
+        }
+        return amends;
+    }
+
+    /** The routes a queued POST amended are read again from the server (its answer, or its refusal, is the truth). */
+    async function refetchAmended(entry) {
+        for (const route of entry.amended ?? []) await refetch(route, matchRoute(config, route.split('?')[0]));
+    }
+
+    /** A queued edit was dropped by the person: its optimistic effect on the copies is undone. */
+    async function undo(entry) {
+        await undoer.revert(entry.undo);
+        if (entry.listed) await listsHold(entry.listed, () => undefined); // the created entry leaves the lists again
+        // Edits queued after it for the same item were laid over its effect: lay them over the restored copy again.
+        const queue = ctx.queue();
+        const later = queue.list().filter((e) => e.id > entry.id && e.state === 'queued' && e.method !== 'POST' && e.path === entry.path);
+        for (const next of later) {
+            const own = await optimistic(next.method, next.path, next.body);
+            const others = (next.undo ?? []).filter((step) => step.op === 'copy' && step.path !== next.path);
+            await queue.patch(next.id, { undo: [...own, ...others] });
+        }
     }
 
     async function finish(entry, outcome) {
@@ -122,6 +165,7 @@ export function createWrites(ctx) {
     async function write(method, path, body, options = {}) {
         checkOptions(options);
         checkPath(path);
+        const amends = amendsOf(options);
         const entry = await entryFor(method, path, body, options);
         const queue = ctx.queue();
         if (queue.pending() === 0) {
@@ -132,10 +176,14 @@ export function createWrites(ctx) {
         }
         const preview = method === 'POST' && typeof options.optimistic === 'function' ? options.optimistic : null;
         if (preview) entry.optimistic = true; // stored with the edit: a refusal then knows the copies were amended
+        if (Object.keys(amends).length > 0) entry.amended = Object.keys(amends);
         if (!preview && method === 'POST') entry.listed = await listCreate(path, body);
         if (entry.listed === null) delete entry.listed;
-        await queue.add(entry);
-        if (method !== 'POST' || preview) await optimistic(method, path, body, preview);
+        const saved = await queue.add(entry);
+        const undo = [];
+        if (method !== 'POST' || preview) undo.push(...(await optimistic(method, path, body, preview)));
+        undo.push(...(await amendOthers(amends)));
+        if (undo.length > 0) await queue.patch(saved.id, { undo }); // so dropping the edit can put the copies back (data-undo.js)
         ctx.kick();
         return { ok: true, queued: true, status: 0, data: null, rev: null, idempotencyKey: entry.key ?? null };
     }
@@ -143,6 +191,7 @@ export function createWrites(ctx) {
     return {
         afterWrite,
         restore,
+        undo,
         put: (path, body, options) => write('PUT', path, body, options),
         patch: (path, body, options) => write('PATCH', path, body, options),
         post: (path, body, options) => write('POST', path, body, options),
