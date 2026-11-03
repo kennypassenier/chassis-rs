@@ -25,7 +25,7 @@ scaffold writes. A breaking change in either is a major and carries a
   would still be old. The one-reload-per-minute `sessionStorage` cooldown is
   unchanged, so a chunk that is really missing fails visibly, never in a loop.
 
- The failed-test record no longer reads nextest's progress counter
+- The failed-test record no longer reads nextest's progress counter
   (`FAIL [ 109.951s] (45/71) kyu-runner::l2 x`) as the binary id, which built
   a filterset nextest refused. A record written that way by an older chassis
   now runs the whole suite instead of a refused rerun.
