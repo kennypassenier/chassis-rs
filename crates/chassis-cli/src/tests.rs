@@ -1,6 +1,7 @@
 //! Tests of the `chassis` binary's own logic, grouped by the command or the
 //! output they pin. `rec` is the one record they all start from.
 
+mod deviations;
 mod kit_dependency;
 mod kit_md;
 mod new_cmd;
@@ -31,6 +32,7 @@ pub(crate) fn rec() -> Recorded {
         env_names: Vec::new(),
         image: None,
         required_checks: Vec::new(),
+        deviations: Vec::new(),
         vmid: 0,
         release: Default::default(),
     }

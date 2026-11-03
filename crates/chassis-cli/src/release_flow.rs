@@ -8,9 +8,10 @@ use std::path::{Path, PathBuf};
 use chassis::Error;
 use chassis::core::update::Version;
 
+use crate::exit_codes::Finish;
 use crate::failed_tests;
 use crate::manifest_version::current_version;
-use crate::process::{capture, run, run_interactive};
+use crate::process::{capture, run};
 use crate::recorded::Recorded;
 use crate::release;
 use crate::release_hooks;
@@ -23,6 +24,7 @@ use crate::render::io_err;
 use crate::sync::read_recorded;
 
 mod prepare;
+mod sign;
 use prepare::{
     commit_and_tag, hook_env, read_files_to_bump, run_pre_gate_hooks, write_bumped_files,
 };
@@ -51,7 +53,7 @@ pub(crate) fn cmd_release(
     dry_run: bool,
     plan: bool,
     full_tests: bool,
-) -> Result<(), Error> {
+) -> Result<Finish, Error> {
     let rec = read_recorded(dir)?;
     let v = Version::parse(version)?;
     let tag = format!("v{v}");
@@ -63,7 +65,7 @@ pub(crate) fn cmd_release(
     rec.release.validate()?;
     check_release_files(dir, image, rec.release.sign)?;
     if plan {
-        return print_plan(dir, &rec, v, &tag, image);
+        return print_plan(dir, &rec, v, &tag, image).map(|()| Finish::Clean);
     }
 
     // 0. Everything the release needs, before it changes anything.
@@ -119,7 +121,7 @@ pub(crate) fn cmd_release(
 
     if dry_run {
         print_dry_run_summary(ctx.rec, &ctx.tag, ctx.version, images.as_ref());
-        return Ok(());
+        return Ok(Finish::Clean);
     }
     publish_and_sign(&ctx, &sha, &undo, images.as_ref())
 }
@@ -154,7 +156,7 @@ fn publish_and_sign(
     sha: &str,
     undo: &str,
     images: Option<&[String; 2]>,
-) -> Result<(), Error> {
+) -> Result<Finish, Error> {
     let (dir, rec, tag) = (ctx.dir, ctx.rec, &ctx.tag);
     run(dir, "git", &["push", "-q", "origin", "HEAD:main"], false).map_err(|e| {
         Error::dependency(
@@ -168,15 +170,7 @@ fn publish_and_sign(
     // The tests this release carried are behind it now.
     failed_tests::clear(dir);
 
-    // 6. Sign locally and upload .minisig before VERSION. Interactive: minisign
-    // prints its password prompt and must be seen where there is a terminal.
-    if rec.release.sign {
-        run_interactive(dir, "scripts/sign-release.sh", &[tag])?;
-    } else {
-        println!(
-            "chassis release: signing is left to you ([release] sign = false): the release is unsigned until you sign {tag}"
-        );
-    }
-    println!("released {} {tag}", rec.name);
-    Ok(())
+    // 6. The human step: the release is published, the exit status says
+    // whether the signature landed (0) or is still awaited (3).
+    Ok(sign::sign(dir, &rec.name, tag, rec.release.sign))
 }

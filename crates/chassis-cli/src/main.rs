@@ -28,6 +28,7 @@
 
 mod clients;
 mod drift;
+mod exit_codes;
 mod failed_tests;
 mod kit_docs;
 mod manifest_version;
@@ -47,6 +48,7 @@ mod release_restore;
 mod render;
 mod sync;
 mod sync_files;
+mod sync_hint;
 mod templates;
 #[cfg(test)]
 mod tests;
@@ -56,6 +58,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
+use exit_codes::Finish;
 use new_project::cmd_new;
 use release_flow::cmd_release;
 use sync::cmd_sync;
@@ -65,6 +68,7 @@ use upgrade::cmd_upgrade;
 #[command(
     name = "chassis",
     version,
+    after_help = exit_codes::HELP,
     about = "Scaffold, sync and release services built on chassis; manage a running service's client tokens"
 )]
 struct Cli {
@@ -118,7 +122,7 @@ enum Cmd {
     },
     /// Gate, bump, tag, build, publish, sign and upload the release, all from this machine
     #[command(
-        long_about = "Release the project from this machine (3.0.0). Runs the full gate the kit's CI workflow used to run (fmt, clippy -D warnings, tests, .claude/hooks/gates.project.sh, --version, cargo deny, the image build with its --version and --healthcheck smoke, coverage as information), bumps Cargo.toml and CHANGELOG.md, commits through the hooks and tags, then builds what the release workflow used to build: the static musl binary in rust:<toolchain>-slim-trixie, refused on any dynamic link, dist/<name> + dist/SHA256SUMS, and the image ghcr.io/<repo>:v<version> + :latest. Then it pushes main and the tag, pushes the image, creates the GitHub release without taking `latest`, and runs scripts/sign-release.sh, which signs, uploads SHA256SUMS.minisig and VERSION and marks the release latest. Needs git, cargo, cargo-deny, docker (logged in to ghcr.io with write:packages), gh and minisign."
+        long_about = "Release the project from this machine (3.0.0). Runs the full gate the kit's CI workflow used to run (fmt, clippy -D warnings, tests, .claude/hooks/gates.project.sh, --version, cargo deny, the image build with its --version and --healthcheck smoke, coverage as information), bumps Cargo.toml and CHANGELOG.md, commits through the hooks and tags, then builds what the release workflow used to build: the static musl binary in rust:<toolchain>-slim-trixie, refused on any dynamic link, dist/<name> + dist/SHA256SUMS, and the image ghcr.io/<repo>:v<version> + :latest. Then it pushes main and the tag, pushes the image, creates the GitHub release without taking `latest`, and runs scripts/sign-release.sh, which signs, uploads SHA256SUMS.minisig and VERSION and marks the release latest. Exit 3 means everything was published and only the human signing step is left (run scripts/sign-release.sh <tag>), not that something failed. Needs git, cargo, cargo-deny, docker (logged in to ghcr.io with write:packages), gh and minisign."
     )]
     Release {
         version: String,
@@ -175,20 +179,15 @@ fn main() -> ExitCode {
             chassis_path,
             chassis_tag,
             latch,
-        ),
+        )
+        .map(|()| Finish::Clean),
         Cmd::Sync {
             dir,
             write,
             force,
             protect,
             remote,
-        } => cmd_sync(&dir, write, force, protect, remote).map(|outcome| {
-            if outcome.unresolved {
-                // A CI-friendly signal: a difference is still there — not
-                // applied, or one --write cannot apply (D1).
-                std::process::exit(1);
-            }
-        }),
+        } => cmd_sync(&dir, write, force, protect, remote).map(|outcome| outcome.finish()),
         Cmd::Release {
             version,
             dir,
@@ -200,11 +199,11 @@ fn main() -> ExitCode {
             version,
             dir,
             no_verify,
-        } => cmd_upgrade(&dir, &version, no_verify),
-        Cmd::Clients(args) => clients::run(args),
+        } => cmd_upgrade(&dir, &version, no_verify).map(|()| Finish::Clean),
+        Cmd::Clients(args) => clients::run(args).map(|()| Finish::Clean),
     };
     match result {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(finish) => finish.exit_code(),
         Err(e) => {
             eprintln!("{e}");
             ExitCode::FAILURE
