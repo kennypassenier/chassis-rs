@@ -174,6 +174,10 @@ pub(crate) fn scaffold_features() -> Vec<String> {
     .map(|f| (*f).to_string())
     .collect()
 }
-pub(crate) const TOOLCHAIN: &str = "1.97";
-pub(crate) const KP_THEMES: &str = "12.4.0";
+/// The Rust channel a new project pins: the kit's own `rust-toolchain.toml`
+/// (read by build.rs), never a second copy of the number.
+pub(crate) const TOOLCHAIN: &str = env!("CHASSIS_TOOLCHAIN");
+/// The kp-themes version the kit vendors: its `dist/VERSION`.
+pub(crate) const KP_THEMES: &str =
+    include_str!("../../chassis/static/kp/dist/VERSION").trim_ascii();
 pub(crate) const CHASSIS_REPO: &str = "https://github.com/kennypassenier/chassis-rs";

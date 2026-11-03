@@ -7,6 +7,22 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed (kp-themes 12.6.0)
+- kp-themes 12.6.0 vendored (1911 files checked against its SHA256SUMS):
+  - every component shortcut can be configured through
+    `data-kp-<component>-key` (a key spec like `Mod+Enter`, `Alt+S` or `none`);
+    the defaults are unchanged;
+  - `js/by-id.js` (the confirmation dialog's id lookup) is in the core set;
+  - `dist/bundle/<entry>.js`, the bundle facades, are served.
+- No hard-coded versions (Kenny, 2026-11-03): `KP_THEMES_VERSION` and the
+  CLI's recorded kp-themes version are read from the vendored
+  `dist/VERSION`, and the toolchain a new project pins comes from the
+  workspace's `rust-toolchain.toml` (chassis-cli build.rs). The vendor script
+  no longer edits Rust files; it checks that `dist/VERSION` says the version
+  it vendored.
+- The kit's own coarse-pointer lifts for `.kp-skip-link` and
+  `.kp-nav__brand` are gone: kp-themes 12.5.0 sizes them itself.
+
 ### Fixed (trial bump on 4.6.0)
 - `chassisData.db.collection(name)` before the database was ready had no
   `action` or `act`, so an app that registered an item action threw and its

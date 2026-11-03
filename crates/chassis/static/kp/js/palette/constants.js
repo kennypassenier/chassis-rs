@@ -23,3 +23,8 @@ export const RESULTS_TEXT = (n) => {
     const s = getStrings();
     return n === 0 ? s.noCommands : n === 1 ? s.oneCommand : s.manyCommands(n);
 };
+
+/** On the palette: the key that opens it, `Mod` for Ctrl or Command (a key spec, js/key-spec.js, or the older single letter, which means `Mod` and that letter; `none` for no key). */
+export const PALETTE_KEY_ATTRIBUTE = 'data-kp-hotkey';
+/** The key that opens a palette when it names none. */
+export const PALETTE_KEY = 'Mod+K';

@@ -82,6 +82,11 @@ export class AutosizeController extends Controller {
         return (this.options.shrink ?? attr(this.area, 'data-kp-autosize-shrink', 'on') !== 'off') !== false;
     }
 
+    /** What to do with a box whose content is not rendered: `measure` it now (default) or `skip` it until it shows. @returns {'measure' | 'skip'} */
+    hiddenMode() {
+        return (this.options.hidden ?? attr(this.area, 'data-kp-autosize-hidden', 'measure')) === 'skip' ? 'skip' : 'measure';
+    }
+
     counterMode() {
         return this.options.counter ?? /** @type {'off' | 'chars' | 'lines' | 'both'} */ (attr(this.area, 'data-kp-counter', 'off'));
     }

@@ -5,6 +5,7 @@ import { Controller } from '../controller.js';
 import { MARKDOWN_TASK_EVENT, markdownFragment, toggleTaskLine } from '../markdown.js';
 import { resolveStrings } from '../strings.js';
 import { continueList, lineRange, link, prefixLines, wrap } from './edits.js';
+import { toolPressed } from './keys.js';
 import { buildToolbar, walkToolbar } from './toolbar.js';
 
 /** Under this many rem of its own width the editor shows the text or the preview, under tabs, instead of both. */
@@ -13,8 +14,6 @@ const WIDE_REM = 48;
 const FALLBACK_REM_PX = 16;
 /** The level a `#` heading takes in the preview when the editor names none. */
 const PREVIEW_HEADINGS = 3;
-/** The keys with Mod and the tool each presses. */
-const SHORTCUTS = /** @type {Record<string, string>} */ ({ b: 'bold', i: 'italic', k: 'link' });
 
 /** @param {Document} doc @param {string} tag @param {string} className */
 const make = (doc, tag, className) => {
@@ -196,17 +195,17 @@ export class MarkdownEditor extends Controller {
         }
     }
 
-    /** Mod+B, Mod+I, Mod+K, and Enter in a list. @param {KeyboardEvent} event */
+    /** The tools' keys (default Mod+B, Mod+I, Mod+K; `data-kp-md-bold-key` …) and Enter in a list. @param {KeyboardEvent} event */
     onKey(event) {
-        if (event.isComposing || event.altKey) return;
+        if (event.isComposing) return;
         const mod = event.ctrlKey || event.metaKey;
-        const tool = mod && !event.shiftKey ? SHORTCUTS[event.key.toLowerCase()] : undefined;
+        const tool = toolPressed(this.host, event);
         if (tool) {
             event.preventDefault();
             this.use(tool);
             return;
         }
-        if (event.key !== 'Enter' || mod || event.shiftKey) return;
+        if (event.key !== 'Enter' || mod || event.shiftKey || event.altKey) return;
         const edit = continueList(this.area.value, this.area.selectionStart, this.area.selectionEnd);
         if (!edit) return;
         event.preventDefault();

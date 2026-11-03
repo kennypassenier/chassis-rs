@@ -9,6 +9,7 @@ import { MENU_SELECT_EVENT } from '../menu-button/constants.js';
 import { setMenu } from '../menu-button/open.js';
 import { getStrings } from '../strings.js';
 import { isAll, isMulti, isOn, itemDisabled, itemsOf, labelOf, valueOf } from './read.js';
+import { byId } from '../by-id.js';
 
 /** The menu button standing in for a folded group, and what it listens to. @typedef {{ host: HTMLElement, button: HTMLButtonElement, off: () => void }} Fold */
 
@@ -20,7 +21,7 @@ function nameOf(group) {
     const own = group.getAttribute('aria-label');
     if (own) return own;
     const ids = (group.getAttribute('aria-labelledby') ?? '').split(/\s+/).filter(Boolean);
-    const text = ids.map((id) => group.ownerDocument.getElementById(id)?.textContent?.trim() ?? '').join(' ').trim();
+    const text = ids.map((id) => byId(group.ownerDocument, id)?.textContent?.trim() ?? '').join(' ').trim();
     return text || getStrings().segmentedFoldName;
 }
 

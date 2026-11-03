@@ -2,6 +2,8 @@
 // an item go from one to the other, by pointer (dragged over the other list) and by keyboard (← → on its handle: the list before or
 // after, in document order). These are the pure helpers: which lists share a group, where a point falls, a list's key and name.
 
+import { byId } from '../by-id.js';
+
 /** The mark a list carries once it is wired (js/structure/reorder.js stamps it). */
 const ATTACHED = 'kpReorderAttached';
 /** How close to a scroller's side edge a dragged item must come before the scroller moves [px]. */
@@ -38,7 +40,7 @@ export function listName(list) {
     const label = list.getAttribute('aria-label');
     if (label) return label;
     const ids = (list.getAttribute('aria-labelledby') ?? '').split(/\s+/).filter(Boolean);
-    const words = ids.map((id) => list.ownerDocument.getElementById(id)?.textContent?.trim() ?? '').filter(Boolean);
+    const words = ids.map((id) => byId(list.ownerDocument, id)?.textContent?.trim() ?? '').filter(Boolean);
     if (words.length) return words.join(' ');
     return list.dataset.kpReorderLabel ?? listKey(list);
 }

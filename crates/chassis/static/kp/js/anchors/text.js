@@ -1,6 +1,8 @@
 // The anchors' selectors, events and times, and the pure helpers: slugs, unique ids, what an element is called, and
 // copying text with the clipboard or the old way.
 
+import { byId } from '../by-id.js';
+
 /** A container whose headings or rows get anchors. */
 export const ANCHORS = '[data-kp-anchors]';
 /** One element that says its own id. */
@@ -41,7 +43,7 @@ export function uniqueAnchorId(doc, slug, fallback = 'section') {
     const base = slug || fallback;
     let id = base;
     let n = 2;
-    while (doc.getElementById(id)) id = `${base}-${n++}`;
+    while (byId(doc, id)) id = `${base}-${n++}`;
     return id;
 }
 

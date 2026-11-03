@@ -1,7 +1,8 @@
 // Attaches the segmented groups under a root: delegated click, key and focus handling, and groups that arrive later.
 
 import { Controller, controllerOf } from '../controller.js';
-import { OVERFLOW_ATTRIBUTE, SEGMENTED, SEGMENTED_ITEM } from './constants.js';
+import { matchesKeySpec, resolveKeySpec } from '../key-spec.js';
+import { OVERFLOW_ATTRIBUTE, SEGMENTED, SEGMENTED_EXCLUDE_KEY, SEGMENTED_EXCLUDE_KEY_ATTRIBUTE, SEGMENTED_INCLUDE_KEY, SEGMENTED_INCLUDE_KEY_ATTRIBUTE, SEGMENTED_ITEM } from './constants.js';
 import { HANDLED, STOPS } from './state.js';
 import { groupDisabled, isAll, isMulti, isTri, itemDisabled, itemsOf } from './read.js';
 import { enhance, SegmentedGroup } from './group.js';
@@ -9,8 +10,12 @@ import { choose, turnTri } from './actions.js';
 import { targetIndex } from './keys.js';
 import { roving } from './roving.js';
 
-/** The keys that give a three-way chip a state directly [ux-1101]. @type {Record<string, 'include' | 'exclude'>} */
-const DIRECT_KEYS = { '+': 'include', '=': 'include', '-': 'exclude' };
+/** The state a key gives a three-way chip directly, by the group's keys [ux-1101, keys-1103]. @param {Element} group @param {KeyboardEvent} event @returns {'include' | 'exclude' | undefined} */
+function directState(group, event) {
+    if (matchesKeySpec(event, resolveKeySpec(group, SEGMENTED_INCLUDE_KEY_ATTRIBUTE, undefined, SEGMENTED_INCLUDE_KEY))) return 'include';
+    if (matchesKeySpec(event, resolveKeySpec(group, SEGMENTED_EXCLUDE_KEY_ATTRIBUTE, undefined, SEGMENTED_EXCLUDE_KEY))) return 'exclude';
+    return undefined;
+}
 
 /** The item and the group an event happened in, or nulls. @param {Event} event */
 function itemAndGroup(event) {
@@ -92,7 +97,7 @@ export class SegmentedRoot extends Controller {
             return;
         }
         // Plus wants and minus leaves out, at once, whatever the chip was [ux-1101].
-        const direct = isTri(group) && !isAll(item) ? DIRECT_KEYS[event.key] : undefined;
+        const direct = isTri(group) && !isAll(item) ? directState(group, event) : undefined;
         if (direct) {
             HANDLED.add(event);
             event.preventDefault();

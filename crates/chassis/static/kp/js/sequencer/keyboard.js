@@ -1,4 +1,6 @@
 // Focus and keyboard handling.
+import { matchesKeySpec, resolveKeySpec } from '../key-spec.js';
+import { SEQUENCER_LINK_KEY, SEQUENCER_LINK_KEY_ATTRIBUTE, SEQUENCER_UNLINK_KEY, SEQUENCER_UNLINK_KEY_ATTRIBUTE } from './constants.js';
 import { sequencerApplyKey, sequencerKey } from './links.js';
 import { cancelEdit, finishLink, navigate, startLink, stopLink, unlink } from './drag.js';
 import { commit, drawDraft, refuse, select } from './edit.js';
@@ -70,12 +72,13 @@ export function onKey(c, e) {
         announce(c, c.strings.sequencerGrabbed(item.label));
         return;
     }
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === 'l' || e.key === 'L') {
+    const link = resolveKeySpec(c.el, SEQUENCER_LINK_KEY_ATTRIBUTE, undefined, SEQUENCER_LINK_KEY);
+    const unlinkKey = resolveKeySpec(c.el, SEQUENCER_UNLINK_KEY_ATTRIBUTE, undefined, SEQUENCER_UNLINK_KEY);
+    if (matchesKeySpec(e, link, { anyShift: true })) {
         e.preventDefault();
         select(c, id);
         startLink(c, id);
-    } else if (e.key === 'u' || e.key === 'U') {
+    } else if (matchesKeySpec(e, unlinkKey, { anyShift: true })) {
         e.preventDefault();
         unlink(c, id);
     } else if (e.key === 'Escape' && c.selected) select(c, null);

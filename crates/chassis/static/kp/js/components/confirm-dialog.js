@@ -1,6 +1,7 @@
 // The confirmation dialog and the buttons that open it.
 import { getStrings, DEFAULT_STRINGS } from '../strings.js';
 import { buildTypeConfirm } from './type-confirm.js';
+import { byId } from '../by-id.js';
 
 /** Ids for the dialog's title and description, unique per page. */
 let dialogSeq = 0;
@@ -262,7 +263,7 @@ export function openConfirmation(
         const own = (button.textContent ?? '').trim().replace(/\s*(?:…|\.\.\.)$/, '');
         accept.textContent = acceptLabel ?? button.getAttribute('data-kp-confirm-label') ?? (own || s.confirmAccept);
         const lostId = button.getAttribute('data-kp-confirm-loses');
-        const lostSource = lostId ? document.getElementById(lostId) : null;
+        const lostSource = lostId ? byId(document, lostId) : null;
         const lost =
             loses ??
             (lostSource instanceof HTMLTemplateElement ? lostSource.content.cloneNode(true) : lostSource ? lostSource.cloneNode(true) : null);

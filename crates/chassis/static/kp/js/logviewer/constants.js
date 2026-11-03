@@ -10,3 +10,8 @@ export const LOGVIEWER_RETRY_EVENT = 'kp-logviewer-retry';
 export const LOGVIEWER_MAX = 2000;
 /** The levels, lowest first. */
 export const LOG_LEVELS = Object.freeze(['debug', 'info', 'notice', 'warning', 'error', 'critical']);
+
+/** On the log viewer: the key that jumps to the search from anywhere (a key spec, js/key-spec.js, or the older `/` spelling; `none` or `false` for no key). */
+export const LOG_FOCUS_KEY_ATTRIBUTE = 'data-kp-log-focus-key';
+/** The key that jumps to the search when the viewer names none. */
+export const LOG_FOCUS_KEY = '/';

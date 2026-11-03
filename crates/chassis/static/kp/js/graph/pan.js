@@ -1,5 +1,7 @@
 // Zoom and pan of one graph [graph-1020]: wheel, pinch, drag and the zoom keys. A view is one transform on the world group, so a
 // hover or a pick still toggles classes only.
+import { matchesKeySpec, resolveKeySpec } from '../key-spec.js';
+import { GRAPH_ZOOM_IN_KEY, GRAPH_ZOOM_IN_KEY_ATTRIBUTE, GRAPH_ZOOM_OUT_KEY, GRAPH_ZOOM_OUT_KEY_ATTRIBUTE, GRAPH_ZOOM_RESET_KEY, GRAPH_ZOOM_RESET_KEY_ATTRIBUTE } from './constants.js';
 import { ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './instance.js';
 import { applyView, clampView, pictureAt, zoomTo } from './view.js';
 /** @typedef {import('./instance.js').GraphModel} GraphModel */
@@ -130,14 +132,19 @@ export class GraphPan {
         zoomTo(g, g.view.k * Math.exp(-event.deltaY * unit), at.x, at.y);
     }
 
+    /** Whether this keydown is the graph's key for an action. @param {KeyboardEvent} event @param {string} attribute @param {string} fallback */
+    is(event, attribute, fallback) {
+        return matchesKeySpec(event, resolveKeySpec(this.g.el, attribute, undefined, fallback));
+    }
+
     /** The keys of a zoomed picture: + - 0 and Shift+arrows; true when the key was one of them. @param {KeyboardEvent} event */
     zoomKey(event) {
         const g = this.g;
         if (!g.options.zoom || event.ctrlKey || event.metaKey || event.altKey) return false;
         const [W, H] = g.size;
-        if (event.key === '+' || event.key === '=') zoomTo(g, g.view.k * ZOOM_STEP, W / 2, H / 2, true);
-        else if (event.key === '-' || event.key === '_') zoomTo(g, g.view.k / ZOOM_STEP, W / 2, H / 2, true);
-        else if (event.key === '0') {
+        if (this.is(event, GRAPH_ZOOM_IN_KEY_ATTRIBUTE, GRAPH_ZOOM_IN_KEY)) zoomTo(g, g.view.k * ZOOM_STEP, W / 2, H / 2, true);
+        else if (this.is(event, GRAPH_ZOOM_OUT_KEY_ATTRIBUTE, GRAPH_ZOOM_OUT_KEY)) zoomTo(g, g.view.k / ZOOM_STEP, W / 2, H / 2, true);
+        else if (this.is(event, GRAPH_ZOOM_RESET_KEY_ATTRIBUTE, GRAPH_ZOOM_RESET_KEY)) {
             g.view = { k: 1, x: 0, y: 0 };
             applyView(g, true);
         } else if (event.shiftKey && event.key.startsWith('Arrow')) {

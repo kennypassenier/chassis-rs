@@ -7,6 +7,7 @@ import { CALENDAR_MONTH_EVENT } from '../calendar/constants.js';
 import { setWeekStart } from '../week/api.js';
 import { WEEK_RANGE_EVENT } from '../week/constants.js';
 import { FOR_ATTRIBUTE } from './constants.js';
+import { byId } from '../by-id.js';
 /** @typedef {import('./constants.js').DateNavRange} DateNavRange */
 
 /**
@@ -16,7 +17,7 @@ import { FOR_ATTRIBUTE } from './constants.js';
 export function driveTarget(nav, range, announce) {
     const id = nav.getAttribute(FOR_ATTRIBUTE);
     if (!id) return;
-    const target = nav.ownerDocument.getElementById(id);
+    const target = byId(nav.ownerDocument, id);
     if (!target) {
         console.warn(`kp-date-nav: ${FOR_ATTRIBUTE}="${id}" names no element; the navigation moves nothing`);
         return;

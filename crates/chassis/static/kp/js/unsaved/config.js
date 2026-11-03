@@ -123,3 +123,8 @@ export function readSettings(el, id) {
         storeKey: `kp-unsaved:${win.location?.pathname ?? ''}:${el.dataset.kpName ?? id}`,
     };
 }
+
+/** On the bar: the key that saves the changes (a key spec, js/key-spec.js; `none` for no key). */
+export const UNSAVED_SAVE_KEY_ATTRIBUTE = 'data-kp-unsaved-save-key';
+/** The key that saves the changes when the bar names none. */
+export const UNSAVED_SAVE_KEY = 'Mod+S';

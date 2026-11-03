@@ -1,7 +1,9 @@
 // The state of one element with row keys: its options, its voice, the rows and the cursor, and setting boxes.
 
 import { Controller } from '../controller.js';
+import { matchesKeySpec, parseKeySpec, resolveKeySpec, withShift } from '../key-spec.js';
 import { getStrings } from '../strings.js';
+import { SELECT_ALL_KEY, SELECT_ALL_KEY_ATTRIBUTE, SELECT_NEXT_KEY, SELECT_NEXT_KEY_ATTRIBUTE, SELECT_PREV_KEY, SELECT_PREV_KEY_ATTRIBUTE, SELECT_TICK_KEY, SELECT_TICK_KEY_ATTRIBUTE } from './constants.js';
 import { ROW_SELECT_EVENT, SELECT_BOX, boxOf, boxesOf, keyOfRow, markCursor, onByDefault, rowOf, shown, tickable } from './rows.js';
 
 /** @typedef {import('../row-select.js').RowSelectOptions} RowSelectOptions */
@@ -34,6 +36,27 @@ export class RowSelectCore extends Controller {
     }
     useAllKey() {
         return this.opts.allKey ?? onByDefault(this.host, 'data-kp-select-all-key');
+    }
+    /** The key a page named for an action, else the default [keys-1103]. @param {string} attribute @param {string} fallback */
+    keySpec(attribute, fallback) {
+        return resolveKeySpec(this.host, attribute, undefined, fallback);
+    }
+    /** Whether this keydown is the next, previous or tick key. @param {KeyboardEvent} event @param {'next' | 'prev' | 'tick'} which */
+    pressed(event, which) {
+        const [attribute, fallback] = { next: [SELECT_NEXT_KEY_ATTRIBUTE, SELECT_NEXT_KEY], prev: [SELECT_PREV_KEY_ATTRIBUTE, SELECT_PREV_KEY], tick: [SELECT_TICK_KEY_ATTRIBUTE, SELECT_TICK_KEY] }[which];
+        return matchesKeySpec(event, this.keySpec(/** @type {string} */ (attribute), /** @type {string} */ (fallback)), { anyShift: which === 'tick' });
+    }
+    /** The select-all spec: the attribute's keys, the default for an empty or `true` one, none for `false`, `off` or `none`. */
+    allSpec() {
+        if (!this.useAllKey()) return [];
+        const raw = this.host.getAttribute(SELECT_ALL_KEY_ATTRIBUTE);
+        return parseKeySpec(raw === null || raw === '' || raw === 'true' || raw === 'on' ? SELECT_ALL_KEY : raw);
+    }
+    /** Whether this is the select-all key (`all`) or its Shift twin (`clear`). @param {KeyboardEvent} event @returns {'all' | 'clear' | null} */
+    allPressed(event) {
+        const spec = this.allSpec();
+        if (matchesKeySpec(event, spec)) return 'all';
+        return matchesKeySpec(event, withShift(spec)) ? 'clear' : null;
     }
     scrollTo() {
         return (this.opts.scroll ?? this.host.getAttribute('data-kp-cursor-scroll')) === 'center' ? 'center' : 'nearest';

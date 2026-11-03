@@ -1,6 +1,7 @@
 // One live list: its pill placed, the rows it counts, the listeners for the reader's scroll, keys and pause buttons, and the way it is taken down.
 
 import { watchOptions } from '../live-options.js';
+import { matchesKeySpec } from '../key-spec.js';
 import { NewPillAway } from './away.js';
 import { isRow, isTableRow, rowKeyOf } from './rows.js';
 import { NEWPILL_JUMP_EVENT } from './values.js';
@@ -122,13 +123,13 @@ export class NewPill extends NewPillAway {
 
     /** Jump back to the tail, or pause and resume with Space. @param {KeyboardEvent} event */
     onKey(event) {
-        if (event.ctrlKey || event.metaKey || event.altKey) return;
         const target = event.target instanceof Element ? event.target : null;
         if (target?.closest('input, textarea, select, button, a')) return;
-        if (event.key === this.read.keyName) {
+        // Shift is not looked at: Shift+End has always followed, as End does.
+        if (matchesKeySpec(event, this.read.followKey, { anyShift: true })) {
             event.preventDefault();
             this.jump();
-        } else if (this.read.space && event.key === ' ') {
+        } else if (this.read.space && event.key === ' ' && !(event.ctrlKey || event.metaKey || event.altKey)) {
             event.preventDefault();
             this.toggle();
         }

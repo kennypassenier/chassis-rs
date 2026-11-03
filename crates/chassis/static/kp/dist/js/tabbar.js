@@ -1,2 +1,2 @@
-/* @kp-soft/themes v12.4.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
-import{a,b,c,d,e,f,g,h,i,j,k,l}from"./chunk-4IYLMKRM.js";import"./chunk-OTO6WQUO.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{a as TAB,f as TABBAR,g as TABBAR_HEIGHT_PROPERTY,c as TAB_COUNT_EVENT,b as TAB_COUNT_TONES,k as attachTabCounts,l as attachTabbars,d as drawTabCount,e as setTabCount,h as setTabbarBadge,j as setTabbarBusy,i as setTabbarCurrent};
+/* @kp-soft/themes v12.6.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d,e,f,g,h,i,j,k,l}from"./chunk-MTYDUWTX.js";import"./chunk-FL56FM2V.js";import"./chunk-FUGZUXRR.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{a as TAB,f as TABBAR,g as TABBAR_HEIGHT_PROPERTY,c as TAB_COUNT_EVENT,b as TAB_COUNT_TONES,k as attachTabCounts,l as attachTabbars,d as drawTabCount,e as setTabCount,h as setTabbarBadge,j as setTabbarBusy,i as setTabbarCurrent};

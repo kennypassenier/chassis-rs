@@ -6,7 +6,9 @@ import { COLUMNS_EVENT, VIEW_EVENT } from '../datatable/events.js';
 import { VALID_EVENT } from '../forms/constants.js';
 import { ADD_ROW_FOR } from './constants.js';
 import { headerCells, layLine, layTableRow } from './layout.js';
+import { addFromKey } from './keys.js';
 import { addLine, refusalOf } from './submit.js';
+import { byId } from '../by-id.js';
 
 export class AddRow extends Controller {
     /** @param {HTMLElement} host the add row, a form */
@@ -31,6 +33,8 @@ export class AddRow extends Controller {
         this.listen(row, VALID_EVENT, (event) => {
             if (event.target === row) void addLine(row, /** @type {CustomEvent} */ (event).detail?.data ?? new FormData(row));
         });
+        // Capture: before a drawn select or a list box takes the Enter for itself.
+        this.listen(row, 'keydown', (event) => void addFromKey(row, /** @type {KeyboardEvent} */ (event)), { capture: true });
         this.own(() => cancelAnimationFrame(this.frame));
         const sizes = this.observe(new ResizeObserver(() => this.soon()));
         sizes.observe(row);
@@ -49,7 +53,7 @@ export class AddRow extends Controller {
     wrap() {
         const id = this.row.getAttribute(ADD_ROW_FOR);
         if (!id) return null;
-        const named = this.row.ownerDocument.getElementById(id);
+        const named = byId(this.row.ownerDocument, id);
         const wrap = /** @type {HTMLElement | null} */ (named?.closest(TABLE) ?? named?.querySelector(TABLE) ?? null);
         if (!wrap) console.warn(`kp-addrow: no data table #${id} on the page; the row stands as a line`, this.row);
         return wrap;

@@ -14,3 +14,12 @@ export const CLAIM_FILTERS = Object.freeze(['all', 'gaps', 'mine']);
 export const CLAIM_REFUSED_MS = 3000;
 /** How long Undo is offered after a release [ms]. */
 export const CLAIM_UNDO_MS = 6000;
+
+/** On the list: the key that takes or lets go of the focused row (a key spec, js/key-spec.js; `none` for no key). */
+export const CLAIM_TAKE_KEY_ATTRIBUTE = 'data-kp-claim-take-key';
+/** The key that takes or lets go of the focused row when the list names none. */
+export const CLAIM_TAKE_KEY = 'c';
+/** On the list: the key that filters to the rows nobody has taken. */
+export const CLAIM_GAPS_KEY_ATTRIBUTE = 'data-kp-claim-gaps-key';
+/** The key that filters to the gaps when the list names none. */
+export const CLAIM_GAPS_KEY = 'Shift+C';

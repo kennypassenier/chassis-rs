@@ -53,6 +53,7 @@ export {
     setLanguage,
     getLanguage,
     languageReady,
+    STRINGS_CHANGE_EVENT,
 } from './strings/runtime.js';
 
 /** @typedef {import('./strings/types.js').Strings} Strings */

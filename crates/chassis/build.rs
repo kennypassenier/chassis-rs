@@ -28,7 +28,7 @@ const MIME_BY_EXTENSION: &[(&str, &str)] = &[
 
 /// Files that live in the vendored tree for the manifest gate only and are
 /// never served: licence texts, the font catalogue and the sha256 manifest.
-const NOT_SERVED_FILE_NAMES: &[&str] = &["LICENSE"];
+const NOT_SERVED_FILE_NAMES: &[&str] = &["LICENSE", "VERSION"];
 const NOT_SERVED_EXTENSIONS: &[&str] = &["json", "txt", "sha256"];
 
 /// The kp-themes JavaScript every page needs (theme boot, picker, strings,

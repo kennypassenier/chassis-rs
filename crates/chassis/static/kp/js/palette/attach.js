@@ -1,6 +1,6 @@
 // Attaches the command palettes and shortcut sheets of a page: one PaletteControl or SheetControl per dialog.
 import { attachOne } from '../controller.js';
-import { INPUT, LIST, PALETTE, SHEET } from './constants.js';
+import { INPUT, LIST, PALETTE, PALETTE_KEY, SHEET } from './constants.js';
 import { MATCHERS } from './keys.js';
 import { PaletteControl } from './palette-control.js';
 import { SheetControl } from './sheet.js';
@@ -18,7 +18,7 @@ import { SheetControl } from './sheet.js';
 export function attachPalettes(
     root = document,
     {
-        hotkey = 'k',
+        hotkey = PALETTE_KEY,
         sheetKey = '?',
         match = 'intent',
         clearOnClose = true,

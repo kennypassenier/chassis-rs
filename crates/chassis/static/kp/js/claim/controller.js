@@ -7,7 +7,8 @@ import { memoryFor } from '../remember.js';
 import { registerShortcuts } from '../shortcuts.js';
 import { getStrings } from '../strings.js';
 import { copyGaps, takeAll } from './bulk.js';
-import { CLAIM_FILTERS, CLAIM_RETRY_EVENT } from './constants.js';
+import { matchesKeySpec, resolveKeySpec, engineKeys } from '../key-spec.js';
+import { CLAIM_FILTERS, CLAIM_GAPS_KEY, CLAIM_GAPS_KEY_ATTRIBUTE, CLAIM_RETRY_EVENT, CLAIM_TAKE_KEY, CLAIM_TAKE_KEY_ATTRIBUTE } from './constants.js';
 import { decorate, setClaimFilter } from './decorate.js';
 import { attr, byOf, itemOf, stateOf } from './model.js';
 import { press, request } from './request.js';
@@ -66,31 +67,30 @@ export class ClaimList extends Controller {
         const list = this.host;
         const s = getStrings();
         const here = () => list.contains(document.activeElement) && document.activeElement?.closest('.kp-checklist__item') !== null;
-        this.own(
-            registerShortcuts(
-                list,
-                [
-                    {
-                        keys: 'c',
-                        what: s.claimKeyTake,
-                        group: s.claimKeyGroup,
-                        when: () => here() && mode(list) === 'claim' && stateOf(list).viewer !== null,
-                        reason: s.claimKeyReason,
-                        run: () => {
-                            const row = document.activeElement?.closest('.kp-checklist__item');
-                            if (row instanceof HTMLElement) press(list, row);
-                        },
-                    },
-                    {
-                        keys: 'Shift C',
-                        what: s.claimKeyGaps,
-                        group: s.claimKeyGroup,
-                        run: () => setClaimFilter(list, stateOf(list).filter === 'gaps' ? 'all' : 'gaps'),
-                    },
-                ],
-                { layoutGuard: 'off' },
-            ),
-        );
+        const take = engineKeys(resolveKeySpec(list, CLAIM_TAKE_KEY_ATTRIBUTE, undefined, CLAIM_TAKE_KEY));
+        const gaps = engineKeys(resolveKeySpec(list, CLAIM_GAPS_KEY_ATTRIBUTE, undefined, CLAIM_GAPS_KEY));
+        /** @type {import('../shortcuts.js').Shortcut[]} */
+        const shortcuts = [];
+        if (take)
+            shortcuts.push({
+                keys: take,
+                what: s.claimKeyTake,
+                group: s.claimKeyGroup,
+                when: () => here() && mode(list) === 'claim' && stateOf(list).viewer !== null,
+                reason: s.claimKeyReason,
+                run: () => {
+                    const row = document.activeElement?.closest('.kp-checklist__item');
+                    if (row instanceof HTMLElement) press(list, row);
+                },
+            });
+        if (gaps)
+            shortcuts.push({
+                keys: gaps,
+                what: s.claimKeyGaps,
+                group: s.claimKeyGroup,
+                run: () => setClaimFilter(list, stateOf(list).filter === 'gaps' ? 'all' : 'gaps'),
+            });
+        if (shortcuts.length > 0) this.own(registerShortcuts(list, shortcuts, { layoutGuard: 'off' }));
     }
 
     /** Every option is live: change the attribute and the rows are drawn again (a page that switches a look at run time). */
@@ -142,7 +142,7 @@ export class ClaimList extends Controller {
     onKey(event) {
         const list = this.host;
         const target = event.target;
-        if (event.key !== 'c' || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat) return;
+        if (event.repeat || !matchesKeySpec(event, resolveKeySpec(list, CLAIM_TAKE_KEY_ATTRIBUTE, undefined, CLAIM_TAKE_KEY))) return;
         if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox' || mode(list) !== 'claim') return;
         const row = target.closest('.kp-checklist__item');
         if (!(row instanceof HTMLElement) || list.getAttribute('data-kp-claim-keys') === 'false') return;

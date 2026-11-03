@@ -50,3 +50,8 @@ export const TYPING_SELECTOR =
  * @property {(reason?: 'now' | 'retry') => void} now refresh at once
  * @property {(ok: boolean) => void} done the app's answer to the refresh in progress
  */
+
+/** On the control: the key that refreshes now (a key spec, js/key-spec.js; `off` or `none` for no key). */
+export const REFRESH_KEY_ATTRIBUTE = 'data-kp-refresh-key';
+/** The key that refreshes now when the control names none; either case counts. */
+export const REFRESH_KEY = 'R';

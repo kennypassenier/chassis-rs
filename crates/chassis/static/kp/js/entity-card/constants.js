@@ -18,3 +18,10 @@ export const ENTITY_RETRY_EVENT = 'kp-entity-retry';
 export const ENTITY_NEW_EVENT = 'kp-entity-new';
 /** Fired on the grid when its Retry is pressed. */
 export const ENTITY_GRID_RETRY_EVENT = 'kp-entity-grid-retry';
+
+/** On a card or its grid: the key that stars the card while the focus is inside it (a key spec, js/key-spec.js, or a plain key; `none` or `off` for no key). */
+export const ENTITY_STAR_KEY_ATTRIBUTE = 'data-kp-entity-star-key';
+/** The key that stars a card when it and its grid name none. */
+export const ENTITY_STAR_KEY = 's';
+/** The key that stars a card under a board whose tiles jump by their first letter, so the star never takes a letter away from the search. */
+export const ENTITY_STAR_LETTERS_KEY = '.';

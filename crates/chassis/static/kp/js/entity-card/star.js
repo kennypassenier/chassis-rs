@@ -3,6 +3,7 @@ import { setIdmark } from '../idmark.js';
 import { attachToggles } from '../toggle.js';
 import { getStrings } from '../strings.js';
 import { ENTITY_STAR_EVENT, ENTITY_TICK_EVENT } from './constants.js';
+import { ariaKeyShortcut, isKeySpecText, matchesKeySpec, parseKeySpec } from '../key-spec.js';
 import { DRAWN, made, starKeyOf } from './helpers.js';
 /** @typedef {import('./types.js').EntityData} EntityData */
 
@@ -48,7 +49,7 @@ function listenForStarKey(card) {
     KEYED.add(card);
     card.addEventListener('keydown', (event) => {
         const wanted = starKeyOf(card);
-        if (wanted === 'off' || event.key.toLowerCase() !== wanted || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+        if (wanted === 'off' || !matchesKeySpec(event, parseKeySpec(wanted))) return;
         const target = /** @type {Element} */ (event.target);
         if (target.closest('input, textarea, select, [contenteditable], .kp-menu')) return;
         const button = /** @type {HTMLButtonElement | null} */ (card.querySelector(':scope > .kp-entity__id .kp-entity__star'));
@@ -75,7 +76,7 @@ export function appendStar(card, el, data, pressed, starKey) {
     button.setAttribute('data-kp-toggle', '');
     button.setAttribute('data-kp-look', 'icon');
     button.setAttribute('aria-pressed', String(pressed));
-    if (starKey !== 'off') button.setAttribute('aria-keyshortcuts', starKey);
+    if (starKey !== 'off') button.setAttribute('aria-keyshortcuts', isKeySpecText(starKey) ? ariaKeyShortcut(parseKeySpec(starKey)) : starKey);
     const glyph = doc.createElementNS(ns, 'svg');
     glyph.setAttribute('class', 'kp-entity__star-glyph');
     glyph.setAttribute('viewBox', '0 0 24 24');

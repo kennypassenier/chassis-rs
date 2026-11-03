@@ -23,6 +23,8 @@ import { ChangeTracker } from './changes.js';
 import { ChangeKeeper } from './keeper.js';
 import { ChangesPanel } from './panel.js';
 import { BarDock } from './dock.js';
+import { matchesKeySpec, resolveKeySpec } from '../key-spec.js';
+import { UNSAVED_SAVE_KEY, UNSAVED_SAVE_KEY_ATTRIBUTE } from './config.js';
 import { WIDGET_EVENTS } from './widgets.js';
 import { LeaveGuard } from './leave.js';
 
@@ -156,7 +158,7 @@ export class UnsavedController extends Controller {
 
     /** @param {KeyboardEvent} event */
     onKey(event) {
-        if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 's') {
+        if (matchesKeySpec(event, resolveKeySpec(this.el, UNSAVED_SAVE_KEY_ATTRIBUTE, undefined, UNSAVED_SAVE_KEY))) {
             if (this.tracker.changes().length === 0 && !this.saving) return;
             event.preventDefault();
             this.save();

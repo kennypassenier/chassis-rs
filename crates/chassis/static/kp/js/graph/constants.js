@@ -20,3 +20,16 @@ export const GRAPH_OPTION_ATTRIBUTES = [
     'data-kp-node-radius',
     'data-kp-graph-height',
 ];
+
+/** On the graph: the key that zooms in (a key spec, js/key-spec.js; `none` for no key; the `or` list gives several keys). */
+export const GRAPH_ZOOM_IN_KEY_ATTRIBUTE = 'data-kp-zoom-in-key';
+/** The keys that zoom in when the graph names none (`=` is the unshifted key of `+` on a US layout). */
+export const GRAPH_ZOOM_IN_KEY = '+ or =';
+/** On the graph: the key that zooms out. */
+export const GRAPH_ZOOM_OUT_KEY_ATTRIBUTE = 'data-kp-zoom-out-key';
+/** The keys that zoom out when the graph names none (`_` is the shifted key of `-`). */
+export const GRAPH_ZOOM_OUT_KEY = '- or _';
+/** On the graph: the key that resets the zoom. */
+export const GRAPH_ZOOM_RESET_KEY_ATTRIBUTE = 'data-kp-zoom-reset-key';
+/** The key that resets the zoom when the graph names none. */
+export const GRAPH_ZOOM_RESET_KEY = '0';

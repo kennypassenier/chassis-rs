@@ -3,6 +3,7 @@ import { getStrings } from '../strings.js';
 import { focusState } from './state.js';
 import { stateOf } from './dom.js';
 import { opt } from './resume.js';
+import { byId } from '../by-id.js';
 /** @typedef {import('./constants.js').FocusState} FocusState */
 /** @typedef {import('./constants.js').Track} Track */
 
@@ -44,7 +45,7 @@ export function layTracks(root) {
 /** The timer list the steps' timers run in. @param {Element} root */
 function timerList(root) {
     const named = root.getAttribute('data-kp-focus-steps-timers');
-    const found = named ? document.getElementById(named) : document.querySelector('[data-kp-timers]');
+    const found = named ? byId(document, named) : document.querySelector('[data-kp-timers]');
     return found instanceof HTMLElement ? found : null;
 }
 /** The timers of the list, now. @param {Element} root @returns {import('../timer.js').TimerState[]} */

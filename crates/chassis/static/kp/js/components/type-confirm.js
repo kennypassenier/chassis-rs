@@ -1,6 +1,7 @@
 // The type-to-confirm field: its constants, matching and markup, and the typed confirmation blocks a page puts in its own dialog.
 import { Controller, attachOne } from '../controller.js';
 import { getStrings } from '../strings.js';
+import { byId } from '../by-id.js';
 
 /** Dispatched on the offending element, bubbling, with the Violation as detail. */
 export const VIOLATION_EVENT = 'kp-contract-violation';
@@ -201,7 +202,7 @@ class TypeConfirmControl extends Controller {
     constructor(host, options = {}) {
         super(host, options);
         this.strings = options.strings;
-        const target = host.dataset.kpTypeConfirmFor ? host.ownerDocument.getElementById(host.dataset.kpTypeConfirmFor) : null;
+        const target = host.dataset.kpTypeConfirmFor ? byId(host.ownerDocument, host.dataset.kpTypeConfirmFor) : null;
         /** The button `data-kp-type-confirm-for` names, kept disabled until the name is typed. */
         this.button = target instanceof HTMLButtonElement || target instanceof HTMLInputElement ? target : null;
         /** Whether the page had disabled that button itself; detach gives it back. */
@@ -219,7 +220,7 @@ class TypeConfirmControl extends Controller {
             delete block.dataset.kpTypeConfirmAttached;
             if (this.button) this.button.disabled = this.wasDisabled;
         });
-        const lostSource = block.dataset.kpTypeConfirmLoses ? doc.getElementById(block.dataset.kpTypeConfirmLoses) : null;
+        const lostSource = block.dataset.kpTypeConfirmLoses ? byId(doc, block.dataset.kpTypeConfirmLoses) : null;
         const lost = lostSource instanceof HTMLTemplateElement ? lostSource.content.cloneNode(true) : lostSource ? lostSource.cloneNode(true) : null;
         if (lost instanceof Element) {
             lost.removeAttribute('id');

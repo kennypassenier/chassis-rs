@@ -1,5 +1,8 @@
 // The two doors into a growing text box from outside: a script writing `value =`, and the Mod+Enter submit key.
 
+import { resolveEngineKeys } from '../key-spec.js';
+import { AUTOSIZE_SUBMIT_KEY, AUTOSIZE_SUBMIT_KEY_ATTRIBUTE, AUTOSIZE_SUBMIT_LEGACY, AUTOSIZE_SUBMIT_LEGACY_KEY } from './constants.js';
+
 /** One markup attribute's text, or the fallback. @param {Element} el @param {string} name @param {string} fallback */
 export const attr = (el, name, fallback) => el.getAttribute(name) ?? fallback;
 
@@ -28,14 +31,16 @@ export function hookValueSetter(c) {
 /** Mod+Enter submits, and the `?` sheet lists it. @param {import('./controller.js').AutosizeController} c */
 export function registerSubmitKey(c) {
     const area = c.area;
-    if (attr(area, 'data-kp-submit-key', 'off') !== 'mod-enter') return;
+    const asked = area.getAttribute(AUTOSIZE_SUBMIT_KEY_ATTRIBUTE)?.trim().toLowerCase() === AUTOSIZE_SUBMIT_LEGACY ? AUTOSIZE_SUBMIT_LEGACY_KEY : undefined;
+    const keys = resolveEngineKeys(area, AUTOSIZE_SUBMIT_KEY_ATTRIBUTE, asked, AUTOSIZE_SUBMIT_KEY);
+    if (keys === null) return;
     void import('../shortcuts.js').then(({ registerShortcuts }) => {
         if (c.destroyed) return;
         const unregister = registerShortcuts(
             area,
             [
                 {
-                    keys: 'Mod Enter',
+                    keys,
                     what: c.strings.autosizeSubmit,
                     group: c.strings.autosizeGroup,
                     when: () => c.doc.activeElement === area && !area.disabled && !area.readOnly,

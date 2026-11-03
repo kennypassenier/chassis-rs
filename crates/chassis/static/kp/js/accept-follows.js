@@ -30,6 +30,7 @@ import { formatQuantity, parseQuantity, rulesOf, settleQuantity } from './quanti
 import { getQuantity, inputOf, unitFor } from './quantity/read.js';
 import { QUANTITY_EVENT } from './quantity/values.js';
 import { acceptState } from './accept-follows-words.js';
+import { byId } from './by-id.js';
 
 /** The attribute that names the quantity a button follows. */
 export const FOLLOWS = 'data-kp-accept-follows';
@@ -60,7 +61,7 @@ export class AcceptFollows extends Controller {
 
     connect() {
         const id = this.host.getAttribute(FOLLOWS) ?? '';
-        const quantity = this.host.ownerDocument.getElementById(id);
+        const quantity = byId(this.host.ownerDocument, id);
         if (!quantity?.matches('[data-kp-quantity]')) throw new Error(`${FOLLOWS}="${id}": no quantity with that id is on the page`);
         this.quantity = quantity;
         this.keepHost();

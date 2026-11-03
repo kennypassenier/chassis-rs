@@ -41,7 +41,9 @@ export {
 } from './overlays/constants.js';
 export { openAtTop, openDialog, attachDialogs, closeLabel } from './overlays/dialogs.js';
 export { DIALOG_GUARD, attachDialogGuards, dialogChanged, markDialogSaved, forgetDialogEdits, whenDialogFree, requestDialogClose } from './overlays/dialog-guard.js';
-export { REGION_GUARD, regionChanged, markRegionSaved, forgetRegionEdits, whenRegionFree } from './overlays/region-guard.js';
+export { REGION_GUARD, regionChanged, markRegionSaved, forgetRegionEdits, whenRegionFree, setRegionFlush } from './overlays/region-guard.js';
+export { registerEditor } from './overlays/page-editors.js';
+export { pageChanged, whenPageFree } from './overlays/page-guard.js';
 export { selectTab, attachTabs } from './overlays/tabs.js';
 export { revealTab, watchTabOverflow } from './overlays/tab-row.js';
 export { toastRegion, toast } from './overlays/toast.js';

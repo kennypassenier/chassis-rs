@@ -24,6 +24,7 @@
 import { paint } from './draw.js';
 import { spinWheel } from './spin.js';
 import { WHEEL_FOLLOWS_REASON, WHEEL_LOCKED, WHEEL_RESULT_EVENT, WHEEL_SPIN_EVENT, part, stateOf } from './state.js';
+import { byId } from '../by-id.js';
 
 export { WHEEL_FOLLOWS_REASON, WHEEL_LOCKED };
 
@@ -69,7 +70,7 @@ const pendingStart = new WeakMap();
 function leaderOf(follower, quiet = false) {
     const id = follower.getAttribute(WHEEL_FOLLOWS)?.trim();
     if (!id) return null;
-    const leader = follower.ownerDocument.getElementById(id);
+    const leader = byId(follower.ownerDocument, id);
     if (leader instanceof HTMLElement && leader !== follower && leader.matches('[data-kp-wheel]')) return leader;
     if (!quiet) warnOnce(`leader:${id}`, `${WHEEL_FOLLOWS}="${id}" names no other wheel on this page; the follower stays locked until it does.`);
     return null;

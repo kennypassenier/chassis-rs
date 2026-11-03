@@ -14,3 +14,10 @@ export const NEWPILL_SAY_MS = 10000;
 export const LEAVE_FALLBACK_MS = 700;
 /** The columns the "new since" divider of a table spans: more than any table has. */
 export const DIVIDER_COLSPAN = 99;
+
+/** On the scroller: the key that jumps back and follows again (a key spec, js/key-spec.js, or a named key such as `End`; `none` for no key). */
+export const NEWPILL_FOLLOW_KEY_ATTRIBUTE = 'data-kp-follow-key';
+/** The key that jumps back to the end and follows again when the scroller names none. */
+export const NEWPILL_FOLLOW_KEY = 'End';
+/** The same key for a scroller that follows its head (`data-kp-follow="head"`). */
+export const NEWPILL_FOLLOW_HEAD_KEY = 'Home';

@@ -1,6 +1,7 @@
 // The keyboard of the field: Esc then Tab leaves it, Tab indents, Shift+Tab takes an indent off, Mod+Shift+F formats.
 
-import { INDENT_WIDE } from './constants.js';
+import { matchesKeySpec, resolveKeySpec } from '../key-spec.js';
+import { INDENT_WIDE, JSON_FORMAT_KEY, JSON_FORMAT_KEY_ATTRIBUTE } from './constants.js';
 
 /** Shift+Tab: take one indent off the line the caret is on. @param {import('./controller.js').JsonFieldController} c */
 function outdent(c) {
@@ -34,7 +35,7 @@ export function handleKey(c, event) {
         c.escaped = true;
         return;
     }
-    if (mod && event.shiftKey && event.key.toLowerCase() === 'f' && c.formatOption() !== 'off') {
+    if (matchesKeySpec(event, resolveKeySpec(c.area, JSON_FORMAT_KEY_ATTRIBUTE, undefined, JSON_FORMAT_KEY)) && c.formatOption() !== 'off') {
         event.preventDefault();
         c.format();
         return;

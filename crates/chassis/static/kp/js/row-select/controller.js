@@ -1,6 +1,8 @@
 // One element with row keys: the keys (walk, tick, range, all, clear, open), the mouse and touch ticks, and the wiring.
 
 import { setKeys } from '../keys.js';
+import { keyCaps } from '../key-spec.js';
+import { SELECT_NEXT_KEY, SELECT_NEXT_KEY_ATTRIBUTE, SELECT_PREV_KEY, SELECT_PREV_KEY_ATTRIBUTE, SELECT_TICK_KEY, SELECT_TICK_KEY_ATTRIBUTE } from './constants.js';
 import { getStrings } from '../strings.js';
 import { RowSelectCore } from './core.js';
 import { CONTROLS, CURSOR_CLASS, LONG_PRESS_MS, ROW_LIKE, ROW_OPEN_EVENT, SELECT_BOX, boxOf, labelOfRow, rowOf, tickable } from './rows.js';
@@ -70,13 +72,16 @@ export class RowSelector extends RowSelectCore {
         const strings = getStrings();
         /** @type {import('../keys.js').KeyPair[]} */
         const pairs = [
-            [['j', 'k'], strings.rowKeysMove],
-            ['x', strings.rowKeysTick],
-            [['Shift', 'x'], strings.rowKeysRange],
             ['Esc', strings.rowKeysClear],
             ['Enter', strings.rowKeysOpen],
         ];
-        if (this.useAllKey()) pairs.push([['Mod', 'A'], strings.rowKeysAll]);
+        const next = keyCaps(this.keySpec(SELECT_NEXT_KEY_ATTRIBUTE, SELECT_NEXT_KEY));
+        const prev = keyCaps(this.keySpec(SELECT_PREV_KEY_ATTRIBUTE, SELECT_PREV_KEY));
+        const tick = keyCaps(this.keySpec(SELECT_TICK_KEY_ATTRIBUTE, SELECT_TICK_KEY));
+        const all = keyCaps(this.allSpec());
+        if (next && prev) pairs.unshift([[String(next), String(prev)], strings.rowKeysMove]);
+        if (tick) pairs.splice(next && prev ? 1 : 0, 0, [tick, strings.rowKeysTick], [['Shift', ...[tick].flat()], strings.rowKeysRange]);
+        if (all) pairs.push([all, strings.rowKeysAll]);
         setKeys(hint, pairs);
     }
 
@@ -93,11 +98,11 @@ export class RowSelector extends RowSelectCore {
         const onElement = inRow !== null || target === this.host;
         // Esc unticks all, only when there is something to untick, so it never steals a dialog's Esc.
         if (event.key === 'Escape' && bare && this.count() > 0 && onElement) return this.escape(event);
-        if (this.useAllKey() && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a' && onElement) return this.tickShown(event, list);
+        if (onElement && this.allPressed(event)) return this.tickShown(event, list);
         if (!bare || !inRow) return;
         if (this.walk(event, list, inRow)) return;
         const key = event.key;
-        if (key.toLowerCase() === 'x') return event.shiftKey ? this.rangeKey(event, list, inRow) : this.tickKey(event, list, inRow);
+        if (this.pressed(event, 'tick')) return event.shiftKey ? this.rangeKey(event, list, inRow) : this.tickKey(event, list, inRow);
         if (key === 'Enter' && target === inRow) {
             event.preventDefault();
             inRow.dispatchEvent(new CustomEvent(ROW_OPEN_EVENT, { bubbles: true, detail: { row: inRow } }));
@@ -116,7 +121,7 @@ export class RowSelector extends RowSelectCore {
     /** Ctrl+A ticks every row shown, Ctrl+Shift+A unticks them. @param {KeyboardEvent} event @param {HTMLElement[]} list */
     tickShown(event, list) {
         event.preventDefault();
-        const on = !event.shiftKey;
+        const on = this.allPressed(event) !== 'clear';
         for (const row of list) {
             const box = boxOf(row);
             if (box) this.setBox(box, on);
@@ -132,8 +137,8 @@ export class RowSelector extends RowSelectCore {
      */
     walk(event, list, inRow) {
         const key = event.key;
-        const down = key === 'j' || (this.useArrows() && key === 'ArrowDown');
-        const up = key === 'k' || (this.useArrows() && key === 'ArrowUp');
+        const down = this.pressed(event, 'next') || (this.useArrows() && key === 'ArrowDown');
+        const up = this.pressed(event, 'prev') || (this.useArrows() && key === 'ArrowUp');
         const atRow = event.target === inRow;
         /** @type {HTMLElement | undefined} */
         let to;

@@ -49,3 +49,12 @@ export const SAY_DELAY_MS = 60;
  * @property {string[]} include  the values that must be in
  * @property {string[]} exclude  the values that must not be in
  */
+
+/** On a three-way chip group: the keys that set the focused chip to `include` (a key spec, js/key-spec.js; `none` for no key). */
+export const SEGMENTED_INCLUDE_KEY_ATTRIBUTE = 'data-kp-segmented-include-key';
+/** The keys that include the focused chip when the group names none (`=` is the unshifted key of `+`). */
+export const SEGMENTED_INCLUDE_KEY = '+ or =';
+/** On a three-way chip group: the key that sets the focused chip to `exclude`. */
+export const SEGMENTED_EXCLUDE_KEY_ATTRIBUTE = 'data-kp-segmented-exclude-key';
+/** The key that excludes the focused chip when the group names none. */
+export const SEGMENTED_EXCLUDE_KEY = '-';

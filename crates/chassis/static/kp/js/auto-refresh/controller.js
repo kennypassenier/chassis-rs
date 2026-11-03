@@ -3,7 +3,8 @@
 import { watchOptions } from '../live-options.js';
 import { getStrings } from '../strings.js';
 import { RefreshBase } from './base.js';
-import { REFRESH_DEFAULT, WATCHED_ATTRIBUTES } from './constants.js';
+import { matchesKeySpec, resolveKeySpec } from '../key-spec.js';
+import { REFRESH_DEFAULT, REFRESH_KEY, REFRESH_KEY_ATTRIBUTE, WATCHED_ATTRIBUTES } from './constants.js';
 import { NARROW_ATTRIBUTE, isNarrow } from './narrow.js';
 
 /** The controller of one `[data-kp-refresh]` control. */
@@ -83,11 +84,9 @@ export class RefreshController extends RefreshBase {
         this.chooser.focusTarget()?.focus?.();
     }
 
-    /** The R key refreshes now, except inside a field. @param {KeyboardEvent} event */
+    /** The refresh key (default R, `data-kp-refresh-key`) refreshes now, except inside a field. @param {KeyboardEvent} event */
     onKey(event) {
-        if (event.key !== 'r' && event.key !== 'R') return;
-        if (event.ctrlKey || event.metaKey || event.altKey) return;
-        if (this.host.getAttribute('data-kp-refresh-key') === 'off') return;
+        if (!matchesKeySpec(event, resolveKeySpec(this.host, REFRESH_KEY_ATTRIBUTE, undefined, REFRESH_KEY), { anyShift: true })) return;
         const t = event.target;
         if (t instanceof HTMLElement && t.matches('input, textarea, select, [contenteditable]')) return;
         this.refreshNow('now');

@@ -5,9 +5,10 @@ import { FOLLOW_EVENT, attachNewPills, newPill } from '../newpill.js';
 import { attachSegmented } from '../segmented.js';
 import { attachDisabledReasons } from '../reason.js';
 import { registerShortcuts } from '../shortcuts.js';
+import { resolveEngineKeys } from '../key-spec.js';
 import { runFlashButton } from '../flash.js';
 import { logViewerText, stepLogMatch, syncOptions } from './api.js';
-import { LOGVIEWER_RETRY_EVENT } from './constants.js';
+import { LOGVIEWER_RETRY_EVENT, LOG_FOCUS_KEY, LOG_FOCUS_KEY_ATTRIBUTE } from './constants.js';
 import { attr, stateOf } from './model.js';
 import { ensureParts } from './parts.js';
 import { logOf, queryOf, say } from './reads.js';
@@ -46,8 +47,8 @@ export class LogViewerControl extends Controller {
     /** The key that jumps to the search field from anywhere, through the engine; none when `data-kp-log-focus-key` is off. @param {HTMLInputElement} find @param {HTMLElement} bar */
     searchKey(find, bar) {
         const s = getStrings();
-        const focusKey = attr(this.host, 'focus-key', '/');
-        if (focusKey === 'false' || focusKey === '') return () => undefined;
+        const focusKey = resolveEngineKeys(this.host, LOG_FOCUS_KEY_ATTRIBUTE, undefined, LOG_FOCUS_KEY);
+        if (focusKey === null) return () => undefined;
         const key = { keys: focusKey, what: s.logviewerKeySearch, group: s.logviewerKeyGroup, when: () => !find.disabled && !find.hidden && !bar.hidden, reason: s.logviewerNothing, run: () => find.focus() };
         return registerShortcuts(this.host, [key], { layoutGuard: 'off' });
     }

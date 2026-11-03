@@ -1,5 +1,6 @@
 // Small helpers: options, star keys, the name, the slots, the kind of a tile, the frame and the columns.
-import { ENTITY_GRID } from './constants.js';
+import { parseKeySpec } from '../key-spec.js';
+import { ENTITY_GRID, ENTITY_STAR_KEY, ENTITY_STAR_KEY_ATTRIBUTE, ENTITY_STAR_LETTERS_KEY } from './constants.js';
 /** @typedef {import('./types.js').EntityData} EntityData */
 
 /** What each card was last drawn from, so a refill changes only what changed; `star` is the star as it stands now. @type {WeakMap<Element, { data: EntityData, drawn: Record<string, string>, star: boolean }>} */
@@ -9,12 +10,16 @@ export const DRAWN = new WeakMap();
 export const opt = (el, name) => el.getAttribute(name) ?? el.closest(ENTITY_GRID)?.getAttribute(name) ?? null;
 
 /**
- * The key that stars a card: its own or its grid's `data-kp-entity-star-key`; with none, `s` - and `.` under a board whose tiles
- * jump by their first letter (`data-kp-tiles-keys="letters"`, js/tiles.js), so the star never takes a letter away from the search [wish-1120].
+ * The key that stars a card, as a key spec's text: its own or its grid's `data-kp-entity-star-key`; with none, `s` - and `.` under a board
+ * whose tiles jump by their first letter (`data-kp-tiles-keys="letters"`, js/tiles.js), so the star never takes a letter away from the
+ * search [wish-1120]. `off` when the key is switched off (`none`, `off`, `false` or empty all mean that).
  * @param {Element} card
  */
-export const starKeyOf = (card) =>
-    (opt(card, 'data-kp-entity-star-key') ?? (card.closest('[data-kp-tiles-keys="letters"]') ? '.' : 's')).toLowerCase();
+export function starKeyOf(card) {
+    const fallback = card.closest('[data-kp-tiles-keys="letters"]') ? ENTITY_STAR_LETTERS_KEY : ENTITY_STAR_KEY;
+    const text = (opt(card, ENTITY_STAR_KEY_ATTRIBUTE) ?? fallback).toLowerCase();
+    return parseKeySpec(text).length === 0 ? 'off' : text;
+}
 
 /**
  * Write a name into an element, the part that matches `match` (first occurrence, any case) wrapped in a `<mark>`. Text nodes and an

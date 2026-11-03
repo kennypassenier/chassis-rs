@@ -1,7 +1,8 @@
 // Reading the options of one scroller: what the page passed beats the attribute, and the attribute beats the default.
 
 import { getStrings } from '../strings.js';
-import { FOLLOW_THRESHOLD } from './values.js';
+import { resolveKeySpec } from '../key-spec.js';
+import { FOLLOW_THRESHOLD, NEWPILL_FOLLOW_HEAD_KEY, NEWPILL_FOLLOW_KEY, NEWPILL_FOLLOW_KEY_ATTRIBUTE } from './values.js';
 
 /** @typedef {import('../newpill.js').NewPillOptions} NewPillOptions */
 
@@ -20,7 +21,7 @@ export function readNewPillOptions(el, options) {
         threshold: options.threshold ?? (Number(el.getAttribute('data-kp-follow-threshold')) || FOLLOW_THRESHOLD),
         unitOne: unitRaw[0] || strings.newpillUnitOne,
         unitMany: unitRaw[1] || (unitRaw[0] ? `${unitRaw[0]}s` : strings.newpillUnitMany),
-        keyName: options.key ?? el.getAttribute('data-kp-follow-key') ?? (head ? 'Home' : 'End'),
+        followKey: resolveKeySpec(el, NEWPILL_FOLLOW_KEY_ATTRIBUTE, options.key, head ? NEWPILL_FOLLOW_HEAD_KEY : NEWPILL_FOLLOW_KEY),
         space: options.space ?? el.hasAttribute('data-kp-follow-space'),
         inTbody: (options.rows ?? el.getAttribute('data-kp-follow-rows')) === 'tbody',
     };

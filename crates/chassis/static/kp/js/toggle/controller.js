@@ -3,7 +3,8 @@
 
 import { attachDisabledReasons } from '../reason.js';
 import { registerShortcuts } from '../shortcuts.js';
-import { TOGGLE_CHANGED_EVENT, TOGGLE_EVENT, planFor, readStore, stateOf, storeKey, toggleGroup, toggleKey } from './group.js';
+import { ariaFromEngineKeys, resolveEngineKeys } from '../key-spec.js';
+import { TOGGLE_CHANGED_EVENT, TOGGLE_EVENT, TOGGLE_KEY, TOGGLE_KEY_ATTRIBUTE, planFor, readStore, stateOf, storeKey, toggleGroup, toggleKey } from './group.js';
 import { ToggleAnswers } from './handle.js';
 
 /** @typedef {import('./group.js').PressedState} PressedState */
@@ -155,10 +156,10 @@ export class ToggleControl extends ToggleAnswers {
     /** `data-kp-toggle-key`: the shortcut that presses the toggle (never a bare digit, which AZERTY types as a sign). */
     registerKey() {
         const button = this.button;
-        const key = button.dataset.kpToggleKey;
-        if (!key) return;
+        const key = resolveEngineKeys(button, TOGGLE_KEY_ATTRIBUTE, undefined, TOGGLE_KEY);
+        if (key === null) return;
         if (/^[0-9]$/.test(key)) return void console.warn(`[kp-toggle] "${key}" is a bare digit: an unshifted digit on AZERTY types & é ", so the key is not registered.`);
-        button.setAttribute('aria-keyshortcuts', key);
+        button.setAttribute('aria-keyshortcuts', ariaFromEngineKeys(key));
         const off = registerShortcuts(
             button,
             [{ keys: key, what: this.s.toggleKeyWhat(this.labelText()), group: this.s.toggleKeyGroup, run: () => button.click(), when: () => !(/** @type {any} */ (button).disabled) && button.getAttribute('aria-disabled') !== 'true' }],

@@ -20,7 +20,9 @@
 //
 //   data-kp-select-range   `shift` (default) | `off`
 //   data-kp-select-arrows  the arrow keys walk too, on by default, `false` turns them off (never inside a `data-kp-grid`, which owns them)
-//   data-kp-select-all-key Ctrl+A ticks every row shown, `Ctrl+Shift+A` unticks them: on by default, `false` turns it off
+//   data-kp-select-all-key Ctrl+A ticks every row shown, `Ctrl+Shift+A` unticks them: on by default, `false` turns it off; any key spec
+//                          (`Mod+A`, js/key-spec.js) names another key
+//   data-kp-select-next-key / -prev-key / -tick-key   the keys that move the cursor and tick a row (default `j`, `k`, `x`; `none` for no key) [keys-1103]
 //   data-kp-cursor-scroll  `nearest` (default) | `center`
 //   data-kp-select-hint    an element in the page; the keys are written into it as a `.kp-keys` line
 //

@@ -23,3 +23,8 @@ export const RESULTS_TEXT = /** @param {number} n */ (n) => {
 export const CHANGE_EVENT = 'kp-combobox-change';
 /** Fired when the list opens or closes: `{ open }`. */
 export const OPEN_EVENT = 'kp-combobox-open';
+
+/** On a tag input: the key that adds the typed text as a tag, besides Enter (a key spec, js/key-spec.js; `none` for Enter alone). */
+export const TAG_KEY_ATTRIBUTE = 'data-kp-combobox-tag-key';
+/** The key that adds the typed text as a tag when the input names none. */
+export const TAG_KEY = ',';

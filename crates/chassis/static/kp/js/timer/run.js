@@ -6,6 +6,7 @@ import { clockOf, leftOf, listOf, part, say, stateOf } from './model.js';
 import { primeSound, stopRing } from './sound.js';
 import { LISTS, timerState } from './state.js';
 import { finish, sync } from './sync.js';
+import { byId } from '../by-id.js';
 /** @typedef {import('./types.js').Timer} Timer */
 /** @typedef {import('./types.js').TimerState} TimerState */
 
@@ -184,6 +185,6 @@ export function restoreTimers(list, saved) {
 /** The list a starter speaks to. @param {Element} starter */
 export const targetOf = (starter) => {
     const named = starter.getAttribute('data-kp-timer-for');
-    const found = named ? document.getElementById(named) : document.querySelector(TIMERS);
+    const found = named ? byId(document, named) : document.querySelector(TIMERS);
     return found instanceof HTMLElement ? found : null;
 };

@@ -6,6 +6,7 @@ import { filled } from '../menu-button/model.js';
 import { getStrings } from '../strings.js';
 import { ContextAnchor } from './anchor.js';
 import { CONTEXT_MENU, INNER, KEY_ECHO_MS, KEY_INSET_PX, LONG_PRESS_MS, OWN_PRESS, PRESS_SLOP_PX } from './values.js';
+import { byId } from '../by-id.js';
 
 /** @typedef {import('../menu-button.js').MenuGroup} MenuGroup */
 /** @typedef {MenuGroup[] | ((el: HTMLElement) => MenuGroup[])} ContextGroups */
@@ -24,7 +25,7 @@ const answered = new WeakSet();
 export function menuFor(el) {
     const value = el.getAttribute('data-kp-context-menu') ?? '';
     if (value !== '') {
-        const source = /** @type {HTMLElement | null} */ (value === INNER ? el.querySelector('[data-kp-menu-button]') : el.ownerDocument.getElementById(value));
+        const source = /** @type {HTMLElement | null} */ (value === INNER ? el.querySelector('[data-kp-menu-button]') : byId(el.ownerDocument, value));
         return { groups: (source && filled.get(source)) ?? [], source };
     }
     const own = given.get(el);

@@ -1,7 +1,8 @@
 // The keyboard walking the rows of one list: j / k or the arrows, Home and End, Enter to open, and one row in the tab order.
 
 import { Controller } from '../controller.js';
-import { ROW_OPEN_EVENT } from './values.js';
+import { matchesKeySpec, resolveKeySpec } from '../key-spec.js';
+import { ROW_NEXT_KEY, ROW_NEXT_KEY_ATTRIBUTE, ROW_OPEN_EVENT, ROW_PREV_KEY, ROW_PREV_KEY_ATTRIBUTE } from './values.js';
 
 export class RowKeys extends Controller {
     connect() {
@@ -35,8 +36,8 @@ export class RowKeys extends Controller {
      * @param {KeyboardEvent} event @param {number} count @param {number} at @param {boolean} onRow
      */
     target(event, count, at, onRow) {
-        if (event.key === 'j' || event.key === 'ArrowDown') return Math.min(count - 1, at + 1);
-        if (event.key === 'k' || event.key === 'ArrowUp') return Math.max(0, at - 1);
+        if (matchesKeySpec(event, resolveKeySpec(this.host, ROW_NEXT_KEY_ATTRIBUTE, undefined, ROW_NEXT_KEY)) || event.key === 'ArrowDown') return Math.min(count - 1, at + 1);
+        if (matchesKeySpec(event, resolveKeySpec(this.host, ROW_PREV_KEY_ATTRIBUTE, undefined, ROW_PREV_KEY)) || event.key === 'ArrowUp') return Math.max(0, at - 1);
         if (onRow && event.key === 'Home') return 0;
         if (onRow && event.key === 'End') return count - 1;
         return null;

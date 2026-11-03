@@ -3,6 +3,7 @@ import { Controller, attachOne } from '../controller.js';
 import { getStrings } from '../strings.js';
 import { attachDialogGuards, requestDialogClose } from './dialog-guard.js';
 import { openDialog } from './dialog-open.js';
+import { byId } from '../by-id.js';
 
 export { openAtTop, openDialog } from './dialog-open.js';
 
@@ -25,7 +26,7 @@ export function attachDialogs(root = document, { modal = true } = {}) {
     // A trigger or a close button marked attached is wired already; a trigger whose id names no dialog has nothing to open.
     const triggers = /** @type {HTMLElement[]} */ ([...root.querySelectorAll('[data-kp-dialog]')])
         .filter((trigger) => !('kpDialogAttached' in trigger.dataset))
-        .filter((trigger) => document.getElementById(trigger.dataset.kpDialog ?? '') instanceof HTMLDialogElement)
+        .filter((trigger) => byId(document, trigger.dataset.kpDialog) instanceof HTMLDialogElement)
         .map((trigger) => attachOne(trigger, DialogTrigger, { modal }));
     const closers = /** @type {HTMLElement[]} */ ([...root.querySelectorAll('[data-kp-dialog-close]')])
         .filter((button) => !('kpDialogCloseAttached' in button.dataset))
@@ -42,7 +43,7 @@ class DialogTrigger extends Controller {
     /** @param {HTMLElement} host @param {{ modal?: boolean }} [options] */
     constructor(host, options = {}) {
         super(host, options);
-        this.dialog = /** @type {HTMLDialogElement} */ (document.getElementById(host.dataset.kpDialog ?? ''));
+        this.dialog = /** @type {HTMLDialogElement} */ (byId(document, host.dataset.kpDialog));
         this.modal = options.modal ?? true;
     }
 

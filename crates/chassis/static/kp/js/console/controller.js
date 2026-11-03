@@ -2,12 +2,13 @@
 import { Controller } from '../controller.js';
 import { getStrings } from '../strings.js';
 import { registerShortcuts } from '../shortcuts.js';
+import { resolveEngineKeys } from '../key-spec.js';
 import { attachNewPills } from '../newpill.js';
 import { attachDisabledReasons } from '../reason.js';
 import { clearConsole, useTool } from './api.js';
 import { drawBar } from './bar.js';
 import { blockNode, drawAll, drawBody } from './blocks.js';
-import { CONSOLE_RETRY_EVENT } from './constants.js';
+import { CONSOLE_FOCUS_KEY, CONSOLE_FOCUS_KEY_ATTRIBUTE, CONSOLE_RETRY_EVENT } from './constants.js';
 import { loadHistory } from './history.js';
 import { attr, el, say, stateOf } from './model.js';
 import { startTicker, submit } from './run.js';
@@ -79,8 +80,8 @@ export class ConsoleControl extends Controller {
         const s = getStrings();
         /** @type {import('../shortcuts.js').Shortcut[]} */
         const keys = [{ keys: 'Mod L', what: s.consoleKeyClear, group: s.consoleKeyGroup, run: () => clearConsole(root) }];
-        const focusKey = attr(root, 'focus-key', ':');
-        if (focusKey === 'false' || focusKey === '') return keys;
+        const focusKey = resolveEngineKeys(root, CONSOLE_FOCUS_KEY_ATTRIBUTE, undefined, CONSOLE_FOCUS_KEY);
+        if (focusKey === null) return keys;
         const input = /** @type {HTMLInputElement} */ (root.querySelector('.kp-console__input'));
         keys.push({ keys: focusKey, what: s.consoleKeyFocus, group: s.consoleKeyGroup, when: () => !input.disabled, reason: s.consoleKeyFocusReason, run: () => input.focus() });
         return keys;

@@ -1,5 +1,7 @@
 // The toasts that are still counting or committing, and the one key that undoes the newest: state the toasts of a page share.
 
+import { keyName, matchesKeySpec, parseKeySpec } from '../key-spec.js';
+
 /** @typedef {import('../undo-toast.js').UndoToast} UndoToast */
 /** @typedef {{ handle: UndoToast, key: string | false }} StackEntry */
 
@@ -7,25 +9,13 @@
 export const live = [];
 let listening = false;
 
-const isMac = () =>
-    typeof navigator !== 'undefined' && /mac|iphone|ipad/i.test(/** @type {any} */ (navigator).userAgentData?.platform ?? navigator.platform ?? '');
-
-/** @param {string} key `Mod+Z`, `Alt+Z`, `Ctrl+Shift+U` */
-export const keyName = (key) => key.replace(/^mod\+/i, isMac() ? '⌘' : 'Ctrl+').replace(/\balt\+/i, isMac() ? '⌥' : 'Alt+');
+export { keyName };
 
 /**
- * Whether a key event is the configured key: `Mod` is Ctrl or Command, the last part is the letter; a modifier not named must be up.
+ * Whether a key event is the configured key (a key spec, js/key-spec.js: `Mod` is Ctrl or Command; a modifier not named must be up).
  * @param {KeyboardEvent} event @param {string} spec
  */
-export function keyMatches(event, spec) {
-    const parts = spec.toLowerCase().split('+').map((p) => p.trim());
-    const letter = parts.pop();
-    if (!letter || event.key.toLowerCase() !== letter) return false;
-    const wants = (/** @type {string} */ m) => parts.includes(m);
-    const ctrlOrMeta = event.ctrlKey || event.metaKey;
-    const wantsCtrl = wants('mod') || wants('ctrl') || wants('cmd') || wants('meta');
-    return ctrlOrMeta === wantsCtrl && event.altKey === wants('alt') && event.shiftKey === wants('shift');
-}
+export const keyMatches = (event, spec) => matchesKeySpec(event, parseKeySpec(spec));
 
 /** @param {KeyboardEvent} event */
 function onKey(event) {

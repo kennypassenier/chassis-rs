@@ -3,6 +3,7 @@ import { Controller } from '../controller.js';
 import { leave, leavesState } from '../motion.js';
 import { TAB_CHANGE_EVENT } from './constants.js';
 import { revealTab, watchTabOverflow } from './tab-row.js';
+import { byId } from '../by-id.js';
 
 /** How long (ms) a panel arriving beside one that leaves stays marked as swapping. */
 const SWAP_MARK_MS = 400;
@@ -11,7 +12,7 @@ const SWAP_MARK_MS = 400;
 export const handles = new WeakMap();
 
 /** @param {HTMLElement} tab */
-const panelOf = (tab) => document.getElementById(tab.getAttribute('aria-controls') ?? '');
+const panelOf = (tab) => byId(document, tab.getAttribute('aria-controls'));
 
 /** One tab list. */
 export class TabsControl extends Controller {
@@ -101,7 +102,7 @@ export class TabsControl extends Controller {
         if (previous === index) return;
         const tab = all[index];
         this.host.dispatchEvent(
-            new CustomEvent(TAB_CHANGE_EVENT, { bubbles: true, detail: { index, tab, panel: document.getElementById(tab?.getAttribute('aria-controls') ?? ''), previous } }),
+            new CustomEvent(TAB_CHANGE_EVENT, { bubbles: true, detail: { index, tab, panel: byId(document, tab?.getAttribute('aria-controls')), previous } }),
         );
     }
 

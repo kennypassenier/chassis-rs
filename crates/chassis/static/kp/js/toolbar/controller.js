@@ -2,7 +2,8 @@
 
 import { Controller } from '../controller.js';
 import { toolbarSearch } from './active.js';
-import { ACTIVE, CLEAR, REMOVE, TOOLBAR, TOOLBAR_CLEAR_EVENT, TOOLBAR_REMOVE_EVENT } from './values.js';
+import { matchesKeySpec, resolveKeySpec } from '../key-spec.js';
+import { ACTIVE, CLEAR, REMOVE, TOOLBAR, TOOLBAR_CLEAR_EVENT, TOOLBAR_KEY, TOOLBAR_KEY_ATTRIBUTE, TOOLBAR_REMOVE_EVENT } from './values.js';
 
 /** Events handled once even when two attached roots both see them. @type {WeakSet<Event>} */
 const HANDLED = new WeakSet();
@@ -76,7 +77,7 @@ export class ToolbarWatch extends Controller {
 
     /** The search key focuses the first visible toolbar's search, from anywhere that is not a field. @param {KeyboardEvent} event */
     onHotkey(event) {
-        if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+        if (event.defaultPrevented) return;
         const target = event.target;
         if (
             target instanceof HTMLElement &&
@@ -84,7 +85,7 @@ export class ToolbarWatch extends Controller {
         )
             return;
         for (const toolbar of this.scope.querySelectorAll(TOOLBAR)) {
-            if (toolbar.getAttribute('data-kp-toolbar-key') !== event.key) continue;
+            if (!matchesKeySpec(event, resolveKeySpec(toolbar, TOOLBAR_KEY_ATTRIBUTE, undefined, TOOLBAR_KEY))) continue;
             const input = toolbarSearch(toolbar);
             // The first toolbar on the page that can be seen takes the key.
             if (!input || !(toolbar instanceof HTMLElement) || toolbar.getClientRects().length === 0) continue;

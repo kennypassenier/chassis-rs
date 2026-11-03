@@ -2,7 +2,8 @@
 import { Controller } from '../controller.js';
 import { getStrings } from '../strings.js';
 import { addName, clearNote } from './add.js';
-import { USUAL_NOT_TODAY_EVENT, USUAL_PICK_EVENT, USUAL_RETRY_EVENT } from './constants.js';
+import { matchesKeySpec, resolveKeySpec } from '../key-spec.js';
+import { USUAL_KEY, USUAL_KEY_ATTRIBUTE, USUAL_NOT_TODAY_EVENT, USUAL_PICK_EVENT, USUAL_RETRY_EVENT } from './constants.js';
 import { arrange } from './layout.js';
 import { exactItem, nearOf, pickedValues } from './lookup.js';
 import { attr, readPinned } from './model.js';
@@ -61,12 +62,12 @@ export class UsualPickerInput extends Controller {
         sayAfter(this.m, getStrings().usualAlreadyPicked(item.label));
     }
 
-    /** Alt U jumps to the first usual choice; Enter on a typed name selects, asks, refuses or adds. @param {KeyboardEvent} event */
+    /** The usual key (default Alt U, `data-kp-usual-key`) jumps to the first usual choice; Enter on a typed name selects, asks, refuses or adds. @param {KeyboardEvent} event */
     onKey(event) {
         const m = this.m;
         const input = m.input;
         if (event.key === 'Enter') this.typedAtEnter = input.value.trim();
-        if (event.altKey && (event.code === 'KeyU' || event.key.toLowerCase() === 'u') && input.value === '') {
+        if (matchesKeySpec(event, resolveKeySpec(m.box, USUAL_KEY_ATTRIBUTE, undefined, USUAL_KEY)) && input.value === '') {
             event.preventDefault();
             m.handle.open();
             const pinned = readPinned(m).length;

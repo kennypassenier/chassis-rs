@@ -3,6 +3,7 @@
 
 import { Controller } from '../controller.js';
 import { KEEPS_KEYS, MOVES, TILES_EXIT_EVENT, TILES_MOVE_EVENT, keyTiles, letterTile, nextTile, tileName, tileStop } from './geometry.js';
+import { byId } from '../by-id.js';
 
 /** How long typed letters keep adding up [ms]. */
 const LETTERS_MS = 700;
@@ -172,7 +173,7 @@ export class TileBoard extends Controller {
         board.dispatchEvent(new CustomEvent(TILES_EXIT_EVENT, { bubbles: true, detail: { direction: 'up' } }));
         const named = board.getAttribute('data-kp-tiles-keys-exit');
         if (!named) return;
-        let aim = this.doc.getElementById(named);
+        let aim = byId(this.doc, named);
         if (!aim) {
             try {
                 aim = this.doc.querySelector(named);

@@ -100,6 +100,22 @@ export const make = (doc, tag, className, text) => {
     if (text != null) el.textContent = text;
     return el;
 };
+/**
+ * Write an attribute only when its value differs: a same-value `setAttribute` is still a mutation (observers fire, and some engines
+ * restyle), and a refresh that changes nothing must write nothing.
+ * @param {Element} el @param {string} name @param {string} value
+ */
+export function setAttr(el, name, value) {
+    if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+}
+/** Write a text only when it differs. @param {Node} el @param {string} text */
+export function setText(el, text) {
+    if (el.textContent !== text) el.textContent = text;
+}
+/** Show or hide an element without a write when it already is so. @param {HTMLElement} el @param {boolean} hidden */
+export function setHidden(el, hidden) {
+    if (el.hidden !== hidden) el.hidden = hidden;
+}
 /** @param {number} n */
 export const px = (n) => `${Math.round(n * 100) / 100}px`;
 /** @param {SequencerModel} c @param {number} value */

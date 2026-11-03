@@ -22,8 +22,10 @@ use axum::extract::{Path, RawQuery};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
-/// The kp-themes version the kit vendors (C3: one place).
-pub const KP_THEMES_VERSION: &str = "12.4.0";
+/// The kp-themes version the kit vendors (C3: one place), read from the
+/// vendored release's own `dist/VERSION` so it can never disagree with the
+/// files (Kenny, 2026-11-03: no hard-coded versions).
+pub const KP_THEMES_VERSION: &str = include_str!("../../static/kp/dist/VERSION").trim_ascii();
 
 /// Where a theme's register is served from, `{theme}` standing for its name
 /// (the kp-themes split delivery, 12.2). One value for every page the kit

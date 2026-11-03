@@ -128,3 +128,8 @@ export function withAll(g, plan) {
 export function applyPlan(plan) {
     for (const [member, next] of plan) member.setAttribute('aria-pressed', next);
 }
+
+/** On a toggle: the key that presses it, listed in the `?` sheet (a key spec, js/key-spec.js, or a plain letter; never a bare digit; `none` for no key). */
+export const TOGGLE_KEY_ATTRIBUTE = 'data-kp-toggle-key';
+/** The key that presses a toggle when it names none: no key. */
+export const TOGGLE_KEY = 'none';

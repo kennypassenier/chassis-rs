@@ -14,3 +14,8 @@ export const USUAL_RETRY_EVENT = 'kp-usual-retry';
 export const USUAL_STATES = /** @type {const} */ (['ready', 'loading', 'empty', 'error']);
 /** More items than this fold behind "Show all N" unless `data-kp-all` says otherwise. */
 export const USUAL_FOLD_ABOVE = 12;
+
+/** On the picker's box: the key that jumps to the first usual choice (a key spec, js/key-spec.js; `none` for no key). */
+export const USUAL_KEY_ATTRIBUTE = 'data-kp-usual-key';
+/** The key that jumps to the first usual choice when the box names none. */
+export const USUAL_KEY = 'Alt+U';

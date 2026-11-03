@@ -16,16 +16,17 @@ export const DIALOG_LEAVE_EVENT = 'kp-dialog-guard-leave';
  * Start the leave guard.
  * @param {() => HTMLElement | null} held the open guarded dialog or visible guarded region whose form changed, if any
  * @param {(box: HTMLElement, go: () => void) => void} ask asks the package's question, runs `go` on Discard
+ * @param {() => HTMLElement | null} [heldOnUnload] the same for a reload or closed tab (also what survives a screen change); `held` when absent
  * @returns {() => void} detach
  */
-export function attachDialogLeave(held, ask) {
+export function attachDialogLeave(held, ask, heldOnUnload = held) {
     let lastDelta = -1;
     let undoing = false;
     let replaying = false;
 
     /** @param {Event} event */
     const onUnload = (event) => {
-        if (!held()) return;
+        if (!heldOnUnload()) return;
         event.preventDefault();
         /** @type {BeforeUnloadEvent} */ (event).returnValue = '';
     };

@@ -18,6 +18,18 @@ import { chromeOf, finishFit, lineHeightOf, readFit, stageFit } from './fit.js';
  * @property {string} [most] the css engine's `--kp-autosize-max`
  */
 
+/**
+ * Whether a box is left for later: it asked to skip hidden content (`data-kp-autosize-hidden="skip"`) and its content is not
+ * rendered, so reading it would make the browser lay that hidden content out (in a closed `<details>` of forty rows that was
+ * 60 ms a box). Its width is forgotten, so the resize observer measures it the moment it shows.
+ * @param {import('./controller.js').AutosizeController} c
+ */
+export function leftForLater(c) {
+    if (c.hiddenMode() !== 'skip' || typeof c.area.checkVisibility !== 'function' || c.area.checkVisibility()) return false;
+    c.width = -1;
+    return true;
+}
+
 /** Step 1: read what a box needs. Writes nothing. @param {import('./controller.js').AutosizeController} c */
 export function readArea(c) {
     const cs = c.view.getComputedStyle(c.area);
@@ -96,13 +108,16 @@ function announce(c, detail) {
 
 /** Size one box for its text, with the engine in use, and report the height. @param {import('./controller.js').AutosizeController} c */
 export function measureArea(c) {
+    if (leftForLater(c)) return;
     const read = readArea(c);
     stageArea(read);
     announce(c, writeArea(c, planArea(read)));
 }
 
-/** Size many boxes with one layout: every read, then every write, then the events. @param {import('./controller.js').AutosizeController[]} list */
-export function measureAreas(list) {
+/** Size many boxes with one layout: every read, then every write, then the events. @param {import('./controller.js').AutosizeController[]} every */
+export function measureAreas(every) {
+    const list = every.filter((c) => !leftForLater(c));
+    if (!list.length) return;
     const reads = list.map((c) => readArea(c));
     for (const read of reads) stageArea(read);
     const plans = reads.map((read) => planArea(read));

@@ -3,7 +3,8 @@
 import { UNDO_MS } from '../patterns.js';
 import { getStrings } from '../strings.js';
 import { keyName } from './stack.js';
-import { MS_PER_SECOND, UNDO_MAX } from './values.js';
+import { parseKeySpec } from '../key-spec.js';
+import { MS_PER_SECOND, UNDO_KEY, UNDO_MAX } from './values.js';
 
 /**
  * A default the page set on <html> or the toast region.
@@ -28,7 +29,7 @@ export function readSettings(options) {
     const clock = clockRaw === 'bar' || clockRaw === 'text' || clockRaw === 'none' ? clockRaw : 'ring';
     const keyRaw = options.key ?? declared('key', region);
     /** @type {string | false} */
-    const key = keyRaw === false || keyRaw === 'false' ? false : String(keyRaw || 'Mod+Z');
+    const key = parseKeySpec(keyRaw === undefined || keyRaw === '' || keyRaw === null ? UNDO_KEY : String(keyRaw)).length === 0 ? false : String(keyRaw || UNDO_KEY);
     const leaveRaw = options.leave ?? declared('leave', region);
     const leaves = leaveRaw === 'commit' || leaveRaw === 'cancel' ? leaveRaw : 'carry';
     const max = Math.max(1, options.max ?? (Number(declared('max', region)) || UNDO_MAX));

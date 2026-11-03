@@ -1,8 +1,15 @@
 // One notification centre: the NoticesView wired to its host, plus the clicks, the source switches, the panel's toggle and the keys.
 
+import { matchesKeySpec, resolveKeySpec } from '../key-spec.js';
 import { getStrings } from '../strings.js';
 import {
     G_I_WINDOW_MS,
+    NOTICES_GO_KEY,
+    NOTICES_GO_KEY_ATTRIBUTE,
+    NOTICES_INBOX_KEY,
+    NOTICES_INBOX_KEY_ATTRIBUTE,
+    NOTICES_READ_KEY,
+    NOTICES_READ_KEY_ATTRIBUTE,
     NOTICE_FIX_EVENT,
     NOTICE_READ_EVENT,
     NOTICES_END_QUIET_EVENT,
@@ -106,14 +113,15 @@ export class NoticesCentre extends NoticesView {
 
     /** The keys: g then i opens the Inbox, m marks the focused notice read. @param {KeyboardEvent} event */
     onKey(event) {
-        if (this.host.getAttribute('data-kp-keys') === 'off' || event.ctrlKey || event.metaKey || event.altKey) return;
+        if (this.host.getAttribute('data-kp-keys') === 'off') return;
         const t = event.target;
         if (t instanceof HTMLElement && t.matches('input, textarea, select, [contenteditable]')) return;
-        if (event.key === 'g') this.gAt = Date.now();
-        else if (event.key === 'i' && Date.now() - this.gAt < G_I_WINDOW_MS) {
+        const at = (/** @type {string} */ name, /** @type {string} */ fallback) => matchesKeySpec(event, resolveKeySpec(this.host, name, undefined, fallback));
+        if (at(NOTICES_GO_KEY_ATTRIBUTE, NOTICES_GO_KEY)) this.gAt = Date.now();
+        else if (at(NOTICES_INBOX_KEY_ATTRIBUTE, NOTICES_INBOX_KEY) && Date.now() - this.gAt < G_I_WINDOW_MS) {
             this.gAt = 0;
             this.emit(NOTICES_INBOX_EVENT, {});
-        } else if (event.key === 'm') {
+        } else if (at(NOTICES_READ_KEY_ATTRIBUTE, NOTICES_READ_KEY)) {
             const row = t instanceof HTMLElement ? t.closest('.kp-notices__item') : null;
             if (row && this.host.contains(row)) row.querySelector('[data-kp-notice-read]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         }

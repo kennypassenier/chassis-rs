@@ -9,6 +9,9 @@ import { DEFAULT_STRINGS } from './defaults.js';
 // S20 keeps it reachable: the v2.0.0 and v3.0.0 tags still carry the
 // seventy-two lines verbatim, and MIGRATION.md says where.
 
+/** Fired on `document` when the strings parts draw their words from changed: a language switch, a dictionary swap, `setStrings()`. */
+export const STRINGS_CHANGE_EVENT = 'kp-strings-change';
+
 /** @type {Strings} */
 let current = DEFAULT_STRINGS;
 
@@ -64,7 +67,10 @@ let observer = null;
  */
 export function setStrings(next) {
     fromApp = { ...fromApp, ...next };
-    return publish();
+    const strings = publish();
+    // The page's own words changed what parts say; the parts that drew words once redraw them [kit1-1103 K1].
+    announce();
+    return strings;
 }
 
 /**
@@ -179,7 +185,7 @@ function follow(retry = true) {
 /** Tell the page the strings changed language, for parts that redraw their words. */
 function announce() {
     if (typeof document === 'undefined') return;
-    document.dispatchEvent(new CustomEvent('kp-strings-change', { detail: { language } }));
+    document.dispatchEvent(new CustomEvent(STRINGS_CHANGE_EVENT, { detail: { language } }));
 }
 
 /** Watch the root's `lang` and `data-kp-lang`, once, from the first dictionary on. */

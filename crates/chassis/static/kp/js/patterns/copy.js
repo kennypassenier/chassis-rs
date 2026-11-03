@@ -5,6 +5,7 @@ import { getStrings } from '../strings.js';
 import { CLEAR_AFTER_MS, COPIED_MS, COPY, COPY_EVENT, COPY_FAILED_EVENT, UNDO, UNDO_MS } from './constants.js';
 import { attachSecrets } from './secrets.js';
 import { UndoControl } from './undo.js';
+import { byId } from '../by-id.js';
 /** @typedef {import('./types.js').SecretLoad} SecretLoad */
 
 /**
@@ -75,7 +76,7 @@ class CopyControl extends Controller {
         const button = this.host;
         const target = button.dataset.kpCopy ?? '';
         // By id on the document, not on root: the value a button copies may sit outside the subtree this call attached.
-        const source = target === '' ? null : document.getElementById(target);
+        const source = target === '' ? null : byId(document, target);
         const text = source?.textContent?.trim() ?? button.dataset.kpCopyValue ?? '';
         try {
             await navigator.clipboard.writeText(text);

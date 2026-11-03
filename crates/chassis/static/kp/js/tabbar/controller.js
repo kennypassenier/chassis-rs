@@ -4,6 +4,7 @@ import { Controller } from '../controller.js';
 import { TABBAR_HEIGHT_PROPERTY } from './badge.js';
 import { TabbarDialog } from './dialog.js';
 import { fitTabbar, TABBAR_FIT_ATTRIBUTE } from './fit.js';
+import { byId } from '../by-id.js';
 
 export class TabbarController extends Controller {
     /** @param {HTMLElement} bar */
@@ -58,7 +59,7 @@ export class TabbarController extends Controller {
     wireDialogs() {
         for (const el of this.host.querySelectorAll('.kp-tabbar__tab[data-kp-dialog]')) {
             const tab = /** @type {HTMLElement} */ (el);
-            const dialog = this.doc.getElementById(tab.dataset.kpDialog ?? '');
+            const dialog = byId(this.doc, tab.dataset.kpDialog);
             if (!(dialog instanceof HTMLDialogElement)) continue;
             const wiring = this.wired.get(dialog);
             if (wiring === undefined) {

@@ -13,6 +13,7 @@ import { setSegmentedCounts, setSegmentedValues } from '../segmented/api.js';
 import { buildItem, setSegmentedItems } from '../segmented/items.js';
 import { ALL_VALUE, FILTER_CHIPS, FILTER_COLUMN, FILTER_COUNTS, FILTER_FOR, LINKED } from './constants.js';
 import { chipCounts, chipValues, countValues } from './counts.js';
+import { byId } from '../by-id.js';
 
 export class ChipFilter extends Controller {
     /** @param {HTMLElement} host the chip group */
@@ -44,7 +45,7 @@ export class ChipFilter extends Controller {
     /** The table's wrapper, or null while it is not on the page. @returns {HTMLElement | null} */
     wrap() {
         const id = this.host.getAttribute(FILTER_FOR) ?? '';
-        const named = id ? this.host.ownerDocument.getElementById(id) : null;
+        const named = id ? byId(this.host.ownerDocument, id) : null;
         return /** @type {HTMLElement | null} */ (named?.closest(TABLE) ?? named?.querySelector(TABLE) ?? null);
     }
 

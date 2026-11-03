@@ -198,16 +198,11 @@
    them. Only under a coarse pointer: the desktop bar does not change. The
    skip link shows on focus; it is as tall as a finger there as well. */
 @media (pointer: coarse) {
-    .kp-skip-link,
-    .kp-nav__brand,
     .kp-nav__links .kp-nav__link {
         display: inline-flex;
         align-items: center;
         box-sizing: border-box;
         min-block-size: var(--kp-touch-target, 2.75rem);
-    }
-    .kp-nav__brand {
-        min-inline-size: var(--kp-touch-target, 2.75rem);
     }
     .kp-nav__search-trigger {
         block-size: var(--kp-touch-target, 2.75rem);

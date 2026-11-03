@@ -1,5 +1,5 @@
 // Syncs the bars, the joins between them, the ticks and the labels.
-import { make, px, summary, words } from './instance.js';
+import { make, px, setAttr, setText, summary, words } from './instance.js';
 import { seriesOf, setProp } from './lanes.js';
 import { sequencerTicks } from './timeline.js';
 import { round } from './units.js';
@@ -36,14 +36,13 @@ export function syncBars(c, list) {
             c.bars.set(item.id, bar);
         }
         const label = /** @type {HTMLElement} */ (bar.querySelector('.kp-gantt__label'));
-        if (label.textContent !== item.label) label.textContent = item.label;
-        bar.dataset.kpSeries = String(seriesOf(c, item));
-        const said = summary(c, item);
-        if (bar.getAttribute('aria-label') !== said) bar.setAttribute('aria-label', said);
+        setText(label, item.label);
+        setAttr(bar, 'data-kp-series', String(seriesOf(c, item)));
+        setAttr(bar, 'aria-label', summary(c, item));
         bar.toggleAttribute('data-kp-linked', Boolean(item.with) || list.some((i) => i.with === item.id));
         bar.toggleAttribute('data-kp-locked', Boolean(item.locked));
-        bar.setAttribute('aria-pressed', String(c.selected === item.id));
-        bar.tabIndex = (c.focusId ?? c.selected ?? list[0]?.id) === item.id ? 0 : -1;
+        setAttr(bar, 'aria-pressed', String(c.selected === item.id));
+        setAttr(bar, 'tabindex', (c.focusId ?? c.selected ?? list[0]?.id) === item.id ? '0' : '-1');
     }
 }
 /** The joins: a line from every item down or up to the partner it starts with. @param {SequencerModel} c @param {SequencerItem[]} list */
@@ -100,14 +99,22 @@ export function syncTicks(c) {
     }
 }
 /** @typedef {{ high: number, scroll: number, client: number, need: number }} NameSize */
+/** What was measured last, per sequencer and item: a name is probed again only when its text, its box or the font changed. @type {WeakMap<SequencerModel, Map<string, { key: string, size: NameSize }>>} */
+const measured = new WeakMap();
 /**
- * How each name wraps in its bar and how wide it is on one line: one probe pair per item, all written, then all read, so the
- * whole set costs one layout instead of two per item.
+ * How each name wraps in its bar and how wide it is on one line: one probe pair per item whose text, bar width or font changed
+ * (the rest is remembered), all written, then all read, so the whole set costs one layout instead of two per item, and a refresh
+ * that changed nothing adds and removes no node.
  * @param {SequencerModel} c @param {SequencerItem[]} list @param {number} perUnit
  * @returns {Map<string, NameSize>}
  */
 function measureNames(c, list, perUnit) {
-    const probes = list.map((item) => {
+    const memory = measured.get(c) ?? new Map();
+    measured.set(c, memory);
+    const font = getComputedStyle(c.measure).font;
+    const keyOf = (/** @type {SequencerItem} */ item) => `${item.label}|${Math.max(0, (item.start + item.duration) * perUnit - item.start * perUnit - 2)}|${font}`;
+    const stale = list.filter((item) => memory.get(item.id)?.key !== keyOf(item));
+    const probes = stale.map((item) => {
         const wrap = /** @type {HTMLElement} */ (c.measure.cloneNode(false));
         const line = /** @type {HTMLElement} */ (c.ruler.cloneNode(false));
         wrap.textContent = item.label;
@@ -115,18 +122,16 @@ function measureNames(c, list, perUnit) {
         line.textContent = item.label;
         return { item, wrap, line };
     });
-    c.layer.append(...probes.flatMap((p) => [p.wrap, p.line]));
-    const sizes = new Map(
-        probes.map(({ item, wrap, line }) => [
-            item.id,
-            { high: wrap.scrollHeight, scroll: wrap.scrollWidth, client: wrap.clientWidth, need: line.offsetWidth },
-        ]),
-    );
+    if (probes.length) c.layer.append(...probes.flatMap((p) => [p.wrap, p.line]));
+    for (const { item, wrap, line } of probes)
+        memory.set(item.id, { key: keyOf(item), size: { high: wrap.scrollHeight, scroll: wrap.scrollWidth, client: wrap.clientWidth, need: line.offsetWidth } });
     for (const p of probes) {
         p.wrap.remove();
         p.line.remove();
     }
-    return sizes;
+    const keep = new Set(list.map((i) => i.id));
+    for (const id of memory.keys()) if (!keep.has(id)) memory.delete(id);
+    return new Map(list.map((item) => [item.id, /** @type {{ key: string, size: NameSize }} */ (memory.get(item.id)).size]));
 }
 /**
  * A name that does not fit its bar (wrapped on at most the lines the bar is tall for) stands outside it: after it when the row has
@@ -175,16 +180,16 @@ export function placeLabels(c) {
                     c.layer.append(out);
                     c.outsides.set(item.id, out);
                 }
-                out.textContent = item.label;
-                out.dataset.kpSide = side;
-                out.dataset.kpState = 'ok';
+                setText(out, item.label);
+                setAttr(out, 'data-kp-side', side);
+                setAttr(out, 'data-kp-state', 'ok');
                 setProp(out, '--kp-g-label-room', px(side === 'after' ? after : before));
                 setProp(out, '--kp-g-s', String(item.start));
                 setProp(out, '--kp-g-e', String(round(item.start + item.duration)));
                 setProp(out, '--kp-tl-top', bar.style.getPropertyValue('--kp-tl-top'));
                 setProp(out, '--kp-tl-line', bar.style.getPropertyValue('--kp-tl-line'));
             }
-            if (side) bar.dataset.kpLabel = side;
+            if (side) setAttr(bar, 'data-kp-label', side);
             else bar.removeAttribute('data-kp-label');
         });
     }

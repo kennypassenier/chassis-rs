@@ -46,10 +46,6 @@ repo="kennypassenier/kp-themes"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 kp="$root/crates/chassis/static/kp"
 manifest="$kp/KP_THEMES.sha256"
-assets_rs="$root/crates/chassis/src/shell/assets.rs"
-# The CLI records the kp-themes version it scaffolds against (K32); it must
-# move with the vendored files or the drift check refuses the release.
-cli_rs="$root/crates/chassis-cli/src/recorded.rs"
 
 # Scratch under ~/.cache, never /tmp (a small tmpfs on the dev PC).
 mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/vendor-kp-themes"
@@ -86,7 +82,7 @@ fi
 
 # The vendored set, by rule.
 (cd "$work_tree" && find dist css fonts js -type f | sort) |
-  grep -E '^(dist/kp-themes\.css|dist/kp-themes\.min\.js(\.map)?|dist/kp-themes-base\.min\.css(\.map)?|dist/css/[a-z0-9-]+-register\.min\.css(\.map)?|dist/js/.+\.js(\.map)?|css/fonts\.css|fonts/.+|js/.+\.js)$' |
+  grep -E '^(dist/VERSION|dist/bundle/[a-z0-9-]+\.js|dist/kp-themes\.css|dist/kp-themes\.min\.js(\.map)?|dist/kp-themes-base\.min\.css(\.map)?|dist/css/[a-z0-9-]+-register\.min\.css(\.map)?|dist/js/.+\.js(\.map)?|css/fonts\.css|fonts/.+|js/.+\.js)$' |
   grep -vE '(^|/)types\.js$' > "$work/files"
 count=$(wc -l < "$work/files")
 [ "$count" -gt 0 ] || { echo "vendor-kp-themes: the rule selected no files" >&2; exit 1; }
@@ -116,13 +112,9 @@ while IFS= read -r f; do
 done < "$work/files"
 { printf '%s\n' "$header"; cat "$work/sums"; } > "$manifest"
 
-sed -i -E "s/^pub const KP_THEMES_VERSION: &str = \"[^\"]+\";/pub const KP_THEMES_VERSION: \&str = \"$version\";/" "$assets_rs"
-grep -q "KP_THEMES_VERSION: &str = \"$version\"" "$assets_rs" ||
-  { echo "vendor-kp-themes: could not set KP_THEMES_VERSION in $assets_rs" >&2; exit 1; }
-
-sed -i -E "s/^pub\(crate\) const KP_THEMES: &str = \"[^\"]+\";/pub(crate) const KP_THEMES: \&str = \"$version\";/" "$cli_rs"
-grep -q "KP_THEMES: &str = \"$version\"" "$cli_rs" ||
-  { echo "vendor-kp-themes: could not set KP_THEMES in $cli_rs" >&2; exit 1; }
+# The kit reads the version from the vendored dist/VERSION (no copy in code).
+[ "$(tr -d '[:space:]' < "$kp/dist/VERSION")" = "$version" ] ||
+  { echo "vendor-kp-themes: dist/VERSION does not say $version" >&2; exit 1; }
 
 echo "vendor-kp-themes: v$version vendored, $count files checked against SHA256SUMS"
 echo "vendor-kp-themes: next, check the core module list in crates/chassis/build.rs (CORE_KP_JS) against the new js/ tree"

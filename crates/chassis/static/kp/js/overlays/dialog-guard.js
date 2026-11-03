@@ -146,12 +146,22 @@ let attached = 0;
 /** @type {(() => void) | null} */
 let stopLeave = null;
 
+/** The open guarded dialogs whose form changed and that are not let go. @returns {HTMLDialogElement[]} */
+function heldDialogs() {
+    /** @type {HTMLDialogElement[]} */
+    const out = [];
+    for (const d of document.querySelectorAll(DIALOG_GUARD)) if (d instanceof HTMLDialogElement && d.open && !released.has(d) && dialogChanged(d)) out.push(d);
+    return out;
+}
+
+/** The changed open guarded dialogs as units of the page-wide leave check (js/overlays/page-guard.js). @returns {import('./guard-question.js').GuardUnit[]} */
+export function dialogUnits() {
+    return heldDialogs().map((dialog) => ({ el: dialog, release: () => released.add(dialog) }));
+}
+
 /** The open guarded dialog whose form changed and that is not let go, if any. */
 function heldDialog() {
-    for (const dialog of document.querySelectorAll(DIALOG_GUARD)) {
-        if (dialog instanceof HTMLDialogElement && dialog.open && !released.has(dialog) && dialogChanged(dialog)) return dialog;
-    }
-    return null;
+    return heldDialogs()[0] ?? null;
 }
 
 /**
@@ -164,7 +174,8 @@ export function attachDialogGuards() {
         for (const [type, listener] of [...LISTENERS, ...REGION_LISTENERS]) window.addEventListener(type, listener, true);
         stopLeave = attachDialogLeave(
             () => heldDialog() ?? heldRegion(),
-            (box, go) => (box instanceof HTMLDialogElement ? void whenDialogFree(box, go) : regionLeave(/** @type {HTMLElement} */ (box), go)),
+            (box, go) => (box instanceof HTMLDialogElement ? void whenDialogFree(box, go) : regionLeave(box, go)),
+            () => heldDialog() ?? heldRegion({ reload: true }),
         );
     }
     let done = false;

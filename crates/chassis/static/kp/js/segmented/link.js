@@ -25,6 +25,7 @@ import { getSegmentedValues, isMulti, itemsOf, valueOf } from './read.js';
 import { buildItem, setSegmentedItems } from './items.js';
 import { paint } from './paint.js';
 import { FIELD_ATTRIBUTE, TOP_ATTRIBUTE, choiceNamed, choicesOf, chipCount, fieldNeeded, mostUsed } from './link-choices.js';
+import { byId } from '../by-id.js';
 
 /** The attribute that names the combobox a group is tied to. */
 export const LINK_ATTRIBUTE = 'data-kp-segmented-for';
@@ -45,7 +46,7 @@ export class SegmentedLink extends Controller {
     /** The combobox the group names, or null while it is not on the page. @returns {HTMLElement | null} */
     target() {
         const id = this.host.getAttribute(LINK_ATTRIBUTE);
-        return id ? this.host.ownerDocument.getElementById(id) : null;
+        return id ? byId(this.host.ownerDocument, id) : null;
     }
 
     /** Whether the field holds one value (a combobox) and not a set of tags. */

@@ -6,7 +6,8 @@ import { watchOptions } from '../live-options.js';
 import { handles } from './api.js';
 import { GROUP, INPUT, KEYS_SLOT, LIST, OPENER, OPEN_EVENT, PALETTE, RUN_EVENT, STATUS } from './constants.js';
 import { createIntentFilter } from './intent-filter.js';
-import { MATCHERS, isHotkey, isMac } from './keys.js';
+import { MATCHERS, isHotkey, isMac, paletteKeySpec } from './keys.js';
+import { ariaKeyShortcut, keyCaps, keyLabel } from '../key-spec.js';
 import { answers, closeOnOutsidePress, openerFor } from './outside.js';
 import { filterPlain } from './plain-filter.js';
 /** @typedef {import('./types.js').Matcher} Matcher */
@@ -24,7 +25,7 @@ export class PaletteControl extends Controller {
         this.list = /** @type {HTMLElement} */ (dialog.querySelector(LIST));
         this.status = /** @type {HTMLElement | null} */ (dialog.querySelector(STATUS));
         this.match = options.match ?? 'intent';
-        this.key = dialog.dataset.kpHotkey === 'none' ? null : (dialog.dataset.kpHotkey ?? options.hotkey ?? null);
+        this.key = paletteKeySpec(dialog, options.hotkey);
         this.clears = dialog.dataset.kpClearOnClose === undefined ? (options.clearOnClose ?? true) : dialog.dataset.kpClearOnClose !== 'false';
         this.closes = dialog.dataset.kpCloseOnRun === undefined ? (options.closeOnRun ?? true) : dialog.dataset.kpCloseOnRun !== 'false';
         /** @type {Matcher} */
@@ -62,7 +63,7 @@ export class PaletteControl extends Controller {
         this.listen(input, 'input', () => this.filter());
         this.listen(dialog, 'close', () => this.onClose());
         this.own(closeOnOutsidePress(dialog));
-        if (this.key !== null) this.listen(document, 'keydown', (event) => this.onKey(/** @type {KeyboardEvent} */ (event)));
+        if (this.key.length > 0) this.listen(document, 'keydown', (event) => this.onKey(/** @type {KeyboardEvent} */ (event)));
         this.listen(document, 'click', (event) => openerFor(event, dialog, answers(PALETTE, dialog)) && this.open());
         this.stampOpeners();
         this.filter();
@@ -186,7 +187,7 @@ export class PaletteControl extends Controller {
      * @param {KeyboardEvent} event
      */
     onKey(event) {
-        if (this.key === null || !isHotkey(event, this.key) || !answers(PALETTE, this.dialog)) return;
+        if (!isHotkey(event, this.key) || !answers(PALETTE, this.dialog)) return;
         event.preventDefault();
         if (this.dialog.open) this.dialog.close();
         else this.open();
@@ -206,13 +207,20 @@ export class PaletteControl extends Controller {
                 this.own(() => opener.removeAttribute(attribute));
             };
             stamp('aria-haspopup', 'dialog');
-            if (key === null) continue;
-            stamp('aria-keyshortcuts', `${mac ? 'Meta' : 'Control'}+${key.toUpperCase()}`);
+            if (key.length === 0) continue;
+            stamp('aria-keyshortcuts', ariaKeyShortcut(key));
             for (const slot of opener.querySelectorAll(KEYS_SLOT)) {
                 if ((slot.textContent ?? '').trim() !== '') continue;
-                slot.textContent = getStrings().paletteHotkey(key, mac);
+                slot.textContent = this.hotkeyText(key, mac);
                 this.own(() => (slot.textContent = ''));
             }
         }
+    }
+
+    /** The key as a trigger prints it: ⌘K on a Mac, Ctrl K elsewhere for the usual Mod+letter, else as a person reads the key. @param {import('../key-spec.js').KeySpec} key @param {boolean} mac */
+    hotkeyText(key, mac) {
+        const caps = keyCaps(key);
+        const usual = Array.isArray(caps) && caps.length === 2 && caps[0] === 'Mod' && caps[1]?.length === 1;
+        return usual ? getStrings().paletteHotkey(String(caps[1]), mac) : keyLabel(key);
     }
 }

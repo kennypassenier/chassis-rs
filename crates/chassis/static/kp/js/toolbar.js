@@ -26,7 +26,7 @@
 //
 // What this module does:
 //   - Escape in the search clears it (and fires `input`, so the page filters).
-//   - `data-kp-toolbar-key="/"` focuses the search on that key from anywhere
+//   - `data-kp-toolbar-key="/"` (a key spec, js/key-spec.js; `none` is the default) focuses the search on that key from anywhere
 //     on the page that is not a field. The hint cap in the markup says so.
 //   - the active row: `setToolbarActive(toolbar, filters)` draws it; a press
 //     on a tag's cross fires `kp-toolbar-remove`, a press on Clear all fires

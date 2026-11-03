@@ -5,6 +5,7 @@ import { motionAllowed } from '../calm.js';
 import { LAST_CHANGE, serveCopyKey } from './copy-key.js';
 import { AnchorMarks } from './marks.js';
 import { ANCHOR_COPY_EVENT, ANCHOR_HIT_MS, ANCHOR_MISSING_EVENT, ANCHOR_QUIET_MS, ANCHOR_REVEAL_EVENT, ANCHORS, copyText, nameOf } from './text.js';
+import { byId } from '../by-id.js';
 
 /** How often a hash without a place yet is looked for again [ms]. */
 const LOOK_AGAIN_MS = 250;
@@ -88,7 +89,7 @@ export class AnchorBox extends AnchorMarks {
     /** @param {string} id @returns {boolean} whether there was a place to land */
     land(id) {
         const box = this.host;
-        const target = id ? this.doc.getElementById(id) : null;
+        const target = id ? byId(this.doc, id) : null;
         if (!target || !box.contains(target)) return false;
         this.clearNotice();
         window.clearTimeout(this.waitTimer);
@@ -154,7 +155,7 @@ export class AnchorBox extends AnchorMarks {
         if (!id) return;
         const startedAt = Date.now();
         const tick = () => {
-            const there = this.doc.getElementById(id);
+            const there = byId(this.doc, id);
             if (there && this.host.contains(there)) return void this.land(id);
             // The place belongs to another part of the page: not this container's to answer for.
             if (there) return;

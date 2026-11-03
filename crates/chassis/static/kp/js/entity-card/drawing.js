@@ -1,5 +1,6 @@
 // The base of one card's drawing: what a draw reads once, the signature-checked slots and the skeleton of a loading card.
 import { getStrings } from '../strings.js';
+import { ENTITY_STAR_KEY } from './constants.js';
 import { DRAWN, SLOTS, frame, made, opt, sig, slotOf, starKeyOf } from './helpers.js';
 /** @typedef {import('./types.js').EntityData} EntityData */
 
@@ -30,7 +31,7 @@ export class EntityDrawing {
         this.selectable = false;
         this.markKind = 'idmark';
         this.starOn = false;
-        this.starKey = 's';
+        this.starKey = ENTITY_STAR_KEY;
     }
 
     /** The frame, the remembered draw and the attributes every status shows. */

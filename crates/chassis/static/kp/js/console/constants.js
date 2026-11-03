@@ -14,3 +14,8 @@ export const CONSOLE_STATES = Object.freeze(['sending', 'queued', 'running', 'ok
 export const CONSOLE_HISTORY = 50;
 /** The most output bytes kept per block. */
 export const CONSOLE_MAX_BYTES = 262144;
+
+/** On the console: the key that jumps to the prompt from anywhere (a key spec, js/key-spec.js, or the older `:` spelling; `none` or `false` for no key). */
+export const CONSOLE_FOCUS_KEY_ATTRIBUTE = 'data-kp-console-focus-key';
+/** The key that jumps to the prompt when the console names none. */
+export const CONSOLE_FOCUS_KEY = ':';

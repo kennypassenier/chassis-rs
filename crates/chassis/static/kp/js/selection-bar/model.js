@@ -4,6 +4,7 @@
 import { hostsOf } from '../controller.js';
 import { rowPick } from '../row-pick.js';
 import { PICK_ROW, ROW_PICK } from '../row-pick/rows.js';
+import { byId } from '../by-id.js';
 
 /** The bars this module looks after. */
 export const SELECTION = '[data-kp-selection]';
@@ -69,7 +70,7 @@ export const keyOf = (row, index) =>
 export function sourcesOf(bar) {
     const doc = bar.ownerDocument;
     const named = (bar.getAttribute('data-kp-selection-for') ?? '').split(/\s+/).filter(Boolean);
-    if (named.length) return /** @type {HTMLElement[]} */ (named.map((id) => doc.getElementById(id)).filter((el) => el !== null));
+    if (named.length) return /** @type {HTMLElement[]} */ (named.map((id) => byId(doc, id)).filter((el) => el !== null));
     // The nearest: the first ancestor that holds select boxes or rows picked without them (js/row-pick.js).
     for (let up = bar.parentElement; up; up = up.parentElement) if (up.querySelector(`${BOX}, ${ROW_PICK}`)) return [up];
     return [];

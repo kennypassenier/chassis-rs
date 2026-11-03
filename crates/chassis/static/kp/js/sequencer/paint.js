@@ -2,7 +2,7 @@
 import { hostStatePlate } from '../state-plate.js';
 import { openBusyCard } from '../busy-card.js';
 import { sequencerRows, sequencerTotalOf, sequencerWindow } from './timeline.js';
-import { summary, words } from './instance.js';
+import { setAttr, setHidden, setText, summary, words } from './instance.js';
 import { EPS, SEQUENCER_RETRY_EVENT, SEQUENCER_ZOOM_MAX, SEQUENCER_ZOOM_MIN } from './constants.js';
 import { measureLanes, paintLanes, place } from './lanes.js';
 import { placeLabels, syncBars, syncJoins, syncTicks } from './bars.js';
@@ -17,38 +17,38 @@ export function paintWindow(c, list, fit) {
     c.body.style.setProperty('--kp-g-span', String(c.span));
     c.body.style.setProperty('--kp-tl-zoom', String(c.zoom));
     c.endLine.style.setProperty('--kp-g-t', String(total));
-    c.endLine.hidden = total <= 0;
-    c.total.textContent = list.length ? c.strings.sequencerTotal(words(c, total)) : '';
-    c.zoomValue.textContent = c.strings.sequencerZoomValue(Math.round(c.zoom * 100));
+    setHidden(c.endLine, total <= 0);
+    setText(c.total, list.length ? c.strings.sequencerTotal(words(c, total)) : '');
+    setText(c.zoomValue, c.strings.sequencerZoomValue(Math.round(c.zoom * 100)));
     const [out, fitButton, zin] = /** @type {[HTMLButtonElement, HTMLButtonElement, HTMLButtonElement]} */ (c.zoomButtons);
-    out.setAttribute('aria-disabled', String(c.zoom <= SEQUENCER_ZOOM_MIN + EPS));
-    zin.setAttribute('aria-disabled', String(c.zoom >= SEQUENCER_ZOOM_MAX - EPS));
-    fitButton.setAttribute('aria-disabled', String(c.zoom === 1));
-    if (c.nowAt === null) c.nowLine.hidden = true;
+    setAttr(out, 'aria-disabled', String(c.zoom <= SEQUENCER_ZOOM_MIN + EPS));
+    setAttr(zin, 'aria-disabled', String(c.zoom >= SEQUENCER_ZOOM_MAX - EPS));
+    setAttr(fitButton, 'aria-disabled', String(c.zoom === 1));
+    if (c.nowAt === null) setHidden(c.nowLine, true);
     else {
-        c.nowLine.hidden = false;
+        setHidden(c.nowLine, false);
         c.body.style.setProperty('--kp-g-now', String(c.nowAt));
         c.nowLine.toggleAttribute('data-kp-out', c.nowAt < 0 || c.nowAt > c.span);
-        c.nowLine.setAttribute('aria-label', c.strings.sequencerNow(words(c, c.nowAt)));
+        setAttr(c.nowLine, 'aria-label', c.strings.sequencerNow(words(c, c.nowAt)));
     }
 }
 /** The selection line and its buttons. @param {SequencerModel} c */
 export function paintSelection(c) {
     const item = c.selected ? c.view.find((i) => i.id === c.selected) : undefined;
     const linking = c.linking ? c.view.find((i) => i.id === c.linking) : undefined;
-    c.selectionText.textContent = linking ? c.strings.sequencerLinkStart(linking.label) : item ? summary(c, item) : c.strings.sequencerSelectedNone;
+    setText(c.selectionText, linking ? c.strings.sequencerLinkStart(linking.label) : item ? summary(c, item) : c.strings.sequencerSelectedNone);
     const can = c.editable && Boolean(item) && !linking;
-    c.linkButton.hidden = !can || c.view.length < 2;
-    c.unlinkButton.hidden = !can || !item?.with;
-    c.cancelButton.hidden = !linking;
-    c.selection.dataset.kpMode = linking ? 'linking' : item ? 'selected' : 'none';
+    setHidden(c.linkButton, !can || c.view.length < 2);
+    setHidden(c.unlinkButton, !can || !item?.with);
+    setHidden(c.cancelButton, !linking);
+    setAttr(c.selection, 'data-kp-mode', linking ? 'linking' : item ? 'selected' : 'none');
 }
 /** The state: loading card, plate. @param {SequencerModel} c */
 function paintState(c) {
     const empty = c.state === 'ready' && c.items.length === 0;
     const plateKind = c.state === 'error' || c.state === 'empty' || empty ? (c.state === 'error' ? 'error' : 'empty') : null;
-    c.el.dataset.kpState = empty ? 'empty' : c.state;
-    c.el.setAttribute('aria-busy', String(c.state === 'loading'));
+    setAttr(c.el, 'data-kp-state', empty ? 'empty' : c.state);
+    setAttr(c.el, 'aria-busy', String(c.state === 'loading'));
     const title = c.state === 'error' ? c.stateWords || c.strings.sequencerFailed : c.stateWords || c.strings.sequencerEmpty;
     const text = c.state === 'error' ? c.stateText : c.stateText || c.strings.sequencerEmptyText;
     const key = plateKind ? `${plateKind}|${title}|${text}` : '';
@@ -66,8 +66,8 @@ function paintState(c) {
                 }),
             );
     }
-    c.plate.hidden = plateKind === null;
-    c.plate.dataset.kpState = plateKind ?? '';
+    setHidden(c.plate, plateKind === null);
+    setAttr(c.plate, 'data-kp-state', plateKind ?? '');
     const want = c.state === 'loading';
     if (want === (c.busy !== null)) {
         c.busy?.place();

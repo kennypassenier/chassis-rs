@@ -1,6 +1,7 @@
 // One wired folding bar: the More item put into the list and taken out again, the menu's pick, and what makes the bar fit again.
 
 import { attachMenuButtons } from '../menu-button.js';
+import { STRINGS_CHANGE_EVENT } from '../strings.js';
 import { NavFoldCore } from './core.js';
 
 export class NavFold extends NavFoldCore {
@@ -14,6 +15,8 @@ export class NavFold extends NavFoldCore {
         // A pick clicks the real link: the router, the counter and the page's own handlers all hear it. A modified click
         // (new tab, new window) goes to the entry's own href instead.
         this.listen(menu, 'click', (event) => this.onPick(/** @type {MouseEvent} */ (event)), true);
+        // The More words follow `setStrings()` and a language switch [kit1-1103 K1].
+        this.listen(doc, STRINGS_CHANGE_EVENT, () => this.rewrite());
         this.watchSizes();
         this.watchList();
         // The font of the theme is a width; so is the narrow toggle's visibility. A bar taken down meanwhile stays down.
@@ -21,6 +24,13 @@ export class NavFold extends NavFoldCore {
             if (!this.destroyed) this.fit();
         });
         this.listen(view, 'resize', () => this.fit());
+        this.fit();
+    }
+
+    /** The words changed: write the label and names again, and draw the menu again (its groups carry words too). */
+    rewrite() {
+        this.writeWords();
+        this.signature = '';
         this.fit();
     }
 

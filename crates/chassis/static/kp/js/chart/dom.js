@@ -2,6 +2,7 @@
 import { ChartGroup } from './group.js';
 import { CHARTS, GROUPS, LOOSE, chartInMilliseconds } from './api.js';
 import { CHART_GROUP } from './constants.js';
+import { byId } from '../by-id.js';
 /** @typedef {import('./words.js').ChartData} ChartData */
 /** @typedef {import('./words.js').ChartDecorate} ChartDecorate */
 /** @typedef {import('./words.js').ChartDecorateInfo} ChartDecorateInfo */
@@ -25,7 +26,7 @@ export function groupOf(el) {
 export function chipKey(chip) {
     const doc = chip.ownerDocument;
     const id = chip.getAttribute('data-kp-chart-zoom-for');
-    if (id) return doc.getElementById(id);
+    if (id) return byId(doc, id);
     return chip.closest(CHART_GROUP) ?? doc;
 }
 /** The data in a chart's JSON child, if any. @param {Element} el @returns {ChartData | null} */

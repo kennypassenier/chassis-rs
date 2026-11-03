@@ -42,6 +42,8 @@ export const LEVEL_FULL = 2;
  * @property {'css' | 'js' | 'auto'} [engine]
  * @property {boolean} [shrink]
  * @property {'off' | 'chars' | 'lines' | 'both'} [counter]
+ * @property {'measure' | 'skip'} [hidden] a box whose content is not rendered (a closed `<details>`, `content-visibility: hidden`): `measure`
+ *   (default) sizes it now, which makes the browser lay that hidden content out; `skip` waits until it shows
  */
 
 /**
@@ -52,3 +54,12 @@ export const LEVEL_FULL = 2;
  * @property {() => { chars: number, lines: number }} count
  * @property {'css' | 'js'} engine the engine in use
  */
+
+/** On the box: the key that submits its form, listed in the `?` sheet (a key spec, js/key-spec.js; `none` for no key). */
+export const AUTOSIZE_SUBMIT_KEY_ATTRIBUTE = 'data-kp-submit-key';
+/** The key that submits the form when the box names none: no key; a page opts in with `Mod+Enter`. */
+export const AUTOSIZE_SUBMIT_KEY = 'none';
+/** The older value of the attribute, kept: it means `Mod+Enter`. */
+export const AUTOSIZE_SUBMIT_LEGACY = 'mod-enter';
+/** What the older value means, as a key spec. */
+export const AUTOSIZE_SUBMIT_LEGACY_KEY = 'Mod+Enter';

@@ -35,7 +35,9 @@ fn coarse_blocks(css: &str) -> String {
 #[test]
 fn the_bars_controls_are_44_px_on_a_touch_screen() {
     let coarse = coarse_blocks(&kit_file("static/chassis/shell.css"));
-    for selector in [".kp-skip-link", ".kp-nav__brand", ".kp-nav__search-trigger"] {
+    // The skip link and the brand are kp-themes' own since 12.5.0; the kit
+    // lifts only what it overrides (the phone search, the nav links).
+    for selector in [".kp-nav__search-trigger", ".kp-nav__links .kp-nav__link"] {
         assert!(
             coarse.contains(selector),
             "no coarse-pointer rule for {selector}"

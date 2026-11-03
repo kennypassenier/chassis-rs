@@ -4,6 +4,7 @@
 import { getStrings } from '../strings.js';
 import { weekdays } from '../weekdays.js';
 import { isHtmlElement } from '../realm.js';
+import { byId } from '../by-id.js';
 
 /** A sentence form. */
 export const SENTENCE = '[data-kp-sentence]';
@@ -32,7 +33,7 @@ export function nameOf(control) {
         return tidy(
             by
                 .split(/\s+/)
-                .map((id) => control.ownerDocument.getElementById(id)?.textContent ?? '')
+                .map((id) => byId(control.ownerDocument, id)?.textContent ?? '')
                 .join(' '),
         );
     return '';

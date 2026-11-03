@@ -1,16 +1,17 @@
 // The Markdown editor's toolbar: six tools as the package's small ghost buttons, one tab stop (← → Home End walk it, APG toolbar),
 // each named with its shortcut.
 
-import { isMacPlatform } from '../keys.js';
+import { ariaKeyShortcut, keyLabel } from '../key-spec.js';
+import { toolKey } from './keys.js';
 
-/** The tools, in order: the dictionary word of each, its key with Mod (none for three), and its picture. */
+/** The tools, in order: the dictionary word of each (its key, for three of them, is in js/markdown-editor/constants.js). */
 export const TOOLS = /** @type {const} */ ([
-    { id: 'bold', word: 'mdBold', key: 'B' },
-    { id: 'italic', word: 'mdItalic', key: 'I' },
-    { id: 'heading', word: 'mdHeading', key: '' },
-    { id: 'list', word: 'mdList', key: '' },
-    { id: 'task', word: 'mdChecklist', key: '' },
-    { id: 'link', word: 'mdLink', key: 'K' },
+    { id: 'bold', word: 'mdBold' },
+    { id: 'italic', word: 'mdItalic' },
+    { id: 'heading', word: 'mdHeading' },
+    { id: 'list', word: 'mdList' },
+    { id: 'task', word: 'mdChecklist' },
+    { id: 'link', word: 'mdLink' },
 ]);
 
 /** The pictures: a letter for bold, italic and heading; a small line drawing in the ink for the rest. */
@@ -21,9 +22,6 @@ const SVG = {
 };
 const LETTERS = { bold: 'B', italic: 'I', heading: 'H' };
 const SVG_NS = 'http://www.w3.org/2000/svg';
-
-/** The words a person reads for the modifier key. */
-export const modName = () => (isMacPlatform() ? '⌘' : 'Ctrl');
 
 /** One tool's picture. @param {Document} doc @param {string} id */
 function picture(doc, id) {
@@ -64,8 +62,9 @@ export function buildToolbar(area, strings) {
         button.dataset.kpMdTool = tool.id;
         const name = /** @type {string} */ (strings[tool.word]);
         button.setAttribute('aria-label', name);
-        button.title = tool.key ? strings.mdWithKeys(name, `${modName()}+${tool.key}`) : name;
-        if (tool.key) button.setAttribute('aria-keyshortcuts', `${isMacPlatform() ? 'Meta' : 'Control'}+${tool.key}`);
+        const key = toolKey(area.closest('[data-kp-md-editor]') ?? area, tool.id);
+        button.title = key.length > 0 ? strings.mdWithKeys(name, keyLabel(key)) : name;
+        if (key.length > 0) button.setAttribute('aria-keyshortcuts', ariaKeyShortcut(key));
         button.tabIndex = index === 0 ? 0 : -1;
         button.append(picture(doc, tool.id));
         bar.append(button);

@@ -1,6 +1,8 @@
 // One combobox or tag input: its wiring, its keys and the handle a page gets back.
 import { createListbox } from '../listbox.js';
 import { handles } from './handle.js';
+import { matchesKeySpec, resolveKeySpec } from '../key-spec.js';
+import { TAG_KEY, TAG_KEY_ATTRIBUTE } from './constants.js';
 import { ComboboxTags } from './tags.js';
 /** @typedef {import('./types.js').ComboboxHandle} ComboboxHandle */
 
@@ -86,7 +88,7 @@ export class ComboboxControl extends ComboboxTags {
         }
         if (!this.isTags) return;
         // The listbox runs first: an Enter that took a highlighted option is already spent, and the field is empty by now.
-        if ((event.key === 'Enter' || event.key === ',') && !event.defaultPrevented && !event.isComposing) {
+        if ((event.key === 'Enter' || matchesKeySpec(event, resolveKeySpec(this.host, TAG_KEY_ATTRIBUTE, undefined, TAG_KEY))) && !event.defaultPrevented && !event.isComposing) {
             if (event.key === 'Enter' && this.listbox.index !== -1) return;
             if (this.addTyped()) event.preventDefault();
             return;

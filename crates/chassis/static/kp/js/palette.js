@@ -11,7 +11,7 @@
 // and have no build step, so a palette that only exists after JavaScript
 // runs would give them an empty box.
 //
-//   <dialog class="kp-palette" data-kp-palette id="commands" data-kp-hotkey="k">
+//   <dialog class="kp-palette" data-kp-palette id="commands" data-kp-hotkey="Mod+K">  <!-- a key spec, js/key-spec.js; the older "k" still means Mod+K -->
 //     <input class="kp-palette__input" type="text" role="combobox"
 //            aria-expanded="true" aria-controls="commands-list" />
 //     <ul class="kp-palette__list" id="commands-list" role="listbox">
