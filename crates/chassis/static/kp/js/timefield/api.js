@@ -5,13 +5,14 @@ import { TIME } from './constants.js';
 import { TimeController } from './controller.js';
 import { fieldFor } from './field.js';
 import { FIELDS } from './state.js';
+import { isHtmlElement } from '../realm.js';
 
 /**
  * Set the value (no event unless `fire`), or clear it with an empty text.
  * @param {HTMLElement} root @param {string} value `HH:MM`, or '' @param {{ fire?: boolean }} [options]
  */
 export function setTime(root, value, { fire = false } = {}) {
-    if (!(root instanceof HTMLElement)) return;
+    if (!isHtmlElement(root)) return;
     const field = fieldFor(root);
     field.setInvalid('');
     field.write(value, { silent: !fire });

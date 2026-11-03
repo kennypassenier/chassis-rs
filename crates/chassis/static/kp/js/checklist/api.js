@@ -6,6 +6,7 @@ import { getStrings } from '../strings.js';
 import { part } from './parts.js';
 import { glide, render } from './render.js';
 import { BUSY, ITEMS, UNDO, getChecklistItems } from './state.js';
+import { isHtmlElement } from '../realm.js';
 
 /** @typedef {import('../checklist.js').ChecklistItem} ChecklistItem */
 
@@ -15,7 +16,7 @@ import { BUSY, ITEMS, UNDO, getChecklistItems } from './state.js';
  * @param {ChecklistItem[]} items
  */
 export function setChecklistItems(list, items) {
-    if (!(list instanceof HTMLElement)) return;
+    if (!isHtmlElement(list)) return;
     ITEMS.set(
         list,
         items.map((item) => ({ ...item, checked: Boolean(item.checked) })),
@@ -28,7 +29,7 @@ export function setChecklistItems(list, items) {
  * @param {Element} list @param {string} id @param {boolean} checked
  */
 export function setChecklistChecked(list, id, checked) {
-    if (!(list instanceof HTMLElement)) return;
+    if (!isHtmlElement(list)) return;
     const item = (ITEMS.get(list) ?? []).find((i) => i.id === id);
     if (!item) return;
     item.checked = checked;
@@ -42,7 +43,7 @@ export function setChecklistChecked(list, id, checked) {
  * @param {Element} list @param {'loading' | 'error' | 'ready'} state @param {string} [message]
  */
 export function setChecklistState(list, state, message) {
-    if (!(list instanceof HTMLElement)) return;
+    if (!isHtmlElement(list)) return;
     list.setAttribute('data-kp-state', state);
     if (state === 'error') list.setAttribute('data-kp-checklist-error', message ?? getStrings().checklistFailed);
     else list.removeAttribute('data-kp-checklist-error');

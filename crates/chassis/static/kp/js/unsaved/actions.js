@@ -34,6 +34,17 @@ export function revertOne(ctl, ch) {
     else list.querySelector('button')?.focus();
 }
 
+/** Run a batch of writes with the bar's repaint held back, then paint once: a write fires its field's event, and each event repainted the whole bar and its list. @param {UnsavedController} ctl @param {() => void} write */
+function quietly(ctl, write) {
+    ctl.quiet = true;
+    try {
+        write();
+    } finally {
+        ctl.quiet = false;
+    }
+    paintBar(ctl);
+}
+
 /**
  * Put every changed value back and offer Undo.
  * @param {UnsavedController} ctl
@@ -43,16 +54,18 @@ export function discardChanges(ctl) {
     const before = ctl.tracker.changes();
     if (before.length === 0) return;
     ctl.undoStack = [];
-    for (const ch of before) {
-        for (const c of ctl.tracker.controlsOf(ch.row)) {
-            const was = ctl.tracker.baseline.get(c);
-            if (was !== undefined && readValue(c) !== was) {
-                ctl.undoStack.push({ control: c, value: readValue(c) });
-                writeValue(c, was);
-                fire(c);
+    quietly(ctl, () => {
+        for (const ch of before) {
+            for (const c of ctl.tracker.controlsOf(ch.row)) {
+                const was = ctl.tracker.baseline.get(c);
+                if (was !== undefined && readValue(c) !== was) {
+                    ctl.undoStack.push({ control: c, value: readValue(c) });
+                    writeValue(c, was);
+                    fire(c);
+                }
             }
         }
-    }
+    });
     clearProblem(ctl);
     paintBar(ctl);
     ctl.el.dispatchEvent(new CustomEvent(UNSAVED_DISCARD_EVENT, { bubbles: true, detail: { changes: before } }));
@@ -69,10 +82,12 @@ export function offerUndo(ctl, count) {
         action: {
             label: s.unsavedUndo,
             onClick: () => {
-                for (const r of restoreIt) {
-                    writeValue(r.control, r.value);
-                    fire(r.control);
-                }
+                quietly(ctl, () => {
+                    for (const r of restoreIt) {
+                        writeValue(r.control, r.value);
+                        fire(r.control);
+                    }
+                });
                 paintBar(ctl);
                 ctl.el.dispatchEvent(new CustomEvent(UNSAVED_UNDO_EVENT, { bubbles: true, detail: { changes: ctl.tracker.changes() } }));
                 ctl.live.textContent = s.unsavedRestoredUndo(ctl.tracker.changes().length);

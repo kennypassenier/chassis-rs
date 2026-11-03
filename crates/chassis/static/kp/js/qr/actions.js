@@ -5,6 +5,7 @@ import { runFlashButton } from '../flash.js';
 import { getStrings } from '../strings.js';
 import { render } from './render.js';
 import { QR_COPY_EVENT, stateOf, valueOf } from './state.js';
+import { isHtmlElement } from '../realm.js';
 
 /** @typedef {import('../qr.js').QrSpec} QrSpec */
 
@@ -18,7 +19,7 @@ const PNG_SCALE = 4;
  * @param {HTMLElement} root @param {QrSpec} spec
  */
 export function setQr(root, spec) {
-    if (!(root instanceof HTMLElement)) return;
+    if (!isHtmlElement(root)) return;
     const st = stateOf(root);
     st.spec = { ...st.spec, ...spec };
     if (spec.value !== undefined) root.setAttribute('data-kp-qr-value', spec.value);

@@ -51,7 +51,7 @@ export class Sentence extends Controller {
             element: el,
             line: this.line,
             summary: () => sentenceSummary(el),
-            refresh: () => this.refresh(),
+            refresh: () => this.resync(),
             compute: (name, fn) => this.setCompute(name, fn),
         };
     }
@@ -187,6 +187,13 @@ export class Sentence extends Controller {
             }
             return null;
         }
+    }
+
+    /** What the page's `refresh()` does: refresh, then rewrite the summary region quietly, as attach does (no event, no pause) [last-1103]. */
+    resync() {
+        this.refresh();
+        const summary = sentenceSummary(this.host);
+        if (this.live.textContent !== summary) this.live.textContent = summary;
     }
 
     refresh() {

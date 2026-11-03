@@ -49,6 +49,7 @@ import { QuantityControl } from './quantity/controller.js';
 import { rulesOf, settleQuantity } from './quantity/math.js';
 import { paint } from './quantity/paint.js';
 import { inputOf } from './quantity/read.js';
+import { isHtmlElement } from './realm.js';
 
 export { QUANTITY, QUANTITY_EVENT, HOLD_DELAY, HOLD_SLOW, HOLD_FAST } from './quantity/values.js';
 export { decimalsOf, formatQuantity, parseQuantity, settleQuantity } from './quantity/math.js';
@@ -62,7 +63,7 @@ export { getQuantity } from './quantity/read.js';
  * @param {Element} root @param {number} value
  */
 export function setQuantity(root, value) {
-    if (!(root instanceof HTMLElement)) return;
+    if (!isHtmlElement(root)) return;
     // A field the person is typing in keeps its text; it is normalised when they commit [stepper1102].
     paint(root, settleQuantity(value, rulesOf(root)), document.activeElement === inputOf(root));
 }

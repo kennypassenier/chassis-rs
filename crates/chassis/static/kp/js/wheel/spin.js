@@ -5,6 +5,7 @@ import { motionAllowed } from '../calm.js';
 import { getStrings } from '../strings.js';
 import { build, drawDisc, paint } from './draw.js';
 import { DEFAULT_TURNS_MAX, DEFAULT_TURNS_MIN, WHEEL_LOCKED, WHEEL_RESULT_EVENT, WHEEL_SPIN_EVENT, part, pickWeighted, stateOf, weightOf, wheelAngles } from './state.js';
+import { isHtmlElement } from '../realm.js';
 
 /** @typedef {import('../wheel.js').WheelItem} WheelItem */
 /** @typedef {import('./state.js').WheelState} WheelState */
@@ -73,7 +74,7 @@ export async function glideTo(root) {
  * @param {Element} root @param {WheelItem[]} items
  */
 export function setWheelItems(root, items) {
-    if (!(root instanceof HTMLElement)) return;
+    if (!isHtmlElement(root)) return;
     build(root);
     const state = stateOf(root);
     if (state.spinning) {
@@ -101,7 +102,7 @@ export function setWheelItems(root, items) {
  * @param {Element} root @param {'loading' | 'error' | 'ready'} kind @param {string} [message]
  */
 export function setWheelState(root, kind, message) {
-    if (!(root instanceof HTMLElement)) return;
+    if (!isHtmlElement(root)) return;
     build(root);
     const state = stateOf(root);
     root.setAttribute('data-kp-state', kind);
@@ -182,7 +183,7 @@ async function turnDisc(root, { from, to, duration, short }) {
  * @returns {Promise<WheelItem | null>}
  */
 export async function spinWheel(root, { random = Math.random, duration } = {}) {
-    if (!(root instanceof HTMLElement)) return null;
+    if (!isHtmlElement(root)) return null;
     const state = stateOf(root);
     // A follower that waits for its leader's outcome does not spin, whoever asks (js/wheel/follow.js) [parts-1102 r2l].
     if (state.spinning || state.items.length < 2 || root.hasAttribute('aria-busy') || root.hasAttribute('data-kp-wheel-error') || root.hasAttribute(WHEEL_LOCKED)) return null;

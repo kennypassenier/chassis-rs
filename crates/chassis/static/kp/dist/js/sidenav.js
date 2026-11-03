@@ -1,3 +1,2 @@
-/* @kp-soft/themes v12.2.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+/* @kp-soft/themes v12.3.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
 import{a,b,c,d,e,f,g,h,i,j,k,l,m}from"./chunk-352BQQB2.js";import"./chunk-VG3I7B6N.js";import"./chunk-LJVG4ITM.js";import"./chunk-RMUSFKWU.js";import"./chunk-XAUG53M6.js";import"./chunk-K4TM2OLZ.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{j as OPTIONS,d as SIDENAV_GROUP_EVENT,i as SIDENAV_LAUNCHER,c as SIDENAV_MODE_EVENT,f as SIDENAV_OWNED,e as SIDENAV_PREVENTED_EVENT,g as SIDENAV_RESIZER,b as SIDENAV_SLIM_EVENT,h as SIDENAV_TAB,a as SIDENAV_TOGGLE_EVENT,m as attachSidenavs,k as parseChord,l as sidenavOf};
-//# sourceMappingURL=sidenav.js.map

@@ -7,6 +7,7 @@ import { fillBody } from './lines.js';
 import { stateOf } from './model.js';
 import { normalize } from './read.js';
 import { render } from './render.js';
+import { isHtmlElement } from '../realm.js';
 /** @typedef {import('./types.js').DiffFile} DiffFile */
 /** @typedef {import('./types.js').DiffSpec} DiffSpec */
 
@@ -15,7 +16,7 @@ import { render } from './render.js';
  * @param {HTMLElement} root @param {DiffSpec | DiffFile[]} spec
  */
 export function setDiff(root, spec) {
-    if (!(root instanceof HTMLElement)) return;
+    if (!isHtmlElement(root)) return;
     const st = stateOf(root);
     const next = Array.isArray(spec) ? { files: spec } : spec;
     st.spec = { ...st.spec, ...next };
@@ -31,7 +32,7 @@ export function fileOf(root, path) {
     const st = stateOf(root);
     const file = st.files.find((candidate) => candidate.path === path);
     const section = [...root.querySelectorAll('.kp-diffview__file')].find((node) => node.getAttribute('data-kp-diff-path') === path);
-    return file && section instanceof HTMLElement ? { file, section } : null;
+    return file && isHtmlElement(section) ? { file, section } : null;
 }
 
 /** Open or close one file. @param {HTMLElement} root @param {string} path @param {boolean} open @param {boolean} [announce] */

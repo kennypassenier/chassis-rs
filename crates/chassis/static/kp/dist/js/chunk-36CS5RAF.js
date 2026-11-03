@@ -1,2 +1,1 @@
 var r=class{constructor(t){this.ctx=t}connect(){return this}own(t){return this.ctx.cleanups.push(t),t}listen(t,s,e,n){t.addEventListener(s,e,n),this.own(()=>t.removeEventListener(s,e,n))}};export{r as a};
-//# sourceMappingURL=chunk-36CS5RAF.js.map

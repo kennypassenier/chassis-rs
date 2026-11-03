@@ -1,3 +1,2 @@
-/* @kp-soft/themes v12.2.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+/* @kp-soft/themes v12.3.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
 import{a,b,c,d,e}from"./chunk-DK4SQIEJ.js";import"./chunk-EBDN33LD.js";import"./chunk-H6BXZNSW.js";import"./chunk-IATOUS7C.js";import"./chunk-PXSUTE7V.js";import"./chunk-XTEUHQDW.js";import"./chunk-LJVG4ITM.js";import"./chunk-RMUSFKWU.js";import"./chunk-XAUG53M6.js";import"./chunk-K4TM2OLZ.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{a as CONTEXT_MENU,b as CONTEXT_OPEN_EVENT,d as attachContextMenus,e as openContextMenu,c as setContextMenu};
-//# sourceMappingURL=context-menu.js.map

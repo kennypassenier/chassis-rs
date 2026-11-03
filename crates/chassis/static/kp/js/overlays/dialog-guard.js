@@ -9,12 +9,14 @@
 // press (`closedby="any"`, both the browser's `cancel`), `closeDialog()` (js/motion/close.js asks first with
 // `kp-dialog-close-request`), a motion-shadowed `dialog.close()`, and a beside drawer's Escape. A close with any other
 // value (`save`, `accept`) goes through. The question is the package's confirmation, so `data-kp-dialog-stack="replace"`
-// puts it in the dialog's place. `requestDialogClose(dialog)` is the way out for a page's own button.
+// puts it in the dialog's place. `requestDialogClose(dialog)` is the way out for a page's own button. A reload and the
+// Back button are held too while the form is changed (js/overlays/dialog-leave.js).
 import { openConfirmation } from '../components/confirm-dialog.js';
 import { getStrings } from '../strings.js';
 import { readValue } from '../unsaved/values.js';
 import { widgetOf } from '../unsaved/widgets.js';
 import { DIALOG_CLOSE_REQUEST_EVENT } from './constants.js';
+import { attachDialogLeave } from './dialog-leave.js';
 
 /** A dialog that guards its form. */
 export const DIALOG_GUARD = 'dialog[data-kp-dialog-guard]:not([data-kp-dialog-guard="off"])';
@@ -174,6 +176,16 @@ const LISTENERS = [
     ['close', onClose],
 ];
 let attached = 0;
+/** @type {(() => void) | null} */
+let stopLeave = null;
+
+/** The open guarded dialog whose form changed and that is not let go, if any. */
+function heldDialog() {
+    for (const dialog of document.querySelectorAll(DIALOG_GUARD)) {
+        if (dialog instanceof HTMLDialogElement && dialog.open && !released.has(dialog) && dialogChanged(dialog)) return dialog;
+    }
+    return null;
+}
 
 /**
  * Start the guard for every `data-kp-dialog-guard` dialog on the page (window listeners, in the capture phase, once
@@ -181,11 +193,17 @@ let attached = 0;
  * @returns {() => void} detach
  */
 export function attachDialogGuards() {
-    if (attached++ === 0) for (const [type, listener] of LISTENERS) window.addEventListener(type, listener, true);
+    if (attached++ === 0) {
+        for (const [type, listener] of LISTENERS) window.addEventListener(type, listener, true);
+        stopLeave = attachDialogLeave(heldDialog, (dialog, go) => void whenDialogFree(dialog, go));
+    }
     let done = false;
     return () => {
         if (done) return;
         done = true;
-        if (--attached === 0) for (const [type, listener] of LISTENERS) window.removeEventListener(type, listener, true);
+        if (--attached > 0) return;
+        for (const [type, listener] of LISTENERS) window.removeEventListener(type, listener, true);
+        stopLeave?.();
+        stopLeave = null;
     };
 }

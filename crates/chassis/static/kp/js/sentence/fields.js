@@ -3,6 +3,7 @@
 
 import { getStrings } from '../strings.js';
 import { weekdays } from '../weekdays.js';
+import { isHtmlElement } from '../realm.js';
 
 /** A sentence form. */
 export const SENTENCE = '[data-kp-sentence]';
@@ -96,7 +97,7 @@ export function sentenceSummary(element) {
     /** @param {Node} node @returns {string} */
     const walk = (node) => {
         if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
-        if (!(node instanceof HTMLElement) || node.hidden) return '';
+        if (!isHtmlElement(node) || node.hidden) return '';
         if (node.classList.contains('kp-sentence__field')) return ` ${fieldText(node)} `;
         if (node.hasAttribute('data-kp-sentence-computed')) return ` ${computedText(node)} `;
         if (node.classList.contains('kp-sr-only') || node.matches('script, style, [data-kp-sentence-skip]')) return '';
@@ -149,7 +150,7 @@ export function setSentenceWhy(element, text) {
  * @param {'loading' | 'ready'} state
  */
 export function setSentenceFieldState(field, state) {
-    if (!(field instanceof HTMLElement)) return;
+    if (!isHtmlElement(field)) return;
     const doc = field.ownerDocument;
     const old = field.querySelector(':scope > .kp-sentence__skeleton');
     if (state === 'loading') {
@@ -165,7 +166,7 @@ export function setSentenceFieldState(field, state) {
         skeleton.append(bar);
         field.append(skeleton);
         for (const c of field.querySelectorAll(CONTROLS)) {
-            if (c instanceof HTMLElement && !c.hasAttribute('disabled')) {
+            if (isHtmlElement(c) && !c.hasAttribute('disabled')) {
                 c.setAttribute('disabled', '');
                 c.setAttribute('data-kp-was-enabled', '');
             }

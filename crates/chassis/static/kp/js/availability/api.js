@@ -3,6 +3,7 @@ import { getStrings } from '../strings.js';
 import { STATE, availabilityBest, el, glyphOf, toneOf, wordOf } from './facts.js';
 import { paintCell } from './cell.js';
 import { paintSummary, render } from './paint.js';
+import { isHtmlElement } from '../realm.js';
 /** @typedef {import('./types.js').AvState} AvState */
 /** @typedef {import('./types.js').AvailabilityAnswer} AvailabilityAnswer */
 /** @typedef {import('./types.js').AvailabilityAnswers} AvailabilityAnswers */
@@ -13,7 +14,7 @@ import { paintSummary, render } from './paint.js';
  * @param {HTMLElement} root @param {AvailabilitySpec} spec
  */
 export function setAvailability(root, spec) {
-    if (!(root instanceof HTMLElement)) return;
+    if (!isHtmlElement(root)) return;
     ensureParts(root);
     const old = STATE.get(root);
     const unit = spec.unit ?? old?.unit ?? 'range';

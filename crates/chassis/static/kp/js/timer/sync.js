@@ -7,6 +7,7 @@ import { TIMERS_RETRY_EVENT, TIMER_DONE_EVENT, TIMER_TICK_MS } from './constants
 import { leftOf, listOf, part, say, stateOf } from './model.js';
 import { playTimerSound, speakTimerMessage, stopRing } from './sound.js';
 import { TICKERS } from './state.js';
+import { isHtmlElement } from '../realm.js';
 /** @typedef {import('./types.js').Timer} Timer */
 
 /** Per list: the busy card while loading. @type {WeakMap<Element, import('../busy-card.js').BusyCard>} */
@@ -62,7 +63,7 @@ export function sync(list) {
  * @param {Element} list @param {'loading' | 'error' | 'ready'} state @param {string} [message]
  */
 export function setTimersState(list, state, message) {
-    if (!(list instanceof HTMLElement)) return;
+    if (!isHtmlElement(list)) return;
     list.setAttribute('data-kp-state', state);
     if (state === 'error') list.setAttribute('data-kp-timers-error', message ?? getStrings().timersFailed);
     else list.removeAttribute('data-kp-timers-error');

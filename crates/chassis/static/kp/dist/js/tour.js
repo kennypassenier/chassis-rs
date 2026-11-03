@@ -1,3 +1,2 @@
-/* @kp-soft/themes v12.2.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+/* @kp-soft/themes v12.3.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
 import{a,b,c,d,e,f,g,h,i}from"./chunk-KLPO7D2Y.js";import"./chunk-C6YAGL7L.js";import"./chunk-VZ5C52VU.js";import"./chunk-S2XWTSA7.js";import"./chunk-42P3PRWS.js";import"./chunk-VG3I7B6N.js";import"./chunk-LJVG4ITM.js";import"./chunk-RMUSFKWU.js";import"./chunk-XAUG53M6.js";import"./chunk-K4TM2OLZ.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{e as TOUR_GAP,d as TOUR_GUTTER,c as forgetTour,f as shouldStartTour,i as startTour,h as tourCardPlace,a as tourMemoryKey,b as tourRemembered,g as tourStepsOnPage};
-//# sourceMappingURL=tour.js.map

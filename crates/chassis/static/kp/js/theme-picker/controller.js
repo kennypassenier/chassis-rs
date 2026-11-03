@@ -1,6 +1,6 @@
 // One picker: the choice a press makes, the preview on hover and keyboard focus, and the marks that follow the theme.
 
-import { applyTheme, currentTheme, initializeTheme, pendingTheme, storeTheme } from '../theme-core.js';
+import { applyTheme, currentTheme, initializeTheme, onThemeChange, pendingTheme, storeTheme } from '../theme-core.js';
 import { OPTION, PICK_EVENT } from './values.js';
 import { clearMarks, markSelection, showSaveState } from './marks.js';
 import { PickerPreview } from './preview.js';
@@ -42,6 +42,9 @@ export class ThemePicker extends PickerPreview {
         // unknown value becomes the default here rather than surviving as
         // a data-theme no stylesheet answers to.
         markSelection(picker, initializeTheme(currentTheme()));
+        // A change from anywhere (another menu, applyTheme, another tab) renames a labelled trigger too [k420-1102].
+        this.own(onThemeChange((theme) => nameTrigger(picker, theme)));
+        nameTrigger(picker, currentTheme());
         this.own(() => this.stopPreview());
     }
 

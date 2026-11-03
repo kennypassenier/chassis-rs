@@ -7,6 +7,11 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed (kp-themes 12.3.0)
+- kp-themes 12.3.0 vendored (1736 files checked against its SHA256SUMS). Its
+  source maps are opt-in at its own build now, so a release ships only the
+  bundle's map; the `source-maps` feature embeds that and the kit's own maps.
+
 ### Fixed (nav-hang, http-switchboard and Almanac 2026-11-03)
 - After login in Firefox, every further `page.goto` hung or was aborted. The
   stale-chunk guard (4.2.0, `stale-import.js`) took the rejection of a lazy

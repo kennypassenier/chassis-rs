@@ -1,3 +1,2 @@
-/* @kp-soft/themes v12.2.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+/* @kp-soft/themes v12.3.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
 import{a,b,c,d,e,f,g}from"./chunk-B4KH3IHM.js";import"./chunk-OF5THFXG.js";import"./chunk-S2XWTSA7.js";import"./chunk-XTEUHQDW.js";import"./chunk-LJVG4ITM.js";import"./chunk-RMUSFKWU.js";import"./chunk-XAUG53M6.js";import"./chunk-K4TM2OLZ.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{a as STACKBAR,b as STACKBAR_PICK_EVENT,c as STACKBAR_RETRY_EVENT,g as attachStackbars,f as setStackbar,d as shareText,e as stackbarParts};
-//# sourceMappingURL=stackbar.js.map

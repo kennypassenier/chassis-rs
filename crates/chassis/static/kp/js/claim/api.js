@@ -2,6 +2,7 @@
 import { getChecklistItems, setChecklistItems } from '../checklist.js';
 import { decorate } from './decorate.js';
 import { claimPeople, stateOf } from './model.js';
+import { isHtmlElement } from '../realm.js';
 /** @typedef {import('./types.js').ClaimInfo} ClaimInfo */
 /** @typedef {import('./types.js').ClaimPerson} ClaimPerson */
 
@@ -10,7 +11,7 @@ import { claimPeople, stateOf } from './model.js';
  * @param {Element} list @param {ClaimPerson | null} viewer
  */
 export function setClaimViewer(list, viewer) {
-    if (!(list instanceof HTMLElement)) return;
+    if (!isHtmlElement(list)) return;
     stateOf(list).viewer = viewer ? claimPeople(viewer)[0] : null;
     decorate(list);
 }
@@ -20,7 +21,7 @@ export function setClaimViewer(list, viewer) {
  * @param {Element} list @param {ClaimPerson[]} people
  */
 export function setClaimPeople(list, people) {
-    if (!(list instanceof HTMLElement)) return;
+    if (!isHtmlElement(list)) return;
     stateOf(list).people = claimPeople(people);
     decorate(list);
 }
@@ -35,7 +36,7 @@ export function claimFilter(list) {
  * @param {Element} list @param {string} id @param {ClaimInfo} claim
  */
 export function setClaim(list, id, claim) {
-    if (!(list instanceof HTMLElement)) return;
+    if (!isHtmlElement(list)) return;
     setChecklistItems(
         list,
         getChecklistItems(list).map((i) => (i.id === id ? { ...i, claim: { ...claim, by: claimPeople(claim.by) } } : i)),

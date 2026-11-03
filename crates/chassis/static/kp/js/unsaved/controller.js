@@ -53,6 +53,8 @@ export class UnsavedController extends Controller {
         /** Whether the page is saving, and how many changes it was sent. */
         this.saving = false;
         this.savedCount = 0;
+        /** Set while a batch of values is written back (Discard, Undo): each write still marks its row, the bar paints once at the end [habits-1102]. */
+        this.quiet = false;
         /** The count last painted; -1 before the first paint, so the first paint raises no event. */
         this.lastCount = -1;
         this.announceTimer = 0;
@@ -149,7 +151,7 @@ export class UnsavedController extends Controller {
         const c = this.tracker.controlFor(event.target);
         if (!c) return;
         this.tracker.track(c);
-        this.paint();
+        if (!this.quiet) this.paint();
     }
 
     /** @param {KeyboardEvent} event */

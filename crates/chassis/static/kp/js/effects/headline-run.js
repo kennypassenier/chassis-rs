@@ -56,7 +56,9 @@ export class HeadlineRun {
     play() {
         const { ctx, el } = this;
         el.setAttribute(TEXT_ATTRIBUTE, this.text);
-        if (!el.hasAttribute('aria-label')) el.setAttribute('aria-label', this.text);
+        // An aria-hidden headline's words are named by its owner (the React DecipherText labels its outer element):
+        // a label here would give a screen reader, and a getByLabel, a second copy [rel-1230].
+        if (!el.hasAttribute('aria-label') && el.getAttribute('aria-hidden') !== 'true') el.setAttribute('aria-label', this.text);
         const asked = ctx.routineOf(el, 'headline');
         // A name no routine answers to is reported and then treated as
         // silence [G6]: the chain below ends at decipher, so a typo in a

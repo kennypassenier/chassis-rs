@@ -7,6 +7,7 @@ import { make } from './build.js';
 import { focusStar } from './commit.js';
 import { snapRating } from './math.js';
 import { paint } from './paint.js';
+import { isHtmlElement } from '../realm.js';
 
 /**
  * Draw and wire every rating under `root`.
@@ -51,7 +52,7 @@ export function setRating(element, value) {
  * @param {Element} element @param {'ready' | 'loading' | 'error'} next
  */
 export function setRatingState(element, next) {
-    if (!(element instanceof HTMLElement)) return;
+    if (!isHtmlElement(element)) return;
     if (next === 'ready') element.removeAttribute('data-kp-state');
     else element.setAttribute('data-kp-state', next);
 }

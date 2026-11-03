@@ -11,6 +11,7 @@ import { paint } from './paint.js';
 import { say } from './flow.js';
 import { remember, startResume } from './memory.js';
 import { FOCUS_STEPS_EVENT } from './constants.js';
+import { isHtmlElement } from '../realm.js';
 /** @typedef {import('./constants.js').FocusStep} FocusStep */
 
 /**
@@ -19,7 +20,7 @@ import { FOCUS_STEPS_EVENT } from './constants.js';
  * @returns {boolean} whether it moved
  */
 export function goToStep(root, index) {
-    if (!(root instanceof HTMLElement)) return false;
+    if (!isHtmlElement(root)) return false;
     if (tracksOn(root)) return trackGo(root, index);
     const state = stateOf(root);
     const to = Math.max(0, Math.min(lastIndex(root), index));
@@ -94,7 +95,7 @@ export const getSteps = (root) => stateOf(root).steps.map((step) => ({ ...step }
  * @param {Element} root @param {FocusStep[]} steps @param {{ start?: number }} [options]
  */
 export function setFocusSteps(root, steps, { start = 0 } = {}) {
-    if (!(root instanceof HTMLElement)) return;
+    if (!isHtmlElement(root)) return;
     build(root);
     const state = stateOf(root);
     state.steps = steps.map((step) => ({ ...step }));
@@ -121,7 +122,7 @@ export function setFocusSteps(root, steps, { start = 0 } = {}) {
  * @param {Element} root @param {'loading' | 'error' | 'save-error' | 'ready'} kind @param {string} [message]
  */
 export function setFocusStepsState(root, kind, message) {
-    if (!(root instanceof HTMLElement)) return;
+    if (!isHtmlElement(root)) return;
     build(root);
     const state = stateOf(root);
     root.setAttribute('data-kp-state', kind);
@@ -145,4 +146,4 @@ export function setFocusStepsState(root, kind, message) {
     paint(root, false);
 }
 /** @param {EventTarget | null} target */
-export const typing = (target) => target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+export const typing = (target) => isHtmlElement(target) && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
