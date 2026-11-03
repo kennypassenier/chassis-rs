@@ -23,6 +23,7 @@ use serde_json::Value as Json;
 
 use super::db::{Db, DbOptions, Migration};
 use super::kinds::{DataKind, KindStats, ResolvedSelector, Selector};
+use super::sync::SyncCollection;
 use crate::core::error::Error;
 
 /// What the import hook may need to know.
@@ -207,6 +208,9 @@ pub struct StorageProblem {
 struct Shared {
     db: OnceLock<Db>,
     kinds: OnceLock<Vec<DataKind>>,
+    /// The collections captured by trigger (`SyncCollection::table`); the
+    /// marks of every write through this handle are flushed for them.
+    tracked: OnceLock<Arc<Vec<SyncCollection>>>,
     import: Mutex<ImportState>,
     problems: Mutex<Vec<StorageProblem>>,
     /// Signs preview tokens; random per process, so a token never outlives

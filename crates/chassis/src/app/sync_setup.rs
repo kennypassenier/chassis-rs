@@ -61,6 +61,8 @@ impl App {
         let source: Arc<dyn SyncSource> = match (custom, load, storage.app()) {
             (Some(source), _, _) => source,
             (None, Some(load), Some(app)) => {
+                // Triggers of the table-backed collections, before the first write.
+                app.track_sync_tables(&collections)?;
                 let log = SqliteChangeLog::new(app.clone(), load);
                 let plan = RetentionPlan::new(&collections, fixed_retain_days(loaded)?);
                 let pruner = log.clone();

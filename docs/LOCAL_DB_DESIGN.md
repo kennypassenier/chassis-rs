@@ -270,6 +270,55 @@ the routes need `dashboard`). The wire shapes the page is built against:
 - Create rules (decision 8) are helpers: `client_key(&str)` (400 unless a
   36-character UUID), `check_create(held, sent_idempotency, recorded_idempotency)`
   returning `Create`, `Replay` or `KeyExists` (409 `code: "exists"`).
+- **Table-backed collections (4.6, fix-sync-habits-1).** A call per write path
+  (`tx.sync_upsert`) misses what SQL does by itself: an `ON DELETE CASCADE`, a
+  `SET NULL`. `SyncCollection::table("tasks", "id").shared().rev_column("updated_at")
+  .live_when("deleted_at IS NULL AND archived_at IS NULL").also("task_tags", "task_id")`
+  opts a collection in. At start (`App::sync_collection` with `App::app_db`; a
+  test calls `AppDb::track_sync_tables(&collections)`, after the migrations)
+  the kit drops and recreates its triggers (`chassis_sync_trg_*`) on the table
+  and every `also` table. A trigger marks the record's key in
+  `chassis_sync_dirty`; `AppDb::write` / `write_blocking` flush the marks into
+  `sync_upsert` (the row is live) or `sync_delete` (it fails `live_when`, or is
+  gone; a purged row's tombstone takes the next revision after the log's) in the
+  same transaction, so the marks roll back with a failed write. Rules:
+  the collection must be `shared`; the revision is an integer column (`rev`
+  unless `rev_column`); `live_when` is an app constant, one SQL condition. The
+  app still supplies the bodies (`SyncLoad`). A write that bypasses `AppDb`
+  (`Db::write`) leaves its marks, flushed at the next `AppDb` write.
+  The two traps: a mark is `INSERT ... SELECT ... WHERE key NOT IN (...)`, never
+  `INSERT OR IGNORE` (inside a trigger the outer statement's conflict rule wins,
+  and a cascading foreign key fails on the second mark of one key); and rows
+  that exist when the collection is first declared are recorded once through
+  `backfill` (flag `sync.seeded.<name>` in `chassis_meta`; rows written while
+  the triggers were absent are not seen again, call `backfill` by hand).
+- **Proving the capture** (feature `testing`): `storage::sync::table_diff::compare_write(&app,
+  &collections, |tx| ..)` runs a write, diffs the whole rows of the record's table and its
+  `also` tables per record, and compares with what `chassis_sync` recorded
+  (`WriteReport`: `missed` fails, `extra` is a trigger fired by a rewrite to the same
+  values, `wrong_kind` a delete recorded for a live record or the reverse).
+  `assert_write_recorded` panics on `missed` / `wrong_kind`. One call per write path.
+- **The file's epoch (4.6, fix-sync-habits-2).** `seq` is a counter inside the file, so a
+  restored older copy counts again from the older value and a device whose cursor is past
+  it would get nothing until new writes pass it. The file therefore has an epoch: 64
+  random bits in `chassis_meta` (`sync.epoch`), created when the file is first opened by
+  4.6 and carried in every cursor of the app database (`c2-<16 hex epoch>-[s]<hex seq>`;
+  the first form `c1-<hex>` has none). A cursor (a sweep too) whose epoch differs from the
+  file's, or has none while the file has one, is answered 410 `resync`; the page starts over
+  from the beginning like for a retention floor. Sources without an epoch (`SyncSource`
+  implementations of the app) are unaffected: `Cursor::is_foreign_to` never refuses when
+  the floor they report has no epoch. The kit has no restore command (backups are made by
+  tools outside it), so the epoch is renewed at the two places it can see:
+  1. every copy the kit makes (`VACUUM INTO`: the pre-migration copy, the pre-update copy,
+     `AppDb::vacuum_into`) gets a fresh epoch, so putting such a copy back is a new epoch;
+  2. at every open the file's identity (inode and creation time) is compared with the one
+     stored beside the epoch (`sync.witness`); a restore by a backup tool writes a new file,
+     so the identity differs and the epoch is renewed (logged as a warning).
+  Not detected: a restore that overwrites the file in place from a copy the kit did not make
+  (same inode, old epoch). Restore through a kit copy, or delete the `sync.epoch` row of the
+  restored file. A cursor without an epoch (every cursor handed out by 4.5.x) answers one
+  410 after the upgrade, then the device holds the new form: refusing is the safe side,
+  because accepting it would trust a position that cannot be checked against a restore.
 
 ## Migration from today's chassisData
 

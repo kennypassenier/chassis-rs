@@ -5,6 +5,11 @@
 //! (`deleted = 1`); an upsert after it turns the row live again. So the table
 //! never holds more than one row per item, and holds no copy of the data.
 //!
+//! `chassis_sync_dirty` holds the keys that triggers of a
+//! [`table`](super::SyncCollection::table) collection marked in the open
+//! write; `AppDb::write` turns the marks into rows of `chassis_sync` before
+//! it commits.
+//!
 //! The DDL is idempotent and runs every time the app file opens, BEFORE the
 //! app's migrations (and so before its one-time import), so a migration or
 //! the import may already call `sync_upsert` or [`backfill`](super::backfill).
@@ -27,6 +32,11 @@ CREATE TABLE IF NOT EXISTS chassis_sync (
     PRIMARY KEY (collection, scope, key)
 ) STRICT;
 CREATE INDEX IF NOT EXISTS chassis_sync_by_seq ON chassis_sync (collection, seq);
+CREATE TABLE IF NOT EXISTS chassis_sync_dirty (
+    collection TEXT NOT NULL,
+    key        TEXT NOT NULL,
+    PRIMARY KEY (collection, key)
+) STRICT, WITHOUT ROWID;
 ";
 
 /// Create the change log's tables on `conn` (and the `chassis_meta` table

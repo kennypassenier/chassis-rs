@@ -28,6 +28,10 @@ pub(crate) fn vacuum_into_conn(conn: &Connection, dest: &Path, shown: &str) -> R
             "it was left in place for inspection; check free space and take another",
         ));
     }
+    // The copy is a possible restore source: it must not carry the epoch of
+    // the live file (the change log's cursors), or restoring it would roll
+    // the log back unnoticed.
+    crate::storage::sync::epoch::renew_in_copy(dest)?;
     Ok(bytes)
 }
 

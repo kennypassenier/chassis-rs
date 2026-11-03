@@ -94,9 +94,11 @@ impl SyncService {
             })?;
         let since = since.map(Cursor::decode).transpose()?;
         let source = &self.inner.source;
-        if let Some(c) = since.filter(|c| !c.is_sweep()) {
+        if let Some(c) = since {
             let floor = source.floor(collection).await?;
-            if c < floor {
+            // Below the floor (a sweep is exempt: it lists live items only),
+            // or from another epoch: the file was restored from a copy.
+            if c.is_foreign_to(floor) || (!c.is_sweep() && c < floor) {
                 return Ok(Feed::Resync { floor });
             }
         }

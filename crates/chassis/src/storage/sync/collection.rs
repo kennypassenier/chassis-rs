@@ -30,6 +30,8 @@ pub struct SyncCollection {
     page_limit: usize,
     routes: Option<(String, String)>,
     server_keys: bool,
+    /// Set by [`SyncCollection::table`]: the changes are captured by trigger.
+    pub(super) tracking: Option<super::track::Tracking>,
 }
 
 impl SyncCollection {
@@ -46,6 +48,7 @@ impl SyncCollection {
             page_limit: DEFAULT_PAGE_LIMIT,
             routes: None,
             server_keys: false,
+            tracking: None,
         }
     }
 
@@ -149,6 +152,9 @@ impl SyncCollection {
                 ),
                 "pick a page size within the range",
             ));
+        }
+        if let Some(t) = &self.tracking {
+            t.validate(self)?;
         }
         if let Some((list, item)) = &self.routes
             && !(list.starts_with('/') && item.starts_with('/') && item.matches(':').count() == 1)

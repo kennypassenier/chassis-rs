@@ -17,6 +17,22 @@ scaffold writes. A breaking change in either is a major and carries a
   merge; item actions keep working. fix-db-habits-2.
 - Local database: `patch`, `put`, `delete` and `act` accept `{ rev }` to
   override the stored rev for If-Match. fix-db-habits-3.
+- Local database: opt-in change capture by trigger. `SyncCollection::table("tasks",
+  "id")` with `.also("task_tags", "task_id")`, `.rev_column(..)` and
+  `.live_when(..)` installs SQLite triggers that mark changed keys; `AppDb::write`
+  flushes the marks into `sync_upsert` / `sync_delete` in the same transaction,
+  so SQL cascades are captured too. Existing rows are seeded once through
+  `backfill`; `AppDb::track_sync_tables` does the install for a test. New
+  `storage::sync::table_diff::{compare_write, assert_write_recorded}` (feature
+  `testing`) compares a table diff with what `chassis_sync` recorded.
+  fix-sync-habits-1.
+- Local database: a per-file epoch in the feed cursor. A restored copy of the
+  app database can no longer roll the change log back unnoticed: the feed
+  answers 410 `resync` to a cursor of another epoch. The epoch is renewed in
+  every copy the kit makes (pre-migration, pre-update, `AppDb::vacuum_into`)
+  and when the file's identity differs at open (a restore by a backup tool).
+  Cursors from 4.5.x have no epoch and answer one 410 after the upgrade.
+  `Cursor::in_epoch`, `epoch`, `is_foreign_to`. fix-sync-habits-2.
 - Local database: collections whose server assigns the key
   (`SyncCollection::server_keys()`, manifest `keys: "server"`). `create()`
   POSTs without a key and the item shows as a pending overlay under
