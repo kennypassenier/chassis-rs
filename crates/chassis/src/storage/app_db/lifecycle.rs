@@ -11,7 +11,7 @@ use super::{AppDb, AppDbSpec, ImportHook, ImportState, OpenHook, Shared, Storage
 use crate::core::error::Error;
 use crate::storage::db::Db;
 use crate::storage::kinds::DataKind;
-use crate::storage::sync::SYNC_DDL;
+use crate::storage::sync::{SYNC_DDL, epoch};
 
 impl AppDb {
     pub(super) fn empty() -> Result<AppDb, Error> {
@@ -19,6 +19,7 @@ impl AppDb {
             shared: Arc::new(Shared {
                 db: OnceLock::new(),
                 kinds: OnceLock::new(),
+                tracked: OnceLock::new(),
                 import: Mutex::new(ImportState::NotRequested),
                 problems: Mutex::new(Vec::new()),
                 secret: crate::shell::time::random_hex(32)?,
@@ -41,6 +42,8 @@ impl AppDb {
         // The change log's table exists before the app's migrations run, so
         // a migration may seed it (`sync::backfill`).
         let db = Db::open_prepared(path, &spec.migrations, &spec.options, SYNC_DDL)?;
+        // After the migrations: a file restored from a copy gets a new epoch.
+        epoch::ensure(&db, Some(path))?;
         let dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
         self.finish(db, spec.import, spec.on_open, kinds, &dir)
     }
@@ -133,6 +136,7 @@ impl AppDb {
     pub fn open_in_memory(spec: AppDbSpec, kinds: Vec<DataKind>) -> Result<AppDb, Error> {
         let handle = Self::empty()?;
         let db = Db::open_in_memory_prepared(&spec.migrations, SYNC_DDL)?;
+        epoch::ensure(&db, None)?;
         handle.finish(db, spec.import, spec.on_open, kinds, Path::new("."))?;
         Ok(handle)
     }

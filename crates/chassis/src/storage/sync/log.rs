@@ -99,7 +99,14 @@ impl SyncSource for SqliteChangeLog {
     }
 }
 
+/// The floor of `collection`, stamped with the file's epoch: the one place
+/// a cursor learns which file it must belong to.
 pub(super) fn read_floor(conn: &Connection, collection: &str) -> Result<Cursor, Error> {
+    let epoch = super::epoch::read(conn)?;
+    read_floor_seq(conn, collection).map(|c| c.in_epoch(epoch))
+}
+
+fn read_floor_seq(conn: &Connection, collection: &str) -> Result<Cursor, Error> {
     let raw = meta_get(conn, &floor_key(collection))?;
     raw.map(|v| {
         v.parse().map(Cursor::at).map_err(|_| {
@@ -127,7 +134,10 @@ fn read_feed(
     // A sweep (a read from the beginning, or its continuation) lists live
     // items only and needs no tombstones, so the floor does not apply.
     let sweep = since.is_none_or(Cursor::is_sweep);
-    if !sweep && since.is_some_and(|c| c < floor) {
+    // A cursor of another epoch (or none) is a restored file: its position
+    // means nothing here, a sweep included.
+    if since.is_some_and(|c| c.is_foreign_to(floor)) || (!sweep && since.is_some_and(|c| c < floor))
+    {
         return Ok(Feed::Resync { floor });
     }
     let after = since.map_or(0, Cursor::seq);
@@ -159,7 +169,8 @@ fn read_feed(
         // position may rise to the floor without skipping a live item.
         (true, false) => Cursor::at(last.max(floor.seq())),
         (false, _) => Cursor::at(last),
-    };
+    }
+    .in_epoch(floor.epoch());
     Ok(Feed::Page(Page::new(upserts, deletes, cursor, more)))
 }
 

@@ -23,6 +23,7 @@ mod collection;
 mod create_rules;
 mod cursor;
 mod ddl;
+pub(crate) mod epoch;
 mod feed;
 #[cfg(feature = "live")]
 mod hint;
@@ -31,10 +32,14 @@ mod log;
 mod push_hint;
 mod retention;
 mod service;
+mod track;
+mod track_sql;
 mod tx;
 
 #[cfg(any(test, feature = "testing"))]
 pub mod conformance;
+#[cfg(any(test, feature = "testing"))]
+pub mod table_diff;
 #[cfg(test)]
 mod tests;
 
@@ -54,4 +59,5 @@ pub use log::{SqliteChangeLog, SyncFuture, SyncLoad, SyncSource};
 pub use push_hint::publish_sync_push;
 pub(crate) use retention::RetentionPlan;
 pub use service::SyncService;
+pub(crate) use track_sql::{flush as flush_marks, install as install_triggers};
 pub use tx::SyncWrite;
