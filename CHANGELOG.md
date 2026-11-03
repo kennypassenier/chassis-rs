@@ -35,6 +35,14 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ### Added
 
+- **A push can make the local database pull** [fix-localdb-4]. `Push::sync(&["dishes"])` puts `sync` in the push data
+  and `storage::sync::publish_sync_push(&push_handle, notification, &["dishes"])` (feature `push`) sends it; the
+  worker posts `chassis-sync` to its open windows and `db-triggers.js` pulls those collections (all when the list is
+  empty). The notification is still shown; with no window open the next start pulls.
+- **Browser test of the IndexedDB store** [fix-localdb-5]. `crates/chassis/tests/browser/db_store.firefox.mjs`: one
+  Firefox run of `db-store.js` (open, a page of upserts and tombstones, cursor round trip, schema-hash rebuild, logout
+  purge). Needs Playwright via `PLAYWRIGHT_DIR`; no package was added and it is not part of `node --test`.
+
 - **Local database, server half** [feat-localdb-2] (Kitchen first). `chassis::storage::sync`: declare collections with
   `App::sync_collection(SyncCollection::new("dishes").key("id").index("name").shared().retain(..))` and
   `App::sync_load(..)` (the current body of the keys that changed, read in the feed's own snapshot); record every

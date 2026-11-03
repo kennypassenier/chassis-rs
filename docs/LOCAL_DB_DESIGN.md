@@ -242,6 +242,9 @@ the routes need `dashboard`). The wire shapes the page is built against:
   `{"collections": ["dishes"]}` (`storage::sync::publish_hint(&live, &[..])`,
   with the `live` feature). The existing `resync` event of the channel is
   unchanged.
+- The same hint over Web Push: `storage::sync::publish_sync_push(&app.push(), Push::new(..), &["dishes"])`
+  (the `push` feature) sends the notification with `"sync": ["dishes"]` in its data (`Push::sync`; an
+  empty list means every collection). The notification is still shown.
 - Retention: `<P>_SYNC_RETAIN_DAYS` (a knob; when set by flag, environment or
   file it wins over `SyncCollection::retain`), else the collection's `retain`,
   else 30 days.
@@ -313,6 +316,10 @@ Readings of the points the decisions leave open; the server half must match:
 - **Cap**: the database's bytes are added to the cache and queue bytes of the 50 MB
   cap. A page whose upserts do not fit is not stored (its deletes are), the
   collection is `stale`, the cursor stays.
+- **Push hint**: the worker's `push` handler posts `{ type: 'chassis-sync', collections: [..] }` to every
+  open window (`sw-push.js`) when the push data has `sync`; the page (db-triggers.js) listens on
+  `navigator.serviceWorker` and pulls those collections, or all when the list is empty. No window open:
+  nothing happens, the next start pulls.
 - **Events** on `window`: `chassis-db-pulled` (`{ collection, pages, removed, stopped }`);
   a 401 uses the existing `chassis-data-synced` with `stopped: "auth"`.
 - **Purge**: the logout guard deletes `chassis-db:*` with `chassis-data:*`; so does the
@@ -328,6 +335,8 @@ Readings of the points the decisions leave open; the server half must match:
 - Node tests (pure modules, in-memory store): applying pages, overlay of
   pending writes, failed edit disappears from view, full resync sweep, keep
   on/off, cap behaviour, schema-hash drop.
+- The real IndexedDB store: `crates/chassis/tests/browser/db_store.firefox.mjs` (Firefox, started by hand at
+  release, see its header).
 - One short Playwright run on Firefox: offline create, edit, reconnect, a
   server-side delete arriving, logout purge with the warning.
 

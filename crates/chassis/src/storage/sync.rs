@@ -26,6 +26,8 @@ mod feed;
 #[cfg(feature = "live")]
 mod hint;
 mod log;
+#[cfg(feature = "push")]
+mod push_hint;
 mod retention;
 mod service;
 mod tx;
@@ -45,6 +47,8 @@ pub use feed::{Delete, Feed, Page, Upsert};
 #[cfg(feature = "live")]
 pub use hint::publish_hint;
 pub use log::{SqliteChangeLog, SyncFuture, SyncLoad, SyncSource};
+#[cfg(feature = "push")]
+pub use push_hint::publish_sync_push;
 pub(crate) use retention::RetentionPlan;
 pub use service::SyncService;
 pub use tx::SyncWrite;
