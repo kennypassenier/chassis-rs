@@ -30,28 +30,38 @@ if (statusRoot) {
 // mutable state (`lastData`, `failures`, `reading`) as properties. The
 // factory modules read and write it and call each other through it, so each
 // stays small and none needs a closure over the others. The kp modules load
-// one after the other, in the order the page always loaded them.
+// together and are used in the order the page always used them.
 async function buildContext(root) {
   // Each part is its own entry under dist/js/ (kp-themes 12.2): the name is the
   // entry's file name, so a page loads only the parts it asks for.
   const kp = (part) => guardImport(import(`../kp/dist/js/${part}.js`));
+  // Every part is asked for at once (trial bump on 4.6.0): one after the other
+  // they took a round trip each, so the page was ready seconds later, and a
+  // visitor who left early cancelled imports still on the way (Firefox's
+  // "Loading failed for the module … version-delta.js"). The order in which
+  // they are USED below stays the same.
+  const names = ['problems', 'uptime', 'statusrow', 'card-state', 'flash', 'overlays', 'freshness', 'version-delta', 'datatable', 'kpi', 'attention'];
+  const parts = Promise.all(names.map((name) => kp(name)));
+  parts.catch(() => {}); // the await below reports a failure once
   const { restoreRemembered, attachRemembered } = await kp('remember');
   restoreRemembered(root);
   attachRemembered(root);
 
   await attachStatusModules(root, kp);
 
-  const { setProblems } = await kp('problems');
-  const { setUptime } = await kp('uptime');
-  const { setStatus, attachStatusLists } = await kp('statusrow');
-  const { setCardState } = await kp('card-state');
-  const { runFlashButton } = await kp('flash');
-  const { toast } = await kp('overlays');
-  const { attachAgo } = await kp('freshness');
-  const { attachVersionDeltas } = await kp('version-delta');
-  const { attachDataTables, dataTable } = await kp('datatable');
-  const { attachKpiStrips, setMeter } = await kp('kpi');
-  const { setAttention } = await kp('attention');
+  const [
+    { setProblems },
+    { setUptime },
+    { setStatus, attachStatusLists },
+    { setCardState },
+    { runFlashButton },
+    { toast },
+    { attachAgo },
+    { attachVersionDeltas },
+    { attachDataTables, dataTable },
+    { attachKpiStrips, setMeter },
+    { setAttention },
+  ] = await parts;
 
   const ctx = {
     root,

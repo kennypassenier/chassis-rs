@@ -8,6 +8,10 @@ scaffold writes. A breaking change in either is a major and carries a
 ## [Unreleased]
 
 ### Fixed (trial bump on 4.6.0)
+- The Status page asked for its eleven kp-themes parts one after the other,
+  a round trip each, so it was ready late, and leaving it early cancelled
+  imports still on the way (Firefox's "Loading failed for the module …
+  version-delta.js", Almanac). They are asked for at once now.
 - The Status page put its figures back after a failed read as markup that
   still carried the style attributes CSSOM had set on its meters, which the CSP
   (`style-src 'self'`) blocks, so the Health meter lost its value
