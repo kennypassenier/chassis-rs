@@ -58,6 +58,12 @@ pub fn check_endpoint(endpoint: &str) -> Result<(), Error> {
     if url.host_str().is_none_or(str::is_empty) {
         return Err(refuse("it has no host"));
     }
+    // Kenny's push-443 (4.6.0): the push services (Mozilla, Google, Apple)
+    // answer on the standard https port; another port is a forged
+    // subscription aiming the app at something else.
+    if url.port_or_known_default() != Some(443) {
+        return Err(refuse("only the standard https port (443) is accepted"));
+    }
     if !url.username().is_empty() || url.password().is_some() {
         return Err(refuse("it carries credentials"));
     }
@@ -126,6 +132,7 @@ mod tests {
     #[test]
     fn endpoints_that_are_not_plain_https_are_refused() {
         for bad in [
+            "https://push.example:8443/1",
             "http://push.example/1",
             "ftp://push.example/1",
             "https://user:pw@push.example/1",

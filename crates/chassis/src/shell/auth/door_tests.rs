@@ -194,3 +194,25 @@ async fn require_admin_extractor_refuses_a_client_with_403() {
     assert!(b.contains("\"error\"") && b.contains("\"remedy\"") && b.contains("pump"));
     assert_eq!(run(None).await.0, StatusCode::UNAUTHORIZED);
 }
+
+/// Kenny's host-cookie (4.6.0): over https the session cookie is
+/// `__Host-<name>_session`, over http the plain name; a request is read by
+/// either, the `__Host-` one first, so a session from before keeps working.
+#[test]
+fn the_session_cookie_takes_the_host_prefix_over_https_only() {
+    let state = auth_state();
+    let plain = state.cookie_name();
+    assert_eq!(state.session_cookie_name(false), plain);
+    assert_eq!(state.session_cookie_name(true), format!("__Host-{plain}"));
+    let mut h = HeaderMap::new();
+    h.insert(
+        header::COOKIE,
+        format!("{plain}=old; __Host-{plain}=new").parse().unwrap(),
+    );
+    let jar = axum_extra::extract::cookie::CookieJar::from_headers(&h);
+    assert_eq!(state.session_cookie(&jar).map(|c| c.value()), Some("new"));
+    let mut only_plain = HeaderMap::new();
+    only_plain.insert(header::COOKIE, format!("{plain}=old").parse().unwrap());
+    let jar = axum_extra::extract::cookie::CookieJar::from_headers(&only_plain);
+    assert_eq!(state.session_cookie(&jar).map(|c| c.value()), Some("old"));
+}

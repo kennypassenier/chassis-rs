@@ -37,7 +37,7 @@ pub(super) async fn identify(state: &AuthState, headers: &HeaderMap) -> Option<C
         return None;
     }
     let jar = CookieJar::from_headers(headers);
-    if let Some(cookie) = jar.get(&state.cookie_name()) {
+    if let Some(cookie) = state.session_cookie(&jar) {
         let mut sessions = state.sessions.state.write().await;
         if sessions.touch(cookie.value(), now_epoch(), state.session_ttl_secs) {
             return Some(Caller::Admin);
@@ -58,7 +58,7 @@ pub(super) async fn still_valid(state: &AuthState, headers: &HeaderMap) -> bool 
         ) || state.clients.snapshot().by_token(&token).is_some();
     }
     let jar = CookieJar::from_headers(headers);
-    match jar.get(&state.cookie_name()) {
+    match state.session_cookie(&jar) {
         Some(cookie) => state
             .sessions
             .state
@@ -84,10 +84,7 @@ pub(crate) fn still_valid_now(state: &AuthState, headers: &HeaderMap) -> bool {
         );
     }
     let jar = CookieJar::from_headers(headers);
-    match (
-        jar.get(&state.cookie_name()),
-        state.sessions.state.try_read(),
-    ) {
+    match (state.session_cookie(&jar), state.sessions.state.try_read()) {
         (Some(cookie), Ok(sessions)) => sessions.is_live(cookie.value(), now_epoch()),
         _ => false,
     }

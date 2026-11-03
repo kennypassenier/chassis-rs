@@ -97,7 +97,7 @@ impl PasskeyState {
     /// `current` marks the passkey that caller's session was opened with.
     pub async fn list_for_request(&self, headers: &HeaderMap) -> Vec<PasskeyListing> {
         let jar = CookieJar::from_headers(headers);
-        let current = match jar.get(&self.auth.cookie_name()) {
+        let current = match self.auth.session_cookie(&jar) {
             Some(c)
                 if self
                     .auth

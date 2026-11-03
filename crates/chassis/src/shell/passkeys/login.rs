@@ -84,11 +84,12 @@ pub(super) async fn finish(
     if let Some(id) = &used_id {
         s.remember_login(&value, id);
     }
-    let mut cookie = Cookie::new(s.auth.cookie_name(), value);
+    let https = is_https(peer, &headers, &s.auth.guards.trusted_proxies);
+    let mut cookie = Cookie::new(s.auth.session_cookie_name(https), value);
     cookie.set_http_only(true);
     cookie.set_same_site(SameSite::Lax);
     cookie.set_path("/");
-    cookie.set_secure(is_https(peer, &headers, &s.auth.guards.trusted_proxies));
+    cookie.set_secure(https);
     tracing::info!("passkey login");
     Ok((CookieJar::new().add(cookie), Redirect::to(&next)).into_response())
 }

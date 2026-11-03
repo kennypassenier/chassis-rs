@@ -7,6 +7,19 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [4.6.0] - 2026-11-03
+
+### Changed (Kenny's release-460 form)
+- **host-cookie:** over https the session cookie is now `__Host-<name>_session`
+  (Secure, Path=/, no Domain, so no other service under the same domain can
+  set or shadow it); over plain http it keeps `<name>_session`, which a
+  browser could not keep with the prefix. A request is read by either name,
+  the `__Host-` one first, so a session from before 4.6.0 keeps working until
+  its next login; a logout ends both.
+- **push-443:** a Web Push subscription whose endpoint is not on the standard
+  https port (443) is refused, as Mozilla's, Google's and Apple's push
+  services all answer there.
+
 ### Changed (kp-themes 12.4.0)
 - kp-themes 12.4.0 vendored (1740 files checked against its SHA256SUMS): no
   style attribute in any kp markup, so kit pages run under `style-src 'self'`.
