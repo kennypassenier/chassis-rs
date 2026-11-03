@@ -7,6 +7,32 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Added (Kitchen, cycle 2026-11-03)
+- `AppDbSpec::import_required()`: a failed one-time import (hook error, count
+  mismatch) stops the start with the kit's error and remedy, the import stays
+  rolled back and the old files untouched, and the next start retries. The
+  default is unchanged: the app starts, `import_state()` says `Failed` and the
+  Storage page shows the problem. fix-kitchen-cycle-1.
+- Local database: with "keep everything" off, a read of a collection that is
+  not kept reads through the server (the list route for queries, the item
+  route for `get`) and stores only what the keep rules keep. Offline or on an
+  error it shows the stored records. fix-kitchen-cycle-3.
+- Local database: `chassisData.db.clear()` empties the local stores and
+  cursors; the queue and the keep choices stay, `usage()` drops to 0.
+  fix-kitchen-cycle-4.
+- `post()` (and the other writes) accept `{ amends: { '/read/route': (copy) =>
+  copy } }`: the named read routes are amended like `optimistic`, read again
+  from the server after the replay or a refusal, and undone on a drop.
+  fix-kitchen-cycle-5.
+- `drop(id)` of a waiting edit undoes its optimistic effect on the copies: the
+  item copy, the `amends` routes and the entries in lists and composites,
+  in place; edits queued after it on the same item are laid over again.
+  fix-kitchen-cycle-7.
+- `configure({ messages })` may be called a second time (and only so) to change
+  the words after a language switch; it fires `chassis-data-messages`. The
+  failed-edits drawer redraws when it is open, on that event and on
+  `kp-strings-change`, heading included. fix-kitchen-cycle-6.
+
 ### Fixed (Habits, cycle 2026-11-03)
 - A 413 on a route whose cap the app raised with `App::body_limit` named the
   `max_body_bytes` knob, which did not apply there. The 413 now names the cap
