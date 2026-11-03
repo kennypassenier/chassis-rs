@@ -111,6 +111,7 @@ fn the_manifest_lists_every_collection_with_key_indexes_and_hash() {
     assert_eq!(first["key"], "id");
     assert_eq!(first["indexes"], json!(["name"]));
     assert_eq!(first["routes"]["item"], "/d/:id");
+    assert_eq!(first["keys"], "client");
     assert_eq!(first["schema"].as_str().unwrap().len(), 16);
     assert_eq!(m["collections"].as_array().unwrap().len(), 2);
     assert!(m["schema"].is_string());

@@ -2,11 +2,16 @@
 // validated once, and the paths of a collection's item routes. Pure.
 //
 // Manifest: { schema: "<hash>", collections: [{ name, key, rev, indexes: [..],
-//   routes: { list, item } | [list, item], shared? }] }
+//   routes: { list, item } | [list, item], shared?, keys?: "client" | "server" }] }
+// `keys: "server"`: the server assigns the key, so a create is sent without one.
 
 import { fail } from './data-errors.js';
 
 export const DB_DEFAULTS = Object.freeze({ syncUrl: '/api/sync', pullMs: 5 * 60 * 1000, pageLimit: null, live: null });
+
+/** Prefix of the temporary key a queued create of a server-keyed collection shows under. */
+export const LOCAL_PREFIX = 'local:';
+export const isLocalKey = (key) => typeof key === 'string' && key.startsWith(LOCAL_PREFIX);
 
 const NAME = /^[a-z][a-z0-9_]{0,39}$/;
 const PARAM = /^:[A-Za-z_][A-Za-z0-9_]*$/;
@@ -43,7 +48,7 @@ function collectionOf(raw) {
     };
     const indexes = raw.indexes ?? [];
     if (!Array.isArray(indexes) || indexes.some((i) => typeof i !== 'string' || i === '')) throw fail(`collection ${raw.name} has bad indexes`);
-    return { name: raw.name, key: text(raw.key, 'key'), rev: text(raw.rev ?? 'rev', 'rev'), indexes, routes: routesOf(raw.routes, raw.name), shared: raw.shared === true };
+    return { name: raw.name, key: text(raw.key, 'key'), rev: text(raw.rev ?? 'rev', 'rev'), indexes, routes: routesOf(raw.routes, raw.name), shared: raw.shared === true, keys: raw.keys === 'server' ? 'server' : 'client' };
 }
 
 /** `{ schema, collections: { name: def } }` or an error that names what is wrong. */
