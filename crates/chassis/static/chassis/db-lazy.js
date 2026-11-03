@@ -3,7 +3,7 @@
 // the manifest has arrived); every read and write waits for `ensure()`.
 // `watch` needs no database: it hangs on the hub.
 
-const COLLECTION_ASYNC = ['get', 'all', 'count', 'create', 'put', 'patch', 'delete', 'keep', 'isKept', 'sync', 'status'];
+const COLLECTION_ASYNC = ['get', 'all', 'count', 'create', 'put', 'patch', 'delete', 'act', 'keep', 'isKept', 'sync', 'status'];
 const QUERY_STEPS = ['sortBy', 'reverse', 'limit', 'skip'];
 const QUERY_ENDS = ['toArray', 'first', 'count'];
 
@@ -33,6 +33,16 @@ export function lazyDb({ ensure, hub }) {
             return clause;
         };
         col.watch = (fn) => hub.watch(name, fn);
+        // An item action is registered before the database exists (Kitchen: the
+        // facade had no `action`, so registering one threw and the data client
+        // never started). It reaches the real collection first thing, before any
+        // read queued after it, and a bad registration is reported, not thrown.
+        col.action = (actionName, transform) => {
+            real(name)
+                .then((c) => c.action(actionName, transform))
+                .catch((err) => console.warn(`chassisData.db: the action "${actionName}" of ${name} could not be registered.`, err));
+            return col;
+        };
         return col;
     }
     return {

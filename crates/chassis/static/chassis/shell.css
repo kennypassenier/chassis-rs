@@ -199,7 +199,8 @@
    skip link shows on focus; it is as tall as a finger there as well. */
 @media (pointer: coarse) {
     .kp-skip-link,
-    .kp-nav__brand {
+    .kp-nav__brand,
+    .kp-nav__links .kp-nav__link {
         display: inline-flex;
         align-items: center;
         box-sizing: border-box;

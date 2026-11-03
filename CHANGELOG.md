@@ -8,6 +8,12 @@ scaffold writes. A breaking change in either is a major and carries a
 ## [Unreleased]
 
 ### Fixed (trial bump on 4.6.0)
+- `chassisData.db.collection(name)` before the database was ready had no
+  `action` or `act`, so an app that registered an item action threw and its
+  data client never started (Kitchen: 78 of 90 loads). The lazy facade now
+  has both, and a test keeps it in step with the real collection's methods.
+- The open phone nav list's links were 36 px high under a coarse pointer;
+  they are 44 px now (Kitchen).
 - The first install no longer loads the page twice (Medicine Cabinet, HTTPSwitchboard).
   A worker an earlier page (the login) had registered claimed the next page in the middle
   of its load; that page's `registerPwa` then saw a controller, took the activation for an
