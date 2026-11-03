@@ -26,7 +26,7 @@ Clients page, copy its token, and call the API with
 Precedence: flag > environment variable > `{{ state_dir }}/config.toml` >
 default. `{{ name }} --print-config` shows every effective value and where
 it came from; `{{ name }} --check` validates without opening a socket.
-Secrets (`{{ prefix }}_TOKEN`, `{{ prefix }}_SECRET_KEY`) come from the
+Secrets (`{{ prefix }}_TOKEN`, `{{ prefix }}_SECRET_KEY`{% for n in env_names %}, `{{ n }}`{% endfor %}) come from the
 environment only, never from the file.
 
 ## Deploy

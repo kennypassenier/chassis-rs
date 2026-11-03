@@ -51,6 +51,7 @@ fn rec() -> Recorded {
         latch_env: None,
         deny_ignore: Vec::new(),
         unit_service: Vec::new(),
+        env_names: Vec::new(),
         image: None,
         required_checks: Vec::new(),
         vmid: 0,

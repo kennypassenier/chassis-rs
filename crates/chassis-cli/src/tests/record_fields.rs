@@ -2,7 +2,7 @@
 //! the latch environment and the cargo-deny ignores.
 
 use super::rec;
-use crate::recorded::scaffold_features;
+use crate::recorded::{Recorded, scaffold_features};
 use crate::render::render_all;
 
 /// M2: a migrated project records the paths it was measured at and the
@@ -111,4 +111,30 @@ fn deny_ignore_reaches_the_rendered_deny_toml() {
     let fresh = render_all(&rec(), &scaffold_features()).unwrap();
     let deny = &fresh.iter().find(|(p, ..)| p == "deny.toml").unwrap().1;
     assert!(deny.contains("ignore = []"), "{deny}");
+}
+
+/// A project's own env names reach every scaffold place that lists the env
+/// names, and an old record without the field renders exactly as before.
+#[test]
+fn env_names_extend_the_listed_env_names_and_stay_optional() {
+    let before = render_all(&rec(), &scaffold_features()).unwrap();
+    let find = |files: &[(String, String, bool, bool)], p: &str| {
+        files.iter().find(|(f, ..)| f == p).unwrap().1.clone()
+    };
+    let mut r = rec();
+    r.env_names = vec!["KYU_RUNNER_HUB_TOKEN".into(), "KYU_RUNNER_X".into()];
+    let after = render_all(&r, &scaffold_features()).unwrap();
+    let compose = find(&after, "deploy/compose.example.yml");
+    assert!(
+        compose.contains("DEMO_SVC_SECRET_KEY, KYU_RUNNER_HUB_TOKEN, KYU_RUNNER_X\n"),
+        "{compose}"
+    );
+    let readme = find(&after, "README.md");
+    assert!(readme.contains("`DEMO_SVC_SECRET_KEY`, `KYU_RUNNER_HUB_TOKEN`, `KYU_RUNNER_X`)"));
+    // Old record: the field is absent from the TOML and the output is the
+    // one the scaffold always rendered.
+    let old: Recorded = toml::from_str(&toml::to_string(&rec()).unwrap()).unwrap();
+    assert!(old.env_names.is_empty());
+    assert_eq!(render_all(&old, &scaffold_features()).unwrap(), before);
+    assert!(find(&before, "deploy/compose.example.yml").contains("SECRET_KEY\n"));
 }
