@@ -31,6 +31,7 @@
 //! starts with one of them is refused at start and at `--check`.
 
 mod files;
+mod import_map;
 mod inject;
 mod paths;
 mod pwa;
@@ -211,6 +212,8 @@ impl WebApp {
     }
 }
 
+#[cfg(test)]
+mod import_map_tests;
 #[cfg(test)]
 mod pwa_extras_tests;
 #[cfg(test)]

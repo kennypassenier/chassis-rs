@@ -22,6 +22,8 @@ use axum::extract::{Path, RawQuery};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
+pub(crate) mod kp_map;
+
 /// The kp-themes version the kit vendors (C3: one place), read from the
 /// vendored release's own `dist/VERSION` so it can never disagree with the
 /// files (Kenny, 2026-11-03: no hard-coded versions).
@@ -37,8 +39,27 @@ pub const REGISTER_PATTERN: &str = "/static/kp/dist/css/{theme}-register.min.css
 /// fonts included (its `url(../fonts/…)` resolves under `kp/`).
 pub const BASE_STYLESHEET: &str = "/static/kp/dist/kp-themes-base.min.css";
 
-/// The module entry that boots the widgets a page carries markup for.
+/// The URL prefix of kp-themes' split entries (`<prefix><entry>.js`). The import
+/// map ([`kp_map`]) sends it to [`BUNDLE_FACADE_PREFIX`], so a page that imports
+/// an entry gets a facade over the one-file bundle and never loads the split
+/// modules.
+pub(crate) const SPLIT_PREFIX: &str = "/static/kp/dist/js/";
+
+/// The generated facades (kp-themes 12.6): the names of one split entry,
+/// re-exported from the one-file bundle.
+pub(crate) const BUNDLE_FACADE_PREFIX: &str = "/static/kp/dist/bundle/";
+
+/// The one-file bundle's asset name (under `static/`) and its URL.
+pub(crate) const KP_BUNDLE_NAME: &str = "kp/dist/kp-themes.min.js";
+
+/// The split boot entry as it was published; the kit pages now name
+/// [`BOOT_ENTRY`] and the import map covers every other import of the prefix.
 pub const SPLIT_ENTRY: &str = "/static/kp/dist/js/auto.js";
+
+/// The module entry that boots the widgets a page carries markup for: the
+/// boot entry's facade. An import map does not rewrite `<script src>`, so the
+/// layout names the facade itself instead of `<prefix>auto.js`.
+pub(crate) const BOOT_ENTRY: &str = "/static/kp/dist/bundle/auto.js";
 
 /// The theme a page wears until a stored one says otherwise (the registry's
 /// fallback, and the `data-theme` the layout starts with).

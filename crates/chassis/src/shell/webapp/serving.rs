@@ -9,6 +9,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
 
 use super::files::{content_type, read};
+use super::import_map;
 use super::inject::with_head_tags;
 use super::paths::relative_path;
 use super::{DEFAULT_CSP, RESERVED, WebApp};
@@ -81,10 +82,16 @@ pub(super) async fn serve(
     };
     // The runtime script goes into HTML before the ETag is computed over the
     // served bytes, so the tag and the validator always agree.
-    let body = if content_type(&served).starts_with("text/html") {
-        with_head_tags(body, app.runtime_variant(), app.page_tags().as_deref())
+    let (body, csp) = if content_type(&served).starts_with("text/html") {
+        let body = with_head_tags(body, app.runtime_variant(), app.page_tags().as_deref());
+        // The kp-themes import map goes in last: ahead of the runtime tag, with
+        // the policy that allows exactly that inline script.
+        match import_map::apply(body, &app.csp) {
+            (body, Some(policy)) => (body, HeaderValue::from_str(&policy).unwrap_or(csp)),
+            (body, None) => (body, csp),
+        }
     } else {
-        body
+        (body, csp)
     };
     let versioned = query.as_deref().is_some_and(has_version_param);
     file_response(&served, body, versioned, &headers, csp)

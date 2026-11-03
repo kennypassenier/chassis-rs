@@ -123,6 +123,7 @@ fn guard_kp_files(files: &[String]) {
         require_files(files, CORE_KP_JS, "CORE_KP_JS"),
         require_files(files, &[KP_BUNDLE], "KP_BUNDLE"),
         require_files(files, SPLIT_ENTRIES, "SPLIT_ENTRIES"),
+        check_bundle_facades(files),
         require_files(files, SPLIT_CSS, "SPLIT_CSS"),
         check_split_folder(files, &split),
     ];
@@ -230,9 +231,6 @@ fn classify(rel: &str) -> Option<&'static str> {
 /// directory, and an absolute path would then embed THAT checkout's files
 /// (measured 2026-10-30 across two worktrees).
 fn entry(rel: &str, mime: &str) -> String {
-    if rel == kp_guards::KP_BUNDLE {
-        return bundle_facade_row(mime);
-    }
     let mut row = String::new();
     writeln!(
         row,
@@ -241,47 +239,6 @@ fn entry(rel: &str, mime: &str) -> String {
     )
     .unwrap();
     row
-}
-
-/// The bundle's URL answers a facade over the split entries (fix-kp-mix-1).
-/// Kit pages load the split modules (`dist/js/auto.js`, one controller
-/// registry); a project script that imports the self-contained bundle on the
-/// same page brought a second copy, and the two attached to each other's
-/// markup until Firefox's main thread froze (HTTPSwitchboard, Almanac on
-/// 4.4.0+). Through the facade every import of the bundle shares the split
-/// modules: the same exports (kp `dist/js/index.js` carries all 1854 of the
-/// bundle's), and the same boot (`auto.js`, which the bundle copies).
-fn bundle_facade_row(mime: &str) -> String {
-    // The two imports carry a hash of their target's bytes, so the server
-    // answers them `immutable` (a `?v=` URL) instead of revalidating every
-    // entry on every load (kyu, trial bump on 4.6.0); a new kp-themes is a new
-    // hash, so a cached copy never outlives its file.
-    let v = |rel: &str| {
-        let path = Path::new(&env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"))
-            .join("static")
-            .join(rel);
-        let bytes =
-            fs::read(&path).unwrap_or_else(|e| fail(&format!("read {}: {e}", path.display())));
-        format!("{:016x}", fnv1a(&bytes))
-    };
-    let facade = format!(
-        "// chassis: the bundle's URL serves the split modules, so a page never holds two copies of kp-themes.\n\
-         import './js/auto.js?v={}';\n\
-         export * from './js/index.js?v={}';\n",
-        v("kp/dist/js/auto.js"),
-        v("kp/dist/js/index.js"),
-    );
-    format!(
-        "    ({:?}, {mime:?}, b\"{facade}\"),\n",
-        kp_guards::KP_BUNDLE
-    )
-}
-
-/// FNV-1a, 64 bit: a content hash for a `?v=` that needs no dependency.
-fn fnv1a(bytes: &[u8]) -> u64 {
-    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |h, b| {
-        (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3)
-    })
 }
 
 /// Writes `&[ rows ]`, the expression `assets.rs` includes.
