@@ -170,3 +170,13 @@ git push -q origin "v$version"
 notes="$(awk -v v="$version" '$0 ~ "^## \\["v"\\]" {p=1; next} /^## \[/ {p=0} p' CHANGELOG.md)"
 gh release create "v$version" --title "chassis-rs $version" --notes "$notes" >/dev/null
 echo "release-kit: released v$version at $after — $(gh release view "v$version" --json url --jq .url)"
+
+# The `chassis` command on this machine follows the release (kyu-runner, trial
+# bump on 4.6.0: ~/.cargo/bin/chassis was still 3.6.3 while the apps were
+# synced against 4.6.0). Installed from the tagged tree; a failure is said, not
+# hidden, and does not undo the release.
+if cargo install -q --locked --force --path "$root/crates/chassis-cli"; then
+  echo "release-kit: installed $(chassis --version 2>/dev/null || echo 'chassis (not on PATH)') from v$version"
+else
+  echo "release-kit: the release is out, but installing the chassis command failed. What now: cargo install --locked --force --path crates/chassis-cli" >&2
+fi

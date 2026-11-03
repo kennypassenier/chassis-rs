@@ -8,6 +8,10 @@ scaffold writes. A breaking change in either is a major and carries a
 ## [Unreleased]
 
 ### Fixed (trial bump on 4.6.0)
+- `scripts/release-kit.sh` installs the released `chassis` command on the
+  machine that released it (`cargo install --path crates/chassis-cli`), so
+  the CLI the apps use follows the kit (kyu-runner found 3.6.3 installed while
+  syncing against 4.6.0). A failed install is reported and leaves the release.
 - A page that imports the bundle URL revalidated the split entries behind it
   on every load (kyu: 331 module requests per page). The facade now imports
   `auto.js` and `index.js` under a `?v=` content hash, so both are answered
