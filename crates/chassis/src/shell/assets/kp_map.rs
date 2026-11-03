@@ -77,6 +77,7 @@ fn built() -> &'static (String, String) {
 }
 
 /// The `<script type="importmap">` tag (one line, no trailing newline).
+#[cfg_attr(not(feature = "dashboard"), allow(dead_code))]
 pub fn tag() -> &'static str {
     &built().0
 }
