@@ -42,6 +42,7 @@ the outbox lives in the kit file that `dashboard` opens):
 | `notify_fallback_url` | none | Fallback target (a Home Assistant webhook address). |
 | `notify_outbox_max` | 5000 | Cap on unsent messages. |
 | `notify_kit_url` | none | Optional third target for the kit's own events (`KIT_EVENTS`). Configuration only (flag, `<P>_NOTIFY_KIT_URL`, config key); unset = they go to `notify_url`. |
+| (every address) | at most 2048 bytes | `MAX_URL_BYTES`: a longer `notify_url`, `notify_fallback_url`, `notify_kit_url` or a notification's link is refused with the length in the message. |
 | `notify_token` | none | Secret. Client token for the primary target (and the kit target), sent as `Authorization: Bearer <token>`. Environment `<P>_NOTIFY_TOKEN` only. |
 
 The existing `notify_timeout_secs`, `notify_retries`, `notify_backoff_base_ms`

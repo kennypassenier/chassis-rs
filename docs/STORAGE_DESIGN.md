@@ -125,6 +125,16 @@ Another database later is one more `PrefStore` (`App::prefs_store` takes it).
 `set` carries the quota (bytes and keys of one scope) because only the store
 can check it in the same atomic step as the write.
 
+## Pool and copy options (`DbOptions`)
+
+`AppDbSpec::with_options(DbOptions::new()…)` tunes how the app file opens:
+
+| Option | Default | What it does |
+|---|---|---|
+| `readers(n)` | `READERS` read-only readers | Reader connections in the pool, at most `MAX_READERS` (16); 0 reads on the writer. Checked when the file opens. |
+| `writable_readers()` | off | The readers open read-write, for a project whose reads run statements SQLite counts as writes. |
+| `pre_migration_snapshots(n)` | 0 | Keeps the last `n` copies of the file taken before a migration runs, beside the file. |
+
 ## Scope: the login identity
 
 The dashboard has one admin today, who signs in with the token or with a
