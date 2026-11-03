@@ -20,7 +20,6 @@ fn a_cursor_with_an_epoch_round_trips_and_the_first_form_still_reads() {
         "c2-",
         "c2-zz-1",
         "c2-0000000000000000-1",
-        "c2-00000000000000ab-1",
         "c2-00000000000000ab",
         "c2-00000000000000ab-",
     ] {

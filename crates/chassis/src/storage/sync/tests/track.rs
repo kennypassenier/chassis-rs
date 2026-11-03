@@ -107,12 +107,6 @@ fn sql_cascades_are_captured_without_a_call_per_write_path() {
         "INSERT INTO tasks (id, rev, project_id) VALUES ('t', 1, 'p1')",
     );
     run(&app, "INSERT INTO task_tags VALUES ('t', 'x'), ('t', 'y')");
-    let before = log(&app);
-    // SET NULL on the task, no write of the task by the app.
-    run(&app, "DELETE FROM projects WHERE id = 'p1'");
-    let after = log(&app);
-    assert_ne!(before, after, "the task changed by cascade: {after:?}");
-    // CASCADE on the child rows: the record they belong to changed.
     let seq = |a: &AppDb| {
         a.read_blocking(|c| {
             Ok(
@@ -123,6 +117,16 @@ fn sql_cascades_are_captured_without_a_call_per_write_path() {
         })
         .unwrap()
     };
+    // SET NULL on the task, no write of the task by the app: the task's rev
+    // column does not move, so its new change is seen by its sequence.
+    let before = seq(&app);
+    run(&app, "DELETE FROM projects WHERE id = 'p1'");
+    assert!(
+        seq(&app) > before,
+        "the task changed by cascade: {:?}",
+        log(&app)
+    );
+    // CASCADE on the child rows: the record they belong to changed.
     let s0 = seq(&app);
     run(&app, "DELETE FROM tasks WHERE id = 't'");
     assert!(seq(&app) > s0);

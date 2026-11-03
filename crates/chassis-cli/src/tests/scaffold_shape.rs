@@ -112,7 +112,8 @@ fn every_template_renders_and_substitutes() {
         kit_md.contains("# What demo-svc gets from chassis"),
         "{kit_md}"
     );
-    assert!(kit_md.contains("chassis 0.1.0") && kit_md.contains("`v0.1.0`"));
+    // runner-4: the document names no kit version, so a bump does not rewrite it.
+    assert!(!kit_md.contains("chassis 0.1.0") && !kit_md.contains("`v0.1.0`"));
     assert!(kit_md.contains("DEMO_SVC_TOKEN"), "{kit_md}");
     assert!(
         !files.iter().any(|(p, ..)| p.contains("latch")),
