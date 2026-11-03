@@ -75,6 +75,10 @@ contract, the `--version` smoke — before it tags.
 - **Next kp-themes vendoring (kp-themes main, 2026-10-30, not yet released):** `js/controller.js` is new and shared; 51 modules are facades (`js/<name>.js` re-exports `js/<name>/*.js`), and `css/_rules.css` is generated from `css/rules/*.css`. Copy the folders, not only the facade files (the list is kp-themes `gates/checksums.mjs` FILES + `gates/checksums-parts.mjs` PART_FILES). The build.rs core list in chassis (17 `kp/js` files embedded in `ASSETS`) must then also take each core facade's folder and `controller.js`, or the core pages 404 on their parts.
 - Session title convention: `🏗️ chassis-rs - Fase <N> - <phase name>`.
 
+## What belongs in chassis-rs (Kenny, 2026-11-04)
+
+chassis-rs bundles functionality that several apps use. Functionality for one app alone does not go into the kit; it stays in that app. A wish from one app goes in only when it is shaped so that it serves every app, and a release form says which apps use it.
+
 ## The release cycle (Kenny, 2026-11-03: "cyclus")
 
 When Kenny asks for the cycle:
