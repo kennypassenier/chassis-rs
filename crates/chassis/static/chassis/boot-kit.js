@@ -15,6 +15,10 @@ import { installRefresh } from './refresh-kit.js';
 import { guardStaleImports } from './stale-import.js';
 import { installLogoutGuard } from './logout-guard.js';
 import { storedLogoutWords } from './logout-words.js';
+import { installMeters } from './meters.js';
+
+// Meters carry their value as data (no style attribute; the CSP forbids one).
+installMeters(document);
 
 // A lazy kp chunk gone after an app update reloads the page once.
 guardStaleImports(window);

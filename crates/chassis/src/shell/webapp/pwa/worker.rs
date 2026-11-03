@@ -17,6 +17,10 @@ const PUSH_LOGIC: &str = "";
 #[cfg(not(feature = "push"))]
 const PUSH_CORE: &str = "";
 
+/// The offline page's layout, served at `/pwa/offline.css`. A stylesheet, not
+/// a `<style>` block: the CSP allows no inline styles.
+pub(super) const OFFLINE_CSS: &str = include_str!("offline.css");
+
 /// The offline page's retry script, served at `/pwa/offline.js`.
 pub(super) const OFFLINE_JS: &str = include_str!("offline.js");
 
@@ -45,8 +49,7 @@ pub(super) fn offline_page(kit_version: &str, theme_color: &str) -> String {
 <meta name=\"theme-color\" content=\"{theme_color}\"><title>Offline</title>\n\
 <link rel=\"stylesheet\" href=\"{base}?v={kit_version}\">\n\
 <link rel=\"stylesheet\" href=\"{register}?v={kit_version}\" data-kp-register=\"{theme}\">\n\
-<style>body{{margin:0;min-height:100vh;display:grid;place-items:center}}\
-div.wrap{{max-width:28rem;width:100%;padding:16px;box-sizing:border-box}}</style></head><body>\n\
+<link rel=\"stylesheet\" href=\"/pwa/offline.css\"></head><body>\n\
 <div class=\"wrap\"><main class=\"kp-card\"><h1 class=\"kp-card__title\">You are offline</h1>\n\
 <p>This page needs a connection. It tries again by itself as soon as you are back online.</p>\n\
 <p><button type=\"button\" class=\"kp-button kp-button--primary\" id=\"retry\">Try again now</button></p></main>\n\

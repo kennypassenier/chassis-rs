@@ -7,6 +7,26 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Changed (no inline styles, 2026-11-03)
+- Inline styles never happen (Kenny, absolute): no `style` attribute in
+  markup, none built into an HTML string, no `<style>` block. The kit's own
+  sites are gone: the theme picker's anchor names are two rules in
+  `base.css`; the meters (Status health, Storage budget and shares) carry
+  `data-chassis-value` / `data-chassis-mark` and the new `meters.js` sets
+  `--kp-value` / `--kp-mark` through CSSOM; the offline page's layout is
+  `/pwa/offline.css` (also in the worker's precache). fix-no-inline-1.
+- The CSP of every kit response and of a web app's default policy is
+  `style-src 'self'`, without `'unsafe-inline'`. A page whose markup still
+  carries a `style` attribute or a `<style>` block loses that styling. A web
+  app that cannot move yet opts in with `WebApp::allow_inline_styles()` (new,
+  default off, `INLINE_STYLES_CSP`). fix-no-inline-2.
+- kp-themes 12.3.0 still writes `style=` in `js/theme-picker/markup.js` and
+  `js/loading-pieces/draw.js`; they stop under this policy until 12.4.0 is
+  vendored. fix-no-inline-2.
+- Tests lock both: `tests/no_inline_styles.rs` scans `templates/`,
+  `static/chassis/*.js`, the Rust strings in `src/` and the scaffold; the CSP
+  header test fails on `'unsafe-inline'` in `style-src`. fix-no-inline-3.
+
 ### Changed (open items, 2026-11-03)
 - The 403 for a cross-site request now has a plain title ("this action was
   blocked because it was sent from another website"); the technical detail

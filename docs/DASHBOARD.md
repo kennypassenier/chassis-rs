@@ -193,7 +193,7 @@ app.dashboard_routes(
 {% block content %}
 <h1>Calendars</h1>
 <p class="explain">Each row is one Google Calendar this service writes events into. Add one with the calendar id from Google's settings; <strong>Sync now</strong> pushes pending events at once instead of at the next tick.</p>
-<div class="kp-card" style="margin-bottom: 1.5rem">
+<div class="kp-card">
   <form method="post" action="/calendars">
     <div class="kp-field"><label class="kp-field__label" for="name">Name</label>
       <input class="kp-field__input" id="name" name="name" required></div>
@@ -626,9 +626,9 @@ never from a list in the layout:
   (`shell::dashboard::tests::every_page_template_has_an_explain_block`).
   For project pages the kit has no lint; inbox's E2E asserts its own page
   contains `class="explain"` — copy that assertion into your suite.
-- **CSP: no inline scripts, no third parties.** Every response carries
+- **CSP: no inline scripts, no inline styles, no third parties.** Every response carries
   `content-security-policy: default-src 'self'; script-src 'self';
-  style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src
+  style-src 'self'; img-src 'self' data:; font-src
   'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none';
   form-action 'self'`, plus `x-content-type-options: nosniff`,
   `x-frame-options: DENY`, `cross-origin-opener-policy: same-origin`, a

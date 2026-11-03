@@ -48,9 +48,14 @@ pub use pwa::{
 pub use validate::single_installable;
 
 /// The policy a web app gets unless it names its own: the kit's pages'
-/// policy. `'unsafe-inline'` for styles covers `style=""` attributes that
-/// kp-themes' components write; scripts stay `'self'` only.
-pub const DEFAULT_CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+/// policy: scripts and styles from `'self'` only, no `'unsafe-inline'`
+/// (Kenny, 2026-11-03: inline styles never happen). An app that still
+/// writes inline styles opts in with [`WebApp::allow_inline_styles`].
+pub const DEFAULT_CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+
+/// [`DEFAULT_CSP`] with `'unsafe-inline'` added to `style-src`, what
+/// [`WebApp::allow_inline_styles`] switches on.
+pub const INLINE_STYLES_CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 
 /// Paths the kit serves itself; a web app mounted on or under one of them
 /// would hide it.
@@ -133,6 +138,16 @@ impl WebApp {
     /// Replace [`DEFAULT_CSP`] for this app's responses.
     pub fn csp(mut self, policy: &str) -> Self {
         self.csp = policy.to_string();
+        self
+    }
+
+    /// Opt this app in to inline styles: [`INLINE_STYLES_CSP`] instead of
+    /// [`DEFAULT_CSP`]. Off by default (Kenny, 2026-11-03: inline styles
+    /// never happen); only for an app that has not yet moved its
+    /// `style="…"` markup and `<style>` blocks into stylesheets and CSSOM.
+    /// Call it before `.csp(…)`, which replaces whatever this set.
+    pub fn allow_inline_styles(mut self) -> Self {
+        self.csp = INLINE_STYLES_CSP.to_string();
         self
     }
 

@@ -26,6 +26,11 @@ h2 { font-size: 1.25rem; margin: 2rem 0 0.75rem; }
    to the far end. */
 .kp-nav__links { flex: 1; }
 
+/* The theme picker's popover is anchored to its button. The names were inline
+   style attributes; a sheet carries them now (CSP: no inline styles). */
+.kp-theme-menu > .kp-icon-button { anchor-name: --kp-theme-menu; }
+.kp-theme-menu > .kp-popover { position-anchor: --kp-theme-menu; }
+
 /* K16: every section opens with a short explanation in plain language.
    The lint test looks for this class. */
 .explain {

@@ -11,6 +11,8 @@
 
 mod access_log_line;
 pub(crate) mod body_limit;
+#[cfg(test)]
+mod csp_tests;
 mod error_page;
 mod error_response;
 pub mod extractors;
@@ -160,8 +162,9 @@ pub(crate) fn with_kit_layers_limited(
 
 /// S8: defence-in-depth headers on every response. The dashboard loads
 /// scripts, styles and fonts only from itself (fonts are vendored), so the
-/// policy can be strict; `'unsafe-inline'` for styles covers the templates'
-/// small `style=""` attributes and nothing else.
+/// policy can be strict, styles included: `style-src 'self'` with no
+/// `'unsafe-inline'` (Kenny, 2026-11-03: inline styles never happen). A
+/// dynamic value is set through CSSOM, which the policy allows.
 pub async fn security_headers(req: Request, next: Next) -> Response {
     hygiene::security_headers(req, next).await
 }
