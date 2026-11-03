@@ -59,6 +59,7 @@ pub const SPLIT_ENTRY: &str = "/static/kp/dist/js/auto.js";
 /// The module entry that boots the widgets a page carries markup for: the
 /// boot entry's facade. An import map does not rewrite `<script src>`, so the
 /// layout names the facade itself instead of `<prefix>auto.js`.
+#[cfg_attr(not(feature = "dashboard"), allow(dead_code))]
 pub(crate) const BOOT_ENTRY: &str = "/static/kp/dist/bundle/auto.js";
 
 /// The theme a page wears until a stored one says otherwise (the registry's

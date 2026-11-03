@@ -14,7 +14,12 @@ fn kit_csp() -> &'static str {
     static CSP: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     CSP.get_or_init(|| {
         let base = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
-        crate::shell::assets::kp_map::csp_with_hash(base).unwrap_or_else(|| base.to_string())
+        // A core-only service serves no kit pages, so it has no import map to allow.
+        #[cfg(feature = "assets")]
+        let policy = crate::shell::assets::kp_map::csp_with_hash(base).unwrap_or_else(|| base.to_string());
+        #[cfg(not(feature = "assets"))]
+        let policy = base.to_string();
+        policy
     })
 }
 
