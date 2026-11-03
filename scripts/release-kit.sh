@@ -87,6 +87,14 @@ else
 fi
 gate_s=$(( $(date +%s) - gate_started ))
 echo "release-kit: fmt · clippy · tests took $((gate_s / 60)) min $((gate_s % 60)) s (measured)"
+# The local database's real IndexedDB store runs in Firefox only (Kenny: browser
+# tests on Firefox, never Chromium); Playwright comes from kp-themes' node_modules.
+browser_started=$(date +%s)
+PLAYWRIGHT_DIR="${PLAYWRIGHT_DIR:-$HOME/Projects/kp-themes/node_modules}" \
+  node "$root/crates/chassis/tests/browser/db_store.firefox.mjs" ||
+  { echo "release-kit: the Firefox test of the local store failed; nothing released" >&2; exit 1; }
+browser_s=$(( $(date +%s) - browser_started ))
+echo "release-kit: Firefox store test took $((browser_s / 60)) min $((browser_s % 60)) s (measured)"
 # The consumers enable narrow feature sets, and clippy above only sees all
 # of them at once; the 2026-10-30 file split once left `core` alone
 # uncompilable while every check here was green (arch-modular-1). Each set a
