@@ -115,16 +115,24 @@ fn choose_run(
 }
 
 /// Writes (or drops) the record after a red test step.
-fn record_failure(
+pub(super) fn record_failure(
     dir: &Path,
     was_rerun: bool,
     old: Option<failed_tests::Record>,
     failures: Vec<failed_tests::FailedTest>,
 ) {
     if failures.is_empty() {
-        // Nothing parsed (a build error, or the filter matched no test):
-        // the next release starts from the whole suite.
-        failed_tests::clear(dir);
+        // Nothing parsed (a build error, or nextest refused the filter). A
+        // rerun keeps its record: the failures it names are still unproven,
+        // and dropping it would force the whole suite (kyu, 2026-11-03).
+        if was_rerun && old.is_some() {
+            println!(
+                "chassis release: no failed test could be read from this run; kept the record in {}",
+                failed_tests::RECORD_PATH
+            );
+        } else {
+            failed_tests::clear(dir);
+        }
         return;
     }
     let record = match old {

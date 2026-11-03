@@ -147,3 +147,28 @@ fn the_record_round_trips_and_clears() {
     clear(dir.path());
     assert_eq!(load(dir.path()), None);
 }
+
+#[test]
+fn the_progress_counter_of_newer_nextest_is_not_read_as_the_binary() {
+    let out = "        FAIL [ 109.951s] (45/71) kyu-runner::l2_pump_dead_letters l2_ar17_a_redirect_is_a_failure_never_followed\n";
+    let got = parse_failures(out);
+    assert_eq!(
+        got,
+        vec![t(
+            "kyu-runner::l2_pump_dead_letters",
+            "l2_ar17_a_redirect_is_a_failure_never_followed"
+        )]
+    );
+    assert_eq!(
+        filterset(&got),
+        "(binary_id(=kyu-runner::l2_pump_dead_letters) & test(=l2_ar17_a_redirect_is_a_failure_never_followed))"
+    );
+}
+
+#[test]
+fn a_record_naming_a_progress_counter_runs_the_whole_suite() {
+    let mut r = record();
+    r.failed = vec![t("(45/71)", "kyu-runner::l2_pump_dead_letters")];
+    let d = decide(Some(&r), Ok(&[]), &pkgs(), false);
+    assert!(matches!(d, Decision::Full(Some(_))), "{d:?}");
+}

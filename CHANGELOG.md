@@ -7,6 +7,15 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+### Fixed (chassis release, kyu 2026-11-03)
+- The failed-test record no longer reads nextest's progress counter
+  (`FAIL [ 109.951s] (45/71) kyu-runner::l2 x`) as the binary id, which built
+  a filterset nextest refused. A record written that way by an older chassis
+  now runs the whole suite instead of a refused rerun.
+- A rerun from which no failure can be read (nextest refused the filter, a
+  build error) keeps the record, so the next release still reruns only those
+  tests; only a green rerun or a release clears it.
+
 ### Added
 
 - **Local database, server half** [feat-localdb-2] (Kitchen first). `chassis::storage::sync`: declare collections with

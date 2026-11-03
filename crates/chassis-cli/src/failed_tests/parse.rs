@@ -22,6 +22,20 @@ fn strip_ansi(line: &str) -> String {
     out
 }
 
+/// `(45/71)`: nextest's progress counter, printed between the time and the
+/// binary id on newer versions.
+pub(super) fn is_counter(word: &str) -> bool {
+    word.strip_prefix('(')
+        .and_then(|w| w.strip_suffix(')'))
+        .and_then(|w| w.split_once('/'))
+        .is_some_and(|(a, b)| {
+            !a.is_empty()
+                && !b.is_empty()
+                && a.bytes().all(|c| c.is_ascii_digit())
+                && b.bytes().all(|c| c.is_ascii_digit())
+        })
+}
+
 /// The failed tests in nextest's output: lines like
 /// `        FAIL [   0.011s] chassis-cli release::tests::x` (also TIMEOUT and
 /// the signal statuses). nextest prints each failure live and again in its
@@ -54,7 +68,12 @@ pub fn parse_failures(output: &str) -> Vec<FailedTest> {
         let Some((_, after)) = rest.split_once(']') else {
             continue;
         };
-        let mut words = after.split_whitespace();
+        // nextest 0.9.9x prints a progress counter after the time:
+        // `FAIL [ 109.951s] (45/71) kyu-runner::l2 x`; it is not the binary.
+        let mut words = after.split_whitespace().peekable();
+        if words.peek().is_some_and(|w| is_counter(w)) {
+            words.next();
+        }
         if let (Some(binary), Some(name)) = (words.next(), words.next()) {
             set.insert(FailedTest {
                 binary: binary.to_string(),

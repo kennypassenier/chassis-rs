@@ -3,6 +3,7 @@
 
 use std::collections::BTreeSet;
 
+use super::parse::is_counter;
 use super::{Decision, Record};
 
 fn basename(path: &str) -> &str {
@@ -47,6 +48,14 @@ pub fn decide(
     };
     if record.failed.is_empty() {
         return Decision::Full(None);
+    }
+    if record.failed.iter().any(|t| is_counter(&t.binary)) {
+        // Written before 4.5.0 read nextest's `(45/71)` as the binary id;
+        // nextest refuses that filter, so start over from the whole suite.
+        return Decision::Full(Some(
+            "the record names a progress counter as a test binary (written by an older chassis)"
+                .into(),
+        ));
     }
     let changed = match changed {
         Ok(c) => c,

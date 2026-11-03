@@ -10,6 +10,7 @@ use super::*;
 use crate::recorded::Recorded;
 
 mod glibc;
+mod record;
 
 /// Kenny, 2026-10-02: every test run reports its measured duration; the
 /// gate prints it in minutes and seconds, never bare seconds past 60.
