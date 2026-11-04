@@ -118,6 +118,7 @@ export async function openDbStore(idb, app, manifest = null, KeyRange = globalTh
 
     return {
         manifest: opened.manifest,
+        persistent: true, // IndexedDB (db-client.js `persistent`)
         async getMeta(c) {
             const { name: _n, ...rest } = await metaOf(db.transaction(META).objectStore(META), c);
             return rest;

@@ -422,6 +422,12 @@ Readings of the points the decisions leave open; the server half must match:
   rules allow); `usage()` is 0 afterwards. The write queue (waiting and failed edits) and the keep
   choices stay. It resolves to `{ collections, waiting }` so an app can say that waiting edits remain.
   A pull in flight finishes first. The chassisData read copies are not touched (`clearCopy()`).
+- **`persistent`** (`[fix-mc-data-h]`): without IndexedDB (private mode, blocked storage) the database
+  falls back to memory and logs one `console.warn`. `chassisData.db.persistent` says which store is in
+  use: on the lazy facade a **promise** of a boolean (the store is known once the database is open;
+  `true` = IndexedDB, `false` = memory, data gone when the page closes; it rejects like `ready()`), on
+  the opened database object (`createDb`) a plain boolean. An app may warn its user: `if (!(await
+  chassisData.db.persistent)) ...`.
 - **Cached routes** (data-lists.js, for apps on chassisData without the db): `composites:
   [{ path: '/data/snapshot', lists: { tasks: '/data/tasks/:id' } }]` (both paths also in
   `routes`) makes an item write amend `snapshot.tasks`; a queued POST to a list route whose

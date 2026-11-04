@@ -47,6 +47,10 @@ export function lazyDb({ ensure, hub }) {
     }
     return {
         collection,
+        /** A promise (the store is only known once the database is open): true = IndexedDB, false = the memory fallback; rejects like `ready()`. */
+        get persistent() {
+            return ensure().then((db) => db.persistent);
+        },
         /** Resolves to the names of the collections once the manifest is in; rejects while the service cannot be reached and nothing was synced. */
         ready: () => ensure().then((db) => db.names()),
         sync: (names = null) => ensure().then((db) => db.sync(names)),

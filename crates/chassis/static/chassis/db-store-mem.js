@@ -24,6 +24,7 @@ export function memoryDb(manifest) {
 
     return {
         manifest,
+        persistent: false, // memory: gone when the page closes (db-client.js `persistent`)
         getMeta: async (c) => clone(meta(c)),
         async setMeta(c, patch) {
             metas.set(c, { ...meta(c), ...patch });

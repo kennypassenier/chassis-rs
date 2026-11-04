@@ -47,6 +47,10 @@ export function createDb(deps) {
     ];
 
     return {
+        /** True when the IndexedDB store is in use, false on the in-memory fallback (the data lasts until the page closes). */
+        get persistent() {
+            return store.persistent === true;
+        },
         names: () => [...names],
         collection(name) {
             const def = defs[name];

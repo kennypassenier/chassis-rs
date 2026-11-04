@@ -18,7 +18,7 @@ async function storeFor(win, app, manifest, deps) {
         return await (deps.openDbStore ?? openDbStore)(win.indexedDB, app, manifest, win.IDBKeyRange);
     } catch (err) {
         if (manifest === null) throw err;
-        console.warn('chassisData.db: IndexedDB is not usable here; the local database lasts until the page closes.', err);
+        console.warn('chassisData.db: IndexedDB is not usable here; the local database lasts until the page closes (chassisData.db.persistent is false).', err);
         return memoryDb(manifest);
     }
 }
