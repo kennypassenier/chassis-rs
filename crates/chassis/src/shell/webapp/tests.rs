@@ -40,12 +40,10 @@ async fn serves_the_index_the_files_and_their_types() {
     assert_eq!(res.status(), 200);
     assert_eq!(res.headers()["content-type"], "text/html; charset=utf-8");
     assert_eq!(res.headers()["cache-control"], "no-cache");
-    // The default policy plus the hash of the inline kp-themes import map.
+    // This index has no `<head>`, so it takes no import map and keeps the
+    // plain default policy (a page with a head is covered in import_map_tests).
     let csp = res.headers()["content-security-policy"].to_str().unwrap();
-    assert_eq!(
-        crate::shell::assets::kp_map::csp_with_hash(DEFAULT_CSP).as_deref(),
-        Some(csp)
-    );
+    assert_eq!(csp, DEFAULT_CSP);
     assert!(body(res).await.contains("<title>app</title>"));
     let res = get_path(&r, "/app/js/main.js", &[]).await;
     assert_eq!(

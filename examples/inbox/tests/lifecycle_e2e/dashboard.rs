@@ -184,6 +184,11 @@ fn project_page_renders_inside_the_layout_with_security_headers() {
         .unwrap()
         .to_string();
     assert!(csp.contains("script-src 'self'"), "{csp}");
+    assert!(
+        csp.contains("'sha256-"),
+        "the import map's hash is allowed: {csp}"
+    );
+    assert!(!csp.contains("unsafe-inline"), "{csp}");
     assert_eq!(res.headers()["x-content-type-options"], "nosniff");
     assert_eq!(res.headers()["x-frame-options"], "DENY");
     // [fix-sec-headers-1]: the configured policy headers on a kit page.
@@ -231,8 +236,10 @@ fn project_page_renders_inside_the_layout_with_security_headers() {
         for (i, _) in page.match_indices("<script") {
             let end = page[i..].find('>').map(|e| i + e + 1).unwrap_or(page.len());
             let tag = &page[i..end];
+            // The kp-themes import map is the one inline script, allowed by
+            // its sha256 in the policy (kp-shape "Eén bestand", 4.7.0).
             assert!(
-                tag.contains(" src="),
+                tag.contains(" src=") || tag.contains("type=\"importmap\""),
                 "{p} carries an inline script the CSP would block: {tag}"
             );
         }
