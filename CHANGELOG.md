@@ -99,6 +99,38 @@ parts.
   (0 errors before and after); Kitchen measures it on its own pages.
   [fix-sw-icon-1]
 
+### Coverage of the collected list (kp-gaps/chassis-rs.md, 04/11)
+- Medicine Cabinet (a) seed `chassis_sync` / force a resync: already in 4.6.0
+  (`sync::backfill`, `backfill_for`, per-file epoch with a 410 resync).
+- Medicine Cabinet (b) post-open hook: already in 4.6.0 (`AppDbSpec::on_open`).
+- Medicine Cabinet (c) the sync tables for tests: already in 4.6.0
+  (`sync::create_tables`, public, instead of the crate-private DDL).
+- Medicine Cabinet (d) replay on `online`: in this release (see Fixed).
+- Medicine Cabinet (e) failed-edit wording: in this release (see Fixed).
+- Medicine Cabinet (f) the queue overlay: merged PUT and item actions
+  (`collection.action` / `act`) already in 4.6.0, the lazy facade's
+  `action`/`act` in 4.7.0. A served intake without `deducted` is the app's
+  own field: Medicine Cabinet folds it in with an item action; nothing in
+  the kit to change (single-app).
+- Medicine Cabinet (g) list redraw on a refused create: in this release.
+- Medicine Cabinet (h) `chassisData.db.persistent`: in this release.
+- kyu C1 second runtime: in this release (fix-kp-tag-1). kyu C2 compose env
+  comment: already in 4.6.0 (`.chassis.toml` `env_names`).
+- Almanac 38: withdrawn by Almanac (`Page::hint` exists, the drawer row is
+  59 px). Almanac 39: in this release (fix-kp-tag-1). Almanac 40: in this
+  release (feat-page-data-1).
+- homelab 91-95 `fetchJson` 401: in this release (fix-fetch-401-1); the API
+  pattern: homelab needs nothing.
+- Kitchen C2 SW icon error: in this release (fix-sw-icon-1), to be measured
+  by Kitchen. Kitchen #3 `/login?next=` when signed in: in this release.
+- chassis-rs' own warm revalidations: in this release (fix-warm-1).
+- HTTPSwitchboard 46-49 and 51: gone on 4.7.0 (HSB re-measured); 50 (Manage
+  as a page, scroll kept) shipped in 4.7.0, not re-checked by HSB for want of
+  a sender; the brand's 175x30 box: closed as measured (45 px tap height).
+- Habits, kyu-runner: nothing open.
+- Out of scope as single-app only: Medicine Cabinet (f) `deducted` (above).
+  Nothing else from the list was left out.
+
 ### Choices made
 - API pattern (kyu, Almanac 40): the generic, opt-in shape above (named
   parts, one merged read, per-part errors). No ETag on the merged read: the
