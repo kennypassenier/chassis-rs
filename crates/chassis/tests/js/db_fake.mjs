@@ -78,13 +78,13 @@ export function fakeFeed() {
 }
 
 /** A client over `svc`; `events` collects window events, `timers` the scheduled ones. */
-export async function makeDb(svc, { maxBytes, keepAll = true, pageLimit = null, stored = null, overlay = null } = {}) {
+export async function makeDb(svc, { maxBytes, keepAll = true, pageLimit = null, stored = null, overlay = null, onConflict = null } = {}) {
     const events = [];
     const listeners = new Map();
     const timers = [];
     const storage = fakeStorage();
     if (keepAll) storage.setItem('chassis-data:kitchen:settings', JSON.stringify({ all: true, items: [] }));
-    const config = normalize({ name: 'kitchen', db: { pageLimit, ...(overlay ? { overlay } : {}) }, ...(maxBytes ? { maxBytes } : {}) });
+    const config = normalize({ name: 'kitchen', db: { pageLimit, ...(overlay ? { overlay } : {}) }, ...(maxBytes ? { maxBytes } : {}), ...(onConflict ? { onConflict } : {}) });
     const emit = (name, detail) => { events.push({ name, detail }); (listeners.get(name) ?? []).forEach((fn) => fn(detail)); };
     const on = (name, fn) => { listeners.set(name, [...(listeners.get(name) ?? []), fn]); return () => {}; };
     let bytes = () => 0;

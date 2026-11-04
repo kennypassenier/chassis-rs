@@ -181,7 +181,10 @@ that can disagree with the data. Additions only: a minor.
 persisted queue store with `state: 'failed'` and the server's answer, it is
 never sent again by itself, and the rest of the queue continues at once, in
 order. `chassis-data-conflict` fires and the kit's toast says so with a
-"Review" action. `chassisData.failed()` lists them, `drop(id)` discards one,
+"Review" action. Every final refusal (skipped, held or dropped by `onConflict`)
+also fires `chassis-data-refused` (`{ entry, status, answer }`), and the local
+database tells the watchers of every collection with reason `'refused'`, so a
+list redraws without the optimistic row of a queued create the service refused. `chassisData.failed()` lists them, `drop(id)` discards one,
 `resave(id)` is the person's fresh decision to send it again as a new edit on
 top of the server's newest revision the client holds (or an `{rev}` they pass);
 the server may refuse it again. `pending()` counts

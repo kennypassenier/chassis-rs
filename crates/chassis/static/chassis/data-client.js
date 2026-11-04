@@ -25,6 +25,8 @@ function queueHooks(emit, schedule, writes) {
         },
         onSent: (entry, rev, outcome) => writes().afterWrite(entry, rev, outcome.body, true),
         onRefused: (entry, outcome) => writes().restore(entry, outcome.body),
+        // The service finally refused a queued write: its optimistic row is gone, so lists must redraw (fix-mc-data-g).
+        onFailed: (entry, outcome, answer) => emit('chassis-data-refused', { entry, status: outcome.status, answer }),
         onHeld: (entry) => emit('chassis-data-conflict', { entry }),
         onSyncing: (on) => emit('chassis-data-syncing', { syncing: on }),
         onSynced: (summary) => emit('chassis-data-synced', summary),

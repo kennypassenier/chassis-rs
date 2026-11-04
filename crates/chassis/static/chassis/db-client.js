@@ -39,7 +39,9 @@ export function createDb(deps) {
     const pullNames = (list) => puller.pullAll(list ?? names);
 
     // The queue moved: queued edits are laid over the records, so views redraw. A replay that sent edits: pull.
+    // A refused edit leaves the overlay (failed or dropped): its row must go from every list (fix-mc-data-g).
     const offs = [
+        events.on('chassis-data-refused', () => hub.notifyAll('refused')),
         events.on('chassis-data-queue', () => hub.notifyAll('queue')),
         events.on('chassis-data-synced', (detail) => detail?.sent > 0 && pullNames(null)),
     ];

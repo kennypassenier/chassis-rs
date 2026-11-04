@@ -13,6 +13,7 @@ import { conflictRev, rebase, revOf } from './data-rev.js';
 /**
  * hooks: onChange(entries) after any change; onSent(entry, rev, outcome);
  * onRefused(entry, outcome) (awaited, before the policy answers: the copy goes back to the server's version);
+ * onFailed(entry, outcome, answer) once a refusal is final ('skip' | 'hold' | 'drop': the edit left the waiting ones, or stopped the replay);
  * onHeld(entry); onDropped(entry); onSyncing(bool) around a replay; onSynced(summary) after it.
  */
 export function createQueue({ store, send, field, policy, hooks = {} }) {
@@ -48,11 +49,13 @@ export function createQueue({ store, send, field, policy, hooks = {} }) {
         if (answer === 'drop') {
             await remove(entry);
             call('onDropped', entry);
+            call('onFailed', entry, outcome, answer);
             return 'continue';
         }
         const skipped = answer === 'skip';
         const held = await persist({ ...entry, state: skipped ? 'failed' : 'held', conflict: { status: outcome.status, body: outcome.body ?? null } });
         call('onHeld', held);
+        call('onFailed', held, outcome, answer);
         return skipped ? 'continue' : 'stop:held';
     }
 
