@@ -49,6 +49,13 @@ pub(crate) fn destination(next: Option<&str>) -> String {
     next.and_then(safe_next).unwrap_or("/").to_string()
 }
 
+/// [`destination`] for a `/login` request URI: its `next` query value when
+/// safe, else `/` (a signed-in visitor skips the form and lands there).
+pub(crate) fn destination_of(uri: &axum::http::Uri) -> String {
+    let query = axum::extract::Query::<NextQuery>::try_from_uri(uri).ok();
+    destination(query.as_ref().and_then(|q| q.next.as_deref()))
+}
+
 /// The login URL for a logged-out navigation to `path_and_query`: plain
 /// `/login` when there is nothing worth returning to (the home page, or an
 /// unsafe value), else `/login?next=<percent-encoded>`.

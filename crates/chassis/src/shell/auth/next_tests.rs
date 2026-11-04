@@ -1,6 +1,6 @@
 //! Unit tests for the `next` check.
 
-use super::next::{destination, login_url, safe_next};
+use super::next::{destination, destination_of, login_url, safe_next};
 
 #[test]
 fn plain_paths_pass() {
@@ -48,4 +48,12 @@ fn login_url_encodes_and_skips_home() {
         login_url("/a?b=c&d=é"),
         "/login?next=%2Fa%3Fb%3Dc%26d%3D%C3%A9"
     );
+}
+
+#[test]
+fn a_login_uri_lands_on_its_safe_next() {
+    let to = |u: &str| destination_of(&u.parse().unwrap());
+    assert_eq!(to("/login?next=%2Frecipes"), "/recipes");
+    assert_eq!(to("/login?next=%2F%2Fevil"), "/");
+    assert_eq!(to("/login"), "/");
 }

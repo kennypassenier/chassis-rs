@@ -106,9 +106,10 @@ pub(crate) async fn mark(
             tracing::info!(%peer, "a trusted source is signed in as the admin without a login");
         }
         // This machine is the admin already: the login page has nothing to
-        // ask it.
+        // ask it, so it goes where the login would have gone.
         if req.method() == axum::http::Method::GET && req.uri().path() == "/login" {
-            return axum::response::Redirect::to("/").into_response();
+            let to = crate::shell::auth::next::destination_of(req.uri());
+            return axum::response::Redirect::to(&to).into_response();
         }
         req.extensions_mut().insert(TrustedSource);
     }

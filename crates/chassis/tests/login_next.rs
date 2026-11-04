@@ -127,3 +127,21 @@ async fn a_wrong_token_keeps_next_in_the_form() {
     );
     app.shutdown().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_signed_in_browser_skips_the_form_and_lands_on_next() {
+    // Kitchen 2026-11-04: signed in again in another tab, the login page
+    // answered 303 to `/` instead of the page the visitor came from.
+    let mut app = start("nextsigned").await;
+    app.login().await;
+    let location = |path: &'static str| {
+        let r = app.request(Method::GET, path).header(ACCEPT, "text/html");
+        async move { r.send().await.unwrap() }
+    };
+    let r = location("/login?next=%2Fclients%3Fsort%3Dname").await;
+    assert_eq!(r.status(), 303);
+    assert_eq!(r.headers()["location"], "/clients?sort=name");
+    let r = location("/login?next=https%3A%2F%2Fevil").await;
+    assert_eq!(r.headers()["location"], "/", "an unsafe next goes home");
+    app.shutdown().await;
+}

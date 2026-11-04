@@ -31,6 +31,11 @@ pub(crate) async fn login_get_next(
     headers: HeaderMap,
     axum::extract::Query(query): axum::extract::Query<NextQuery>,
 ) -> Response {
+    // A browser that is signed in already (another tab logged in, or the
+    // session is still live) goes where the login would have gone.
+    if !d.open && crate::shell::auth::still_valid(&d.auth, &headers).await {
+        return Redirect::to(&next::destination(query.next.as_deref())).into_response();
+    }
     get(&d, peer, &headers, query.next.as_deref())
 }
 

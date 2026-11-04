@@ -42,6 +42,21 @@ async fn a_listed_peer_is_the_admin_without_a_login() {
         .unwrap();
     assert!(r.status().is_redirection(), "{}", r.status());
     assert_eq!(r.headers()["location"], "/");
+    // ... and with a safe `next` it lands there, not on the home page.
+    let r = app
+        .request(Method::GET, "/login?next=%2Frecipes%3Fx%3D1")
+        .header(ACCEPT, "text/html")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.headers()["location"], "/recipes?x=1");
+    let r = app
+        .request(Method::GET, "/login?next=%2F%2Fevil")
+        .header(ACCEPT, "text/html")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.headers()["location"], "/", "an unsafe next falls back");
     // A bearer still decides: a wrong one is refused, not upgraded.
     let r = app
         .bearer(Method::GET, "/api/kit/clients", "not-the-token-at-all")
