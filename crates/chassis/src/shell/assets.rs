@@ -170,6 +170,7 @@ pub(crate) fn versioned_root() -> &'static str {
 }
 
 /// A `/static/…` URL moved under [`versioned_root`]; any other URL as it is.
+#[cfg_attr(not(feature = "dashboard"), allow(dead_code))]
 pub(crate) fn versioned_static(url: &str) -> String {
     match url.strip_prefix("/static/") {
         Some(rest) => format!("{}{rest}", versioned_root()),
