@@ -46,6 +46,8 @@ pub use shell::http::extractors::{ApiForm, ApiJson, ApiPath, ApiQuery};
 pub use shell::http::idempotency::IdempotencyKey;
 pub use shell::http::revision::{Conflict, IfMatch, Revisioned};
 pub use shell::metrics::{Counter, Gauge, ScrapeSource};
+#[cfg(feature = "dashboard")]
+pub use shell::page_data::{PageData, PartResult};
 pub use shell::shutdown::ShutdownSignal;
 #[cfg(feature = "self-update")]
 pub use shell::update::Event as UpdateEvent;

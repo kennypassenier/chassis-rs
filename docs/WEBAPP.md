@@ -118,6 +118,37 @@ if (!r.ok) return showError(r.error, r.remedy);   // a 401 is already on its way
 draw(r.body);
 ```
 
+## A page's data in one read, each part on its own (feat-page-data-1)
+
+A page that draws several parts names them once on the server:
+
+```rust
+use chassis::{PageData, PartResult};
+
+let stacks = store.clone();
+app.dashboard_routes(
+    PageData::new("/api/overview")
+        .part("stacks", move || { let s = stacks.clone(); async move { Ok(serde_json::to_value(s.list().await?)?) } })
+        .part("disk", || async { Ok(disk_usage().await?) })
+        .router(),
+);
+```
+
+`GET /api/overview` reads every part side by side and always answers 200:
+`{"parts": {"stacks": {"data": …}, "disk": {"error", "remedy", "status"}}}`.
+A part that fails or takes longer than its timeout (10 s, `.timeout(..)`) is
+that part's error; the others still draw. `GET /api/overview/<name>` is one
+part alone, with its own status on an error. The routes take the auth of the
+router they are given (`dashboard_routes` or `api_routes`). Bundling stays the
+app's choice: a page that reads one thing needs none of this.
+
+In the browser, `window.chassisPageData(url, names)` gives
+`{ <name>: { ok: true, data } | { ok: false, status, error, remedy } }`; when the
+merged read fails it asks each named part at `<url>/<name>` instead, and
+`chassisPageData.one(url, name)` re-reads one part. Draw a failed part's
+error and remedy in that part's place (a `kp-card` in `data-kp-state="failed"`),
+never a whole-page error.
+
 ## The refresh control for a web app's pages (ux-chassis-10)
 
 The runtime above also gives every page `window.chassisRefresh`: the kit's one

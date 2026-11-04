@@ -11,6 +11,7 @@ import { registerPwa } from './pwa-register.js';
 import { followThemeColor } from './theme-color.js';
 import { installData } from './data.js';
 import { installFetchJson } from './fetch-json.js';
+import { installPageData } from './page-data.js';
 import { installPush } from './push.js';
 import { installRefresh } from './refresh-kit.js';
 
@@ -51,6 +52,8 @@ export function installRuntimeWith(kp, win, doc, deps = {}) {
     // One JSON helper with one login redirect (fix-fetch-401-1):
     // `window.chassisFetchJson`.
     installFetchJson(win);
+    // ... and the browser half of `chassis::PageData` (feat-page-data-1).
+    installPageData(win);
     win.chassisRuntime = { get effects() { return effects.current(); } };
     return win.chassisRuntime;
 }

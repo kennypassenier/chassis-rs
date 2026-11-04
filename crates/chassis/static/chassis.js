@@ -35,6 +35,9 @@ import './chassis/shell.js';
 import './chassis/status-page.js';
 import './chassis/storage-page.js';
 // An app template on a kit page gets the same JSON helper as a web-app page
-// (fix-fetch-401-1): `window.chassisFetchJson`.
+// (fix-fetch-401-1): `window.chassisFetchJson`, and `window.chassisPageData`
+// (feat-page-data-1).
 import { installFetchJson } from './chassis/fetch-json.js';
+import { installPageData } from './chassis/page-data.js';
 installFetchJson(window);
+installPageData(window);

@@ -38,6 +38,8 @@ pub(crate) mod notify_delivery;
 #[cfg(feature = "notify")]
 pub(crate) mod notify_intake;
 #[cfg(feature = "dashboard")]
+pub mod page_data;
+#[cfg(feature = "dashboard")]
 pub mod pages;
 #[cfg(feature = "passkeys")]
 pub mod passkeys;
