@@ -153,7 +153,7 @@ fn the_page_head_helper_adds_the_register_script() {
     );
     assert!(head.contains("name=\"theme-color\"") && head.contains("apple-touch-icon"));
     assert!(
-        head.contains("<script type=\"module\" src=\"/static/chassis/pwa-boot.js?v="),
+        head.contains("<script type=\"module\" src=\"/static/v-"),
         "{head}"
     );
     assert!(

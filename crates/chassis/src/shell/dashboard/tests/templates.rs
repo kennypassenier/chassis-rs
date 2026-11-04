@@ -102,7 +102,7 @@ fn the_head_carries_the_base_then_the_boot_script_then_the_entry() {
     };
     assert!(at("{{ base_stylesheet|safe }}") < at("/static/theme-boot.js"));
     assert!(at("/static/theme-boot.js") < at("/static/chassis.css"));
-    assert!(at("{{ kp_entry|safe }}") < at("/static/chassis.js"));
+    assert!(at("{{ kp_entry|safe }}") < at("/chassis.js\""));
     for attr in ["data-register-pattern=", "data-themes=", "data-fallback="] {
         let tag_start = at("/static/theme-boot.js");
         assert!(

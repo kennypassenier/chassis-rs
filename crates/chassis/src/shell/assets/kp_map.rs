@@ -25,7 +25,9 @@ use std::sync::OnceLock;
 use base64::Engine as _;
 use sha2::{Digest, Sha256};
 
-use super::{BUNDLE_FACADE_PREFIX, KP_BUNDLE_NAME, SPLIT_PREFIX, all_assets, fnv_version};
+use super::{
+    BUNDLE_FACADE_PREFIX, KP_BUNDLE_NAME, SPLIT_PREFIX, all_assets, fnv_version, versioned_root,
+};
 
 /// The one split entry without a facade: it re-exports everything, which is
 /// what the bundle is, so it maps to the bundle itself.
@@ -54,12 +56,34 @@ pub fn bundle_url() -> &'static str {
 
 /// The map as JSON. The longest key wins, so the two exact keys beat the
 /// prefix.
+///
+/// Every key is also given under the versioned root (fix-warm-1): a kit
+/// module reached through `/static/v-<version>/` imports kp-themes by a
+/// relative path, which then resolves under that root and must end at the
+/// same bundle. The facades are sent to their versioned copies, so a warm
+/// load asks for none of them again.
 fn map_json() -> String {
+    let facades = versioned(BUNDLE_FACADE_PREFIX);
     let mut imports = serde_json::Map::new();
-    imports.insert(SPLIT_PREFIX.into(), BUNDLE_FACADE_PREFIX.into());
-    imports.insert(format!("{SPLIT_PREFIX}{INDEX_ENTRY}"), bundle_url().into());
-    imports.insert(bundle_plain(), bundle_url().into());
+    for root in ["/static/".to_string(), versioned("/static/")] {
+        let split = format!("{root}{}", strip_static(SPLIT_PREFIX));
+        let bundle = format!("{root}{}", strip_static(&bundle_plain()));
+        imports.insert(format!("{split}{INDEX_ENTRY}"), bundle_url().into());
+        imports.insert(split, facades.clone().into());
+        imports.insert(bundle, bundle_url().into());
+    }
+    imports.insert(BUNDLE_FACADE_PREFIX.into(), facades.into());
     serde_json::json!({ "imports": imports }).to_string()
+}
+
+/// A `/static/…` URL with the leading `/static/` taken off.
+fn strip_static(url: &str) -> &str {
+    url.strip_prefix("/static/").unwrap_or(url)
+}
+
+/// A `/static/…` URL under the versioned root; `/static/` alone is the root.
+fn versioned(url: &str) -> String {
+    format!("{}{}", versioned_root(), strip_static(url))
 }
 
 /// `(tag, script-src hash source)`.

@@ -34,7 +34,12 @@ pub(super) fn build(
     env.add_global("themes", minijinja::Value::from_serialize(themes()));
     // kp-themes split delivery: what theme-boot.js needs to write the worn
     // theme's register link before first paint (see the layout's head).
-    env.add_global("register_pattern", REGISTER_PATTERN);
+    // Under the versioned root (fix-warm-1), so a warm load does not ask
+    // for the worn register again.
+    env.add_global(
+        "register_pattern",
+        crate::shell::assets::versioned_static(REGISTER_PATTERN),
+    );
     env.add_global("base_stylesheet", BASE_STYLESHEET);
     // Option A: the import map goes before the first module script, and the
     // boot entry is its facade (an import map does not rewrite `<script src>`).

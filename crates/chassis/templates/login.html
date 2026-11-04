@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 {% block title %}{{ app_name }} — log in{% endblock %}
-{% block head %}{% if passkeys %}<script type="module" src="/static/passkeys.js?v={{ assets }}"></script>{% endif %}{% endblock %}
+{% block head %}{% if passkeys %}<script type="module" src="/static/v-{{ assets }}/passkeys.js"></script>{% endif %}{% endblock %}
 {% block content %}
 {#- kit-kp11 (approved demo "login", kp-themes research/chassis-kit-pages):
     the intro on the left and the sign-in card on the right (one column on a

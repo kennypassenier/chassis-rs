@@ -217,8 +217,11 @@ impl super::WebApp {
     pub fn pwa_page_head(&self) -> Option<String> {
         self.pwa_head_html().map(|tags| {
             format!(
-                "{tags}<script type=\"module\" src=\"/static/chassis/pwa-boot.js?v={}\"></script>",
-                crate::shell::assets::asset_version()
+                "{tags}<script type=\"module\" src=\"{}\"></script>",
+                // Versioned as a tree (fix-warm-1): its relative imports are
+                // cached with it. The chain imports no kp-themes, so a page
+                // without the import map is safe too.
+                crate::shell::assets::versioned_static("/static/chassis/pwa-boot.js")
             )
         })
     }

@@ -10,6 +10,7 @@ mod import_map;
 mod one_source;
 mod source_maps;
 mod static_tree;
+mod versioned_tree;
 
 /// K15 gate: every vendored copy matches the recorded release hash —
 /// the embedded files against the bytes the binary carries, the rest of

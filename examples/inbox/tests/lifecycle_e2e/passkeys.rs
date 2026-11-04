@@ -86,10 +86,7 @@ fn passkeys_exist_only_over_https_from_a_trusted_proxy() {
         html.contains("data-passkey-login"),
         "passkey button over https"
     );
-    assert!(
-        html.contains("/static/passkeys.js?v="),
-        "passkeys script loaded"
-    );
+    assert!(html.contains("/passkeys.js\""), "passkeys script loaded");
     let res = http
         .post(format!("{base2}/passkeys/login/start"))
         .header("x-forwarded-proto", "https")

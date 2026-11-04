@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 {% block title %}{{ app_name }} — passkeys{% endblock %}
-{% block head %}{% if https %}<script type="module" src="/static/passkeys.js?v={{ assets }}"></script>{% endif %}{% endblock %}
+{% block head %}{% if https %}<script type="module" src="/static/v-{{ assets }}/passkeys.js"></script>{% endif %}{% endblock %}
 {% block nav_more_actions %}
 <button type="button" role="menuitem" class="kp-menu__item" tabindex="-1" data-kp-value="other-device"><span class="kp-menu__label">Register on another device</span><span class="kp-menu__hint">Scan a code with your phone</span></button>
 {% endblock %}

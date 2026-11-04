@@ -155,6 +155,42 @@ pub fn fnv_version<'a>(parts: impl Iterator<Item = (&'a str, &'a [u8])>) -> Stri
     format!("{h:016x}")
 }
 
+/// The path segment that versions a whole subtree of `/static/`
+/// (fix-warm-1): `/static/v-<asset_version>/chassis.js` is
+/// `/static/chassis.js`, cached for a year, and so is every module it reaches
+/// by a relative import. A `?v=` versions one URL only; the kit's own modules
+/// import each other relatively, so on a warm load each of them was asked
+/// again (110-135 revalidations per kit page, measured on 4.7.0).
+pub(crate) const VERSIONED_SEGMENT: &str = "v-";
+
+/// `/static/v-<asset_version>/` — prefix of the versioned subtree.
+pub(crate) fn versioned_root() -> &'static str {
+    static ROOT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    ROOT.get_or_init(|| format!("/static/{VERSIONED_SEGMENT}{}/", asset_version()))
+}
+
+/// A `/static/…` URL moved under [`versioned_root`]; any other URL as it is.
+pub(crate) fn versioned_static(url: &str) -> String {
+    match url.strip_prefix("/static/") {
+        Some(rest) => format!("{}{rest}", versioned_root()),
+        None => url.to_string(),
+    }
+}
+
+/// `name` without a leading `v-<version>/`, and whether that version is this
+/// build's (only then may the answer be cached for good: an old page's URL
+/// gets today's file, which must not stick).
+fn strip_version(name: &str) -> (&str, bool) {
+    let Some((segment, rest)) = name
+        .strip_prefix(VERSIONED_SEGMENT)
+        .and_then(|r| r.split_once('/'))
+    else {
+        return (name, false);
+    };
+    let current = format!("{VERSIONED_SEGMENT}{segment}/") == versioned_root()["/static/".len()..];
+    (rest, current)
+}
+
 /// `GET /static/{name}`.
 pub async fn serve(Path(name): Path<String>, RawQuery(query): RawQuery) -> Response {
     serve_conditional(Path(name), RawQuery(query), HeaderMap::new()).await
@@ -173,7 +209,9 @@ pub async fn serve_conditional(
 ) -> Response {
     // A chunk of the split module folder is named after its content hash, so
     // its URL never changes meaning: cached for a year without a `?v=`.
-    let versioned = query.as_deref().is_some_and(|q| q.contains("v=")) || is_hashed_chunk(&name);
+    let (name, current) = strip_version(&name);
+    let versioned =
+        current || query.as_deref().is_some_and(|q| q.contains("v=")) || is_hashed_chunk(name);
     let Some((_, ct, body)) = all_assets().find(|(n, _, _)| *n == name) else {
         return (StatusCode::NOT_FOUND, "no such asset").into_response();
     };

@@ -24,7 +24,8 @@ fn served(url: &str) -> bool {
 fn the_split_prefix_maps_to_the_facades_and_index_and_the_bundle_to_the_bundle() {
     let m = map();
     let imports = m["imports"].as_object().unwrap();
-    assert_eq!(imports[SPLIT_PREFIX], BUNDLE_FACADE_PREFIX);
+    let facades = format!("{}kp/dist/bundle/", versioned_root());
+    assert_eq!(imports[SPLIT_PREFIX], facades.as_str());
     assert_eq!(imports["/static/kp/dist/js/index.js"], kp_map::bundle_url());
     assert_eq!(
         imports["/static/kp/dist/kp-themes.min.js"],
@@ -32,8 +33,8 @@ fn the_split_prefix_maps_to_the_facades_and_index_and_the_bundle_to_the_bundle()
     );
     assert_eq!(
         imports.len(),
-        3,
-        "no per-entry keys: the prefix does the work"
+        7,
+        "no per-entry keys: the prefix does the work (3 keys, again under the versioned root, plus the facades)"
     );
 }
 

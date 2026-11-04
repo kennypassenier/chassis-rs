@@ -30,7 +30,7 @@
 <script src="/static/theme-boot.js?v={{ assets }}" data-register-pattern="{{ register_pattern|safe }}" data-themes="{{ theme_names }}" data-fallback="{{ default_theme }}"></script>
 <link rel="stylesheet" href="/static/chassis.css?v={{ assets }}">
 <script type="module" src="{{ kp_entry|safe }}?v={{ assets }}"></script>
-<script type="module" src="/static/chassis.js?v={{ assets }}"></script>
+<script type="module" src="/static/v-{{ assets }}/chassis.js"></script>
 {{ pwa_head|default('')|safe }}
 {% block head %}{% endblock %}
 </head>
