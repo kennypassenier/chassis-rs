@@ -200,7 +200,8 @@ will be lost." with "Log out anyway" and "Stay" (texts overridable through
 `messages`). Only on confirm the copy is purged and the form sent; without
 unsent edits logout stays immediate.
 
-**Retry triggers.** `online` event, a timer while the queue is non-empty
+**Retry triggers.** `online` event (bound by `configure()` in `data.js`, so every page that
+configures the client has it; a failed replay is a console warning), a timer while the queue is non-empty
 (`retryMs`, default 30 s), the band's retry button (`kp-connection-retry`) and
 `chassisData.retry()`.
 

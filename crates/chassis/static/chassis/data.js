@@ -78,7 +78,8 @@ export function installData(win, doc, deps = {}, kp = null) {
             });
             const view = kp?.openDialog ? createFailedView({ win, doc, kp, data, messages, describe: config.describe }) : null;
             if (kp) bindBand({ win, doc, kp, data, messages, view });
-            win.addEventListener('online', () => data.retry());
+            // The connection is back: replay at once instead of waiting for the retry timer; a failure is reported, never left unhandled (fix-mc-data-d).
+            win.addEventListener('online', () => data.retry().catch((err) => console.warn('chassisData: replaying the queued edits after the connection came back failed.', err)));
             const local = config.db ? bootDb({
                 win, doc, app: config.name, options: config.db, data, hub, events, emit, storage: storageOf(win), deps,
                 fetch: (...a) => win.fetch(...a), setTimer: (fn, ms) => win.setTimeout(fn, ms), clearTimer: (id) => win.clearTimeout(id),
