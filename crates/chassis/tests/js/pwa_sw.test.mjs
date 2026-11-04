@@ -141,6 +141,14 @@ test('an offline navigation without a copy shows the offline page; the API is no
     assert.equal((await w.handle(request('/js/gone.js'))).type, 'error', 'a script offline is an error, not HTML');
 });
 
+test('an icon load the page gave up answers a quiet 504, never a rejection (fix-sw-icon-1)', async () => {
+    const w = worker({ network: () => { throw new DOMException('aborted', 'AbortError'); } });
+    const icon = { ...request('/pwa/icon-192.png', 'no-cors'), signal: { aborted: true } };
+    const out = await w.handle(icon);
+    assert.equal(out.status, 504);
+    assert.equal(out.headers['X-Chassis-Offline'], '1');
+});
+
 test('a redirected login page and a 303 are never stored', async () => {
     const w = worker({ network: () => res({ redirected: true, body: 'login' }) });
     await w.handle(request('/', 'navigate'));

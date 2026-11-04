@@ -68,8 +68,31 @@ self.addEventListener('fetch', (event) => {
         mode: req.mode,
         destination: req.destination,
     });
-    if (wanted) event.respondWith(networkFirst(event, req).catch((err) => (warn('answer')(err), fetch(req))));
+    if (wanted) event.respondWith(answer(event, req));
 });
+
+// The answer never rejects (fix-sw-icon-1, Kitchen C2): a rejected
+// respondWith is the "ServiceWorker intercepted the request and encountered
+// an unexpected error" line in the console. When the network-first answer
+// and the plain fetch both fail (a browser icon load the page left, or the
+// network dropped between the two), a quiet 504 stands in.
+async function answer(event, req) {
+    try {
+        return await networkFirst(event, req);
+    } catch (err) {
+        warn('answer')(err);
+    }
+    try {
+        return await fetch(req);
+    } catch (err) {
+        if (!req.signal?.aborted) warn('fetch after a failed answer')(err);
+        return gatewayTimeout();
+    }
+}
+
+function gatewayTimeout() {
+    return new Response(null, { status: 504, statusText: 'Gateway Timeout', headers: { 'X-Chassis-Offline': '1' } });
+}
 
 async function openCache() {
     try {
@@ -90,6 +113,8 @@ async function networkFirst(event, req) {
         const hit = cache ? await cache.match(req).catch(() => undefined) : undefined;
         if (hit) return hit;
         if (req.mode === 'navigate') return offlinePage(cache);
+        // The page gave the request up: nobody reads the answer, so no error.
+        if (req.signal?.aborted) return gatewayTimeout();
         return Response.error();
     }
 }
