@@ -101,6 +101,23 @@ demand specific markup, so a page that wants them still calls them.
   (`webapp-runtime-core.js`); a page that names either runtime file is left
   alone.
 
+## One JSON helper and one login redirect (fix-fetch-401-1)
+
+Every web-app page and every kit page gets `window.chassisFetchJson(url,
+{ method, body, signal, headers })`. It never throws for an answer and
+resolves to `{ ok, status, body, error, remedy }` (`status` 0 when nothing
+answered; an aborted request rejects with the AbortError, as `fetch` does).
+`body` is sent as JSON. A 401, or a fetch that followed the kit's redirect to
+`/login`, sends the page to `/login?next=<this page>` once, however many calls
+saw it; after the login the reader lands back on the page. Use it instead of
+an app's own copy of the same function:
+
+```js
+const r = await chassisFetchJson('/api/stacks');
+if (!r.ok) return showError(r.error, r.remedy);   // a 401 is already on its way to /login
+draw(r.body);
+```
+
 ## The refresh control for a web app's pages (ux-chassis-10)
 
 The runtime above also gives every page `window.chassisRefresh`: the kit's one

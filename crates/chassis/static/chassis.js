@@ -34,3 +34,7 @@ import './chassis/ready-signal.js';
 import './chassis/shell.js';
 import './chassis/status-page.js';
 import './chassis/storage-page.js';
+// An app template on a kit page gets the same JSON helper as a web-app page
+// (fix-fetch-401-1): `window.chassisFetchJson`.
+import { installFetchJson } from './chassis/fetch-json.js';
+installFetchJson(window);

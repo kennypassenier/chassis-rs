@@ -10,6 +10,7 @@ import { attachKitEffects } from './kit-effects.js';
 import { registerPwa } from './pwa-register.js';
 import { followThemeColor } from './theme-color.js';
 import { installData } from './data.js';
+import { installFetchJson } from './fetch-json.js';
 import { installPush } from './push.js';
 import { installRefresh } from './refresh-kit.js';
 
@@ -47,6 +48,9 @@ export function installRuntimeWith(kp, win, doc, deps = {}) {
     // app calls `configure()`. It gets the band and toast functions of the
     // same copy of kp-themes' state as everything above.
     (deps.installData ?? ((w, d) => installData(w, d, {}, kp)))(win, doc);
+    // One JSON helper with one login redirect (fix-fetch-401-1):
+    // `window.chassisFetchJson`.
+    installFetchJson(win);
     win.chassisRuntime = { get effects() { return effects.current(); } };
     return win.chassisRuntime;
 }
