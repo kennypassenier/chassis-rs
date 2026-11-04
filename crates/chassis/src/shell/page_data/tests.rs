@@ -1,3 +1,5 @@
+//! PageData: the merged read, a part alone, and the setup refusal.
+
 use std::time::Duration;
 
 use axum::body::Body;

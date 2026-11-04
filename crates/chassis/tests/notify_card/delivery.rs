@@ -161,6 +161,6 @@ async fn the_test_button_sends_a_marked_message_to_each_target_and_reports() {
     // The Status page carries the card and its module.
     let (status, html) = app.page("/").await;
     assert_eq!(status, 200);
-    assert!(html.contains("data-notify-card") && html.contains("/static/notify-card.js"));
+    assert!(html.contains("data-notify-card") && html.contains("/notify-card.js\""));
     app.shutdown().await;
 }
