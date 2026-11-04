@@ -65,6 +65,11 @@ draws again at once, heading and intro included, on that event and on kp's `kp-s
 (alias `reasonStale`) for 409 / 412, else `messages.reasonOther`. The server's `error` +
 `remedy` is the secondary line beneath. With none of these given, the server's sentence
 is the reason and the kit's English text appears only when the server said nothing.
+The failed-edit toast follows the same status (fix-mc-data-e): 409 / 412 keep
+`messages.conflict` / `conflictHeld` ("changed elsewhere"); any other refusal (400, 422, 404 ...)
+uses `messages.refusedEdit(why)` / `refusedEditHeld(why)` with the reason line above, so a 400
+name refusal shows the service's own `error` + `remedy`. The two sentences of a server answer
+are joined with a full stop.
 
 **Two headings** (fix-habits-drawer-11). `messages.failedTitle` is the drawer's heading and
 `messages.logoutTitle` the logout dialog's; `messages.title` is the fallback for both

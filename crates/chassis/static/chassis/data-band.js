@@ -9,6 +9,9 @@
 export const MESSAGES = {
     conflict: 'An edit made offline was refused: this item was changed elsewhere. It is kept in the failed list; the other edits were sent.',
     conflictHeld: 'An edit made offline was refused: this item was changed elsewhere. Later edits wait until you decide.',
+    // Any other refusal (400, 422, 404 ...): the reason line follows the answer (data-failed.js `reasonOf`).
+    refusedEdit: (why) => `An edit made offline was refused: ${why} It is kept in the failed list; the other edits were sent.`,
+    refusedEditHeld: (why) => `An edit made offline was refused: ${why} Later edits wait until you decide.`,
     review: 'Review',
     nearCap: (pct) => `The offline copy uses ${pct}% of its space.`,
     full: 'The offline copy is full: new items are not kept offline until you clear some.',
@@ -17,10 +20,21 @@ export const MESSAGES = {
 };
 
 import { wordsOf } from './data-errors.js';
+import { FAILED_MESSAGES, reasonOf } from './data-failed.js';
 
 const BAND = '[data-kp-connection]';
 /** The band state each way a replay can stop; `null` (all sent) is online. */
 const AFTER = { unreachable: 'offline', retry: 'refused', auth: 'refused', held: 'online' };
+
+/** The toast words of a refused edit: stale (409 / 412, or no answer recorded) keeps the "changed elsewhere" text, anything else says why. */
+function conflictText(entry, text, given) {
+    const status = entry?.conflict?.status;
+    const held = entry?.state === 'held';
+    if (status === undefined || status === 409 || status === 412) return held ? text.conflictHeld : text.conflict;
+    const said = reasonOf(entry, { ...FAILED_MESSAGES, ...given }, given);
+    const why = /[.!?]$/.test(said) ? said : `${said}.`;
+    return (held ? text.refusedEditHeld : text.refusedEdit)(why);
+}
 
 function paint(doc, kp, state, pending, why) {
     for (const el of doc.querySelectorAll(BAND)) {
@@ -77,8 +91,7 @@ export function bindBand({ win, doc, kp, data, messages = {}, view = null }) {
             paint(doc, kp, state, data.pending(), detail(e).stopped === 'auth' ? text.expired : why);
         }),
         on(win, 'chassis-data-conflict', (e) => {
-            const text = words();
-            once(detail(e).entry?.state === 'held' ? text.conflictHeld : text.conflict, { action: { label: text.review, onClick: () => review() } });
+            once(conflictText(detail(e).entry, words(), wordsOf(messages)), { action: { label: words().review, onClick: () => review() } });
         }),
         on(win, 'chassis-data-storage', (e) => {
             const { level, used, max } = detail(e);

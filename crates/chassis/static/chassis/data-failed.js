@@ -42,7 +42,7 @@ const nonBlank = (v) => (typeof v === 'string' && v.trim() ? v.trim() : '');
 function serverWords(body) {
     if (!body || typeof body !== 'object') return '';
     const said = nonBlank(body.error);
-    return said && nonBlank(body.remedy) ? `${said} ${nonBlank(body.remedy)}` : said;
+    return said && nonBlank(body.remedy) ? `${said}${/[.!?]$/.test(said) ? '' : '.'} ${nonBlank(body.remedy)}` : said;
 }
 
 /** The app's own reason, from `refusedReason(status, body)`, `stale` / `reasonStale` or `reasonOther`; '' when it gave none. */
