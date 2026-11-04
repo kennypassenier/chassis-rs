@@ -23,6 +23,8 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 pub(crate) mod kp_map;
+#[cfg_attr(not(feature = "dashboard"), allow(dead_code))]
+pub(crate) mod kp_tags;
 
 /// The kp-themes version the kit vendors (C3: one place), read from the
 /// vendored release's own `dist/VERSION` so it can never disagree with the

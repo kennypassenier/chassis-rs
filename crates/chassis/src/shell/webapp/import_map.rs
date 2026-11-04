@@ -12,8 +12,7 @@ use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::inject::{find, head_open_end};
-use crate::shell::assets::kp_map;
-use crate::shell::assets::{BUNDLE_FACADE_PREFIX, SPLIT_PREFIX};
+use crate::shell::assets::{kp_map, kp_tags};
 
 /// `html` with the map and boot rewrite, and the policy to send with it;
 /// `None` for the policy means the page was left unmapped.
@@ -26,7 +25,10 @@ pub(super) fn apply(html: Cow<'static, [u8]>, csp: &str) -> (Cow<'static, [u8]>,
     let (Some(csp), Some(at)) = (kp_map::csp_with_hash(csp), head_open_end(&lower)) else {
         return (html, None);
     };
-    let html = boot_entries_to_facades(&html);
+    let html = match kp_tags::rewrite_script_srcs(&html) {
+        Some(rewritten) => Cow::Owned(rewritten),
+        None => html,
+    };
     // The rewrite keeps the head's opening where it was only when nothing
     // before it changed length, so the position is looked up again.
     let at = head_open_end(&html.to_ascii_lowercase()).unwrap_or(at);
@@ -36,31 +38,6 @@ pub(super) fn apply(html: Cow<'static, [u8]>, csp: &str) -> (Cow<'static, [u8]>,
     out.extend_from_slice(tag.as_bytes());
     out.extend_from_slice(&html[at..]);
     (Cow::Owned(out), Some(csp))
-}
-
-/// `src="/static/kp/dist/js/<entry>.js"` as `src="/static/kp/dist/bundle/…"`:
-/// an import map does not rewrite `<script src>`, so a page that boots
-/// kp-themes by tag would load the split modules next to the mapped bundle.
-/// `index.js` has no facade and stays.
-fn boot_entries_to_facades(html: &[u8]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(html.len());
-    let mut rest = html;
-    while let Some(at) = find(rest, SPLIT_PREFIX.as_bytes()) {
-        let (head, tail) = rest.split_at(at);
-        let quoted = matches!(head.last(), Some(b'"' | b'\''))
-            && head.len() >= 5
-            && head[head.len() - 5..head.len() - 1].eq_ignore_ascii_case(b"src=");
-        let after = &tail[SPLIT_PREFIX.len()..];
-        out.extend_from_slice(head);
-        if quoted && !after.starts_with(b"index.js") {
-            out.extend_from_slice(BUNDLE_FACADE_PREFIX.as_bytes());
-        } else {
-            out.extend_from_slice(SPLIT_PREFIX.as_bytes());
-        }
-        rest = after;
-    }
-    out.extend_from_slice(rest);
-    out
 }
 
 /// A page with its own import map is the app's decision; say so once per

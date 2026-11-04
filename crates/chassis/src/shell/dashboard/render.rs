@@ -23,7 +23,15 @@ impl Dashboard {
 
     pub(super) fn render(&self, name: &str, ctx: minijinja::Value) -> Result<Html<String>, Error> {
         let tmpl = self.env.get_template(name).map_err(template_error)?;
-        Ok(Html(tmpl.render(ctx).map_err(template_error)?))
+        let html = tmpl.render(ctx).map_err(template_error)?;
+        // An app template's own kp-themes `<script src>` would start a second
+        // runtime next to the mapped one (kyu C1, Almanac 39).
+        Ok(Html(
+            match crate::shell::assets::kp_tags::rewrite_script_srcs(html.as_bytes()) {
+                Some(bytes) => String::from_utf8(bytes).unwrap_or(html),
+                None => html,
+            },
+        ))
     }
 
     pub(super) fn login_page(

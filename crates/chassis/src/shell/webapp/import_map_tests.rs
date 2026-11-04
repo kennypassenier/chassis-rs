@@ -49,10 +49,15 @@ async fn a_boot_tag_naming_the_split_entry_names_its_facade() {
 }
 
 #[tokio::test]
-async fn index_has_no_facade_so_its_tag_stays() {
+async fn index_by_tag_names_the_mapped_bundle() {
+    // kyu C1 / Almanac 39: a tag is not resolved through the map, so it must
+    // name the very URL the map gives, or the page holds two runtimes.
     let r = app().router().unwrap();
     let html = body(get_path(&r, "/all.html", &[]).await).await;
-    assert!(html.contains("src='/static/kp/dist/js/index.js'"), "{html}");
+    assert!(
+        html.contains(&format!("src='{}'", kp_map::bundle_url())),
+        "{html}"
+    );
 }
 
 #[tokio::test]
