@@ -12,10 +12,12 @@
 //   setConnection(el, 'offline')                       the connection is gone
 //   setConnection(el, 'offline', { pending: 3 })       ...and 3 changes wait to be sent
 //   setConnection(el, 'refused', { why: 'The server did not accept the change.' })   online, but refused
+//   setConnection(el, 'syncing', { pending: 3 })       the connection is back and 3 waiting changes are being sent
 //   setConnection(el, 'online')                        back; "Connected again" shows for a moment, then leaves
 //
 // States: `online` (absent), `offline` (the warning plate: what, why, what now, and the time to the next try),
-// `reconnecting` (a try is under way, with its attempt number), `back` (success, then it leaves), `refused` (the
+// `reconnecting` (a try is under way, with its attempt number), `syncing` (the connection is back and the waiting changes are
+// being sent: the spinner, the exact count in the title, the info plate, no Retry), `back` (success, then it leaves), `refused` (the
 // destructive plate: the server refuses while the browser is online). On a phone: one line plus Retry now.
 //
 // Options, each an attribute and a JS option of attachConnection(root, options):
@@ -43,7 +45,7 @@ import { CONNECTION } from './connection/values.js';
 export { CONNECTION, CONNECTION_STATE_EVENT, CONNECTION_RETRY_EVENT, CONNECTION_STATES } from './connection/values.js';
 
 /**
- * @typedef {'online' | 'offline' | 'reconnecting' | 'back' | 'refused'} ConnectionState
+ * @typedef {'online' | 'offline' | 'reconnecting' | 'syncing' | 'back' | 'refused'} ConnectionState
  * @typedef {object} ConnectionDetail
  * @property {number} [pending] changes waiting to be sent
  * @property {string} [why] a sentence from the app, for `refused`

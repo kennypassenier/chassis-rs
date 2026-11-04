@@ -28,6 +28,8 @@ export class ContentsCore extends Controller {
         this.current = null;
         /** The animation frame a spy is waiting for, 0 for none. */
         this.raf = 0;
+        /** The observer a spy is waiting on until the frame is laid out. @type {IntersectionObserver | null} */
+        this.waiting = null;
         /** The pane with its own scroll that is listened to. @type {HTMLElement | null} */
         this.pane = null;
         /** The scroll handler, one function so it can be removed. */
@@ -59,6 +61,11 @@ export class ContentsCore extends Controller {
     /** @param {number} frame */
     setFrame(frame) {
         this.raf = frame;
+    }
+
+    /** @param {IntersectionObserver | null} observer */
+    setWaiting(observer) {
+        this.waiting = observer;
     }
 
     /** @param {HTMLElement | null} pane */

@@ -15,10 +15,12 @@ const COPY_KEY = new WeakMap();
 /**
  * @param {Document} doc
  * @param {Strings} strings
+ * @param {string | null} keys the engine's keys (the first container of the page names them); null when off
  * @param {() => (() => void) | null} provider the container's way to copy its focused row, or null when none is focused
  * @returns {() => void} release
  */
-export function serveCopyKey(doc, strings, provider) {
+export function serveCopyKey(doc, strings, keys, provider) {
+    if (keys === null) return () => {};
     let shared = COPY_KEY.get(doc);
     if (!shared) {
         const made = { providers: new Set(), off: /** @type {(() => void) | null} */ (null) };
@@ -30,7 +32,7 @@ export function serveCopyKey(doc, strings, provider) {
                 doc.body,
                 [
                     {
-                        keys: 'y l',
+                        keys,
                         what: strings.anchorKeyCopy,
                         group: strings.anchorKeyGroup,
                         when: () => [...made.providers].some((p) => p() !== null),

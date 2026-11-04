@@ -1,2 +1,2 @@
-/* @kp-soft/themes v12.6.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
-import{a,b,c,d,e,f}from"./chunk-PZLN3BD4.js";import"./chunk-5BH5XVMZ.js";import"./chunk-RMUSFKWU.js";import"./chunk-LRS657MR.js";import"./chunk-FUGZUXRR.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{a as PROBLEMS,d as PROBLEM_DISMISS_EVENT,c as PROBLEM_MODES,b as PROBLEM_SEVERITIES,f as attachProblems,e as setProblems};
+/* @kp-soft/themes v12.7.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d,e,f}from"./chunk-K3QHNMYZ.js";import"./chunk-RVVND54F.js";import"./chunk-RMUSFKWU.js";import"./chunk-5FWNQS4J.js";import"./chunk-VRK4EA2H.js";import"./chunk-667U7AA2.js";import"./chunk-4C666HHU.js";export{a as PROBLEMS,d as PROBLEM_DISMISS_EVENT,c as PROBLEM_MODES,b as PROBLEM_SEVERITIES,f as attachProblems,e as setProblems};

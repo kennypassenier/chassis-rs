@@ -63,3 +63,8 @@ export function say(root, message) {
     setTimeout(() => (target.textContent = message), 60);
 }
 
+
+/** On the code (or the `copyKey` option): the key that copies the link while the focus is in the code (a key spec, js/key-spec.js; `none` or `false` for no key). */
+export const QR_COPY_KEY_ATTRIBUTE = 'data-kp-qr-copy-key';
+/** The key that copies the link when the code names none. */
+export const QR_COPY_KEY = 'Shift C';

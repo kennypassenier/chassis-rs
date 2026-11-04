@@ -24,7 +24,7 @@ export class UndoRun extends UndoCore {
 
     connect() {
         const { settings, toast: el } = this;
-        const { ms, clock, mode, seconds, key, max } = settings;
+        const { ms, clock, mode, seconds, key, focusKey, max } = settings;
         el.setAttribute('data-kp-undo-state', 'counting');
         el.setAttribute('data-kp-undo-clock', clock);
         el.setAttribute('data-kp-undo-mode', mode);
@@ -39,7 +39,7 @@ export class UndoRun extends UndoCore {
             void this.accept();
             return;
         }
-        enter({ handle: this.handle, key });
+        enter({ handle: this.handle, key, focusKey });
         // The oldest gives way: it is committed, and its toast goes.
         const standing = live.filter((e) => e.handle.state() === 'counting' || e.handle.state() === 'committing');
         for (const old of standing.slice(0, Math.max(0, standing.length - max))) void old.handle.accept();

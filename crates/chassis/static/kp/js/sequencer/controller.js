@@ -5,7 +5,7 @@ import { Controller } from '../controller.js';
 import { announce, readOptions, sequencers } from './instance.js';
 import { build } from './build.js';
 import { sequencerClampZoom } from './timeline.js';
-import { paint } from './paint.js';
+import { beginOpening, flushOpening, paint } from './paint.js';
 import { afterLayout, select, setZoom } from './edit.js';
 import { cancelEdit, startLink, stopLink, unlink } from './drag.js';
 import { onKey } from './keyboard.js';
@@ -58,6 +58,7 @@ export class SequencerControl extends Controller {
         const now = Number(el.dataset.kpSequencerNow);
         c.nowAt = el.dataset.kpSequencerNow !== undefined && Number.isFinite(now) ? now : null;
         if (el.dataset.kpState === 'loading') c.state = 'loading';
+        beginOpening(c);
         paint(c);
         // Wired in the reverse of the old teardown order, so destroy() undoes them in that order.
         this.watchWidth();
@@ -65,6 +66,7 @@ export class SequencerControl extends Controller {
         this.own(() => {
             window.clearTimeout(c.scrollTimer);
             window.cancelAnimationFrame(c.frameTimer);
+            if (c.opening) window.cancelAnimationFrame(c.opening.frame);
         });
         this.wire();
     }
@@ -79,8 +81,8 @@ export class SequencerControl extends Controller {
         this.listen(el, 'pointercancel', (e) => onCancel(c, /** @type {PointerEvent} */ (e)));
         this.listen(el, 'pointerup', (e) => onUp(c, /** @type {PointerEvent} */ (e)));
         this.listen(el, 'pointermove', (e) => onMove(c, /** @type {PointerEvent} */ (e)));
-        this.listen(el, 'pointerdown', (e) => onDown(c, /** @type {PointerEvent} */ (e)));
-        this.listen(el, 'keydown', (e) => onKey(c, /** @type {KeyboardEvent} */ (e)));
+        this.listen(el, 'pointerdown', (e) => (flushOpening(c), onDown(c, /** @type {PointerEvent} */ (e))));
+        this.listen(el, 'keydown', (e) => (flushOpening(c), onKey(c, /** @type {KeyboardEvent} */ (e))));
         this.listen(el, 'click', (e) => this.onClick(e));
     }
 
@@ -91,6 +93,12 @@ export class SequencerControl extends Controller {
         c.observer = this.observe(
             new ResizeObserver(() => {
                 const width = c.plot.clientWidth;
+                // The first callback comes after the first layout: the opening's one paint reads it for nothing.
+                if (c.opening) {
+                    this.lastWidth = width;
+                    flushOpening(c);
+                    return;
+                }
                 if (width === this.lastWidth) return;
                 this.lastWidth = width;
                 window.cancelAnimationFrame(c.frameTimer);

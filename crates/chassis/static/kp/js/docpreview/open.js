@@ -27,7 +27,7 @@ export function openDocPreview(options) {
         className: 'kp-docpreview',
         ...(options.opener !== undefined ? { opener: options.opener } : {}),
         doc,
-        keys: previewKeys(getStrings(), group !== null, () => run),
+        keys: previewKeys(getStrings(), group !== null, () => run, options),
         onClose: () => run?.closed(),
     });
     run = attachOne(viewer.dialog, PreviewRun, { preview: options, viewer, group });

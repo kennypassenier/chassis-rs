@@ -1,2 +1,2 @@
-/* @kp-soft/themes v12.6.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
-import{a,b,c,d,e,f,g}from"./chunk-C7QD7NFQ.js";import"./chunk-5AWNC3VM.js";import"./chunk-5FH76OV7.js";import"./chunk-FUGZUXRR.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{a as FOLLOW,b as FOLLOW_EVENT,d as FOLLOW_THRESHOLD,c as NEWPILL_JUMP_EVENT,e as NEWPILL_SAY_MS,g as attachNewPills,f as newPill};
+/* @kp-soft/themes v12.7.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d,e,f,g}from"./chunk-XFSYCJOV.js";import"./chunk-5AWNC3VM.js";import"./chunk-KGGLZI5O.js";import"./chunk-VRK4EA2H.js";import"./chunk-667U7AA2.js";import"./chunk-4C666HHU.js";export{a as FOLLOW,b as FOLLOW_EVENT,d as FOLLOW_THRESHOLD,c as NEWPILL_JUMP_EVENT,e as NEWPILL_SAY_MS,g as attachNewPills,f as newPill};

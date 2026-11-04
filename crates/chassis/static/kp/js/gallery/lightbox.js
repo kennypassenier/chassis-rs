@@ -9,6 +9,7 @@ import { GALLERY_CLOSE_EVENT, GALLERY_OPEN_EVENT, GALLERY_PICTURE_FAILED_EVENT, 
 import { again, attr, make } from './dom.js';
 import { actionsFor, drawInfo } from './lightbox-info.js';
 import { installChrome, installHash, installSwipe } from './lightbox-input.js';
+import { lightboxKeys } from './lightbox-keys.js';
 import { buildImage, buildVideo, zoomFigure } from './lightbox-media.js';
 
 /** @typedef {import('./gallery.js').Gallery} Gallery */
@@ -59,27 +60,6 @@ export class Lightbox extends Controller {
         return `#${this.prefix}-${encodeURIComponent(itemId)}`;
     }
 
-    /** The keys the lightbox answers, listed in the `?` sheet. */
-    keyBindings() {
-        const s = this.strings;
-        const group = s.galleryKeyGroup;
-        const notVideo = () => this.items[this.at]?.kind !== 'video';
-        return [
-            { keys: 'ArrowLeft', what: s.galleryKeyPrevious, group, run: () => this.go(-1), when: () => this.canGo(-1) },
-            { keys: 'ArrowRight', what: s.galleryKeyNext, group, run: () => this.go(1), when: () => this.canGo(1) },
-            { keys: 'Home', what: s.galleryKeyFirst, group, run: () => this.to(0), when: () => this.at > 0 },
-            { keys: 'End', what: s.galleryKeyLast, group, run: () => this.to(this.items.length - 1), when: () => this.at < this.items.length - 1 },
-            ...(this.zoomOn
-                ? [
-                      { keys: 'z', what: s.galleryKeyZoom, group, run: () => this.zoom('toggle'), when: notVideo },
-                      { keys: '+', what: s.galleryKeyZoomIn, group, run: () => this.zoom('in'), when: notVideo },
-                      { keys: '-', what: s.galleryKeyZoomOut, group, run: () => this.zoom('out'), when: notVideo },
-                  ]
-                : []),
-            { keys: 'f', what: s.galleryKeyFull, group, run: () => this.toggleFull() },
-        ];
-    }
-
     /** Open the viewer on the picture and wire it. @returns {import('../viewer.js').ViewerHandle} */
     open() {
         const { el, doc, id } = this;
@@ -90,7 +70,7 @@ export class Lightbox extends Controller {
             className: 'kp-gallery__lightbox',
             doc,
             opener: opener instanceof HTMLElement ? opener : null,
-            keys: this.keyBindings(),
+            keys: lightboxKeys(this),
             onClose: () => this.onClose(),
         });
         this.gallery.viewer = this.viewer;

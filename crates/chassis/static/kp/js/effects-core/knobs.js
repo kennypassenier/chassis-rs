@@ -170,6 +170,12 @@ export const PRESS_HOLD_MS = 400;
 /** Set on the root before first paint; the register keys its start states on it [AR34]. */
 export const ROOT_ATTRIBUTE = 'data-kp-effects';
 
+/**
+ * Set on the root by the head snippet (js/no-flash.js) when this path already played its headline this session [title-1270]; the
+ * register leaves the page title legible while it is there, and the module takes it off when it plays that title after all.
+ */
+export const REPEAT_ATTRIBUTE = 'data-kp-effects-repeat';
+
 /** Set on the root once the reveals of a load have run. */
 export const DONE_ATTRIBUTE = 'data-kp-effects-done';
 

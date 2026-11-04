@@ -22,6 +22,8 @@
 //   mode     `defer` (default) | `revert`
 //   clock    `ring` (default) | `bar` | `text` | `none`, `data-kp-undo-clock`; the toast says the seconds left in words once, not on every tick
 //   key      the key that undoes the newest toast (default `Mod+Z`; false for none); never while typing in a field
+//   focusKey the key that moves the focus to the newest toast's Undo button, `data-kp-undo-focus-key` (default `Alt+Z`; false for none); works
+//            while typing in a field too, then Enter or Space on the button undoes, and the focus goes back to where it was [js-1104]
 //   leave    what a pending action does when the page is left: `carry` (default) keeps the toast across an in-app navigation and commits on a
 //            full page load; `commit`; `cancel`
 //   max      how many toasts stand at once (default 3); the oldest is committed when a newer one pushes it out
@@ -56,6 +58,7 @@ export { UNDO_TOAST, UNDO_TOAST_EVENT, UNDO_RESTORED_MS, UNDO_MAX } from './undo
  * @property {'defer' | 'revert'} [mode]
  * @property {'ring' | 'bar' | 'text' | 'none'} [clock]
  * @property {string | false} [key] `Mod+Z`
+ * @property {string | false} [focusKey] `Alt+Z`
  * @property {'carry' | 'commit' | 'cancel'} [leave]
  * @property {number} [max]
  * @property {string} [failed] the toast's line when the commit fails, instead of "Not done: why"

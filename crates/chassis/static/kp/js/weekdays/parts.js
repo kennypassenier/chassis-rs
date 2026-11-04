@@ -65,12 +65,13 @@ export function buildLines(el, o, id) {
 /**
  * The quick picks: one press for the common sets.
  * @param {Document} doc @param {WeekdaysOptions} o @param {Strings} s
+ * @param {string | null} [label] The picker's own label, when it has one: the group is then named "Quick picks for <label>"
  */
-export function buildQuick(doc, o, s) {
+export function buildQuick(doc, o, s, label = null) {
     const quick = doc.createElement('div');
     quick.className = 'kp-weekdays__presets';
     quick.setAttribute('role', 'group');
-    quick.setAttribute('aria-label', s.weekdaysPresets);
+    quick.setAttribute('aria-label', label ? s.weekdaysPresetsFor(label) : s.weekdaysPresets);
     quick.hidden = o.presets.length === 0;
     /** @type {Map<string, HTMLButtonElement>} */
     const buttons = new Map();

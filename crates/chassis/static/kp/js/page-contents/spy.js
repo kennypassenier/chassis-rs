@@ -47,9 +47,27 @@ export class ContentsSpy extends ContentsRead {
         this.mark(at < 0 ? (this.entries[0]?.item.id ?? null) : this.entries[at].item.id);
     }
 
-    /** Ask for a spy on the next frame. */
+    /** Ask for a spy on the next frame. The boxes are read once that frame has been laid out, see `spyAfterLayout`. */
     queueSpy() {
-        if (!this.raf) this.setFrame(this.view.requestAnimationFrame(() => this.spy()));
+        if (!this.raf) this.setFrame(this.view.requestAnimationFrame(() => this.spyAfterLayout()));
+    }
+
+    /**
+     * Spy when the browser has laid the frame out. A callback of `requestAnimationFrame` runs before layout, so reading the boxes
+     * there forced a layout of the whole page on top of the one the frame made anyway (~100 ms on a page of 16 000 elements).
+     * An IntersectionObserver reports after layout, whose result is then clean to read [attach-1104].
+     */
+    spyAfterLayout() {
+        const Observer = this.view.IntersectionObserver;
+        if (!Observer) return this.spy();
+        this.waiting?.disconnect();
+        const once = new Observer(() => {
+            once.disconnect();
+            if (this.waiting === once) this.setWaiting(null);
+            if (!this.destroyed) this.spy();
+        });
+        this.setWaiting(once);
+        once.observe(this.host);
     }
 
     /** A pane with its own scroll: its scroll does not bubble to the window, so it is listened to itself (and again when the sections move to another pane). */

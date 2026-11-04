@@ -87,6 +87,11 @@ export class AutosizeController extends Controller {
         return (this.options.hidden ?? attr(this.area, 'data-kp-autosize-hidden', 'measure')) === 'skip' ? 'skip' : 'measure';
     }
 
+    /** When a box is first sized: `now` (default) as it attaches; `frame` in the resize observer's first callback, after the page's first layout, where reading it costs nothing. @returns {'now' | 'frame'} */
+    firstMode() {
+        return (this.options.first ?? attr(this.area, 'data-kp-autosize-first', 'now')) === 'frame' ? 'frame' : 'now';
+    }
+
     counterMode() {
         return this.options.counter ?? /** @type {'off' | 'chars' | 'lines' | 'both'} */ (attr(this.area, 'data-kp-counter', 'off'));
     }
@@ -131,7 +136,7 @@ export class AutosizeController extends Controller {
             this.pasteAt = area.selectionStart;
         });
         this.listen(area, 'change', () => this.onChange());
-        measureOrHold(this);
+        if (this.firstMode() === 'now') measureOrHold(this);
         this.drawCounter();
         if (area.getAttribute('data-kp-state') === 'loading') applyState(this, 'loading');
     }
@@ -149,7 +154,11 @@ export class AutosizeController extends Controller {
     /** A change of width changes the wrapping; the viewport and a font arriving change the cap and the lines. All measure together. */
     watchSize() {
         this.own(watchBox(this));
-        void this.doc.fonts?.ready.then(() => this.measureTogether());
+        // A `frame` box that was never sized waits for the observer's first callback, which comes right after this frame's layout.
+        this.afterFonts(() => {
+            if (this.firstMode() === 'frame' && this.width === -1) return;
+            this.measureTogether();
+        });
     }
 
     /** Undo what the box got: the card, frame, counter, twin, inline sizes, class and marks. */

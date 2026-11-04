@@ -95,3 +95,8 @@ export async function copyText(doc, text) {
     }
 }
 
+
+/** On an anchored container (or the `copyKey` option; the first container of a page names the page's one key): the keys that copy the focused anchor's link (a key spec, js/key-spec.js; `none` or `false` for no key). */
+export const ANCHOR_COPY_KEY_ATTRIBUTE = 'data-kp-anchors-copy-key';
+/** The keys that copy the focused anchor's link when no container names any. */
+export const ANCHOR_COPY_KEY = 'y l';

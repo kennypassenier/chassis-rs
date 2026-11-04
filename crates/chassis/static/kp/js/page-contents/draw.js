@@ -40,15 +40,12 @@ export class ContentsDraw extends ContentsSpy {
         this.wait.hidden = state !== 'loading';
         nav.toggleAttribute('aria-busy', state === 'loading');
         nav.hidden = state !== 'loading' && next.length < this.least();
-        if (nav.getAttribute('data-kp-contents-sig') === signature) {
-            this.bindPane();
-            return this.queueSpy();
-        }
+        if (nav.getAttribute('data-kp-contents-sig') === signature) return this.queueSpy();
         nav.setAttribute('data-kp-contents-sig', signature);
         const entries = next.map(({ item, target }) => this.entryFor(item, target));
         this.setEntries(entries, null);
         this.list.replaceChildren(...entries.map((e) => e.li));
-        this.bindPane();
+        // The pane is looked for by the spy, after layout: asking now would flush the page's styles.
         this.queueSpy();
     }
 }

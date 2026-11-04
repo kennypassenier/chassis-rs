@@ -2,19 +2,20 @@
 // its options changes.
 
 import { Controller } from '../controller.js';
+import { resolveEngineKeys } from '../key-spec.js';
 import { registerShortcuts } from '../shortcuts.js';
 import { getStrings } from '../strings.js';
 import { copyLink, download } from './actions.js';
 import { render } from './render.js';
-import { QR_RETRY_EVENT, QR_REVEAL_EVENT, stateOf, valueOf } from './state.js';
+import { QR_COPY_KEY, QR_COPY_KEY_ATTRIBUTE, QR_RETRY_EVENT, QR_REVEAL_EVENT, stateOf, valueOf } from './state.js';
 
 /** The options that are live: change the attribute and the code is drawn again. */
 const LIVE_OPTIONS = ['value', 'ecc', 'size', 'quiet', 'look', 'modules', 'render', 'caption', 'copy', 'download', 'reveal', 'expires', 'label', 'max', 'narrow', 'retry'];
 
 export class QrControl extends Controller {
-    /** @param {HTMLElement} root */
-    constructor(root) {
-        super(root);
+    /** @param {HTMLElement} root @param {{ copyKey?: string | false }} [options] */
+    constructor(root, options = {}) {
+        super(root, options);
         /** The frame a queued draw waits for, so a burst of attribute changes draws once. */
         this.queued = 0;
     }
@@ -34,15 +35,17 @@ export class QrControl extends Controller {
         render(root);
     }
 
-    /** Shift+C copies the link while the focus is in the code. @returns {() => void} the stop */
+    /** The copy key (Shift+C by default; an option) copies the link while the focus is in the code. @returns {() => void} the stop */
     copyKey() {
         const root = this.host;
         const s = getStrings();
+        const key = resolveEngineKeys(root, QR_COPY_KEY_ATTRIBUTE, /** @type {string | false | undefined} */ (this.options.copyKey), QR_COPY_KEY);
+        if (key === null) return () => {};
         return registerShortcuts(
             root,
             [
                 {
-                    keys: 'Shift C',
+                    keys: key,
                     what: s.qrKey,
                     group: s.qrKeyGroup,
                     when: () => root.contains(document.activeElement) && valueOf(root) !== '' && !root.querySelector('.kp-qr__copy:disabled'),

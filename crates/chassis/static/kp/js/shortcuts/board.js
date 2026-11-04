@@ -54,9 +54,9 @@ export class ShortcutBoard {
         return target instanceof HTMLElement && (target.isContentEditable || target.matches(this.config.typingSelector));
     }
 
-    /** The entries whose scope is on screen. */
+    /** The entries whose scope is on screen and that the engine itself fires (a `where: 'field'` entry only stands in the sheet). */
     active() {
-        return [...this.entries].filter(scopeActive);
+        return [...this.entries].filter((entry) => scopeActive(entry) && entry.shortcut.where === undefined);
     }
 
     /** The active entries whose first step this event presses. @param {KeyboardEvent} event */
@@ -161,7 +161,7 @@ export class ShortcutBoard {
     runFirst(done, event) {
         const first = done.find(available);
         if (!first) return;
-        const result = first.shortcut.run(event);
+        const result = first.shortcut.run?.(event);
         if (result !== false) event.preventDefault();
         document.dispatchEvent(new CustomEvent(SHORTCUT_EVENT, { bubbles: true, detail: { keys: first.shortcut.keys, what: first.shortcut.what } }));
     }
@@ -178,7 +178,7 @@ export class ShortcutBoard {
         }
         const first = pool.filter((entry) => entry.steps.length === 1).find(available);
         if (first) {
-            const result = first.shortcut.run(event);
+            const result = first.shortcut.run?.(event);
             if (result !== false) event.preventDefault();
         }
     }

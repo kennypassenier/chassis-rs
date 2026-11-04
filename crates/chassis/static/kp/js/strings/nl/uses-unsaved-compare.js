@@ -81,6 +81,7 @@ export const NL_USES_UNSAVED_COMPARE = {
     shortcutsUnknown: (keys) => `Geen sneltoets op ${keys}`,
     shortcutsAltGr: (keys, suggestion) =>
         `De toets "${keys}" vraagt AltGr op een AZERTY-toetsenbord, en dat is lastig met één hand. Overweeg ${suggestion}.`,
+    shortcutsInField: 'In een tekstveld',
     shortcutsUnavailable: 'Nu niet beschikbaar',
     ledeMore: 'Meer',
     ledeLess: 'Minder',

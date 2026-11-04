@@ -107,10 +107,11 @@ export class ConnectionBanner extends Controller {
     paintBand(state) {
         const { band, mark } = this.parts;
         band.classList.toggle('kp-alert--warning', state === 'offline' || state === 'reconnecting');
+        band.classList.toggle('kp-alert--info', state === 'syncing');
         band.classList.toggle('kp-alert--success', state === 'back');
         band.classList.toggle('kp-alert--destructive', state === 'refused');
         mark.replaceChildren();
-        if (state === 'reconnecting') mark.append(make(this.doc, 'span', 'kp-spinner'));
+        if (state === 'reconnecting' || state === 'syncing') mark.append(make(this.doc, 'span', 'kp-spinner'));
         else mark.textContent = state === 'back' ? '✓' : '!';
     }
 
@@ -126,11 +127,13 @@ export class ConnectionBanner extends Controller {
         const text = textFor(t, state, this);
         title.textContent = text[0] ?? '';
         why.textContent = text[1] ?? '';
-        meta.textContent = state === 'back' ? '' : this.pendingText();
+        meta.textContent = state === 'back' || state === 'syncing' ? '' : this.pendingText();
         retry.textContent = t.connRetry;
         retry.hidden = el.getAttribute('data-kp-retry') === 'off';
-        retry.toggleAttribute('data-kp-idle', state === 'back' || state === 'reconnecting');
-        retry.tabIndex = state === 'back' || state === 'reconnecting' ? -1 : 0;
+        // Nothing to press while a try or a sync is under way or the connection is back: Retry keeps its place, unreachable.
+        const idle = state === 'back' || state === 'reconnecting' || state === 'syncing';
+        retry.toggleAttribute('data-kp-idle', idle);
+        retry.tabIndex = idle ? -1 : 0;
         retry.disabled = false;
         if (state === 'offline') this.scheduleTry();
         if (el.getAttribute('data-kp-announce') !== 'off') {
@@ -180,7 +183,16 @@ export class ConnectionBanner extends Controller {
         this.view.clearTimeout(this.graceTimer);
         this.graceTimer = 0;
         if (state === 'offline' || state === 'refused' || state === 'reconnecting') this.setTrouble(state);
+        else if (state === 'syncing') this.setSyncing();
         else if (state === 'online') this.setOnline();
+    }
+
+    /** The connection is back and the waiting changes are being sent: shown now, no automatic try runs. */
+    setSyncing() {
+        this.stopTick();
+        this.nextAt = 0;
+        this.show();
+        this.draw('syncing');
     }
 
     /** Offline, refused or reconnecting: shown now, or after the grace for a short drop. @param {ConnectionState} state */

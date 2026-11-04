@@ -45,6 +45,7 @@ export class ContentsList extends ContentsDraw {
         this.own(() => this.pane?.removeEventListener('scroll', this.onScroll));
         this.draw();
         this.own(() => view.cancelAnimationFrame(this.raf));
+        this.own(() => this.waiting?.disconnect());
     }
 
     /** The title, the list and the loading bars. @param {string} id */

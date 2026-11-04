@@ -16,8 +16,5 @@ export const SHORTCUT_HINT_PLACES = /** @type {const} */ (['centre', 'bottom-cen
 /** Keys that need AltGr on an AZERTY keyboard. */
 export const ALTGR_KEYS = Object.freeze(['[', ']', '{', '}', '@', '#', '\\', '|', '~', '€', '`', '^']);
 
-/** The keys the palette and the sheet own. */
-export const RESERVED = ['mod+k', '?'];
-
 /** The engine's defaults, before a page configures them. */
 export const DEFAULT_TYPING_SELECTOR = 'input, textarea, select, [role="textbox"]';

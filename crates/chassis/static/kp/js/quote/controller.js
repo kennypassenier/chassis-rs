@@ -1,11 +1,12 @@
 // One quote card: its words, the fold and hide state, its four states, the keys and the attribute watcher [kpadopt6].
 
 import { Controller } from '../controller.js';
+import { resolveEngineKeys } from '../key-spec.js';
 import { attachCardStates } from '../card-state.js';
 import { registerShortcuts } from '../shortcuts.js';
 import { getStrings } from '../strings.js';
 import { copy, hide } from './actions.js';
-import { QUOTE_FOLD_EVENT, QUOTE_RETRY_EVENT, WATCHED_ATTRIBUTES } from './constants.js';
+import { QUOTE_COPY_KEY, QUOTE_COPY_KEY_ATTRIBUTE, QUOTE_FOLD_EVENT, QUOTE_HIDE_KEY, QUOTE_HIDE_KEY_ATTRIBUTE, QUOTE_RETRY_EVENT, WATCHED_ATTRIBUTES } from './constants.js';
 import { attr, make, textOf } from './dom.js';
 import { measureFold, render } from './render.js';
 
@@ -62,26 +63,22 @@ export class QuoteController extends Controller {
         this.observe(new MutationObserver(() => render(this))).observe(el, { attributes: true, attributeFilter: WATCHED_ATTRIBUTES });
     }
 
-    /** The keys of a card: `h` hides, Mod C copies when copy is on and nothing is selected; both are on the `?` sheet. */
+    /** The keys of a card: Hide and Copy (Copy only when copy is on and nothing is selected); both are on the `?` sheet and both are options. */
     shortcuts() {
         const el = this.el;
-        return [
-            {
-                keys: 'h',
-                what: getStrings().quoteHide,
-                group: 'Quote',
-                when: () => el.contains(document.activeElement) && attr(el, 'hide') !== 'off' && !el.hidden,
-                run: () => hide(this),
-            },
-            {
-                keys: 'Mod C',
-                what: getStrings().quoteCopy,
-                group: 'Quote',
-                when: () =>
-                    el.contains(document.activeElement) && attr(el, 'copy') !== undefined && attr(el, 'copy') !== 'off' && (window.getSelection()?.isCollapsed ?? true),
-                run: () => void copy(this),
-            },
-        ];
+        const hideKey = resolveEngineKeys(el, QUOTE_HIDE_KEY_ATTRIBUTE, this.options.hideKey, QUOTE_HIDE_KEY);
+        const copyKey = resolveEngineKeys(el, QUOTE_COPY_KEY_ATTRIBUTE, this.options.copyKey, QUOTE_COPY_KEY);
+        const inCard = () => el.contains(document.activeElement);
+        const copyOn = () => attr(el, 'copy') !== undefined && attr(el, 'copy') !== 'off';
+        /** @type {import('../shortcuts.js').Shortcut[]} */
+        const keys = [];
+        if (hideKey !== null) {
+            keys.push({ keys: hideKey, what: getStrings().quoteHide, group: 'Quote', when: () => inCard() && attr(el, 'hide') !== 'off' && !el.hidden, run: () => hide(this) });
+        }
+        if (copyKey !== null) {
+            keys.push({ keys: copyKey, what: getStrings().quoteCopy, group: 'Quote', when: () => inCard() && copyOn() && (window.getSelection()?.isCollapsed ?? true), run: () => void copy(this) });
+        }
+        return keys;
     }
 
     /** Put back what the card held, and take the line count away. */

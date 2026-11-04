@@ -1,2 +1,2 @@
-/* @kp-soft/themes v12.6.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
-import{a,b,c,d,e,f,g,h,i,j,k}from"./chunk-6IWVXDXE.js";import"./chunk-FUGZUXRR.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{b as VERSION_COPY_EVENT,a as VERSION_DELTA,c as VERSION_LEVELS,d as VERSION_SORT,k as attachVersionDeltas,h as githubRepo,i as releaseUrl,j as setVersionDelta,g as summarizeDeltas,f as versionLevel,e as versionNumbers};
+/* @kp-soft/themes v12.7.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d,e,f,g,h,i,j,k}from"./chunk-UMLRBHEL.js";import"./chunk-VRK4EA2H.js";import"./chunk-667U7AA2.js";import"./chunk-4C666HHU.js";export{b as VERSION_COPY_EVENT,a as VERSION_DELTA,c as VERSION_LEVELS,d as VERSION_SORT,k as attachVersionDeltas,h as githubRepo,i as releaseUrl,j as setVersionDelta,g as summarizeDeltas,f as versionLevel,e as versionNumbers};

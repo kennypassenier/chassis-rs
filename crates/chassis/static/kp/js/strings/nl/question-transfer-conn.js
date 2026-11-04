@@ -50,6 +50,8 @@ export const NL_QUESTION_TRANSFER_CONN = {
     connAttempt: (n) => `Poging ${n}`,
     connNextTry: (duration) => `volgende poging over ${duration}`,
     connPending: (n) => `${changes(n)} ${n === 1 ? 'wacht' : 'wachten'}`,
+    connSyncing: (n) => (n > 0 ? `${changes(n)} synchroniseren` : 'Wijzigingen synchroniseren'),
+    connSyncingWhy: 'Wat je offline wijzigde, wordt nu verstuurd.',
     connBack: 'Weer verbonden',
     connBackWhy: 'Alles is bijgewerkt.',
     connBackSending: (n) => `${changes(n)} ${n === 1 ? 'wordt' : 'worden'} verstuurd.`,

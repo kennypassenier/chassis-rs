@@ -39,6 +39,7 @@ export const NL_RANGE_WEEKDAYS_RUNS = {
     weekdaysLastDay: 'laatste dag',
     weekdaysAnd: 'en',
     weekdaysPresets: 'Snel kiezen',
+    weekdaysPresetsFor: (label) => `Snel kiezen voor ${label}`,
     weekdaysPresetWeekdays: 'Weekdagen',
     weekdaysPresetWeekend: 'Weekend',
     weekdaysPresetEvery: 'Elke dag',

@@ -8,6 +8,7 @@ import { goNext, takeAnswer } from './flow.js';
 import { activeTrack, tracksOn } from './tracks.js';
 import { trackPrev } from './track-steps.js';
 import { goToStep, typing } from './api.js';
+import { flowKeys, pressesFlow } from './keys.js';
 
 /** A swipe must run this many times further across than up or down to count as one. */
 const SWIPE_SLOPE = 1.5;
@@ -50,7 +51,7 @@ export class FocusStepsInput extends Controller {
         if (event.altKey || event.ctrlKey || event.metaKey || typing(event.target)) return;
         const onButton = event.target instanceof Element && event.target.closest('button, a, [role="button"]');
         if (onButton instanceof HTMLElement && (this.answerKey(event, onButton) || this.laneKey(event, onButton))) return;
-        const act = this.flowAct(event.key, Boolean(onButton));
+        const act = this.flowAct(event, Boolean(onButton));
         if (!act) return;
         event.preventDefault();
         act();
@@ -93,16 +94,20 @@ export class FocusStepsInput extends Controller {
 
     /**
      * What a key does to the flow: next, back, first or last step, or nothing.
-     * @param {string} key @param {boolean} onButton whether the focus is on a control, where Space is the control's
+     * The next and back keys are options (`data-kp-focus-steps-next-key`, `-previous-key`).
+     * @param {KeyboardEvent} event @param {boolean} onButton whether the focus is on a control, where Space is the control's
      * @returns {(() => void) | null}
      */
-    flowAct(key, onButton) {
+    flowAct(event, onButton) {
         const root = this.host;
         const state = this.state;
+        const key = event.key;
         const rtl = getComputedStyle(root).direction === 'rtl';
-        if (key === 'PageDown' || key === (rtl ? 'ArrowLeft' : 'ArrowRight')) return () => this.next();
-        if (key === 'PageUp' || key === (rtl ? 'ArrowRight' : 'ArrowLeft')) return () => this.prev();
-        if (key === ' ' && !onButton) return () => this.next();
+        const keys = flowKeys(root, this.options);
+        if (!(key === ' ' && onButton)) {
+            if (pressesFlow(event, keys.next, rtl)) return () => this.next();
+            if (pressesFlow(event, keys.previous, rtl)) return () => this.prev();
+        }
         if (key === 'Home') return () => goToStep(root, tracksOn(root) ? (activeTrack(state)?.order[0] ?? 0) : 0);
         if (key === 'End') return () => goToStep(root, tracksOn(root) ? (activeTrack(state)?.order.at(-1) ?? 0) : lastIndex(root));
         return null;

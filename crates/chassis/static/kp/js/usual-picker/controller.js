@@ -1,6 +1,7 @@
 // One usual picker: the combobox it stands on, extended with the band, the guard, the check, its keys and its live options.
 import { attachComboboxes, combobox, CHANGE_EVENT } from '../combobox.js';
 import { getStrings } from '../strings.js';
+import { resolveEngineKeys } from '../key-spec.js';
 import { registerShortcuts } from '../shortcuts.js';
 import { memoryFor } from '../remember.js';
 import { addName } from './add.js';
@@ -11,6 +12,7 @@ import { pick, sayAfter } from './picking.js';
 import { usualState } from './state.js';
 import { render, syncCheck, syncHint, syncPanel } from './sync.js';
 import { UsualPickerInput } from './input.js';
+import { USUAL_KEY, USUAL_KEY_ATTRIBUTE } from './constants.js';
 /** @typedef {import('./types.js').UsualModel} UsualModel */
 /** @typedef {ReturnType<typeof combobox>} ComboboxHandle */
 
@@ -137,8 +139,8 @@ export class UsualPickerControl extends UsualPickerInput {
         this.listen(m.input, 'keydown', (event) => this.onKey(/** @type {KeyboardEvent} */ (event)), { capture: true });
         this.listen(m.box, 'click', (event) => this.onClick(/** @type {MouseEvent} */ (event)));
         this.listen(m.box, CHANGE_EVENT, (event) => this.onChange(event));
-        const jump = { keys: 'Alt U', what: getStrings().usualJump, group: 'Picker', when: () => bandValues(m).length > 0, run: () => false };
-        this.own(registerShortcuts(m.box, [jump]));
+        const jumpKey = resolveEngineKeys(m.box, USUAL_KEY_ATTRIBUTE, undefined, USUAL_KEY);
+        if (jumpKey !== null) this.own(registerShortcuts(m.box, [{ keys: jumpKey, what: getStrings().usualJump, group: 'Picker', when: () => bandValues(m).length > 0, run: () => false }]));
         this.observe(new MutationObserver(() => render(m))).observe(m.box, { attributes: true, attributeFilter: LIVE_OPTIONS });
     }
 

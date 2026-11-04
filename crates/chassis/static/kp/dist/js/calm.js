@@ -1,2 +1,2 @@
-/* @kp-soft/themes v12.6.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
-import{a,b,c,d,e,f,g,h,i,j,k}from"./chunk-LRS657MR.js";import"./chunk-FUGZUXRR.js";import"./chunk-Q3EW47IZ.js";import"./chunk-4C666HHU.js";export{a as CALM_ATTRIBUTE,d as CALM_EVENT,b as CALM_SCOPES,c as CALM_SWITCH,j as applyStoredCalm,k as attachCalm,g as calmScope,f as isCalm,h as motionAllowed,i as setCalm,e as systemReduced};
+/* @kp-soft/themes v12.7.0, dist/js/ (gates/bundle-split.mjs). Generated; do not edit. */
+import{a,b,c,d,e,f,g,h,i,j,k}from"./chunk-5FWNQS4J.js";import"./chunk-VRK4EA2H.js";import"./chunk-667U7AA2.js";import"./chunk-4C666HHU.js";export{a as CALM_ATTRIBUTE,d as CALM_EVENT,b as CALM_SCOPES,c as CALM_SWITCH,j as applyStoredCalm,k as attachCalm,g as calmScope,f as isCalm,h as motionAllowed,i as setCalm,e as systemReduced};

@@ -43,6 +43,7 @@ import { sequencerUnit } from './units.js';
  * @property {HTMLElement} measure a hidden label that wraps, to ask whether a name fits its bar
  * @property {HTMLElement} ruler a hidden label on one line, to ask how wide a name is
  * @property {HTMLElement} probe a hidden box one row tall and one pad wide, to read both in px
+ * @property {HTMLElement} probeBox a layout-contained hidden box the name probes are put in, so measuring one name relays out nothing else
  * @property {number} rowPx
  * @property {number} padPx
  * @property {{ name: SequencerUnit, seconds: number }} unit
@@ -84,6 +85,8 @@ import { sequencerUnit } from './units.js';
  * @property {number} scrollTimer
  * @property {number} frameTimer
  * @property {boolean} drawn
+ * @property {boolean} coalesce `data-kp-sequencer-paint="once"`: the paints of the opening are one
+ * @property {{ fit: boolean, frame: number } | null} opening set while the opening's paints are being collected
  * @property {ResizeObserver | null} observer
  */
 
@@ -149,6 +152,7 @@ export function readOptions(c) {
     c.editable = d.kpSequencerEditable !== 'off';
     const span = Number(d.kpSequencerSpan);
     c.minSpan = Number.isFinite(span) && span > 0 ? span : 0;
+    c.coalesce = d.kpSequencerPaint === 'once';
     c.bar.hidden = d.kpSequencerToolbar === 'off';
     c.hint.hidden = d.kpSequencerHint === 'off';
     c.hint.textContent = c.editable ? c.strings.sequencerHint : c.strings.sequencerHintReadonly;

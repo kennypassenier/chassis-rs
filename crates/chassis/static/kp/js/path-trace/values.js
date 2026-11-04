@@ -20,3 +20,8 @@ export const WATCHED_ATTRIBUTES = [
     'data-kp-trace-copy',
     'data-kp-trace-swap',
 ];
+
+/** On the trace (or the `swapKey` option): the key that asks for a swap of source and target (a key spec, js/key-spec.js; `none` or `false` for no key). */
+export const TRACE_SWAP_KEY_ATTRIBUTE = 'data-kp-trace-swap-key';
+/** The key that asks for a swap when the trace names none. */
+export const TRACE_SWAP_KEY = 's';

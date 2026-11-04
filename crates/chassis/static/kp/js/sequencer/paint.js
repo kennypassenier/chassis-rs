@@ -5,7 +5,7 @@ import { sequencerRows, sequencerTotalOf, sequencerWindow } from './timeline.js'
 import { setAttr, setHidden, setText, summary, words } from './instance.js';
 import { EPS, SEQUENCER_RETRY_EVENT, SEQUENCER_ZOOM_MAX, SEQUENCER_ZOOM_MIN } from './constants.js';
 import { measureLanes, paintLanes, place } from './lanes.js';
-import { placeLabels, syncBars, syncJoins, syncTicks } from './bars.js';
+import { placeLabels, readNames, syncBars, syncJoins, syncTicks } from './bars.js';
 /** @typedef {import('./units.js').SequencerItem} SequencerItem */
 /** @typedef {import('./instance.js').SequencerModel} SequencerModel */
 
@@ -96,25 +96,56 @@ function paintState(c) {
         arrive: c.drawn,
     });
 }
-/** Draw everything from the committed items. @param {SequencerModel} c @param {{ fit?: boolean }} [how] */
+/**
+ * Draw everything from the committed items. While the sequencer is opening with `data-kp-sequencer-paint="once"` the request is
+ * only noted: the attach, the page's items and its state then paint once, in the first resize callback, instead of four times.
+ * @param {SequencerModel} c @param {{ fit?: boolean }} [how]
+ */
 export function paint(c, { fit = true } = {}) {
+    if (c.opening) {
+        c.opening.fit ||= fit;
+        return;
+    }
+    paintNow(c, { fit });
+}
+/** Start collecting paints until the first layout has happened (see `paint`); a frame pair later is the fallback for a hidden host. @param {SequencerModel} c */
+export function beginOpening(c) {
+    if (!c.coalesce) return;
+    const opening = { fit: false, frame: 0 };
+    c.opening = opening;
+    opening.frame = window.requestAnimationFrame(() => (opening.frame = window.requestAnimationFrame(() => flushOpening(c))));
+}
+/** Paint what was collected, now. Safe to call when nothing waits. @param {SequencerModel} c */
+export function flushOpening(c) {
+    const opening = c.opening;
+    if (!opening) return;
+    c.opening = null;
+    window.cancelAnimationFrame(opening.frame);
+    paintNow(c, { fit: opening.fit });
+}
+/** Draw everything from the committed items, at once. @param {SequencerModel} c @param {{ fit?: boolean }} how */
+function paintNow(c, { fit = true }) {
     c.view = c.items;
     c.rows = sequencerRows(
         c.items,
         c.lanes.map((l) => l.id),
     );
+    // Writes first, then every read at once (lane tops, the plot's width, each name's size), then the writes that need them: the
+    // page lays out once per paint, not once per step [perf-1104; Kitchen K5/K6].
     paintLanes(c);
     paintState(c);
-    measureLanes(c);
     paintWindow(c, c.view, fit);
-    syncTicks(c);
+    measureLanes(c);
+    const room = c.plot.clientWidth;
+    const names = readNames(c);
+    syncTicks(c, room);
     syncBars(c, c.view);
     for (const item of c.view) {
         const bar = c.bars.get(item.id);
         if (bar) place(c, bar, item, c.rows.rows.get(item.id) ?? 0);
     }
     syncJoins(c, c.view);
-    placeLabels(c);
+    placeLabels(c, names);
     paintSelection(c);
     c.drawn = true;
 }

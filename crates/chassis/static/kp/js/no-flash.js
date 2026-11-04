@@ -26,13 +26,32 @@ export const THEME_ATTRIBUTE = 'data-theme';
 /** The attribute the register keys its reveal start states on [AR34]; the same value as ROOT_ATTRIBUTE in js/effects.js. */
 export const EFFECTS_ATTRIBUTE = 'data-kp-effects';
 
+/** The attribute the snippet writes when this path already played its page headline this session [title-1270]. */
+export const EFFECTS_REPEAT_ATTRIBUTE = 'data-kp-effects-repeat';
+
 /**
- * The snippet to inline inside <script> in <head>, before the stylesheet
- * link. Plain ES5, no imports, no dependency on this package being loaded.
- *
- * @param {{ key?: string, attribute?: string, effects?: boolean }} [options]
+ * The start of the session-storage keys js/effects.js memoises a headline under: its MEMO_PREFIX ("kp-effects:"), the path and the
+ * hook. A literal here because this file's import closure is vendored as it is (gates/check-closure.mjs); the effects spec pins the
+ * two together.
+ */
+const HEADLINE_MEMO_PREFIX = 'kp-effects:';
+
+/**
+ * The ES5 lines that mark the root when this path already ran a headline reveal this session, so the register leaves the page
+ * title legible from the first paint instead of hiding it for a reveal that will not play [title-1270; Kenny, 2026-11-04].
+ * @param {string} root the name of the variable holding the document element
  * @returns {string}
  */
+function repeatLines(root) {
+    return `
+    try {
+        var p = ${jsString(HEADLINE_MEMO_PREFIX)} + location.pathname + ':headline:';
+        for (var i = 0; i < sessionStorage.length; i++) {
+            if (sessionStorage.key(i).indexOf(p) === 0) { ${root}.setAttribute(${jsString(EFFECTS_REPEAT_ATTRIBUTE)}, ''); break; }
+        }
+    } catch (e) {}`;
+}
+
 /**
  * A string as a JS literal that is also safe inside a <script> element.
  *
@@ -62,26 +81,32 @@ export const REGISTER_PATTERN_DEFAULT = '/css/{theme}-register.css';
 const attributeText = (text) => text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /**
- * @param {{ key?: string, attribute?: string, effects?: boolean, register?: boolean | { pattern?: string, fallback?: string } }} [options]
+ * The snippet to inline inside <script> in <head>, before the stylesheet link. Plain ES5, no imports, no dependency on this package
+ * being loaded.
+ * @param {{ key?: string, attribute?: string, effects?: boolean, repeat?: boolean, register?: boolean | { pattern?: string, fallback?: string } }} [options]
+ *   effects: also arm the reveals before first paint. repeat (default true, only with `effects`): also write
+ *   `data-kp-effects-repeat` on a path whose headline already played this session, so a repeat view shows its page title at rest from
+ *   the first frame; `false` leaves the title hidden until the module decides, as before [title-1270].
  *   register: also write the active theme's register link, for a page that
  *   loads registers lazily (js/lazy-register.js). The snippet then goes
  *   BELOW the css/themes.css link, not above it — see README.md, "Per
  *   theme". Default false: the snippet is byte-for-byte what it was.
  * @returns {string}
  */
-export function noFlashSnippet({ key = STORAGE_KEY, attribute = THEME_ATTRIBUTE, effects = false, register = false } = {}) {
-    if (register) return registerSnippet({ key, attribute, effects, ...(register === true ? {} : register) });
+export function noFlashSnippet({ key = STORAGE_KEY, attribute = THEME_ATTRIBUTE, effects = false, repeat = true, register = false } = {}) {
+    if (register) return registerSnippet({ key, attribute, effects, repeat, ...(register === true ? {} : register) });
     // `effects: true` also arms the reveals of js/effects.js before first
     // paint [AR34]: the register keys its start states on the attribute,
     // so a page that will attach the module never paints the rest state
     // first and snaps. A page that never attaches it leaves this off and
     // shows every reveal at rest.
     const arm = effects ? `\n        document.documentElement.setAttribute(${jsString(EFFECTS_ATTRIBUTE)}, '');` : '';
+    const again = effects && repeat ? repeatLines('document.documentElement') : '';
     return `(function () {
     try {
         var t = localStorage.getItem(${jsString(key)});
         if (t) document.documentElement.setAttribute(${jsString(attribute)}, t);${arm}
-    } catch (e) {}
+    } catch (e) {}${again}
 })();`;
 }
 
@@ -108,22 +133,23 @@ export function noFlashSnippet({ key = STORAGE_KEY, attribute = THEME_ATTRIBUTE,
  * URL: a stored name from a newer deployment, or a hand-set attribute,
  * asks for the fallback's register rather than a file that is not there.
  *
- * @param {{ key: string, attribute: string, effects: boolean, pattern?: string, fallback?: string }} options
+ * @param {{ key: string, attribute: string, effects: boolean, repeat: boolean, pattern?: string, fallback?: string }} options
  * @returns {string}
  */
-function registerSnippet({ key, attribute, effects, pattern = REGISTER_PATTERN_DEFAULT, fallback = DEFAULT_THEME }) {
+function registerSnippet({ key, attribute, effects, repeat, pattern = REGISTER_PATTERN_DEFAULT, fallback = DEFAULT_THEME }) {
     const names = THEMES.map((t) => t.name);
     if (!names.includes(/** @type {import('./theme-registry.js').ThemeName} */ (fallback)))
         throw new RangeError(`kp-themes: the register fallback "${fallback}" is not a theme`);
     const [before, ...rest] = pattern.split('{theme}');
     const after = rest.join('{theme}');
     const arm = effects ? `\n    d.setAttribute(${jsString(EFFECTS_ATTRIBUTE)}, '');` : '';
+    const again = effects && repeat ? repeatLines('d') : '';
     return `(function () {
     var d = document.documentElement;
     try {
         var t = localStorage.getItem(${jsString(key)});
         if (t) d.setAttribute(${jsString(attribute)}, t);
-    } catch (e) {}${arm}
+    } catch (e) {}${arm}${again}
     var n = d.getAttribute(${jsString(attribute)});
     if (${JSON.stringify(names).replace(/</g, '\\u003c')}.indexOf(n) < 0) n = ${jsString(fallback)};
     document.write('<link rel="stylesheet" href="' + ${jsString(attributeText(before))} + n + ${jsString(attributeText(after))} + '" data-kp-register="' + n + '" blocking="render">');

@@ -2,6 +2,7 @@
 
 import { getStrings } from '../strings.js';
 import { available, scopeActive } from './entries.js';
+import { fixedKeyText } from './fixed-keys.js';
 import { displayShortcutKeys } from './keys.js';
 
 /** @typedef {import('./board.js').ShortcutBoard} ShortcutBoard */
@@ -44,11 +45,15 @@ function collectGroups(board, sheet, fixed, sorted) {
         return g;
     };
     const fixedGroup = groupFor(fixed, false);
-    if (sheet.ownerDocument.querySelector('[data-kp-palette]')) fixedGroup.rows.push({ keys: 'Mod K', what: s.shortcutsPalette, off: false, reason: '' });
-    fixedGroup.rows.push({ keys: '?', what: s.shortcutsSheet, off: false, reason: '' });
+    // The keys the palette and the sheet really bind (options, js/shortcuts/fixed-keys.js); a key that is switched off has no row.
+    const paletteKey = fixedKeyText('palette');
+    const sheetKey = fixedKeyText('sheet');
+    if (paletteKey !== null && sheet.ownerDocument.querySelector('[data-kp-palette]')) fixedGroup.rows.push({ keys: paletteKey, what: s.shortcutsPalette, off: false, reason: '' });
+    if (sheetKey !== null) fixedGroup.rows.push({ keys: sheetKey, what: s.shortcutsSheet, off: false, reason: '' });
     for (const entry of sorted) {
         if (!scopeActive(entry)) continue;
-        const group = groupFor(entry.shortcut.group ?? 'Shortcuts', typeof entry.scope !== 'string');
+        const own = entry.shortcut.where === 'field' ? s.shortcutsInField : 'Shortcuts';
+        const group = groupFor(entry.shortcut.group ?? own, typeof entry.scope !== 'string');
         group.rows.push({ keys: entry.shortcut.keys, what: entry.shortcut.what, off: !available(entry), reason: entry.shortcut.reason ?? s.shortcutsUnavailable });
     }
     return [...groups.values()].filter((g) => g.rows.length > 0);

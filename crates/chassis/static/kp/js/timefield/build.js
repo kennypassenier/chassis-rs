@@ -32,12 +32,16 @@ function buildInput(root, n) {
     return input;
 }
 
-/** The button that opens the list. */
-function buildToggle() {
+/**
+ * The button that opens the list; named after the field's own label when it has one, so the toggles of a row editor differ.
+ * @param {string | null} label
+ */
+function buildToggle(label) {
     const toggle = /** @type {HTMLButtonElement} */ (el('kp-time__toggle', 'button'));
     toggle.type = 'button';
     toggle.tabIndex = -1;
-    toggle.setAttribute('aria-label', getStrings().timeChoose);
+    const s = getStrings();
+    toggle.setAttribute('aria-label', label ? s.timeChooseFor(label) : s.timeChoose);
     toggle.setAttribute('aria-haspopup', 'listbox');
     toggle.append(el('kp-time__glyph', 'span'));
     return toggle;
@@ -67,7 +71,7 @@ export function buildParts(root) {
     root.classList.add('kp-time');
     const control = el('kp-time__control');
     const input = buildInput(root, n);
-    control.append(input, buildToggle());
+    control.append(input, buildToggle(input.getAttribute('aria-label')));
     const hidden = /** @type {HTMLInputElement} */ (el('kp-time__value', 'input'));
     hidden.type = 'hidden';
     const name = root.getAttribute('data-kp-name');

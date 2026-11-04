@@ -1,6 +1,6 @@
 // Attaches the command palettes and shortcut sheets of a page: one PaletteControl or SheetControl per dialog.
 import { attachOne } from '../controller.js';
-import { INPUT, LIST, PALETTE, PALETTE_KEY, SHEET } from './constants.js';
+import { INPUT, LIST, PALETTE, PALETTE_KEY, SHEET, SHEET_KEY } from './constants.js';
 import { MATCHERS } from './keys.js';
 import { PaletteControl } from './palette-control.js';
 import { SheetControl } from './sheet.js';
@@ -12,14 +12,14 @@ import { SheetControl } from './sheet.js';
  *
  * @param {ParentNode} root
  * @param {{ hotkey?: string | null, sheetKey?: string | null, match?: keyof typeof MATCHERS | Matcher, clearOnClose?: boolean, closeOnRun?: boolean, typingSelector?: string }} [options]
- *   Defaults; per element: `data-kp-hotkey` (a letter, or "none"), `data-kp-primary` (this one answers the key when there are several), `data-kp-match` (`intent` by default: words in any order, js/intent.js; or `substring`, `subsequence`, `prefix`), `data-kp-clear-on-close="false"`, `data-kp-close-on-run="false"`.
+ *   Defaults; per element: `data-kp-hotkey` (a key spec such as `Mod+K`, a letter, or "none"; on the sheet it is the key that opens it, `?` by default), `data-kp-primary` (this one answers the key when there are several), `data-kp-match` (`intent` by default: words in any order, js/intent.js; or `substring`, `subsequence`, `prefix`), `data-kp-clear-on-close="false"`, `data-kp-close-on-run="false"`.
  * @returns {(() => void) & { handles: PaletteHandle[] }} detach
  */
 export function attachPalettes(
     root = document,
     {
         hotkey = PALETTE_KEY,
-        sheetKey = '?',
+        sheetKey = SHEET_KEY,
         match = 'intent',
         clearOnClose = true,
         closeOnRun = true,

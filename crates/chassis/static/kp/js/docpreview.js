@@ -54,6 +54,9 @@ export { openDocPreview } from './docpreview/open.js';
  * @property {readonly { url: string, title?: string, name?: string }[]} [group] documents the viewer can step through
  * @property {number} [index] where in the group this one is
  * @property {Document} [doc]
+ * @property {string | false} [openKey] the Open key (default `o`; `false` or `none` for no key)
+ * @property {string | false} [downloadKey] the Download key (default `d`)
+ * @property {string | false} [printKey] the Print key (default `p`)
  */
 
 /**

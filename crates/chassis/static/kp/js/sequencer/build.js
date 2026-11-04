@@ -88,7 +88,9 @@ export function build(el, strings) {
     ruler.setAttribute('aria-hidden', 'true');
     const probe = make(doc, 'span', 'kp-sequencer__probe');
     probe.setAttribute('aria-hidden', 'true');
-    layer.append(measure, ruler, probe);
+    const probeBox = make(doc, 'div', 'kp-sequencer__probes');
+    probeBox.setAttribute('aria-hidden', 'true');
+    layer.append(measure, ruler, probe, probeBox);
     el.replaceChildren(bar, frame, selection, hint, help, announcer);
     el.dataset.kpSequencerId = id;
     return {
@@ -123,6 +125,7 @@ export function build(el, strings) {
         measure,
         ruler,
         probe,
+        probeBox,
         rowPx: 28,
         padPx: 4,
         unit: { name: 'minute', seconds: 60 },
@@ -164,6 +167,8 @@ export function build(el, strings) {
         scrollTimer: 0,
         frameTimer: 0,
         drawn: false,
+        coalesce: false,
+        opening: null,
         observer: null,
     };
 }

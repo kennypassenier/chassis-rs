@@ -2,9 +2,10 @@
 // link: opening what folds it, scrolling, the short highlight, and the notice when a hash has no place.
 
 import { motionAllowed } from '../calm.js';
+import { resolveEngineKeys } from '../key-spec.js';
 import { LAST_CHANGE, serveCopyKey } from './copy-key.js';
 import { AnchorMarks } from './marks.js';
-import { ANCHOR_COPY_EVENT, ANCHOR_HIT_MS, ANCHOR_MISSING_EVENT, ANCHOR_QUIET_MS, ANCHOR_REVEAL_EVENT, ANCHORS, copyText, nameOf } from './text.js';
+import { ANCHOR_COPY_EVENT, ANCHOR_COPY_KEY, ANCHOR_COPY_KEY_ATTRIBUTE, ANCHOR_HIT_MS, ANCHOR_MISSING_EVENT, ANCHOR_QUIET_MS, ANCHOR_REVEAL_EVENT, ANCHORS, copyText, nameOf } from './text.js';
 import { byId } from '../by-id.js';
 
 /** How often a hash without a place yet is looked for again [ms]. */
@@ -41,7 +42,7 @@ export class AnchorBox extends AnchorMarks {
         // The page's rows come and go: a datatable draws them again on a sort.
         this.observe(new MutationObserver(() => this.changed())).observe(box, { childList: true, subtree: true });
         // y then l on a focused row copies its link; listed in the ? sheet, once for the page however many containers there are.
-        this.own(serveCopyKey(this.doc, this.strings, () => this.copyFocused()));
+        this.own(serveCopyKey(this.doc, this.strings, resolveEngineKeys(box, ANCHOR_COPY_KEY_ATTRIBUTE, /** @type {string | false | undefined} */ (this.options.copyKey), ANCHOR_COPY_KEY), () => this.copyFocused()));
         this.scan();
         // The hash the page opened with.
         if (this.view.location.hash) this.view.setTimeout(() => this.arrive(), 0);

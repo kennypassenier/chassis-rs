@@ -7,6 +7,7 @@ import { handles } from './api.js';
 import { GROUP, INPUT, KEYS_SLOT, LIST, OPENER, OPEN_EVENT, PALETTE, RUN_EVENT, STATUS } from './constants.js';
 import { createIntentFilter } from './intent-filter.js';
 import { MATCHERS, isHotkey, isMac, paletteKeySpec } from './keys.js';
+import { announceFixedKey, forgetFixedKey } from '../shortcuts/fixed-keys.js';
 import { ariaKeyShortcut, keyCaps, keyLabel } from '../key-spec.js';
 import { answers, closeOnOutsidePress, openerFor } from './outside.js';
 import { filterPlain } from './plain-filter.js';
@@ -63,6 +64,8 @@ export class PaletteControl extends Controller {
         this.listen(input, 'input', () => this.filter());
         this.listen(dialog, 'close', () => this.onClose());
         this.own(closeOnOutsidePress(dialog));
+        announceFixedKey('palette', this.key);
+        this.own(() => forgetFixedKey('palette'));
         if (this.key.length > 0) this.listen(document, 'keydown', (event) => this.onKey(/** @type {KeyboardEvent} */ (event)));
         this.listen(document, 'click', (event) => openerFor(event, dialog, answers(PALETTE, dialog)) && this.open());
         this.stampOpeners();

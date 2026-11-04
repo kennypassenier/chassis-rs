@@ -78,9 +78,9 @@ export function syncJoins(c, list) {
             c.joins.delete(id);
         }
 }
-/** Axis ticks and the rules under them. @param {SequencerModel} c */
-export function syncTicks(c) {
-    const room = c.plot.clientWidth || 600;
+/** Axis ticks and the rules under them. @param {SequencerModel} c @param {number} [width] the plot's width when the caller already read it */
+export function syncTicks(c, width = c.plot.clientWidth) {
+    const room = width || 600;
     const { step, values } = sequencerTicks(c.span, room, c.unit.seconds);
     const key = `${c.unit.name}:${step}:${values.length}:${c.span}`;
     if (key === c.tickKey) return;
@@ -122,7 +122,7 @@ function measureNames(c, list, perUnit) {
         line.textContent = item.label;
         return { item, wrap, line };
     });
-    if (probes.length) c.layer.append(...probes.flatMap((p) => [p.wrap, p.line]));
+    if (probes.length) c.probeBox.append(...probes.flatMap((p) => [p.wrap, p.line]));
     for (const { item, wrap, line } of probes)
         memory.set(item.id, { key: keyOf(item), size: { high: wrap.scrollHeight, scroll: wrap.scrollWidth, client: wrap.clientWidth, need: line.offsetWidth } });
     for (const p of probes) {
@@ -133,18 +133,28 @@ function measureNames(c, list, perUnit) {
     for (const id of memory.keys()) if (!keep.has(id)) memory.delete(id);
     return new Map(list.map((item) => [item.id, /** @type {{ key: string, size: NameSize }} */ (memory.get(item.id)).size]));
 }
+/** @typedef {{ width: number, pad: number, barPx: number, sizes: Map<string, NameSize> }} NameRead */
+/**
+ * Everything placeLabels needs from the page, read in one go: the plot's width, the bar's padding and height, and every name's
+ * size. Reads only the page (the probes live in a contained box), so a paint can do it before it writes a bar and pay for one
+ * layout, not one per step. Null when the plot has no width (hidden). @param {SequencerModel} c @returns {NameRead | null}
+ */
+export function readNames(c) {
+    const width = c.plot.clientWidth;
+    if (!width) return null;
+    const pad = Number.parseFloat(getComputedStyle(c.measure).paddingLeft) * 2 || 12;
+    return { width, pad, barPx: c.rowPx * 0.8, sizes: measureNames(c, c.view, width / c.span) };
+}
 /**
  * A name that does not fit its bar (wrapped on at most the lines the bar is tall for) stands outside it: after it when the row has
  * room, else before it, else it is left to the bar's name (its label). Never cut with an ellipsis. @param {SequencerModel} c
+ * @param {NameRead | null} [read] what readNames returned, when the caller read before it wrote
  */
-export function placeLabels(c) {
-    const width = c.plot.clientWidth;
-    if (!width) return;
+export function placeLabels(c, read = readNames(c)) {
+    if (!read) return;
+    const { width, pad, barPx, sizes } = read;
     const perUnit = width / c.span;
     const doc = c.el.ownerDocument;
-    const pad = Number.parseFloat(getComputedStyle(c.measure).paddingLeft) * 2 || 12;
-    const barPx = c.rowPx * 0.8;
-    const sizes = measureNames(c, c.view, perUnit);
     /** @type {Map<string, SequencerItem[]>} */
     const byRow = new Map();
     for (const item of c.view) {

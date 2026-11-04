@@ -20,6 +20,7 @@ import { clearAlert, renderBand } from './band.js';
 import { applyProgress, memoryOf } from './memory.js';
 import { layoutLanes } from './lanes.js';
 import { FocusStepsInput } from './input.js';
+import { engineKeysOf, KEY_DEFAULTS } from './keys.js';
 
 /** How often the lanes' clocks are read again, in ms. */
 const LANE_TICK_MS = 1000;
@@ -81,7 +82,7 @@ export class FocusStepsControl extends FocusStepsInput {
         paintWake(root, 'off');
     }
 
-    /** s, u and n take the same as yesterday, the usual answer and Not today; T and Shift T walk the tracks. */
+    /** s, u and n take the same as yesterday, the usual answer and Not today; T and Shift T walk the tracks; each key is an option [keys3-1104]. */
     registerKeys() {
         const root = this.host;
         const tap = (/** @type {string} */ selector) => () => {
@@ -89,24 +90,28 @@ export class FocusStepsControl extends FocusStepsInput {
             if (button && button.getAttribute('aria-disabled') !== 'true') pressAnswer(root, button);
         };
         const inView = () => answering(root) && root.contains(document.activeElement) && this.state.steps[this.state.index]?.answer !== undefined;
-        /** @param {string} keys @param {string} what @param {string} selector */
-        const answerKey = (keys, what, selector) => ({ keys, what, group: 'Question', when: () => inView() && root.querySelector(selector) !== null, run: tap(selector) });
+        const keyOf = (/** @type {readonly string[]} */ [attribute, fallback]) => engineKeysOf(root, this.options, attribute, fallback);
+        /** The shortcut when its key is not switched off. @param {string[]} spec @param {string} what @param {string} group @param {() => boolean} when @param {() => void} run */
+        const entry = (spec, what, group, when, run) => {
+            const keys = keyOf(spec);
+            return keys === null ? [] : [{ keys, what, group, when, run }];
+        };
+        /** @param {string[]} spec @param {string} what @param {string} selector */
+        const answerKey = (spec, what, selector) => entry(spec, what, 'Question', () => inView() && root.querySelector(selector) !== null, tap(selector));
         const strings = getStrings();
-        this.own(
-            registerShortcuts(root, [
-                answerKey('s', strings.focusSameYesterday('…'), '[data-kp-same="yesterday"]'),
-                answerKey('u', strings.focusSameUsual('…'), '[data-kp-same="usual"]'),
-                answerKey('n', strings.focusSkip, '.kp-focus-steps__skip'),
-            ]),
-        );
+        const answers = [
+            ...answerKey(KEY_DEFAULTS.sameYesterday, strings.focusSameYesterday('…'), '[data-kp-same="yesterday"]'),
+            ...answerKey(KEY_DEFAULTS.sameUsual, strings.focusSameUsual('…'), '[data-kp-same="usual"]'),
+            ...answerKey(KEY_DEFAULTS.skip, strings.focusSkip, '.kp-focus-steps__skip'),
+        ];
         // While the focus is in the view (or on no control at all).
         const tracking = () => tracksOn(root) && (root.contains(document.activeElement) || document.activeElement === document.body);
-        this.own(
-            registerShortcuts(root, [
-                { keys: 't', what: strings.focusTrackKeyNext, group: 'Tracks', when: tracking, run: () => stepTrack(root, 1) },
-                { keys: 'Shift T', what: strings.focusTrackKeyPrevious, group: 'Tracks', when: tracking, run: () => stepTrack(root, -1) },
-            ]),
-        );
+        const tracks = [
+            ...entry(KEY_DEFAULTS.trackNext, strings.focusTrackKeyNext, 'Tracks', tracking, () => stepTrack(root, 1)),
+            ...entry(KEY_DEFAULTS.trackPrevious, strings.focusTrackKeyPrevious, 'Tracks', tracking, () => stepTrack(root, -1)),
+        ];
+        this.own(registerShortcuts(root, answers));
+        this.own(registerShortcuts(root, tracks));
     }
 
     /** An option changed at run time: draw what it touches. @param {string[]} names */

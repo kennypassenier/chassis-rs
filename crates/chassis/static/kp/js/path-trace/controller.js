@@ -1,10 +1,11 @@
 // One wired trace: its parts placed, its handle, the redraw when an option changes, the swap key, and the way it is taken down.
 
+import { resolveEngineKeys } from '../key-spec.js';
 import { registerShortcuts } from '../shortcuts.js';
 import { getStrings } from '../strings.js';
 import { TraceDraw } from './draw.js';
 import { traceText } from './states.js';
-import { TRACE_SWAP_EVENT, WATCHED_ATTRIBUTES } from './values.js';
+import { TRACE_SWAP_EVENT, TRACE_SWAP_KEY, TRACE_SWAP_KEY_ATTRIBUTE, WATCHED_ATTRIBUTES } from './values.js';
 
 export class Trace extends TraceDraw {
     /**
@@ -41,14 +42,16 @@ export class Trace extends TraceDraw {
         this.draw();
     }
 
-    /** The S key asks for a swap, for a form that swaps source and target. */
+    /** The swap key (S by default; an option) asks for a swap, for a form that swaps source and target. */
     registerSwapKey() {
         const s = getStrings();
+        const key = resolveEngineKeys(this.host, TRACE_SWAP_KEY_ATTRIBUTE, /** @type {string | false | undefined} */ (this.options?.swapKey), TRACE_SWAP_KEY);
+        if (key === null) return () => {};
         return registerShortcuts(
             this.host,
             [
                 {
-                    keys: 's',
+                    keys: key,
                     what: s.traceKeySwap,
                     group: s.traceKeyGroup,
                     run: () => this.host.dispatchEvent(new CustomEvent(TRACE_SWAP_EVENT, { bubbles: true })),

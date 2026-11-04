@@ -60,4 +60,28 @@ export const COLUMNS_PATTERN = /^[2-8]$/;
  * @property {(item: GalleryItem) => readonly GalleryAction[]} [actions]
  * @property {boolean} [add] show the Add pictures tile (the gallery fires `kp-gallery-add`)
  * @property {number} [skeleton] how many waiting tiles a loading gallery shows (default 8)
+ * @property {string | false} [zoomKey] the zoom key of the lightbox (default `z`; `false` or `none` for no key)
+ * @property {string | false} [zoomInKey] the zoom-in key (default `+`)
+ * @property {string | false} [zoomOutKey] the zoom-out key (default `-`)
+ * @property {string | false} [fullKey] the full-screen key (default `f`)
  */
+
+/** On the gallery (or the `zoomKey` option): the key that toggles the zoom of the open picture (a key spec, js/key-spec.js; `none` or `false` for no key). */
+export const GALLERY_ZOOM_KEY_ATTRIBUTE = 'data-kp-gallery-zoom-key';
+/** The key that toggles the zoom when the gallery names none. */
+export const GALLERY_ZOOM_KEY = 'z';
+
+/** On the gallery (or the `zoomInKey` option): the key that zooms in (a key spec, js/key-spec.js; `none` or `false` for no key). */
+export const GALLERY_ZOOM_IN_KEY_ATTRIBUTE = 'data-kp-gallery-zoom-in-key';
+/** The key that zooms in when the gallery names none. */
+export const GALLERY_ZOOM_IN_KEY = '+';
+
+/** On the gallery (or the `zoomOutKey` option): the key that zooms out (a key spec, js/key-spec.js; `none` or `false` for no key). */
+export const GALLERY_ZOOM_OUT_KEY_ATTRIBUTE = 'data-kp-gallery-zoom-out-key';
+/** The key that zooms out when the gallery names none. */
+export const GALLERY_ZOOM_OUT_KEY = '-';
+
+/** On the gallery (or the `fullKey` option): the key that toggles full screen (a key spec, js/key-spec.js; `none` or `false` for no key). */
+export const GALLERY_FULL_KEY_ATTRIBUTE = 'data-kp-gallery-full-key';
+/** The key that toggles full screen when the gallery names none. */
+export const GALLERY_FULL_KEY = 'f';

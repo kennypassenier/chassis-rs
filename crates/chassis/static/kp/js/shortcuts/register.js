@@ -1,7 +1,8 @@
 // Registering shortcuts under a scope: the faults a registration can have, and the unregister it hands back.
 
 import { getStrings } from '../strings.js';
-import { ALTGR_KEYS, RESERVED } from './constants.js';
+import { ALTGR_KEYS } from './constants.js';
+import { isReserved } from './fixed-keys.js';
 import { normal, parseShortcutKeys } from './keys.js';
 
 /** @typedef {import('../shortcuts.js').Entry} Entry */
@@ -68,9 +69,10 @@ export function registerOn(board, scope, list, options = {}) {
  * @returns {Entry | undefined}
  */
 function entryFor(board, scope, shortcut, guard, options, added, fault) {
+    if (!shortcut.run && shortcut.where === undefined) return void fault(`The keys "${shortcut.keys}" (${shortcut.what}) have no run function and are not marked where: 'field'.`);
     const steps = parseShortcutKeys(shortcut.keys);
     const id = normal(steps);
-    if (RESERVED.includes(id)) return void fault(`The keys "${shortcut.keys}" belong to the palette and the shortcut sheet.`);
+    if (isReserved(id)) return void fault(`The keys "${shortcut.keys}" belong to the palette and the shortcut sheet.`);
     const problem = guard === 'off' ? null : altGrProblem(steps);
     if (problem) {
         if (guard === 'refuse') return void fault(problem);

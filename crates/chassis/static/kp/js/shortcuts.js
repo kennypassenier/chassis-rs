@@ -61,11 +61,13 @@ export { parseShortcutKeys, displayShortcutKeys } from './shortcuts/keys.js';
  * @property {string} keys "g s", "Mod K", "?", "j"
  * @property {string} what the sheet's words for it
  * @property {string} [group] the sheet's heading for it (default "Shortcuts")
- * @property {(event: KeyboardEvent) => unknown} run called when the keys are pressed; returning `false` leaves the browser's own handling alone
+ * @property {(event: KeyboardEvent) => unknown} [run] called when the keys are pressed; returning `false` leaves the browser's own handling alone. Required unless `where` is set
  * @property {() => boolean} [when] false: the key does nothing now and the sheet shows it dimmed
  * @property {string} [reason] the sheet's sentence for why it is not available now
  * @property {boolean} [inFields] true: the keys also fire while the focus is in a field (an input, a textarea, a select), where a plain key
  *   is the typing's own and does nothing by default; for a key that means the same there ("Esc closes the change form") [wish-1120, homelab 122]
+ * @property {'field'} [where] `'field'`: the key lives on one text field and that field's own handler fires it (Alt+Up moves a step in
+ *   an editor), so the engine never listens for it and the sheet only lists it, in the group `group` or else "In a text field" [keys3-1104]
  */
 
 /**

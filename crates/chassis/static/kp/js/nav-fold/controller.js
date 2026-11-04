@@ -20,9 +20,7 @@ export class NavFold extends NavFoldCore {
         this.watchSizes();
         this.watchList();
         // The font of the theme is a width; so is the narrow toggle's visibility. A bar taken down meanwhile stays down.
-        doc.fonts?.ready.then(() => {
-            if (!this.destroyed) this.fit();
-        });
+        this.afterFonts(() => this.fit());
         this.listen(view, 'resize', () => this.fit());
         this.fit();
     }

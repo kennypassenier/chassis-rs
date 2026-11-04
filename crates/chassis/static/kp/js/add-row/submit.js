@@ -52,28 +52,45 @@ function refusalIn(answer) {
 }
 
 /**
+ * What a field's value reads as to a person: the visible text of the chosen option for a select (its value is an id), else the
+ * value itself.
+ * @param {HTMLFormElement} row @param {string} name @param {string} value
+ */
+function readable(row, name, value) {
+    const field = row.elements.namedItem(name);
+    const select = field instanceof HTMLSelectElement ? field : null;
+    const option = select ? Array.from(select.options).find((o) => o.value === value) : null;
+    return option?.textContent?.trim() || value;
+}
+
+/**
  * The words that name the line in "Added x": the field `data-kp-addrow-name` names when it holds something (the first value of
- * a list), else the first filled value, which may be an id or a date.
+ * a list), else the first filled value, which may be an id or a date. A select field gives the chosen option's visible text,
+ * never its value (an id) [js-1104].
  * @param {HTMLFormElement} row @param {Record<string, string | string[]>} values
  */
 function announcedName(row, values) {
     const filled = (/** @type {unknown} */ v) => typeof v === 'string' && v.trim() !== '';
-    const named = values[row.getAttribute(ADD_ROW_NAME) ?? ''];
+    const key = row.getAttribute(ADD_ROW_NAME) ?? '';
+    const named = values[key];
     const pick = Array.isArray(named) ? named.find(filled) : named;
-    const first = filled(pick) ? pick : Object.values(values).find(filled);
-    return typeof first === 'string' ? first : '';
+    if (typeof pick === 'string' && filled(pick)) return readable(row, key, pick);
+    const entry = Object.entries(values).map(([n, v]) => [n, Array.isArray(v) ? v.find(filled) : v]).find(([, v]) => filled(v));
+    return entry ? readable(row, String(entry[0]), String(entry[1])) : '';
 }
 
 /** The line went in: empty the row, the focus on its first field, and say so. @param {HTMLFormElement} row @param {Record<string, string | string[]>} values */
 function added(row, values) {
+    // Read before the reset empties the fields.
+    const name = announcedName(row, values);
     row.reset();
     formHandle(row)?.clear();
     sayRefusal(row, '');
     row.dispatchEvent(new CustomEvent(DONE_EVENT, { bubbles: true }));
     /** @type {HTMLElement | null} */ (row.querySelector('input:not([type="hidden"]), select, textarea'))?.focus();
     const live = row.querySelector('.kp-addrow__live');
-    if (live) live.textContent = getStrings().addRowAdded(announcedName(row, values));
-    row.dispatchEvent(new CustomEvent(ADDED_EVENT, { bubbles: true, detail: { values } }));
+    if (live) live.textContent = getStrings().addRowAdded(name);
+    row.dispatchEvent(new CustomEvent(ADDED_EVENT, { bubbles: true, detail: { values, name } }));
 }
 
 /** The page refused: words under the row, or messages on the fields; the row keeps what was typed. @param {HTMLFormElement} row @param {string | Record<string, string>} why */
@@ -94,7 +111,7 @@ export async function addLine(row, data) {
     /** @type {Promise<unknown> | null} */
     let wait = null;
     const go = row.dispatchEvent(
-        new CustomEvent(ADD_EVENT, { bubbles: true, cancelable: true, detail: { values, data, waitUntil: (/** @type {Promise<unknown>} */ p) => (wait = p) } }),
+        new CustomEvent(ADD_EVENT, { bubbles: true, cancelable: true, detail: { values, data, name: announcedName(row, values), waitUntil: (/** @type {Promise<unknown>} */ p) => (wait = p) } }),
     );
     if (!go) return refused(row, getStrings().addRowRefused);
     sayRefusal(row, '');

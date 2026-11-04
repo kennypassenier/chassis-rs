@@ -64,6 +64,7 @@ export const NL_AVAILABILITY_QR_TIME = {
     qrKeyGroup: 'QR-code',
     qrKeyReason: 'Zet eerst de focus op een QR-code met een link.',
     timeChoose: 'Kies een tijd',
+    timeChooseFor: (label) => `Kies een tijd voor ${label}`,
     timeRequired: 'Kies een tijd.',
     timeInvalid: 'Gebruik een tijd zoals 03:00',
     timeOutside: (min, max) => `Kies een tijd van ${min} tot ${max}.`,

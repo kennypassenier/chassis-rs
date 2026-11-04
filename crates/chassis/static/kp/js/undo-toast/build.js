@@ -4,7 +4,7 @@ import { UNDO_MS } from '../patterns.js';
 import { getStrings } from '../strings.js';
 import { keyName } from './stack.js';
 import { parseKeySpec } from '../key-spec.js';
-import { MS_PER_SECOND, UNDO_KEY, UNDO_MAX } from './values.js';
+import { MS_PER_SECOND, UNDO_FOCUS_KEY, UNDO_KEY, UNDO_MAX } from './values.js';
 
 /**
  * A default the page set on <html> or the toast region.
@@ -30,11 +30,15 @@ export function readSettings(options) {
     const keyRaw = options.key ?? declared('key', region);
     /** @type {string | false} */
     const key = parseKeySpec(keyRaw === undefined || keyRaw === '' || keyRaw === null ? UNDO_KEY : String(keyRaw)).length === 0 ? false : String(keyRaw || UNDO_KEY);
+    const focusRaw = options.focusKey ?? declared('focus-key', region);
+    const focusSpec = focusRaw === undefined || focusRaw === '' || focusRaw === null ? UNDO_FOCUS_KEY : String(focusRaw);
+    /** @type {string | false} */
+    const focusKey = parseKeySpec(focusSpec).length === 0 ? false : focusSpec;
     const leaveRaw = options.leave ?? declared('leave', region);
     const leaves = leaveRaw === 'commit' || leaveRaw === 'cancel' ? leaveRaw : 'carry';
     const max = Math.max(1, options.max ?? (Number(declared('max', region)) || UNDO_MAX));
     const seconds = Math.max(1, Math.round(ms / MS_PER_SECOND));
-    return { region, ms, mode, clock, key, leaves, max, seconds };
+    return { region, ms, mode, clock, key, focusKey, leaves, max, seconds };
 }
 
 /** The clock's ring: a track and a fill circle, drawn as an SVG. @param {Document} doc */

@@ -7,7 +7,7 @@ export const CONNECTION_STATE_EVENT = 'kp-connection-state';
 /** Fired when a try should be made. */
 export const CONNECTION_RETRY_EVENT = 'kp-connection-retry';
 /** The states. */
-export const CONNECTION_STATES = /** @type {const} */ (['online', 'offline', 'reconnecting', 'back', 'refused']);
+export const CONNECTION_STATES = /** @type {const} */ (['online', 'offline', 'reconnecting', 'syncing', 'back', 'refused']);
 
 /** A drop shorter than this shows nothing, and "Connected again" stays this long [ms]. */
 export const DEFAULT_GRACE_MS = 3000;

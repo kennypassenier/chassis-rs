@@ -92,3 +92,8 @@ export const el = (className, tag = 'span') => {
     node.className = className;
     return node;
 };
+
+/** On a calm list (or the `resumeKey` option): the key that resumes the focused paused row (a key spec, js/key-spec.js; `none` or `false` for no key). */
+export const STATUS_RESUME_KEY_ATTRIBUTE = 'data-kp-status-resume-key';
+/** The key that resumes a paused row when the list names none. */
+export const STATUS_RESUME_KEY = 'r';

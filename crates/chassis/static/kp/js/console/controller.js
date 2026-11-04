@@ -8,7 +8,7 @@ import { attachDisabledReasons } from '../reason.js';
 import { clearConsole, useTool } from './api.js';
 import { drawBar } from './bar.js';
 import { blockNode, drawAll, drawBody } from './blocks.js';
-import { CONSOLE_FOCUS_KEY, CONSOLE_FOCUS_KEY_ATTRIBUTE, CONSOLE_RETRY_EVENT } from './constants.js';
+import { CONSOLE_CLEAR_KEY, CONSOLE_CLEAR_KEY_ATTRIBUTE, CONSOLE_FOCUS_KEY, CONSOLE_FOCUS_KEY_ATTRIBUTE, CONSOLE_RETRY_EVENT } from './constants.js';
 import { loadHistory } from './history.js';
 import { attr, el, say, stateOf } from './model.js';
 import { startTicker, submit } from './run.js';
@@ -26,7 +26,7 @@ const LIVE = [
 
 /** One console: its state is the `STATE` registry entry every part reads; the order and the new-pill watch sit on the instance. */
 export class ConsoleControl extends Controller {
-    /** @param {HTMLElement} host @param {{ run?: ConsoleRun, complete?: (prefix: string) => string[] | Promise<string[]> }} [options] */
+    /** @param {HTMLElement} host @param {{ run?: ConsoleRun, complete?: (prefix: string) => string[] | Promise<string[]>, clearKey?: string | false, focusKey?: string | false }} [options] */
     constructor(host, options = {}) {
         super(host, options);
         this.st = stateOf(host);
@@ -79,8 +79,10 @@ export class ConsoleControl extends Controller {
         const root = this.host;
         const s = getStrings();
         /** @type {import('../shortcuts.js').Shortcut[]} */
-        const keys = [{ keys: 'Mod L', what: s.consoleKeyClear, group: s.consoleKeyGroup, run: () => clearConsole(root) }];
-        const focusKey = resolveEngineKeys(root, CONSOLE_FOCUS_KEY_ATTRIBUTE, undefined, CONSOLE_FOCUS_KEY);
+        const keys = [];
+        const clearKey = resolveEngineKeys(root, CONSOLE_CLEAR_KEY_ATTRIBUTE, /** @type {string | false | undefined} */ (this.options.clearKey), CONSOLE_CLEAR_KEY);
+        if (clearKey !== null) keys.push({ keys: clearKey, what: s.consoleKeyClear, group: s.consoleKeyGroup, run: () => clearConsole(root) });
+        const focusKey = resolveEngineKeys(root, CONSOLE_FOCUS_KEY_ATTRIBUTE, /** @type {string | false | undefined} */ (this.options.focusKey), CONSOLE_FOCUS_KEY);
         if (focusKey === null) return keys;
         const input = /** @type {HTMLInputElement} */ (root.querySelector('.kp-console__input'));
         keys.push({ keys: focusKey, what: s.consoleKeyFocus, group: s.consoleKeyGroup, when: () => !input.disabled, reason: s.consoleKeyFocusReason, run: () => input.focus() });

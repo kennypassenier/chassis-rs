@@ -49,6 +49,8 @@ export const WATCHED_ATTRIBUTES = [
  * @typedef {object} QuoteOptions
  * @property {number} [lines] how many lines before it folds (default 4)
  * @property {boolean} [copy] show Copy (default false)
+ * @property {string | false} [hideKey] the Hide key (default `h`)
+ * @property {string | false} [copyKey] the Copy key (default `Mod C`)
  */
 
 /**
@@ -67,3 +69,13 @@ export const WATCHED_ATTRIBUTES = [
  * @property {(state: 'ready' | 'loading' | 'empty' | 'error') => void} setState
  * @property {() => void} hide hide it as a press on Hide does
  */
+
+/** On the card (or the `hideKey` option): the key that hides a focused card (a key spec, js/key-spec.js; `none` or `false` for no key). */
+export const QUOTE_HIDE_KEY_ATTRIBUTE = 'data-kp-quote-hide-key';
+/** The key that hides the card when it names none. */
+export const QUOTE_HIDE_KEY = 'h';
+
+/** On the card (or the `copyKey` option): the key that copies the quote when nothing is selected (a key spec, js/key-spec.js; `none` or `false` for no key). */
+export const QUOTE_COPY_KEY_ATTRIBUTE = 'data-kp-quote-copy-key';
+/** The key that copies the quote when the card names none. */
+export const QUOTE_COPY_KEY = 'Mod C';

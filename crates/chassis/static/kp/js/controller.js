@@ -17,6 +17,9 @@
 /** The live controllers, per class, per host. @type {WeakMap<Function, WeakMap<Element, Controller>>} */
 const LIVE = new WeakMap();
 
+/** The callbacks waiting for one document's fonts. @type {WeakMap<Document, Set<() => void>>} */
+const FONT_WAITERS = new WeakMap();
+
 /** @param {unknown} error */
 const report = (error) => (typeof globalThis.reportError === 'function' ? globalThis.reportError(error) : console.error(error));
 
@@ -69,6 +72,40 @@ export class Controller {
     observe(observer) {
         this.own(() => observer.disconnect());
         return observer;
+    }
+
+    /**
+     * Run `fn` once the document's web fonts have loaded, unless this controller is gone by then. Reading `document.fonts.ready`
+     * flushes layout in Firefox, and the first read after a page drew 16 000 elements paid for all of them (~200 ms), once for
+     * every component that asked. The read is therefore made once per document, in the next frame, after the attach pass, and the
+     * layout it forces is the one that frame needed anyway [attach-1104].
+     * @param {() => void} fn
+     */
+    afterFonts(fn) {
+        const doc = this.host.ownerDocument;
+        if (!doc.fonts) return;
+        const run = () => !this.destroyed && fn();
+        let waiting = FONT_WAITERS.get(doc);
+        if (!waiting) {
+            const group = (waiting = new Set());
+            FONT_WAITERS.set(doc, group);
+            const ask = () =>
+                doc.fonts.ready.then(() => {
+                    FONT_WAITERS.delete(doc);
+                    for (const wanted of group) {
+                        try {
+                            wanted();
+                        } catch (error) {
+                            report(error);
+                        }
+                    }
+                });
+            const frame = doc.defaultView?.requestAnimationFrame;
+            if (frame) frame.call(doc.defaultView, ask);
+            else setTimeout(ask, 0);
+        }
+        waiting.add(run);
+        this.own(() => waiting.delete(run));
     }
 
     /** Wire the host: listeners, observers, first render. Subclasses override it; the base has nothing to wire. */

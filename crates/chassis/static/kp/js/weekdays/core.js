@@ -28,7 +28,7 @@ export class WeekdaysCore extends Controller {
         this.group = buildChips(doc, this.o, this.label);
         this.items = chipItems(this.o, s);
         this.lines = buildLines(host, this.o, this.id);
-        this.quick = buildQuick(doc, this.o, s);
+        this.quick = buildQuick(doc, this.o, s, host.getAttribute('aria-label'));
         /** Whether the reader has picked, left the group or tried to submit: only then does "pick at least n" show [ux-1101, required-early]. */
         this.touched = false;
     }

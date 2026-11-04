@@ -23,8 +23,9 @@ function paintTriValues(group, values) {
  * stop, then the plate. Does not fire the event.
  * @param {Element} group
  * @param {readonly string[]} values
+ * @param {boolean} [place] false leaves the plate to the caller, which places the plates of a whole pass together [attach-1104]
  */
-export function paint(group, values) {
+export function paint(group, values, place = true) {
     if (isTri(group)) return paintTriValues(group, values);
     const multi = isMulti(group);
     const items = itemsOf(group);
@@ -43,7 +44,7 @@ export function paint(group, values) {
         item.setAttribute(multi ? 'aria-pressed' : 'aria-checked', String(pressed));
     }
     roving(group);
-    layout(group);
+    if (place) layout(group);
     repaintFold(group);
     writeGroupTrack(group);
 }

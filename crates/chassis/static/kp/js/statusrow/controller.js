@@ -2,10 +2,11 @@
 // `data-state` changes, and for a calm list its keys and its options read live.
 
 import { Controller } from '../controller.js';
+import { resolveEngineKeys } from '../key-spec.js';
 import { registerShortcuts } from '../shortcuts.js';
 import { getStrings } from '../strings.js';
 import { settleToday, turn } from './list.js';
-import { STATUS_ID_ATTRIBUTE, STATUS_RETRY_EVENT, isCalm } from './state.js';
+import { STATUS_ID_ATTRIBUTE, STATUS_RESUME_KEY, STATUS_RESUME_KEY_ATTRIBUTE, STATUS_RETRY_EVENT, isCalm } from './state.js';
 import { syncItem } from './sync.js';
 import { regionOf } from './voice.js';
 
@@ -90,7 +91,8 @@ export class StatusList extends Controller {
             const button = row?.querySelector('[data-kp-status-resume-button]');
             if (row && button instanceof HTMLButtonElement && !button.disabled) turn(list, row, 'resume');
         };
-        this.own(registerShortcuts(list, [{ keys: 'r', what: getStrings().statusResume, group: 'Today', when: focusedPaused, run: resume }]));
+        const key = resolveEngineKeys(list, STATUS_RESUME_KEY_ATTRIBUTE, /** @type {string | false | undefined} */ (this.options.resumeKey), STATUS_RESUME_KEY);
+        if (key !== null) this.own(registerShortcuts(list, [{ keys: key, what: getStrings().statusResume, group: 'Today', when: focusedPaused, run: resume }]));
     }
 
     /** @param {KeyboardEvent} event */

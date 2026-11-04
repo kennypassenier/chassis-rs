@@ -19,13 +19,33 @@ import { chromeOf, finishFit, lineHeightOf, readFit, stageFit } from './fit.js';
  */
 
 /**
+ * Whether a closed `<details>` hides the box, decided from the DOM alone: a closed details renders only its first `<summary>`, so
+ * a box inside any other child of it is not rendered. No layout is read, so a form of boxes in closed details leaves the page's
+ * first layout to whoever really needs it.
+ * @param {Element} area
+ */
+export function inClosedDetails(area) {
+    for (let d = area.closest('details'); d; d = d.parentElement?.closest('details') ?? null) {
+        if (d.open) continue;
+        const summary = d.querySelector(':scope > summary');
+        if (!summary?.contains(area)) return true;
+    }
+    return false;
+}
+
+/**
  * Whether a box is left for later: it asked to skip hidden content (`data-kp-autosize-hidden="skip"`) and its content is not
  * rendered, so reading it would make the browser lay that hidden content out (in a closed `<details>` of forty rows that was
- * 60 ms a box). Its width is forgotten, so the resize observer measures it the moment it shows.
+ * 60 ms a box). A closed `<details>` is known from the DOM without a layout read (`inClosedDetails`); any other cause of hiding
+ * (`display: none`, `content-visibility`) is asked of `checkVisibility`. Its width is forgotten, so the resize observer measures
+ * it the moment it shows.
  * @param {import('./controller.js').AutosizeController} c
  */
 export function leftForLater(c) {
-    if (c.hiddenMode() !== 'skip' || typeof c.area.checkVisibility !== 'function' || c.area.checkVisibility()) return false;
+    if (c.hiddenMode() !== 'skip') return false;
+    if (!inClosedDetails(c.area)) {
+        if (typeof c.area.checkVisibility !== 'function' || c.area.checkVisibility()) return false;
+    }
     c.width = -1;
     return true;
 }

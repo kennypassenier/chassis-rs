@@ -29,6 +29,7 @@
  * @property {string} weekdaysLastDay  The last day of the month in words [kpadopt5-time]
  * @property {string} weekdaysAnd  The word that joins the last two days of a list: "Mon and Thu" [kpadopt5-time]
  * @property {string} weekdaysPresets  The quick picks' group name for a screen reader [kpadopt5-time]
+ * @property {(label: string) => string} weekdaysPresetsFor  The same group when the picker has its own label: "Quick picks for Days of dose 2" [rownames-1104]
  * @property {string} weekdaysPresetWeekdays  The quick pick for Monday to Friday [kpadopt5-time]
  * @property {string} weekdaysPresetWeekend  The quick pick for Saturday and Sunday [kpadopt5-time]
  * @property {string} weekdaysPresetEvery  The quick pick for all seven days [kpadopt5-time]
@@ -89,6 +90,7 @@ export const RANGE_WEEKDAYS_RUNS_STRINGS = {
     weekdaysLastDay: 'last day',
     weekdaysAnd: 'and',
     weekdaysPresets: 'Quick picks',
+    weekdaysPresetsFor: (label) => `Quick picks for ${label}`,
     weekdaysPresetWeekdays: 'Weekdays',
     weekdaysPresetWeekend: 'Weekend',
     weekdaysPresetEvery: 'Every day',

@@ -61,7 +61,8 @@ export class SelectControl extends Controller {
         this.listen(select, 'change', () => this.onChange());
         // A press in the list must not take focus from the select.
         this.listen(list, 'mousedown', (event) => event.preventDefault());
-        this.build();
+        // The list is filled from the select's options each time it opens (`open()`), so a closed list stays empty until then: a page
+        // of 261 selects built 261 lists nobody had asked to see [attach-1104]. `handle.refresh()` still fills it on request.
         selectHandles.set(select, this.handle);
         select.dataset.kpSelectAttached = '';
     }

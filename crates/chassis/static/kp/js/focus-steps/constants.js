@@ -115,3 +115,34 @@ export const SWIPE_DISTANCE = 56;
 export const STATES = new WeakMap();
 /** @type {WeakSet<Element>} */
 export const WIRED = new WeakSet();
+
+// The keys of the view are options with a default [keys3-1104]: each is a key spec (js/key-spec.js) read from the root's attribute or
+// the JS option of the same name, `none` switches it off. A key a person types in a field never reaches them.
+/** On the root: the keys that go on to the next step (a key spec; `none` for no key). */
+export const FOCUS_STEPS_NEXT_KEY_ATTRIBUTE = 'data-kp-focus-steps-next-key';
+/** The keys that go on when the root names none: ArrowRight (ArrowLeft right to left), PageDown and Space (not while a control has the focus). */
+export const FOCUS_STEPS_NEXT_KEY = 'ArrowRight or PageDown or Space';
+/** On the root: the keys that go back one step (a key spec; `none` for no key). */
+export const FOCUS_STEPS_PREVIOUS_KEY_ATTRIBUTE = 'data-kp-focus-steps-previous-key';
+/** The keys that go back when the root names none: ArrowLeft (ArrowRight right to left) and PageUp. */
+export const FOCUS_STEPS_PREVIOUS_KEY = 'ArrowLeft or PageUp';
+/** On the root, on a question with a same-as-yesterday answer: the key that takes it (a key spec; `none` for no key). */
+export const FOCUS_STEPS_SAME_YESTERDAY_KEY_ATTRIBUTE = 'data-kp-focus-steps-same-yesterday-key';
+/** The key that takes the same as yesterday when the root names none. */
+export const FOCUS_STEPS_SAME_YESTERDAY_KEY = 's';
+/** On the root, on a question with a usual answer: the key that takes it (a key spec; `none` for no key). */
+export const FOCUS_STEPS_SAME_USUAL_KEY_ATTRIBUTE = 'data-kp-focus-steps-same-usual-key';
+/** The key that takes the usual answer when the root names none. */
+export const FOCUS_STEPS_SAME_USUAL_KEY = 'u';
+/** On the root, on a question that can be skipped: the key that says Not today (a key spec; `none` for no key). */
+export const FOCUS_STEPS_SKIP_KEY_ATTRIBUTE = 'data-kp-focus-steps-skip-key';
+/** The key that says Not today when the root names none. */
+export const FOCUS_STEPS_SKIP_KEY = 'n';
+/** On the root, with tracks: the key that goes to the next track (a key spec; `none` for no key). */
+export const FOCUS_STEPS_TRACK_NEXT_KEY_ATTRIBUTE = 'data-kp-focus-steps-track-next-key';
+/** The key that goes to the next track when the root names none. */
+export const FOCUS_STEPS_TRACK_NEXT_KEY = 't';
+/** On the root, with tracks: the key that goes to the previous track (a key spec; `none` for no key). */
+export const FOCUS_STEPS_TRACK_PREVIOUS_KEY_ATTRIBUTE = 'data-kp-focus-steps-track-previous-key';
+/** The key that goes to the previous track when the root names none (the engine's own spelling, as the shortcut sheet prints it; `Shift+T` reads the same). */
+export const FOCUS_STEPS_TRACK_PREVIOUS_KEY = 'Shift T';

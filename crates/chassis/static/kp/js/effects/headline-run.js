@@ -3,6 +3,7 @@
 
 import { HEADLINE_ROUTINES, ROUTINES, STATE, TEXT_ATTRIBUTE, TIMINGS } from '../effects.js';
 import { END_GRACE_MS, arrive, draw, ink, tracking } from './headline-special.js';
+import { REPEAT_ATTRIBUTE } from '../effects-core/knobs.js';
 import { decipher, typeOut, words, WORD_ROUTINES } from './headline-text.js';
 
 /** @typedef {import('../effects.js').EffectsContext} EffectsContext */
@@ -69,7 +70,17 @@ export class HeadlineRun {
             this.rest(true);
             return;
         }
+        this.playAfterAll();
         this.perform();
+    }
+
+    /**
+     * The head snippet marked the page as a repeat view and left its title legible [title-1270]; this headline plays after all
+     * (`data-kp-reveal-every="load"`, or text the page has not shown), so the mark comes off and the register hides the title for
+     * its wipe again.
+     */
+    playAfterAll() {
+        if (this.el.matches('h1')) this.ctx.doc.documentElement.removeAttribute(REPEAT_ATTRIBUTE);
     }
 
     /** Hand the element to the routine it asked for. */
