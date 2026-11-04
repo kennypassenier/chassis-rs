@@ -7,6 +7,105 @@ scaffold writes. A breaking change in either is a major and carries a
 
 ## [Unreleased]
 
+## [4.8.0] - 2026-11-04
+
+Kenny's go "chassis-go: JA" (2026-11-04 16:47): once kp-themes 12.7.0 was out,
+vendor it, fix every collected open item that Kenny did not park, and release
+without stopping. Choices along the way took the recommended option and are
+listed under "Choices made". Parked by Kenny and left out: K33 homelab_stack,
+W5 route allow-lists, H7 passkeys behind Traefik, feat-dep-1 registry, the
+surface narrowing with its 5 removals (next major), the kp-themes dense touch
+parts.
+
+### Changed (kp-themes 12.7.0)
+- kp-themes 12.7.0 vendored (1917 files checked against its SHA256SUMS). For
+  apps (all opt-in unless noted):
+  - `data-kp-connection-layout="steady"`, `data-kp-tabbar-labels="wrap"`,
+    `th[data-kp-col="grow"]`, and a `syncing` state on the connection band;
+  - toolbar chips wrap onto more lines on a phone by default;
+    `data-kp-toolbar-chips="scroll"` keeps the old one-line scroller;
+  - every component shortcut is a key-spec option, and
+    `dist/js/key-spec.js` / `dist/bundle/key-spec.js` are importable;
+  - `data-kp-undo-focus-key` (default Alt+Z) moves the focus to the newest
+    undo toast's button;
+  - the formal page title wipes in 240 ms and a repeat view shows it at
+    rest (through `noFlashSnippet({ effects: true })`; the kit's own
+    theme-boot.js does not arm the reveals, so kit pages are unchanged);
+  - Kitchen: `data-kp-sequencer-paint="once"`, `data-kp-autosize-first="frame"`,
+    `data-kp-autosize-hidden="skip"` and `registerShortcuts` entries with
+    `where: 'field'` (Alt+Up/Down on the sheet);
+  - Medicine Cabinet: `{n}` in row editor labels for per-row names, and
+    `.kp-addrow--line` (tests/fixtures/add-row-line.html in kp-themes).
+- The nav brand's tap area is kp-themes' own: under a coarse pointer it
+  measures 77x30 px as a box but answers taps over 45 px of height
+  (elementFromPoint, Firefox, 390 px), so the kit's old lift stays gone
+  (HTTPSwitchboard's 175x30 report, closed as measured).
+
+### Added
+- `chassis::PageData` and `window.chassisPageData` (kyu, Almanac 40): a
+  page names its data parts once; `GET <path>` reads them side by side in one
+  200 answer where a failing or slow part is its own `{error, remedy,
+  status}`, and `GET <path>/<name>` reads one part alone. The browser half
+  falls back to the per-part routes when the merged read fails. Docs:
+  docs/WEBAPP.md. [feat-page-data-1]
+- `window.chassisFetchJson(url, { method, body, signal, headers })` on every
+  web-app page and kit page (homelab kept three copies): it resolves to
+  `{ ok, status, body, error, remedy }`, and a 401 or a followed redirect to
+  `/login` sends the page to `/login?next=<page>` once. [fix-fetch-401-1]
+
+- `chassisData.db.persistent` (Medicine Cabinet (h)): whether the local
+  database lives in IndexedDB (`true`) or fell back to memory (`false`, with
+  one console warning naming the flag). On the facade handed out before the
+  database is open it is a promise: `await chassisData.db.persistent`.
+  [fix-mc-data-h]
+- `chassis-data-refused` (Medicine Cabinet (g)): a queued write the service
+  finally refuses (failed or dropped) fires this event with
+  `{ entry, status, answer }`, and every `chassisData.db` watcher redraws
+  with reason `'refused'`, so a list no longer keeps a create that never
+  happened. [fix-mc-data-g]
+
+### Fixed
+- The failed-edit notice follows the status (Medicine Cabinet (e)): 409/412
+  still say the item was changed elsewhere; any other refusal (a 400 name
+  refusal, a 422) says why in the service's own words, error and remedy
+  joined with a full stop (the failed-edits drawer's second line too).
+  [fix-mc-data-e]
+- A failed replay on the browser's `online` event is a console warning, not
+  an unhandled rejection (Medicine Cabinet (d)). The `online` replay itself
+  already ran once the app called `configure()` (data.js), now pinned by a
+  test; if Medicine Cabinet still sees writes wait for the 30 s timer, its
+  page has not called `chassisData.configure()` yet. [fix-mc-data-d]
+- An app's own `<script src>` for kp-themes (the bundle, with or without its
+  own `?v=`, or a split entry under `dist/js/`) started a second kp-themes
+  runtime, because an import map never reaches a script tag (kyu C1: 4 of 7
+  pages; Almanac 39: 4 runtimes). Every such tag on a web-app page or a
+  kit-rendered page is rewritten to the URL the map gives, and the log names
+  each tag once so the app can drop it. [fix-kp-tag-1]
+- A warm kit page asked the server again for nearly every static file:
+  116 of 125 on the Status page (115 answered 304), Firefox. The kit's
+  scripts and the register stylesheet now load from
+  `/static/v-<asset version>/…`, cached for good together with every module
+  they import relatively, and the import map sends kp-themes' entries to the
+  versioned facades. After: 1 of 125 (the status API). An older version's URL
+  still answers, with `no-cache`. [fix-warm-1]
+- `/login?next=<page>` from a browser that is already signed in (a live
+  session, or a trusted admin address) went to `/`; it now goes to the safe
+  `next` (Kitchen 04/11 #3). [fix-login-next-2]
+- The service worker's answer never rejects any more: when the network-first
+  answer and the plain fetch both fail, or the page gave the request up, it
+  answers a quiet 504 instead of the "ServiceWorker intercepted the request
+  and encountered an unexpected error" line (Kitchen C2, `/pwa/icon-192.png`
+  on /status). Not reproduced on a minimal kit web app in headless Firefox
+  (0 errors before and after); Kitchen measures it on its own pages.
+  [fix-sw-icon-1]
+
+### Choices made
+- API pattern (kyu, Almanac 40): the generic, opt-in shape above (named
+  parts, one merged read, per-part errors). No ETag on the merged read: the
+  kit's JSON answers are `no-store`, so a browser keeps nothing to revalidate.
+  The kit status is not a built-in part: a page reads `/api/kit/status` next
+  to its own parts, or wraps it in a part itself.
+
 ## [4.7.0] - 2026-11-04
 
 Kenny's release-470 form: "Uitbrengen"; kp-shape "Eén bestand"; tabbar "Max 4
