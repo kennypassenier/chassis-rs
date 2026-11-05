@@ -7,9 +7,13 @@ a graceful stop, a dashboard with per-client tokens (and passkeys behind a
 TLS proxy), a signed self-update with three modes, and per-event webhooks —
 and writes only what it does itself.
 
-**Status: 1.8.0 released 2026-09-09 (kit batch 3 + kp-themes 5.0.0); batch 4, round 5 and kp-themes 5.1.0 on `main`, unreleased.**
-Four services run on the kit — almanac, kyu, kyu-runner, http-switchboard —
-and the example service `examples/inbox` is the reference consumer.
+**Status:** the released version is `version` in `crates/chassis/Cargo.toml`;
+what each release changed is in `CHANGELOG.md`. The vendored kp-themes version
+is in `crates/chassis/static/kp/dist/VERSION`.
+Services that run on the kit include almanac, kyu, kyu-runner,
+http-switchboard and the homelab dashboard (`homelab-admin`); the CHANGELOG
+also names Kitchen, Medicine Cabinet and habits. The example service
+`examples/inbox` is the reference consumer.
 
 ## In one file
 
@@ -23,11 +27,20 @@ file, login, tokens, health, metrics, shutdown — is the kit's.
 | Feature | What it adds | Default |
 |---|---|---|
 | `core` | config (flag > env > file > default), logging, errors with a remedy, `/healthz`, `/metrics`, graceful stop, request-id, guards | on |
-| `dashboard` | login with a token + session, Clients page (issue/reveal/copy/revoke, last requests, test button), status page, kp-themes 5.1.0 (25 themes, registers, fonts) | off |
+| `storage` | the sqlite storage layer: the kit file (clients, sessions, passkeys) and the app file with a budget (`chassis::storage`) | on |
+| `dashboard` | login with a token + session, Clients page (issue/reveal/copy/revoke, last requests, test button), status page, the vendored kp-themes (themes, registers, fonts); implies `assets` and `storage` | off |
+| `assets` | the vendored kp-themes files and fonts alone, for a project that keeps its own dashboard under the kit's CSP | off |
+| `webapp` | a project's own static browser app under one path, behind the dashboard's login (implies `dashboard`) | off |
+| `push` | Web Push for the installed web app: subscriptions in the kit file, VAPID signing (implies `webapp`) | off |
+| `live` | a Server-Sent Events channel a project publishes to | off |
+| `request-guard` | a project's own checks in front of every route (Cloudflare Access, an address allow-list), before the kit's login | off |
 | `passkeys` | WebAuthn login behind a TLS proxy (`<P>_PUBLIC_URL`, `<P>_TRUSTED_PROXIES`); pulls OpenSSL | off |
 | `self-update` | `off` / `supervised` (`<name> update`) / `autonomous`, minisign-verified, staged probe, rollback | off |
 | `notify` | `[[notify.webhook]]` per event, retries, fallback | off |
+| `source-maps` | embeds the source maps (about 12 MB) of kp-themes and the kit's JS and CSS | off |
 | `testing` | `chassis::testing` — start the app in-process on port 0, log in, issue a client, post with its token, fetch a page; a project's dev-dependency (implies `dashboard`) | off |
+
+The feature comments in `crates/chassis/Cargo.toml` are the source for this table.
 
 ## The `chassis` command
 
